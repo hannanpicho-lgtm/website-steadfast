@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import { Header } from '../components/Header';
@@ -60,10 +60,13 @@ export default function Support() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [recentlyUpdatedTicketIds, setRecentlyUpdatedTicketIds] = useState<string[]>([]);
   const [expandedTicket, setExpandedTicket] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [supportLinks, setSupportLinks] = useState<SupportLinks>(defaultSupportLinks);
+  const ticketUpdatedAtRef = useRef<Record<string, string>>({});
+  const ticketHighlightTimeoutsRef = useRef<Record<string, number>>({});
   
   // New ticket form
   const [subject, setSubject] = useState('');
@@ -74,6 +77,45 @@ export default function Support() {
   const sessionUsername = getCurrentUsername();
   const username = sessionUsername ?? 'ugreen';
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+
+  useEffect(() => {
+    return () => {
+      Object.values(ticketHighlightTimeoutsRef.current).forEach((timeoutId) => window.clearTimeout(timeoutId));
+    };
+  }, []);
+
+  const markTicketsAsRecentlyUpdated = (ticketIds: string[]) => {
+    if (ticketIds.length === 0) {
+      return;
+    }
+
+    setRecentlyUpdatedTicketIds((prev) => [...new Set([...prev, ...ticketIds])]);
+
+    ticketIds.forEach((ticketId) => {
+      const existingTimeout = ticketHighlightTimeoutsRef.current[ticketId];
+      if (existingTimeout) {
+        window.clearTimeout(existingTimeout);
+      }
+
+      ticketHighlightTimeoutsRef.current[ticketId] = window.setTimeout(() => {
+        setRecentlyUpdatedTicketIds((prev) => prev.filter((id) => id !== ticketId));
+        delete ticketHighlightTimeoutsRef.current[ticketId];
+      }, 12000);
+    });
+  };
+
+  const applyFetchedTickets = (nextTickets: Ticket[], silent: boolean) => {
+    const previousUpdatedAt = ticketUpdatedAtRef.current;
+    const updatedTicketIds = silent
+      ? nextTickets
+          .filter((ticket) => previousUpdatedAt[ticket.id] && previousUpdatedAt[ticket.id] !== ticket.updatedAt)
+          .map((ticket) => ticket.id)
+      : [];
+
+    ticketUpdatedAtRef.current = Object.fromEntries(nextTickets.map((ticket) => [ticket.id, ticket.updatedAt]));
+    setTickets(nextTickets);
+    markTicketsAsRecentlyUpdated(updatedTicketIds);
+  };
 
   useEffect(() => {
     if (!sessionUsername) {
@@ -120,7 +162,7 @@ export default function Support() {
       }
 
       const data = await response.json();
-      setTickets(data);
+      applyFetchedTickets(data, silent);
     } catch (error) {
       console.error('Error fetching tickets:', error);
     } finally {
@@ -459,7 +501,10 @@ export default function Support() {
           ) : (
             <div className="space-y-4">
               {tickets.map((ticket) => (
-                <div key={ticket.id} className="bg-[#1a1f2e] rounded-lg border border-gray-700 overflow-hidden">
+                <div
+                  key={ticket.id}
+                  className={`rounded-lg border overflow-hidden transition-all ${recentlyUpdatedTicketIds.includes(ticket.id) ? 'bg-[#22314f] border-[#5dade2] ring-2 ring-[#5dade2]/30 shadow-lg' : 'bg-[#1a1f2e] border-gray-700'}`}
+                >
                   {/* Ticket Header */}
                   <div
                     onClick={() => setExpandedTicket(expandedTicket === ticket.id ? null : ticket.id)}
@@ -494,6 +539,9 @@ export default function Support() {
                         {new Date(ticket.createdAt).toLocaleString()}
                       </div>
                     </div>
+                    {recentlyUpdatedTicketIds.includes(ticket.id) && (
+                      <p className="text-xs font-semibold text-[#8fdcff] mt-3">New activity</p>
+                    )}
                   </div>
 
                   {/* Ticket Details */}

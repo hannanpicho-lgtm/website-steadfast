@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import LiveChatAdmin from './LiveChatAdmin';
@@ -67,6 +67,7 @@ export default function CustomerSupport() {
   const [tickets, setTickets] = useState<TicketType[]>([]);
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [recentlyUpdatedTicketIds, setRecentlyUpdatedTicketIds] = useState<string[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [filterStatus, setFilterStatus] = useState('all');
@@ -78,8 +79,49 @@ export default function CustomerSupport() {
   const [supportEmail, setSupportEmail] = useState(defaultSupportLinks.supportEmail);
   const [savedSupportLinks, setSavedSupportLinks] = useState<SupportLinks>(defaultSupportLinks);
   const [isEditingLinks, setIsEditingLinks] = useState(false);
+  const ticketUpdatedAtRef = useRef<Record<string, string>>({});
+  const ticketHighlightTimeoutsRef = useRef<Record<string, number>>({});
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+
+  useEffect(() => {
+    return () => {
+      Object.values(ticketHighlightTimeoutsRef.current).forEach((timeoutId) => window.clearTimeout(timeoutId));
+    };
+  }, []);
+
+  const markTicketsAsRecentlyUpdated = (ticketIds: string[]) => {
+    if (ticketIds.length === 0) {
+      return;
+    }
+
+    setRecentlyUpdatedTicketIds((prev) => [...new Set([...prev, ...ticketIds])]);
+
+    ticketIds.forEach((ticketId) => {
+      const existingTimeout = ticketHighlightTimeoutsRef.current[ticketId];
+      if (existingTimeout) {
+        window.clearTimeout(existingTimeout);
+      }
+
+      ticketHighlightTimeoutsRef.current[ticketId] = window.setTimeout(() => {
+        setRecentlyUpdatedTicketIds((prev) => prev.filter((id) => id !== ticketId));
+        delete ticketHighlightTimeoutsRef.current[ticketId];
+      }, 12000);
+    });
+  };
+
+  const applyFetchedTickets = (nextTickets: TicketType[], silent: boolean) => {
+    const previousUpdatedAt = ticketUpdatedAtRef.current;
+    const updatedTicketIds = silent
+      ? nextTickets
+          .filter((ticket) => previousUpdatedAt[ticket.id] && previousUpdatedAt[ticket.id] !== ticket.updatedAt)
+          .map((ticket) => ticket.id)
+      : [];
+
+    ticketUpdatedAtRef.current = Object.fromEntries(nextTickets.map((ticket) => [ticket.id, ticket.updatedAt]));
+    setTickets(nextTickets);
+    markTicketsAsRecentlyUpdated(updatedTicketIds);
+  };
 
   const refreshActiveTab = () => {
     if (activeTab === 'tickets') {
@@ -143,7 +185,7 @@ export default function CustomerSupport() {
       }
 
       const data = await response.json();
-      setTickets(data);
+      applyFetchedTickets(data, silent);
     } catch (error) {
       console.error('Error fetching tickets:', error);
     } finally {
@@ -494,7 +536,10 @@ export default function CustomerSupport() {
           ) : (
             <div className="space-y-4">
               {filteredTickets.map((ticket) => (
-                <div key={ticket.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div
+                  key={ticket.id}
+                  className={`rounded-lg border overflow-hidden transition-all ${recentlyUpdatedTicketIds.includes(ticket.id) ? 'bg-blue-50 border-blue-300 ring-2 ring-blue-200 shadow-lg' : 'bg-white border-gray-200'}`}
+                >
                   <div
                     onClick={() => setSelectedTicket(selectedTicket === ticket.id ? null : ticket.id)}
                     className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
@@ -523,6 +568,9 @@ export default function CustomerSupport() {
                         {new Date(ticket.createdAt).toLocaleString()}
                       </div>
                     </div>
+                    {recentlyUpdatedTicketIds.includes(ticket.id) && (
+                      <p className="text-xs font-semibold text-blue-700 mt-3">Recently updated</p>
+                    )}
                   </div>
 
                   {selectedTicket === ticket.id && (
