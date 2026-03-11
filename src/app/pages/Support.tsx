@@ -62,7 +62,7 @@ export default function Support() {
   const [submitting, setSubmitting] = useState(false);
   const [expandedTicket, setExpandedTicket] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
-  const [replyMessage, setReplyMessage] = useState('');
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [supportLinks, setSupportLinks] = useState<SupportLinks>(defaultSupportLinks);
   
   // New ticket form
@@ -188,6 +188,7 @@ export default function Support() {
   };
 
   const handleReply = async (ticketId: string) => {
+    const replyMessage = replyDrafts[ticketId]?.trim() ?? '';
     if (!replyMessage.trim()) {
       toast.error('Please enter a message.');
       return;
@@ -212,7 +213,11 @@ export default function Support() {
         throw new Error('Failed to send reply');
       }
 
-      setReplyMessage('');
+      setReplyDrafts((prev) => {
+        const next = { ...prev };
+        delete next[ticketId];
+        return next;
+      });
       setReplyingTo(null);
       await fetchTickets();
       toast.success('Reply sent successfully.');
@@ -521,8 +526,8 @@ export default function Support() {
                           {replyingTo === ticket.id ? (
                             <div className="space-y-3">
                               <textarea
-                                value={replyMessage}
-                                onChange={(e) => setReplyMessage(e.target.value)}
+                                value={replyDrafts[ticket.id] ?? ''}
+                                onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [ticket.id]: e.target.value }))}
                                 placeholder="Type your reply..."
                                 rows={3}
                                 className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-[#00D9FF] focus:outline-none resize-none"
@@ -538,7 +543,11 @@ export default function Support() {
                                 <button
                                   onClick={() => {
                                     setReplyingTo(null);
-                                    setReplyMessage('');
+                                    setReplyDrafts((prev) => {
+                                      const next = { ...prev };
+                                      delete next[ticket.id];
+                                      return next;
+                                    });
                                   }}
                                   className="px-4 bg-gray-700 text-white py-2 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
                                 >

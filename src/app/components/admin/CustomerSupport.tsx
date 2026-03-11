@@ -68,7 +68,7 @@ export default function CustomerSupport() {
   const [chats, setChats] = useState<ChatSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
-  const [replyMessage, setReplyMessage] = useState('');
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -203,6 +203,7 @@ export default function CustomerSupport() {
   };
 
   const handleReply = async (ticketId: string) => {
+    const replyMessage = replyDrafts[ticketId]?.trim() ?? '';
     if (!replyMessage.trim()) {
       toast.error('Please enter a message.');
       return;
@@ -227,7 +228,11 @@ export default function CustomerSupport() {
         throw new Error('Failed to send reply');
       }
 
-      setReplyMessage('');
+      setReplyDrafts((prev) => {
+        const next = { ...prev };
+        delete next[ticketId];
+        return next;
+      });
       await fetchTickets();
       toast.success('Reply sent successfully.');
     } catch (error) {
@@ -500,7 +505,7 @@ export default function CustomerSupport() {
                               </div>
                               <p className="text-gray-700">{response.message}</p>
                             </div>
-                          ))}\
+                          ))}
                         </div>
                       )}
 
@@ -533,8 +538,8 @@ export default function CustomerSupport() {
                         {ticket.status !== 'closed' && (
                           <div className="space-y-2">
                             <textarea
-                              value={replyMessage}
-                              onChange={(e) => setReplyMessage(e.target.value)}
+                              value={replyDrafts[ticket.id] ?? ''}
+                              onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [ticket.id]: e.target.value }))}
                               placeholder="Type your reply..."
                               rows={3}
                               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none resize-none"
