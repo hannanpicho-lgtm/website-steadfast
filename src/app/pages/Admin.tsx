@@ -156,8 +156,26 @@ const productSystemConfig = {
   requireProductConfirmation: true
 };
 
+type SalaryPayment = {
+  id: number;
+  username: string;
+  daysWorked: number;
+  salaryDue: number;
+  status: 'Pending' | 'Paid';
+  dueDate: string;
+  paidDate?: string;
+  paymentMode: 'Automatic' | 'Manual';
+};
+
+type SalaryRestorePoint = {
+  id: number;
+  createdAt: string;
+  label: string;
+  payments: SalaryPayment[];
+};
+
 // Salary Payment System
-const salaryPayments = [
+const initialSalaryPayments: SalaryPayment[] = [
   { id: 1, username: 'user001', daysWorked: 15, salaryDue: 3060, status: 'Pending', dueDate: '2024-03-10', paymentMode: 'Automatic' },
   { id: 2, username: 'user002', daysWorked: 22, salaryDue: 4488, status: 'Paid', dueDate: '2024-03-09', paidDate: '2024-03-09', paymentMode: 'Automatic' },
   { id: 3, username: 'user003', daysWorked: 30, salaryDue: 6120, status: 'Pending', dueDate: '2024-03-10', paymentMode: 'Manual' },
@@ -201,6 +219,9 @@ export default function Admin() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [activeAdminTab, setActiveAdminTab] = useState('admins');
   const [activeRewardTab, setActiveRewardTab] = useState('workday');
+  const [salaryPayments, setSalaryPayments] = useState<SalaryPayment[]>(initialSalaryPayments);
+  const [salaryRestorePoints, setSalaryRestorePoints] = useState<SalaryRestorePoint[]>([]);
+  const [selectedBulkOption, setSelectedBulkOption] = useState<'all' | 'auto' | 'manual'>('all');
 
   const menuItems: MenuItem[] = [
     { id: 'home', label: 'Dashboard', icon: <Home size={18} /> },
@@ -234,6 +255,93 @@ export default function Admin() {
     const withdrawal = mockWithdrawals.find(w => w.id === id);
     setSelectedItem(withdrawal);
     setModalType('reject-withdrawal');
+  };
+
+  const createSalaryRestorePoint = (label: string, paymentsSnapshot: SalaryPayment[] = salaryPayments) => {
+    const point: SalaryRestorePoint = {
+      id: Date.now(),
+      createdAt: new Date().toISOString(),
+      label,
+      payments: paymentsSnapshot.map((payment) => ({ ...payment })),
+    };
+
+    setSalaryRestorePoints((prev) => [point, ...prev].slice(0, 5));
+  };
+
+  const processSingleSalaryPayment = (paymentId: number) => {
+    const target = salaryPayments.find((payment) => payment.id === paymentId);
+    if (!target || target.status !== 'Pending') {
+      toast.info('Selected salary is already processed.');
+      setModalType(null);
+      return;
+    }
+
+    createSalaryRestorePoint(`Single payment: ${target.username}`);
+
+    const paidDate = new Date().toISOString().slice(0, 10);
+    setSalaryPayments((prev) =>
+      prev.map((payment) =>
+        payment.id === paymentId
+          ? { ...payment, status: 'Paid', paidDate }
+          : payment
+      )
+    );
+
+    toast.success(`Salary paid successfully for ${target.username}.`);
+    setModalType(null);
+  };
+
+  const processBulkSalaryPayments = (option: 'all' | 'auto' | 'manual') => {
+    const pendingPayments = salaryPayments.filter((payment) => payment.status === 'Pending');
+    let targetIds: number[] = [];
+
+    if (option === 'all') {
+      targetIds = pendingPayments.map((payment) => payment.id);
+    }
+
+    if (option === 'auto') {
+      targetIds = pendingPayments
+        .filter((payment) => payment.paymentMode === 'Automatic')
+        .map((payment) => payment.id);
+    }
+
+    if (option === 'manual') {
+      targetIds = pendingPayments
+        .filter((payment) => payment.paymentMode === 'Manual')
+        .map((payment) => payment.id);
+    }
+
+    if (targetIds.length === 0) {
+      toast.info('No matching pending salaries for selected mode.');
+      return;
+    }
+
+    createSalaryRestorePoint(`Bulk payment (${option})`);
+
+    const paidDate = new Date().toISOString().slice(0, 10);
+    setSalaryPayments((prev) =>
+      prev.map((payment) =>
+        targetIds.includes(payment.id)
+          ? { ...payment, status: 'Paid', paidDate }
+          : payment
+      )
+    );
+
+    toast.success(`Processed ${targetIds.length} salary payment(s).`);
+    setSelectedBulkOption('all');
+    setModalType(null);
+  };
+
+  const restoreLatestSalaryPoint = () => {
+    if (salaryRestorePoints.length === 0) {
+      toast.info('No restore points available.');
+      return;
+    }
+
+    const [latest, ...remaining] = salaryRestorePoints;
+    setSalaryPayments(latest.payments.map((payment) => ({ ...payment })));
+    setSalaryRestorePoints(remaining);
+    toast.success(`Restored: ${latest.label}`);
   };
 
   const renderModal = () => {
@@ -1102,7 +1210,7 @@ export default function Admin() {
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
-                <button onClick={() => { toast.success('Salary paid successfully!'); setModalType(null); }} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+                <button onClick={() => processSingleSalaryPayment(selectedItem.id)} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
                   <Send size={18} />
                   Process Payment
                 </button>
@@ -1153,21 +1261,21 @@ export default function Admin() {
                 </div>
                 <div className="space-y-2">
                   <label className="flex items-center gap-2 p-3 bg-[#1a1f2e] rounded-lg hover:bg-[#252b3d] cursor-pointer">
-                    <input type="radio" name="bulkOption" value="all" defaultChecked className="w-4 h-4 text-[#00D9FF] focus:ring-[#00D9FF]" />
+                    <input type="radio" name="bulkOption" value="all" checked={selectedBulkOption === 'all'} onChange={() => setSelectedBulkOption('all')} className="w-4 h-4 text-[#00D9FF] focus:ring-[#00D9FF]" />
                     <span className="text-white font-medium">Process all pending payments</span>
                   </label>
                   <label className="flex items-center gap-2 p-3 bg-[#1a1f2e] rounded-lg hover:bg-[#252b3d] cursor-pointer">
-                    <input type="radio" name="bulkOption" value="auto" className="w-4 h-4 text-[#00D9FF] focus:ring-[#00D9FF]" />
+                    <input type="radio" name="bulkOption" value="auto" checked={selectedBulkOption === 'auto'} onChange={() => setSelectedBulkOption('auto')} className="w-4 h-4 text-[#00D9FF] focus:ring-[#00D9FF]" />
                     <span className="text-white font-medium">Process only automatic mode payments</span>
                   </label>
                   <label className="flex items-center gap-2 p-3 bg-[#1a1f2e] rounded-lg hover:bg-[#252b3d] cursor-pointer">
-                    <input type="radio" name="bulkOption" value="manual" className="w-4 h-4 text-[#00D9FF] focus:ring-[#00D9FF]" />
+                    <input type="radio" name="bulkOption" value="manual" checked={selectedBulkOption === 'manual'} onChange={() => setSelectedBulkOption('manual')} className="w-4 h-4 text-[#00D9FF] focus:ring-[#00D9FF]" />
                     <span className="text-white font-medium">Process only manual mode payments</span>
                   </label>
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
-                <button onClick={() => { toast.success('All salaries processed!'); setModalType(null); }} className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+                <button onClick={() => processBulkSalaryPayments(selectedBulkOption)} className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
                   <Coins size={18} />
                   Process Selected
                 </button>
@@ -1994,10 +2102,16 @@ export default function Admin() {
                 <h2 className="text-2xl font-bold text-white">Rewards & Salary System</h2>
                 <p className="text-gray-400 text-sm mt-1">Manage all reward schemes, salaries, and bonus systems</p>
               </div>
-              <button onClick={() => setModalType('pay-salary-bulk')} className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white px-5 py-2.5 rounded-lg font-semibold transition-colors shadow-lg">
-                <Coins size={18} />
-                Process Salaries
-              </button>
+              <div className="flex items-center gap-3">
+                <button onClick={restoreLatestSalaryPoint} className="flex items-center gap-2 bg-[#3b4258] hover:bg-[#4a536f] text-white px-4 py-2.5 rounded-lg font-semibold transition-colors">
+                  <RefreshCw size={18} />
+                  Restore Point {salaryRestorePoints.length > 0 ? `(${salaryRestorePoints.length})` : ''}
+                </button>
+                <button onClick={() => setModalType('pay-salary-bulk')} className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white px-5 py-2.5 rounded-lg font-semibold transition-colors shadow-lg">
+                  <Coins size={18} />
+                  Auto Process
+                </button>
+              </div>
             </div>
 
             {/* Tabs */}
