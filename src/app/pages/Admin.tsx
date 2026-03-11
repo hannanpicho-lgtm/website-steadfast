@@ -487,9 +487,11 @@ export default function Admin() {
       return;
     }
 
+    const preRestoreSnapshot = createSalaryRestorePointRecord(`Pre-restore snapshot (${point.label})`, salaryPayments);
     setSalaryPayments(point.payments.map((payment) => ({ ...payment })));
-    setSalaryRestorePoints((prev) => prev.filter((item) => item.id !== pointId));
+    setSalaryRestorePoints((prev) => [preRestoreSnapshot, ...prev.filter((item) => item.id !== pointId)].slice(0, MAX_RESTORE_POINTS));
     lastAutoBackupSignatureRef.current = JSON.stringify(point.payments);
+    appendSalaryAudit(createAuditEvent('pre-restore-snapshot', preRestoreSnapshot.label));
     appendSalaryAudit(createAuditEvent('restore', point.label));
     toast.success(`Restored: ${point.label}`);
   };
@@ -610,7 +612,7 @@ export default function Admin() {
   };
 
   const getAuditActionTone = (action: SalaryAuditEvent['action']) => {
-    if (action === 'restore' || action === 'manual-backup' || action === 'auto-backup' || action === 'import-backups' || action === 'single-payment' || action === 'bulk-payment') {
+    if (action === 'restore' || action === 'manual-backup' || action === 'auto-backup' || action === 'pre-restore-snapshot' || action === 'import-backups' || action === 'single-payment' || action === 'bulk-payment') {
       return 'bg-green-500/20 text-green-300';
     }
     if (action === 'restore-cancel' || action === 'delete-backup' || action === 'clear-backups') {
@@ -2552,6 +2554,7 @@ export default function Admin() {
                   <option value="all">All Actions</option>
                   <option value="auto-backup">Auto Backup</option>
                   <option value="manual-backup">Manual Backup</option>
+                  <option value="pre-restore-snapshot">Pre-Restore Snapshot</option>
                   <option value="restore">Restore</option>
                   <option value="restore-cancel">Restore Cancel</option>
                   <option value="delete-backup">Delete Backup</option>
