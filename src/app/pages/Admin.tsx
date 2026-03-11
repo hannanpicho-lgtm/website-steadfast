@@ -222,6 +222,8 @@ export default function Admin() {
   const [salaryPayments, setSalaryPayments] = useState<SalaryPayment[]>(initialSalaryPayments);
   const [salaryRestorePoints, setSalaryRestorePoints] = useState<SalaryRestorePoint[]>([]);
   const [selectedBulkOption, setSelectedBulkOption] = useState<'all' | 'auto' | 'manual'>('all');
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
+  const [autoBackupIntervalMinutes, setAutoBackupIntervalMinutes] = useState(1);
   const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
   const [isSalaryStateHydrated, setIsSalaryStateHydrated] = useState(false);
   const [pendingRestorePointId, setPendingRestorePointId] = useState<number | null>(null);
@@ -273,6 +275,8 @@ export default function Admin() {
     setSalaryRestorePoints(restored.points);
     setActiveRewardTab(restored.activeRewardTab);
     setSelectedBulkOption(restored.selectedBulkOption);
+    setAutoBackupEnabled(restored.autoBackupEnabled);
+    setAutoBackupIntervalMinutes(restored.autoBackupIntervalMinutes);
     setSalaryAuditLog(loadSalaryAuditLog());
     salaryPaymentsRef.current = restored.payments;
     lastAutoBackupSignatureRef.current = JSON.stringify(restored.payments);
@@ -291,11 +295,21 @@ export default function Admin() {
     saveSalaryProjectAutosave({
       activeRewardTab,
       selectedBulkOption,
+      autoBackupEnabled,
+      autoBackupIntervalMinutes,
       payments: salaryPayments,
       points: salaryRestorePoints,
     });
     setAutoSavedAt(new Date().toISOString());
-  }, [isSalaryStateHydrated, activeRewardTab, selectedBulkOption, salaryPayments, salaryRestorePoints]);
+  }, [
+    isSalaryStateHydrated,
+    activeRewardTab,
+    selectedBulkOption,
+    autoBackupEnabled,
+    autoBackupIntervalMinutes,
+    salaryPayments,
+    salaryRestorePoints,
+  ]);
 
   useEffect(() => {
     if (!isSalaryStateHydrated) {
@@ -320,17 +334,27 @@ export default function Admin() {
     appendSalaryAudit(createAuditEvent(action, `${result.point.label}`));
   };
 
+  const handleAutoBackupEnabledChange = (enabled: boolean) => {
+    setAutoBackupEnabled(enabled);
+    appendSalaryAudit(createAuditEvent('settings-change', `Auto backup ${enabled ? 'enabled' : 'disabled'}`));
+  };
+
+  const handleAutoBackupIntervalChange = (minutes: number) => {
+    setAutoBackupIntervalMinutes(minutes);
+    appendSalaryAudit(createAuditEvent('settings-change', `Auto backup interval ${minutes} min`));
+  };
+
   useEffect(() => {
-    if (!isSalaryStateHydrated) {
+    if (!isSalaryStateHydrated || !autoBackupEnabled) {
       return;
     }
 
     const intervalId = window.setInterval(() => {
       createAutoBackupPoint('auto-backup');
-    }, AUTO_BACKUP_INTERVAL_MS);
+    }, autoBackupIntervalMinutes * AUTO_BACKUP_INTERVAL_MS);
 
     return () => window.clearInterval(intervalId);
-  }, [isSalaryStateHydrated]);
+  }, [isSalaryStateHydrated, autoBackupEnabled, autoBackupIntervalMinutes]);
 
   const createSalaryRestorePoint = (label: string, paymentsSnapshot: SalaryPayment[] = salaryPayments) => {
     const point = createSalaryRestorePointRecord(label, paymentsSnapshot);
@@ -478,6 +502,8 @@ export default function Admin() {
     const payload = buildBackupExport({
       activeRewardTab,
       selectedBulkOption,
+      autoBackupEnabled,
+      autoBackupIntervalMinutes,
       points: salaryRestorePoints,
     });
 
@@ -511,6 +537,12 @@ export default function Admin() {
         }
         if (parsed.selectedBulkOption) {
           setSelectedBulkOption(parsed.selectedBulkOption);
+        }
+        if (typeof parsed.autoBackupEnabled === 'boolean') {
+          setAutoBackupEnabled(parsed.autoBackupEnabled);
+        }
+        if (typeof parsed.autoBackupIntervalMinutes === 'number') {
+          setAutoBackupIntervalMinutes(parsed.autoBackupIntervalMinutes);
         }
         appendSalaryAudit(createAuditEvent('import-backups', `${parsed.points.length} points`));
         toast.success(`Imported ${parsed.points.length} backup point(s).`);
@@ -2336,8 +2368,28 @@ export default function Admin() {
                 <p className="text-gray-500 text-xs mt-1">
                   Autosave: {autoSavedAt ? new Date(autoSavedAt).toLocaleTimeString() : 'waiting for first save'}
                 </p>
+                <p className="text-gray-500 text-xs mt-1">
+                  Auto backup: {autoBackupEnabled ? `on (${autoBackupIntervalMinutes} min)` : 'off'}
+                </p>
               </div>
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleAutoBackupEnabledChange(!autoBackupEnabled)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-semibold transition-colors ${autoBackupEnabled ? 'bg-green-600/30 hover:bg-green-600/40 text-green-200' : 'bg-gray-700 hover:bg-gray-600 text-gray-200'}`}
+                >
+                  {autoBackupEnabled ? 'Auto On' : 'Auto Off'}
+                </button>
+                <select
+                  value={autoBackupIntervalMinutes}
+                  onChange={(event) => handleAutoBackupIntervalChange(Number(event.target.value))}
+                  className="px-3 py-2.5 bg-[#1a1f2e] border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-[#00D9FF]"
+                >
+                  <option value={1}>1 min</option>
+                  <option value={5}>5 min</option>
+                  <option value={15}>15 min</option>
+                  <option value={30}>30 min</option>
+                  <option value={60}>60 min</option>
+                </select>
                 <input
                   ref={importBackupInputRef}
                   type="file"
@@ -2476,6 +2528,7 @@ export default function Admin() {
                   <option value="export-backups">Export Backups</option>
                   <option value="single-payment">Single Payment</option>
                   <option value="bulk-payment">Bulk Payment</option>
+                  <option value="settings-change">Settings Change</option>
                 </select>
               </div>
 

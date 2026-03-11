@@ -24,6 +24,8 @@ export type SalaryBackupExport = {
   uiState: {
     activeRewardTab: RewardTab;
     selectedBulkOption: 'all' | 'auto' | 'manual';
+    autoBackupEnabled: boolean;
+    autoBackupIntervalMinutes: number;
   };
   points: SalaryRestorePoint[];
 };
@@ -38,7 +40,8 @@ export type SalaryAuditAction =
   | 'import-backups'
   | 'export-backups'
   | 'single-payment'
-  | 'bulk-payment';
+  | 'bulk-payment'
+  | 'settings-change';
 
 export type SalaryAuditEvent = {
   id: number;
@@ -53,6 +56,8 @@ type SalaryProjectAutosave = {
   uiState: {
     activeRewardTab: RewardTab;
     selectedBulkOption: 'all' | 'auto' | 'manual';
+    autoBackupEnabled: boolean;
+    autoBackupIntervalMinutes: number;
   };
   payments: SalaryPayment[];
   points: SalaryRestorePoint[];
@@ -77,6 +82,25 @@ function sanitizeBulkOption(value: unknown): 'all' | 'auto' | 'manual' {
   return typeof value === 'string' && (VALID_BULK_OPTIONS as readonly string[]).includes(value)
     ? (value as 'all' | 'auto' | 'manual')
     : 'all';
+}
+
+function sanitizeAutoBackupEnabled(value: unknown): boolean {
+  return typeof value === 'boolean' ? value : true;
+}
+
+function sanitizeAutoBackupIntervalMinutes(value: unknown): number {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return 1;
+  }
+
+  const rounded = Math.round(value);
+  if (rounded < 1) {
+    return 1;
+  }
+  if (rounded > 60) {
+    return 60;
+  }
+  return rounded;
 }
 
 function sanitizeSalaryPayment(value: unknown): SalaryPayment | null {
@@ -175,6 +199,7 @@ function sanitizeAuditAction(value: unknown): SalaryAuditAction | null {
     'export-backups',
     'single-payment',
     'bulk-payment',
+    'settings-change',
   ];
 
   return valid.includes(value as SalaryAuditAction) ? (value as SalaryAuditAction) : null;
@@ -215,11 +240,15 @@ export function loadSalaryProjectAutosave(defaultPayments: SalaryPayment[]): {
   points: SalaryRestorePoint[];
   activeRewardTab: RewardTab;
   selectedBulkOption: 'all' | 'auto' | 'manual';
+  autoBackupEnabled: boolean;
+  autoBackupIntervalMinutes: number;
 } {
   let restoredPayments = defaultPayments.map((payment) => ({ ...payment }));
   let restoredPoints: SalaryRestorePoint[] = [];
   let restoredRewardTab: RewardTab = 'workday';
   let restoredBulkOption: 'all' | 'auto' | 'manual' = 'all';
+  let restoredAutoBackupEnabled = true;
+  let restoredAutoBackupIntervalMinutes = 1;
 
   try {
     const savedProject = localStorage.getItem(SALARY_PROJECT_AUTOSAVE_KEY);
@@ -230,6 +259,8 @@ export function loadSalaryProjectAutosave(defaultPayments: SalaryPayment[]): {
         restoredPoints = sanitizeRestorePoints(parsedProject.points);
         restoredRewardTab = sanitizeRewardTab(parsedProject.uiState?.activeRewardTab);
         restoredBulkOption = sanitizeBulkOption(parsedProject.uiState?.selectedBulkOption);
+        restoredAutoBackupEnabled = sanitizeAutoBackupEnabled(parsedProject.uiState?.autoBackupEnabled);
+        restoredAutoBackupIntervalMinutes = sanitizeAutoBackupIntervalMinutes(parsedProject.uiState?.autoBackupIntervalMinutes);
       }
     }
   } catch {
@@ -241,12 +272,16 @@ export function loadSalaryProjectAutosave(defaultPayments: SalaryPayment[]): {
     points: restoredPoints,
     activeRewardTab: restoredRewardTab,
     selectedBulkOption: restoredBulkOption,
+    autoBackupEnabled: restoredAutoBackupEnabled,
+    autoBackupIntervalMinutes: restoredAutoBackupIntervalMinutes,
   };
 }
 
 export function saveSalaryProjectAutosave(payload: {
   activeRewardTab: RewardTab;
   selectedBulkOption: 'all' | 'auto' | 'manual';
+  autoBackupEnabled: boolean;
+  autoBackupIntervalMinutes: number;
   payments: SalaryPayment[];
   points: SalaryRestorePoint[];
 }): void {
@@ -256,6 +291,8 @@ export function saveSalaryProjectAutosave(payload: {
     uiState: {
       activeRewardTab: payload.activeRewardTab,
       selectedBulkOption: payload.selectedBulkOption,
+      autoBackupEnabled: payload.autoBackupEnabled,
+      autoBackupIntervalMinutes: sanitizeAutoBackupIntervalMinutes(payload.autoBackupIntervalMinutes),
     },
     payments: payload.payments,
     points: payload.points,
@@ -298,6 +335,8 @@ export function createAutoBackupPoint(
 export function buildBackupExport(payload: {
   activeRewardTab: RewardTab;
   selectedBulkOption: 'all' | 'auto' | 'manual';
+  autoBackupEnabled: boolean;
+  autoBackupIntervalMinutes: number;
   points: SalaryRestorePoint[];
 }): SalaryBackupExport {
   return {
@@ -306,6 +345,8 @@ export function buildBackupExport(payload: {
     uiState: {
       activeRewardTab: payload.activeRewardTab,
       selectedBulkOption: payload.selectedBulkOption,
+      autoBackupEnabled: payload.autoBackupEnabled,
+      autoBackupIntervalMinutes: sanitizeAutoBackupIntervalMinutes(payload.autoBackupIntervalMinutes),
     },
     points: payload.points,
   };
@@ -315,6 +356,8 @@ export function parseBackupImport(text: string): {
   points: SalaryRestorePoint[];
   activeRewardTab?: RewardTab;
   selectedBulkOption?: 'all' | 'auto' | 'manual';
+  autoBackupEnabled?: boolean;
+  autoBackupIntervalMinutes?: number;
 } {
   const parsed = JSON.parse(text) as SalaryBackupExport;
   if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.points)) {
@@ -330,6 +373,8 @@ export function parseBackupImport(text: string): {
     points: importedPoints,
     activeRewardTab: sanitizeRewardTab(parsed.uiState?.activeRewardTab),
     selectedBulkOption: sanitizeBulkOption(parsed.uiState?.selectedBulkOption),
+    autoBackupEnabled: sanitizeAutoBackupEnabled(parsed.uiState?.autoBackupEnabled),
+    autoBackupIntervalMinutes: sanitizeAutoBackupIntervalMinutes(parsed.uiState?.autoBackupIntervalMinutes),
   };
 }
 
