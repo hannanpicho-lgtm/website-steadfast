@@ -27,6 +27,7 @@ export type SalaryBackupExport = {
     selectedBulkOption: 'all' | 'auto' | 'manual';
     autoBackupEnabled: boolean;
     autoBackupIntervalMinutes: number;
+    backupRetentionDays: number;
   };
   points: SalaryRestorePoint[];
 };
@@ -60,6 +61,7 @@ type SalaryProjectAutosave = {
     selectedBulkOption: 'all' | 'auto' | 'manual';
     autoBackupEnabled: boolean;
     autoBackupIntervalMinutes: number;
+    backupRetentionDays: number;
   };
   payments: SalaryPayment[];
   points: SalaryRestorePoint[];
@@ -112,6 +114,21 @@ function sanitizeAutoBackupIntervalMinutes(value: unknown): number {
   }
   if (rounded > 60) {
     return 60;
+  }
+  return rounded;
+}
+
+function sanitizeBackupRetentionDays(value: unknown): number {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return 30;
+  }
+
+  const rounded = Math.round(value);
+  if (rounded < 1) {
+    return 1;
+  }
+  if (rounded > 365) {
+    return 365;
   }
   return rounded;
 }
@@ -255,6 +272,7 @@ export function loadSalaryProjectAutosave(defaultPayments: SalaryPayment[]): {
   selectedBulkOption: 'all' | 'auto' | 'manual';
   autoBackupEnabled: boolean;
   autoBackupIntervalMinutes: number;
+  backupRetentionDays: number;
 } {
   let restoredPayments = defaultPayments.map((payment) => ({ ...payment }));
   let restoredPoints: SalaryRestorePoint[] = [];
@@ -262,6 +280,7 @@ export function loadSalaryProjectAutosave(defaultPayments: SalaryPayment[]): {
   let restoredBulkOption: 'all' | 'auto' | 'manual' = 'all';
   let restoredAutoBackupEnabled = true;
   let restoredAutoBackupIntervalMinutes = 1;
+  let restoredBackupRetentionDays = 30;
 
   try {
     const savedProject = localStorage.getItem(SALARY_PROJECT_AUTOSAVE_KEY);
@@ -289,6 +308,7 @@ export function loadSalaryProjectAutosave(defaultPayments: SalaryPayment[]): {
         restoredBulkOption = sanitizeBulkOption(parsedProject.uiState?.selectedBulkOption);
         restoredAutoBackupEnabled = sanitizeAutoBackupEnabled(parsedProject.uiState?.autoBackupEnabled);
         restoredAutoBackupIntervalMinutes = sanitizeAutoBackupIntervalMinutes(parsedProject.uiState?.autoBackupIntervalMinutes);
+        restoredBackupRetentionDays = sanitizeBackupRetentionDays(parsedProject.uiState?.backupRetentionDays);
       }
     }
   } catch {
@@ -302,6 +322,7 @@ export function loadSalaryProjectAutosave(defaultPayments: SalaryPayment[]): {
     selectedBulkOption: restoredBulkOption,
     autoBackupEnabled: restoredAutoBackupEnabled,
     autoBackupIntervalMinutes: restoredAutoBackupIntervalMinutes,
+    backupRetentionDays: restoredBackupRetentionDays,
   };
 }
 
@@ -310,6 +331,7 @@ export function saveSalaryProjectAutosave(payload: {
   selectedBulkOption: 'all' | 'auto' | 'manual';
   autoBackupEnabled: boolean;
   autoBackupIntervalMinutes: number;
+  backupRetentionDays: number;
   payments: SalaryPayment[];
   points: SalaryRestorePoint[];
 }): void {
@@ -321,6 +343,7 @@ export function saveSalaryProjectAutosave(payload: {
       selectedBulkOption: payload.selectedBulkOption,
       autoBackupEnabled: payload.autoBackupEnabled,
       autoBackupIntervalMinutes: sanitizeAutoBackupIntervalMinutes(payload.autoBackupIntervalMinutes),
+      backupRetentionDays: sanitizeBackupRetentionDays(payload.backupRetentionDays),
     },
     payments: payload.payments,
     points: payload.points,
@@ -370,6 +393,7 @@ export function buildBackupExport(payload: {
   selectedBulkOption: 'all' | 'auto' | 'manual';
   autoBackupEnabled: boolean;
   autoBackupIntervalMinutes: number;
+  backupRetentionDays: number;
   points: SalaryRestorePoint[];
 }): SalaryBackupExport {
   const dataWithoutChecksum = {
@@ -380,6 +404,7 @@ export function buildBackupExport(payload: {
       selectedBulkOption: payload.selectedBulkOption,
       autoBackupEnabled: payload.autoBackupEnabled,
       autoBackupIntervalMinutes: sanitizeAutoBackupIntervalMinutes(payload.autoBackupIntervalMinutes),
+      backupRetentionDays: sanitizeBackupRetentionDays(payload.backupRetentionDays),
     },
     points: payload.points,
   };
@@ -396,6 +421,7 @@ export function parseBackupImport(text: string): {
   selectedBulkOption?: 'all' | 'auto' | 'manual';
   autoBackupEnabled?: boolean;
   autoBackupIntervalMinutes?: number;
+  backupRetentionDays?: number;
 } {
   const parsed = JSON.parse(text) as SalaryBackupExport;
   if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.points)) {
@@ -426,7 +452,25 @@ export function parseBackupImport(text: string): {
     selectedBulkOption: sanitizeBulkOption(parsed.uiState?.selectedBulkOption),
     autoBackupEnabled: sanitizeAutoBackupEnabled(parsed.uiState?.autoBackupEnabled),
     autoBackupIntervalMinutes: sanitizeAutoBackupIntervalMinutes(parsed.uiState?.autoBackupIntervalMinutes),
+    backupRetentionDays: sanitizeBackupRetentionDays(parsed.uiState?.backupRetentionDays),
   };
+}
+
+export function pruneExpiredRestorePoints(
+  points: SalaryRestorePoint[],
+  retentionDays: number,
+  referenceTimeMs: number = Date.now(),
+): SalaryRestorePoint[] {
+  const maxAgeMs = sanitizeBackupRetentionDays(retentionDays) * 24 * 60 * 60 * 1000;
+
+  return points.filter((point) => {
+    const createdMs = new Date(point.createdAt).getTime();
+    if (Number.isNaN(createdMs)) {
+      return false;
+    }
+
+    return referenceTimeMs - createdMs <= maxAgeMs;
+  });
 }
 
 export function createAuditEvent(action: SalaryAuditAction, detail: string): SalaryAuditEvent {

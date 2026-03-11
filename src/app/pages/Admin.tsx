@@ -69,6 +69,7 @@ import {
   loadSalaryAuditLog,
   loadSalaryProjectAutosave,
   parseBackupImport,
+  pruneExpiredRestorePoints,
   saveSalaryAuditLog,
   saveSalaryProjectAutosave,
   type RewardTab,
@@ -224,6 +225,7 @@ export default function Admin() {
   const [selectedBulkOption, setSelectedBulkOption] = useState<'all' | 'auto' | 'manual'>('all');
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
   const [autoBackupIntervalMinutes, setAutoBackupIntervalMinutes] = useState(1);
+  const [backupRetentionDays, setBackupRetentionDays] = useState(30);
   const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
   const [isSalaryStateHydrated, setIsSalaryStateHydrated] = useState(false);
   const [pendingRestorePointId, setPendingRestorePointId] = useState<number | null>(null);
@@ -277,6 +279,7 @@ export default function Admin() {
     setSelectedBulkOption(restored.selectedBulkOption);
     setAutoBackupEnabled(restored.autoBackupEnabled);
     setAutoBackupIntervalMinutes(restored.autoBackupIntervalMinutes);
+    setBackupRetentionDays(restored.backupRetentionDays);
     setSalaryAuditLog(loadSalaryAuditLog());
     salaryPaymentsRef.current = restored.payments;
     lastAutoBackupSignatureRef.current = JSON.stringify(restored.payments);
@@ -297,8 +300,9 @@ export default function Admin() {
       selectedBulkOption,
       autoBackupEnabled,
       autoBackupIntervalMinutes,
+      backupRetentionDays,
       payments: salaryPayments,
-      points: salaryRestorePoints,
+      points: pruneExpiredRestorePoints(salaryRestorePoints, backupRetentionDays),
     });
     setAutoSavedAt(new Date().toISOString());
   }, [
@@ -307,9 +311,14 @@ export default function Admin() {
     selectedBulkOption,
     autoBackupEnabled,
     autoBackupIntervalMinutes,
+    backupRetentionDays,
     salaryPayments,
     salaryRestorePoints,
   ]);
+
+  useEffect(() => {
+    setSalaryRestorePoints((prev) => pruneExpiredRestorePoints(prev, backupRetentionDays).slice(0, MAX_RESTORE_POINTS));
+  }, [backupRetentionDays]);
 
   useEffect(() => {
     if (!isSalaryStateHydrated) {
@@ -342,6 +351,11 @@ export default function Admin() {
   const handleAutoBackupIntervalChange = (minutes: number) => {
     setAutoBackupIntervalMinutes(minutes);
     appendSalaryAudit(createAuditEvent('settings-change', `Auto backup interval ${minutes} min`));
+  };
+
+  const handleBackupRetentionChange = (days: number) => {
+    setBackupRetentionDays(days);
+    appendSalaryAudit(createAuditEvent('settings-change', `Backup retention ${days} days`));
   };
 
   useEffect(() => {
@@ -504,7 +518,8 @@ export default function Admin() {
       selectedBulkOption,
       autoBackupEnabled,
       autoBackupIntervalMinutes,
-      points: salaryRestorePoints,
+      backupRetentionDays,
+      points: pruneExpiredRestorePoints(salaryRestorePoints, backupRetentionDays),
     });
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -543,6 +558,9 @@ export default function Admin() {
         }
         if (typeof parsed.autoBackupIntervalMinutes === 'number') {
           setAutoBackupIntervalMinutes(parsed.autoBackupIntervalMinutes);
+        }
+        if (typeof parsed.backupRetentionDays === 'number') {
+          setBackupRetentionDays(parsed.backupRetentionDays);
         }
         appendSalaryAudit(createAuditEvent('import-backups', `${parsed.points.length} points`));
         toast.success(`Imported ${parsed.points.length} backup point(s).`);
@@ -2371,6 +2389,9 @@ export default function Admin() {
                 <p className="text-gray-500 text-xs mt-1">
                   Auto backup: {autoBackupEnabled ? `on (${autoBackupIntervalMinutes} min)` : 'off'}
                 </p>
+                <p className="text-gray-500 text-xs mt-1">
+                  Retention: {backupRetentionDays} day{backupRetentionDays === 1 ? '' : 's'}
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -2389,6 +2410,17 @@ export default function Admin() {
                   <option value={15}>15 min</option>
                   <option value={30}>30 min</option>
                   <option value={60}>60 min</option>
+                </select>
+                <select
+                  value={backupRetentionDays}
+                  onChange={(event) => handleBackupRetentionChange(Number(event.target.value))}
+                  className="px-3 py-2.5 bg-[#1a1f2e] border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-[#00D9FF]"
+                >
+                  <option value={7}>Keep 7d</option>
+                  <option value={30}>Keep 30d</option>
+                  <option value={90}>Keep 90d</option>
+                  <option value={180}>Keep 180d</option>
+                  <option value={365}>Keep 365d</option>
                 </select>
                 <input
                   ref={importBackupInputRef}
