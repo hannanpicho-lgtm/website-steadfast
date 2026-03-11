@@ -1,5 +1,5 @@
 import { Eye, EyeOff } from 'lucide-react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useLocation } from 'react-router';
 import { useState } from 'react';
 import { useEffect } from 'react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
@@ -7,6 +7,7 @@ import { authenticateUser, ensureReferralStore, getAdminCredentials, getDemoCred
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
@@ -33,7 +34,8 @@ export default function Login() {
 
   const handleWelcomeClose = () => {
     setShowWelcome(false);
-    navigate('/starting');
+    const from = (location.state as { from?: string })?.from;
+    navigate(from && from !== '/login' ? from : '/starting', { replace: true });
   };
 
   return (

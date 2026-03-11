@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import PremiumBundles from '../components/admin/PremiumBundles';
 import CustomerSupport from '../components/admin/CustomerSupport';
 import { 
@@ -220,7 +221,7 @@ export default function Admin() {
   ];
 
   const handleExport = () => {
-    alert('Exporting data as CSV...');
+    toast.success('Exporting data as CSV…');
   };
 
   const handleApproveWithdrawal = (id: number) => {
@@ -389,7 +390,7 @@ export default function Admin() {
                 <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => { alert('User deleted'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
+                <button onClick={() => { toast.error('User deleted'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
                   Delete User
                 </button>
               </div>
@@ -427,7 +428,7 @@ export default function Admin() {
                 <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => { alert('Withdrawal approved'); setModalType(null); }} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors">
+                <button onClick={() => { toast.success('Withdrawal approved'); setModalType(null); }} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors">
                   Approve & Process
                 </button>
               </div>
@@ -461,7 +462,7 @@ export default function Admin() {
                 <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => { alert('Withdrawal rejected'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
+                <button onClick={() => { toast.error('Withdrawal rejected'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
                   Reject Request
                 </button>
               </div>
@@ -842,7 +843,7 @@ export default function Admin() {
                 <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => { alert('Product deleted'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
+                <button onClick={() => { toast.error('Product deleted'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
                   Delete Product
                 </button>
               </div>
@@ -1101,7 +1102,7 @@ export default function Admin() {
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
-                <button onClick={() => { alert('Salary paid successfully!'); setModalType(null); }} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+                <button onClick={() => { toast.success('Salary paid successfully!'); setModalType(null); }} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
                   <Send size={18} />
                   Process Payment
                 </button>
@@ -1166,7 +1167,7 @@ export default function Admin() {
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
-                <button onClick={() => { alert('All salaries processed!'); setModalType(null); }} className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+                <button onClick={() => { toast.success('All salaries processed!'); setModalType(null); }} className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
                   <Coins size={18} />
                   Process Selected
                 </button>
@@ -1239,7 +1240,7 @@ export default function Admin() {
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
-                  <button type="submit" onClick={(e) => { e.preventDefault(); alert('Admin user created successfully!'); setModalType(null); }} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
+                  <button type="submit" onClick={(e) => { e.preventDefault(); toast.success('Admin user created successfully!'); setModalType(null); }} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
                     Create Admin User
                   </button>
                   <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
@@ -1323,7 +1324,7 @@ export default function Admin() {
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
-                  <button type="submit" onClick={(e) => { e.preventDefault(); alert('Admin updated!'); setModalType(null); }} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
+                  <button type="submit" onClick={(e) => { e.preventDefault(); toast.success('Admin updated!'); setModalType(null); }} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
                     Save Changes
                   </button>
                   <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
@@ -1435,7 +1436,7 @@ export default function Admin() {
                 <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => { alert('Admin deleted!'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
+                <button onClick={() => { toast.error('Admin deleted!'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
                   Delete Admin
                 </button>
               </div>
@@ -1599,7 +1600,7 @@ export default function Admin() {
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
-                  <button type="submit" onClick={(e) => { e.preventDefault(); alert('Role created!'); setModalType(null); }} className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 rounded-lg transition-colors">
+                  <button type="submit" onClick={(e) => { e.preventDefault(); toast.success('Role created!'); setModalType(null); }} className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 rounded-lg transition-colors">
                     Create Role
                   </button>
                   <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
@@ -1669,7 +1670,7 @@ export default function Admin() {
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
-                  <button type="submit" onClick={(e) => { e.preventDefault(); alert('Role updated!'); setModalType(null); }} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
+                  <button type="submit" onClick={(e) => { e.preventDefault(); toast.success('Role updated!'); setModalType(null); }} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
                     Save Changes
                   </button>
                   <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
@@ -1700,7 +1701,7 @@ export default function Admin() {
                 <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => { alert('Role deleted!'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
+                <button onClick={() => { toast.error('Role deleted!'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
                   Delete Role
                 </button>
               </div>
@@ -2635,7 +2636,7 @@ export default function Admin() {
                             <button 
                               onClick={() => { 
                                 if (confirm(`Reset password for ${user.username}?`)) {
-                                  alert('Password reset link sent to user email');
+                                  toast.success('Password reset link sent to user email');
                                 }
                               }}
                               className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
@@ -2647,7 +2648,7 @@ export default function Admin() {
                               <button 
                                 onClick={() => { 
                                   if (confirm(`Enable account for ${user.username}?`)) {
-                                    alert(`Account enabled for ${user.username}`);
+                                    toast.success(`Account enabled for ${user.username}`);
                                   }
                                 }}
                                 className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
@@ -2659,7 +2660,7 @@ export default function Admin() {
                               <button 
                                 onClick={() => { 
                                   if (confirm(`Disable account for ${user.username}?`)) {
-                                    alert(`Account disabled for ${user.username}`);
+                                    toast.warning(`Account disabled for ${user.username}`);
                                   }
                                 }}
                                 className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
