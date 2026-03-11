@@ -453,6 +453,17 @@ export default function Admin() {
     setPendingRestorePointId(latest.id);
   };
 
+  const undoLastRestore = () => {
+    const preRestorePoint = salaryRestorePoints.find((point) => point.label.startsWith('Pre-restore snapshot'));
+    if (!preRestorePoint) {
+      toast.info('No restore undo snapshot available.');
+      return;
+    }
+
+    appendSalaryAudit(createAuditEvent('undo-restore', preRestorePoint.label));
+    setPendingRestorePointId(preRestorePoint.id);
+  };
+
   const requestRestoreSalaryPoint = (pointId: number) => {
     const point = salaryRestorePoints.find((item) => item.id === pointId);
     if (!point) {
@@ -612,7 +623,7 @@ export default function Admin() {
   };
 
   const getAuditActionTone = (action: SalaryAuditEvent['action']) => {
-    if (action === 'restore' || action === 'manual-backup' || action === 'auto-backup' || action === 'pre-restore-snapshot' || action === 'import-backups' || action === 'single-payment' || action === 'bulk-payment') {
+    if (action === 'restore' || action === 'manual-backup' || action === 'auto-backup' || action === 'pre-restore-snapshot' || action === 'undo-restore' || action === 'import-backups' || action === 'single-payment' || action === 'bulk-payment') {
       return 'bg-green-500/20 text-green-300';
     }
     if (action === 'restore-cancel' || action === 'delete-backup' || action === 'clear-backups') {
@@ -2447,6 +2458,10 @@ export default function Admin() {
                   <RefreshCw size={18} />
                   Restore Point {salaryRestorePoints.length > 0 ? `(${salaryRestorePoints.length})` : ''}
                 </button>
+                <button onClick={undoLastRestore} className="flex items-center gap-2 bg-[#3b4258] hover:bg-[#4a536f] text-white px-4 py-2.5 rounded-lg font-semibold transition-colors">
+                  <RefreshCw size={18} />
+                  Undo Restore
+                </button>
                 <button onClick={() => setModalType('pay-salary-bulk')} className="flex items-center gap-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white px-5 py-2.5 rounded-lg font-semibold transition-colors shadow-lg">
                   <Coins size={18} />
                   Auto Process
@@ -2555,6 +2570,7 @@ export default function Admin() {
                   <option value="auto-backup">Auto Backup</option>
                   <option value="manual-backup">Manual Backup</option>
                   <option value="pre-restore-snapshot">Pre-Restore Snapshot</option>
+                  <option value="undo-restore">Undo Restore</option>
                   <option value="restore">Restore</option>
                   <option value="restore-cancel">Restore Cancel</option>
                   <option value="delete-backup">Delete Backup</option>

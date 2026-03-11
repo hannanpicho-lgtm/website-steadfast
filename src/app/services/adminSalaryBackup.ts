@@ -36,6 +36,7 @@ export type SalaryAuditAction =
   | 'auto-backup'
   | 'manual-backup'
   | 'pre-restore-snapshot'
+  | 'undo-restore'
   | 'restore'
   | 'restore-cancel'
   | 'delete-backup'
@@ -223,6 +224,7 @@ function sanitizeAuditAction(value: unknown): SalaryAuditAction | null {
     'auto-backup',
     'manual-backup',
     'pre-restore-snapshot',
+    'undo-restore',
     'restore',
     'restore-cancel',
     'delete-backup',
