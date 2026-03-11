@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import PremiumBundles from '../components/admin/PremiumBundles';
 import CustomerSupport from '../components/admin/CustomerSupport';
@@ -4183,6 +4183,111 @@ export default function Admin() {
     ? salaryRestorePoints.find((point) => point.id === pendingRestorePointId) ?? null
     : null;
 
+  const pendingRestoreDiff = useMemo(() => {
+    if (!pendingRestorePoint) {
+      return null;
+    }
+
+    const currentById = new Map(salaryPayments.map((payment) => [payment.id, payment]));
+    const snapshotById = new Map(pendingRestorePoint.payments.map((payment) => [payment.id, payment]));
+    const allIds = new Set<number>([...currentById.keys(), ...snapshotById.keys()]);
+
+    let added = 0;
+    let removed = 0;
+    let changedStatus = 0;
+    let changedAmount = 0;
+    let changedMode = 0;
+    let changedDueDate = 0;
+    let changedPaidDate = 0;
+    let changedRows = 0;
+    const sampleChanges: string[] = [];
+
+    allIds.forEach((id) => {
+      const current = currentById.get(id);
+      const snapshot = snapshotById.get(id);
+
+      if (!current && snapshot) {
+        added += 1;
+        if (sampleChanges.length < 4) {
+          sampleChanges.push(`${snapshot.username}: added by snapshot`);
+        }
+        return;
+      }
+
+      if (current && !snapshot) {
+        removed += 1;
+        if (sampleChanges.length < 4) {
+          sampleChanges.push(`${current.username}: removed by snapshot`);
+        }
+        return;
+      }
+
+      if (!current || !snapshot) {
+        return;
+      }
+
+      let rowChanged = false;
+      const notes: string[] = [];
+
+      if (current.status !== snapshot.status) {
+        changedStatus += 1;
+        rowChanged = true;
+        notes.push(`status ${current.status}→${snapshot.status}`);
+      }
+      if (current.salaryDue !== snapshot.salaryDue) {
+        changedAmount += 1;
+        rowChanged = true;
+        notes.push(`amount $${current.salaryDue}→$${snapshot.salaryDue}`);
+      }
+      if (current.paymentMode !== snapshot.paymentMode) {
+        changedMode += 1;
+        rowChanged = true;
+        notes.push(`mode ${current.paymentMode}→${snapshot.paymentMode}`);
+      }
+      if (current.dueDate !== snapshot.dueDate) {
+        changedDueDate += 1;
+        rowChanged = true;
+        notes.push(`due ${current.dueDate}→${snapshot.dueDate}`);
+      }
+      const currentPaidDate = current.paidDate ?? '';
+      const snapshotPaidDate = snapshot.paidDate ?? '';
+      if (currentPaidDate !== snapshotPaidDate) {
+        changedPaidDate += 1;
+        rowChanged = true;
+        notes.push(`paid ${currentPaidDate || 'none'}→${snapshotPaidDate || 'none'}`);
+      }
+
+      if (rowChanged) {
+        changedRows += 1;
+        if (sampleChanges.length < 4) {
+          sampleChanges.push(`${snapshot.username}: ${notes.join(', ')}`);
+        }
+      }
+    });
+
+    const currentPending = salaryPayments.filter((payment) => payment.status === 'Pending').length;
+    const snapshotPending = pendingRestorePoint.payments.filter((payment) => payment.status === 'Pending').length;
+    const currentPaid = salaryPayments.filter((payment) => payment.status === 'Paid').length;
+    const snapshotPaid = pendingRestorePoint.payments.filter((payment) => payment.status === 'Paid').length;
+    const currentTotal = salaryPayments.reduce((sum, payment) => sum + payment.salaryDue, 0);
+    const snapshotTotal = pendingRestorePoint.payments.reduce((sum, payment) => sum + payment.salaryDue, 0);
+
+    return {
+      added,
+      removed,
+      changedRows,
+      changedStatus,
+      changedAmount,
+      changedMode,
+      changedDueDate,
+      changedPaidDate,
+      pendingDelta: snapshotPending - currentPending,
+      paidDelta: snapshotPaid - currentPaid,
+      totalDelta: snapshotTotal - currentTotal,
+      sampleChanges,
+    };
+  }, [pendingRestorePoint, salaryPayments]);
+
   return (
     <div className="size-full flex bg-[#1a1f2e]">
       {/* Left Sidebar */}
@@ -4273,6 +4378,23 @@ export default function Admin() {
               <p className="text-gray-300 text-sm">Payments in snapshot: <span className="text-white font-semibold">{pendingRestorePoint.payments.length}</span></p>
               <p className="text-gray-300 text-sm">Pending: <span className="text-yellow-300 font-semibold">{pendingRestorePoint.payments.filter((payment) => payment.status === 'Pending').length}</span> | Paid: <span className="text-green-300 font-semibold">{pendingRestorePoint.payments.filter((payment) => payment.status === 'Paid').length}</span></p>
             </div>
+
+            {pendingRestoreDiff && (
+              <div className="bg-[#1a1f2e] border border-gray-700 rounded-lg p-4 mt-4 space-y-2">
+                <p className="text-white text-sm font-semibold">Restore impact preview</p>
+                <p className="text-gray-300 text-sm">Changed rows: <span className="text-[#00D9FF] font-semibold">{pendingRestoreDiff.changedRows}</span> | Added: <span className="text-blue-300 font-semibold">{pendingRestoreDiff.added}</span> | Removed: <span className="text-red-300 font-semibold">{pendingRestoreDiff.removed}</span></p>
+                <p className="text-gray-300 text-sm">Status changes: <span className="text-yellow-300 font-semibold">{pendingRestoreDiff.changedStatus}</span> | Amount changes: <span className="text-green-300 font-semibold">{pendingRestoreDiff.changedAmount}</span></p>
+                <p className="text-gray-300 text-sm">Mode/Dates changed: <span className="text-purple-300 font-semibold">{pendingRestoreDiff.changedMode + pendingRestoreDiff.changedDueDate + pendingRestoreDiff.changedPaidDate}</span></p>
+                <p className="text-gray-300 text-sm">Pending delta: <span className="font-semibold">{pendingRestoreDiff.pendingDelta >= 0 ? `+${pendingRestoreDiff.pendingDelta}` : pendingRestoreDiff.pendingDelta}</span> | Paid delta: <span className="font-semibold">{pendingRestoreDiff.paidDelta >= 0 ? `+${pendingRestoreDiff.paidDelta}` : pendingRestoreDiff.paidDelta}</span> | Total amount delta: <span className="font-semibold">{pendingRestoreDiff.totalDelta >= 0 ? `+$${pendingRestoreDiff.totalDelta.toFixed(2)}` : `-$${Math.abs(pendingRestoreDiff.totalDelta).toFixed(2)}`}</span></p>
+                {pendingRestoreDiff.sampleChanges.length > 0 && (
+                  <div className="pt-1">
+                    {pendingRestoreDiff.sampleChanges.map((line) => (
+                      <p key={line} className="text-gray-400 text-xs">{line}</p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex gap-3 mt-6">
               <button onClick={cancelRestoreSalaryPoint} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 rounded-lg transition-colors">
