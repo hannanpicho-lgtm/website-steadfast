@@ -19,6 +19,7 @@ import Logout from "./pages/Logout";
 import Admin from "./pages/Admin";
 import Support from "./pages/Support";
 import DeploymentStatus from "./pages/DeploymentStatus";
+import NotFound from "./pages/NotFound";
 import RootLayout from "./layouts/RootLayout";
 import RequireAuthLayout from "./layouts/RequireAuthLayout";
 import RequireAdminLayout from "./layouts/RequireAdminLayout";
@@ -117,6 +118,10 @@ export const router = createBrowserRouter([
       {
         path: "deployment-status",
         Component: DeploymentStatus,
+      },
+      {
+        path: "*",
+        Component: NotFound,
       },
     ],
   },
