@@ -422,10 +422,36 @@ export default function Admin() {
       return;
     }
 
-    const [latest, ...remaining] = salaryRestorePoints;
-    setSalaryPayments(latest.payments.map((payment) => ({ ...payment })));
-    setSalaryRestorePoints(remaining);
-    toast.success(`Restored: ${latest.label}`);
+    const latest = salaryRestorePoints[0];
+    restoreSalaryPointById(latest.id);
+  };
+
+  const restoreSalaryPointById = (pointId: number) => {
+    const point = salaryRestorePoints.find((item) => item.id === pointId);
+    if (!point) {
+      toast.info('Restore point not found.');
+      return;
+    }
+
+    setSalaryPayments(point.payments.map((payment) => ({ ...payment })));
+    setSalaryRestorePoints((prev) => prev.filter((item) => item.id !== pointId));
+    lastAutoBackupSignatureRef.current = JSON.stringify(point.payments);
+    toast.success(`Restored: ${point.label}`);
+  };
+
+  const deleteSalaryPointById = (pointId: number) => {
+    setSalaryRestorePoints((prev) => prev.filter((item) => item.id !== pointId));
+    toast.success('Backup point removed.');
+  };
+
+  const clearAllBackupPoints = () => {
+    if (salaryRestorePoints.length === 0) {
+      toast.info('No backup points to clear.');
+      return;
+    }
+
+    setSalaryRestorePoints([]);
+    toast.success('All backup points cleared.');
   };
 
   const renderModal = () => {
@@ -2242,6 +2268,38 @@ export default function Admin() {
                 <Wallet size={16} className="inline mr-2" />
                 Salary Payments
               </button>
+            </div>
+
+            <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-white font-bold">Auto Backup Points</h3>
+                <button onClick={clearAllBackupPoints} className="text-xs text-gray-300 hover:text-white transition-colors">
+                  Clear All
+                </button>
+              </div>
+
+              {salaryRestorePoints.length === 0 ? (
+                <p className="text-gray-400 text-sm">No backup points yet. Use Backup Now or process salaries to generate points.</p>
+              ) : (
+                <div className="space-y-2">
+                  {salaryRestorePoints.slice(0, 5).map((point) => (
+                    <div key={point.id} className="bg-[#1a1f2e] border border-gray-700 rounded-lg px-3 py-2 flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-white text-sm font-semibold truncate">{point.label}</p>
+                        <p className="text-gray-400 text-xs">{new Date(point.createdAt).toLocaleString()}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={() => restoreSalaryPointById(point.id)} className="text-xs bg-[#3b4258] hover:bg-[#4a536f] text-white px-3 py-1.5 rounded transition-colors">
+                          Restore
+                        </button>
+                        <button onClick={() => deleteSalaryPointById(point.id)} className="text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 px-3 py-1.5 rounded transition-colors">
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Workday Rewards Tab */}
