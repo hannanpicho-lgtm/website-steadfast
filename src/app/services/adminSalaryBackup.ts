@@ -21,6 +21,7 @@ export type SalaryRestorePoint = {
 export type SalaryBackupExport = {
   version: 1;
   exportedAt: string;
+  checksum: string;
   uiState: {
     activeRewardTab: RewardTab;
     selectedBulkOption: 'all' | 'auto' | 'manual';
@@ -53,6 +54,7 @@ export type SalaryAuditEvent = {
 type SalaryProjectAutosave = {
   version: 1;
   savedAt: string;
+  checksum: string;
   uiState: {
     activeRewardTab: RewardTab;
     selectedBulkOption: 'all' | 'auto' | 'manual';
@@ -71,6 +73,17 @@ const VALID_BULK_OPTIONS = ['all', 'auto', 'manual'] as const;
 export const AUTO_BACKUP_INTERVAL_MS = 60_000;
 export const MAX_RESTORE_POINTS = 10;
 export const MAX_AUDIT_EVENTS = 50;
+
+function computeChecksum(value: unknown): string {
+  const text = JSON.stringify(value);
+  let hash = 5381;
+
+  for (let index = 0; index < text.length; index += 1) {
+    hash = (hash * 33) ^ text.charCodeAt(index);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
 
 function sanitizeRewardTab(value: unknown): RewardTab {
   return typeof value === 'string' && VALID_REWARD_TABS.includes(value as RewardTab)
@@ -255,6 +268,21 @@ export function loadSalaryProjectAutosave(defaultPayments: SalaryPayment[]): {
     if (savedProject) {
       const parsedProject = JSON.parse(savedProject) as SalaryProjectAutosave;
       if (parsedProject?.version === 1) {
+        const payloadWithoutChecksum = {
+          version: 1,
+          savedAt: parsedProject.savedAt,
+          uiState: parsedProject.uiState,
+          payments: parsedProject.payments,
+          points: parsedProject.points,
+        };
+
+        if (typeof parsedProject.checksum === 'string') {
+          const expected = computeChecksum(payloadWithoutChecksum);
+          if (expected !== parsedProject.checksum) {
+            throw new Error('Autosave checksum mismatch.');
+          }
+        }
+
         restoredPayments = sanitizePayments(parsedProject.payments, defaultPayments);
         restoredPoints = sanitizeRestorePoints(parsedProject.points);
         restoredRewardTab = sanitizeRewardTab(parsedProject.uiState?.activeRewardTab);
@@ -285,7 +313,7 @@ export function saveSalaryProjectAutosave(payload: {
   payments: SalaryPayment[];
   points: SalaryRestorePoint[];
 }): void {
-  const data: SalaryProjectAutosave = {
+  const dataWithoutChecksum = {
     version: 1,
     savedAt: new Date().toISOString(),
     uiState: {
@@ -296,6 +324,11 @@ export function saveSalaryProjectAutosave(payload: {
     },
     payments: payload.payments,
     points: payload.points,
+  };
+
+  const data: SalaryProjectAutosave = {
+    ...dataWithoutChecksum,
+    checksum: computeChecksum(dataWithoutChecksum),
   };
 
   localStorage.setItem(SALARY_PROJECT_AUTOSAVE_KEY, JSON.stringify(data));
@@ -339,7 +372,7 @@ export function buildBackupExport(payload: {
   autoBackupIntervalMinutes: number;
   points: SalaryRestorePoint[];
 }): SalaryBackupExport {
-  return {
+  const dataWithoutChecksum = {
     version: 1,
     exportedAt: new Date().toISOString(),
     uiState: {
@@ -349,6 +382,11 @@ export function buildBackupExport(payload: {
       autoBackupIntervalMinutes: sanitizeAutoBackupIntervalMinutes(payload.autoBackupIntervalMinutes),
     },
     points: payload.points,
+  };
+
+  return {
+    ...dataWithoutChecksum,
+    checksum: computeChecksum(dataWithoutChecksum),
   };
 }
 
@@ -362,6 +400,19 @@ export function parseBackupImport(text: string): {
   const parsed = JSON.parse(text) as SalaryBackupExport;
   if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.points)) {
     throw new Error('Invalid backup file format.');
+  }
+
+  if (typeof parsed.checksum === 'string') {
+    const payloadWithoutChecksum = {
+      version: 1,
+      exportedAt: parsed.exportedAt,
+      uiState: parsed.uiState,
+      points: parsed.points,
+    };
+    const expected = computeChecksum(payloadWithoutChecksum);
+    if (expected !== parsed.checksum) {
+      throw new Error('Backup checksum mismatch. File may be corrupted.');
+    }
   }
 
   const importedPoints = sanitizeRestorePoints(parsed.points);
