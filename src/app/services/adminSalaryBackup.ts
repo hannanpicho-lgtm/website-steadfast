@@ -28,6 +28,25 @@ export type SalaryBackupExport = {
   points: SalaryRestorePoint[];
 };
 
+export type SalaryAuditAction =
+  | 'auto-backup'
+  | 'manual-backup'
+  | 'restore'
+  | 'restore-cancel'
+  | 'delete-backup'
+  | 'clear-backups'
+  | 'import-backups'
+  | 'export-backups'
+  | 'single-payment'
+  | 'bulk-payment';
+
+export type SalaryAuditEvent = {
+  id: number;
+  at: string;
+  action: SalaryAuditAction;
+  detail: string;
+};
+
 type SalaryProjectAutosave = {
   version: 1;
   savedAt: string;
@@ -40,11 +59,13 @@ type SalaryProjectAutosave = {
 };
 
 const SALARY_PROJECT_AUTOSAVE_KEY = 'steadfast_admin_salary_project_v1';
+const SALARY_AUDIT_LOG_KEY = 'steadfast_admin_salary_audit_log_v1';
 const VALID_REWARD_TABS: RewardTab[] = ['workday', 'reset', 'accumulated', 'product-system', 'salary-payments'];
 const VALID_BULK_OPTIONS = ['all', 'auto', 'manual'] as const;
 
 export const AUTO_BACKUP_INTERVAL_MS = 60_000;
 export const MAX_RESTORE_POINTS = 10;
+export const MAX_AUDIT_EVENTS = 50;
 
 function sanitizeRewardTab(value: unknown): RewardTab {
   return typeof value === 'string' && VALID_REWARD_TABS.includes(value as RewardTab)
@@ -136,6 +157,57 @@ function sanitizeRestorePoints(values: unknown): SalaryRestorePoint[] {
     .map((value) => sanitizeRestorePoint(value))
     .filter((point): point is SalaryRestorePoint => point !== null)
     .slice(0, MAX_RESTORE_POINTS);
+}
+
+function sanitizeAuditAction(value: unknown): SalaryAuditAction | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const valid: SalaryAuditAction[] = [
+    'auto-backup',
+    'manual-backup',
+    'restore',
+    'restore-cancel',
+    'delete-backup',
+    'clear-backups',
+    'import-backups',
+    'export-backups',
+    'single-payment',
+    'bulk-payment',
+  ];
+
+  return valid.includes(value as SalaryAuditAction) ? (value as SalaryAuditAction) : null;
+}
+
+function sanitizeAuditEvent(value: unknown): SalaryAuditEvent | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as Partial<SalaryAuditEvent>;
+  const action = sanitizeAuditAction(candidate.action);
+  if (!action) {
+    return null;
+  }
+
+  return {
+    id: typeof candidate.id === 'number' ? candidate.id : Date.now(),
+    at: typeof candidate.at === 'string' ? candidate.at : new Date().toISOString(),
+    action,
+    detail: typeof candidate.detail === 'string' ? candidate.detail : '',
+  };
+}
+
+function sanitizeAuditEvents(values: unknown): SalaryAuditEvent[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value) => sanitizeAuditEvent(value))
+    .filter((event): event is SalaryAuditEvent => event !== null)
+    .slice(0, MAX_AUDIT_EVENTS);
 }
 
 export function loadSalaryProjectAutosave(defaultPayments: SalaryPayment[]): {
@@ -259,4 +331,30 @@ export function parseBackupImport(text: string): {
     activeRewardTab: sanitizeRewardTab(parsed.uiState?.activeRewardTab),
     selectedBulkOption: sanitizeBulkOption(parsed.uiState?.selectedBulkOption),
   };
+}
+
+export function createAuditEvent(action: SalaryAuditAction, detail: string): SalaryAuditEvent {
+  return {
+    id: Date.now(),
+    at: new Date().toISOString(),
+    action,
+    detail,
+  };
+}
+
+export function loadSalaryAuditLog(): SalaryAuditEvent[] {
+  try {
+    const raw = localStorage.getItem(SALARY_AUDIT_LOG_KEY);
+    if (!raw) {
+      return [];
+    }
+
+    return sanitizeAuditEvents(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
+export function saveSalaryAuditLog(events: SalaryAuditEvent[]): void {
+  localStorage.setItem(SALARY_AUDIT_LOG_KEY, JSON.stringify(events.slice(0, MAX_AUDIT_EVENTS)));
 }

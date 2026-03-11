@@ -60,14 +60,19 @@ import {
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import {
   AUTO_BACKUP_INTERVAL_MS,
+  MAX_AUDIT_EVENTS,
   MAX_RESTORE_POINTS,
   buildBackupExport,
+  createAuditEvent,
   createAutoBackupPoint as buildAutoBackupPoint,
   createSalaryRestorePoint as createSalaryRestorePointRecord,
+  loadSalaryAuditLog,
   loadSalaryProjectAutosave,
   parseBackupImport,
+  saveSalaryAuditLog,
   saveSalaryProjectAutosave,
   type RewardTab,
+  type SalaryAuditEvent,
   type SalaryPayment,
   type SalaryRestorePoint,
 } from '../services/adminSalaryBackup';
@@ -220,6 +225,7 @@ export default function Admin() {
   const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
   const [isSalaryStateHydrated, setIsSalaryStateHydrated] = useState(false);
   const [pendingRestorePointId, setPendingRestorePointId] = useState<number | null>(null);
+  const [salaryAuditLog, setSalaryAuditLog] = useState<SalaryAuditEvent[]>([]);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const importBackupInputRef = useRef<HTMLInputElement | null>(null);
@@ -265,6 +271,7 @@ export default function Admin() {
     setSalaryRestorePoints(restored.points);
     setActiveRewardTab(restored.activeRewardTab);
     setSelectedBulkOption(restored.selectedBulkOption);
+    setSalaryAuditLog(loadSalaryAuditLog());
     salaryPaymentsRef.current = restored.payments;
     lastAutoBackupSignatureRef.current = JSON.stringify(restored.payments);
     setIsSalaryStateHydrated(true);
@@ -288,7 +295,19 @@ export default function Admin() {
     setAutoSavedAt(new Date().toISOString());
   }, [isSalaryStateHydrated, activeRewardTab, selectedBulkOption, salaryPayments, salaryRestorePoints]);
 
-  const createAutoBackupPoint = () => {
+  useEffect(() => {
+    if (!isSalaryStateHydrated) {
+      return;
+    }
+
+    saveSalaryAuditLog(salaryAuditLog);
+  }, [isSalaryStateHydrated, salaryAuditLog]);
+
+  const appendSalaryAudit = (event: SalaryAuditEvent) => {
+    setSalaryAuditLog((prev) => [event, ...prev].slice(0, MAX_AUDIT_EVENTS));
+  };
+
+  const createAutoBackupPoint = (action: 'auto-backup' | 'manual-backup' = 'auto-backup') => {
     const result = buildAutoBackupPoint(salaryPaymentsRef.current, lastAutoBackupSignatureRef.current);
     if (!result.point) {
       return;
@@ -296,6 +315,7 @@ export default function Admin() {
 
     setSalaryRestorePoints((prev) => [result.point as SalaryRestorePoint, ...prev].slice(0, MAX_RESTORE_POINTS));
     lastAutoBackupSignatureRef.current = result.signature;
+    appendSalaryAudit(createAuditEvent(action, `${result.point.label}`));
   };
 
   useEffect(() => {
@@ -304,7 +324,7 @@ export default function Admin() {
     }
 
     const intervalId = window.setInterval(() => {
-      createAutoBackupPoint();
+      createAutoBackupPoint('auto-backup');
     }, AUTO_BACKUP_INTERVAL_MS);
 
     return () => window.clearInterval(intervalId);
@@ -337,6 +357,7 @@ export default function Admin() {
     );
 
     toast.success(`Salary paid successfully for ${target.username}.`);
+    appendSalaryAudit(createAuditEvent('single-payment', `${target.username} $${target.salaryDue}`));
     setModalType(null);
   };
 
@@ -377,6 +398,7 @@ export default function Admin() {
     );
 
     toast.success(`Processed ${targetIds.length} salary payment(s).`);
+    appendSalaryAudit(createAuditEvent('bulk-payment', `${option} mode, ${targetIds.length} payments`));
     setSelectedBulkOption('all');
     setModalType(null);
   };
@@ -411,6 +433,10 @@ export default function Admin() {
   };
 
   const cancelRestoreSalaryPoint = () => {
+    if (pendingRestorePointId) {
+      const point = salaryRestorePoints.find((item) => item.id === pendingRestorePointId);
+      appendSalaryAudit(createAuditEvent('restore-cancel', point ? point.label : 'Restore modal closed'));
+    }
     setPendingRestorePointId(null);
   };
 
@@ -424,11 +450,14 @@ export default function Admin() {
     setSalaryPayments(point.payments.map((payment) => ({ ...payment })));
     setSalaryRestorePoints((prev) => prev.filter((item) => item.id !== pointId));
     lastAutoBackupSignatureRef.current = JSON.stringify(point.payments);
+    appendSalaryAudit(createAuditEvent('restore', point.label));
     toast.success(`Restored: ${point.label}`);
   };
 
   const deleteSalaryPointById = (pointId: number) => {
+    const point = salaryRestorePoints.find((item) => item.id === pointId);
     setSalaryRestorePoints((prev) => prev.filter((item) => item.id !== pointId));
+    appendSalaryAudit(createAuditEvent('delete-backup', point ? point.label : `${pointId}`));
     toast.success('Backup point removed.');
   };
 
@@ -438,6 +467,7 @@ export default function Admin() {
       return;
     }
 
+    appendSalaryAudit(createAuditEvent('clear-backups', `${salaryRestorePoints.length} points`));
     setSalaryRestorePoints([]);
     toast.success('All backup points cleared.');
   };
@@ -457,6 +487,7 @@ export default function Admin() {
     anchor.click();
     URL.revokeObjectURL(url);
 
+    appendSalaryAudit(createAuditEvent('export-backups', `${salaryRestorePoints.length} points`));
     toast.success('Backup points exported.');
   };
 
@@ -479,6 +510,7 @@ export default function Admin() {
         if (parsed.selectedBulkOption) {
           setSelectedBulkOption(parsed.selectedBulkOption);
         }
+        appendSalaryAudit(createAuditEvent('import-backups', `${parsed.points.length} points`));
         toast.success(`Imported ${parsed.points.length} backup point(s).`);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Could not read backup file.');
@@ -487,6 +519,16 @@ export default function Admin() {
 
     reader.readAsText(file);
     event.target.value = '';
+  };
+
+  const clearSalaryAuditLog = () => {
+    if (salaryAuditLog.length === 0) {
+      toast.info('No audit events to clear.');
+      return;
+    }
+
+    setSalaryAuditLog([]);
+    toast.success('Audit log cleared.');
   };
 
   const renderModal = () => {
@@ -2266,7 +2308,7 @@ export default function Admin() {
                   <Download size={18} />
                   Export
                 </button>
-                <button onClick={createAutoBackupPoint} className="flex items-center gap-2 bg-[#2f374d] hover:bg-[#3a4460] text-white px-4 py-2.5 rounded-lg font-semibold transition-colors">
+                <button onClick={() => createAutoBackupPoint('manual-backup')} className="flex items-center gap-2 bg-[#2f374d] hover:bg-[#3a4460] text-white px-4 py-2.5 rounded-lg font-semibold transition-colors">
                   <Download size={18} />
                   Backup Now
                 </button>
@@ -2346,6 +2388,31 @@ export default function Admin() {
                           Delete
                         </button>
                       </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-white font-bold">Backup Audit Log</h3>
+                <button onClick={clearSalaryAuditLog} className="text-xs text-gray-300 hover:text-white transition-colors">
+                  Clear Log
+                </button>
+              </div>
+
+              {salaryAuditLog.length === 0 ? (
+                <p className="text-gray-400 text-sm">No audit events yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {salaryAuditLog.slice(0, 8).map((event) => (
+                    <div key={event.id} className="bg-[#1a1f2e] border border-gray-700 rounded-lg px-3 py-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-white text-sm font-semibold">{event.action}</p>
+                        <p className="text-gray-400 text-xs">{new Date(event.at).toLocaleString()}</p>
+                      </div>
+                      <p className="text-gray-300 text-xs mt-1">{event.detail}</p>
                     </div>
                   ))}
                 </div>
