@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import { Header } from '../components/Header';
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -40,6 +41,18 @@ interface Ticket {
   }>;
 }
 
+interface SupportLinks {
+  whatsappNumber: string;
+  telegramUsername: string;
+  supportEmail: string;
+}
+
+const defaultSupportLinks: SupportLinks = {
+  whatsappNumber: '1234567890',
+  telegramUsername: 'steadfastdigital',
+  supportEmail: 'support@steadfastdigital.com',
+};
+
 export default function Support() {
   const navigate = useNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -50,6 +63,7 @@ export default function Support() {
   const [expandedTicket, setExpandedTicket] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyMessage, setReplyMessage] = useState('');
+  const [supportLinks, setSupportLinks] = useState<SupportLinks>(defaultSupportLinks);
   
   // New ticket form
   const [subject, setSubject] = useState('');
@@ -67,6 +81,7 @@ export default function Support() {
       return;
     }
     fetchTickets();
+    fetchSupportLinks();
   }, [navigate, sessionUsername]);
 
   const fetchTickets = async () => {
@@ -99,11 +114,34 @@ export default function Support() {
     }
   };
 
+  const fetchSupportLinks = async () => {
+    try {
+      const response = await fetch(`${serverUrl}/cs/support-links`, {
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch support links');
+      }
+
+      const data = await response.json();
+      setSupportLinks({
+        whatsappNumber: data.whatsappNumber ?? defaultSupportLinks.whatsappNumber,
+        telegramUsername: data.telegramUsername ?? defaultSupportLinks.telegramUsername,
+        supportEmail: data.supportEmail ?? defaultSupportLinks.supportEmail,
+      });
+    } catch (error) {
+      console.error('Error fetching support links:', error);
+    }
+  };
+
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!subject || !message) {
-      alert('Please fill in all fields');
+      toast.error('Please fill in all fields.');
       return;
     }
 
@@ -128,7 +166,7 @@ export default function Support() {
         throw new Error('Failed to create ticket');
       }
 
-      const result = await response.json();
+      await response.json();
       
       // Reset form
       setSubject('');
@@ -140,10 +178,10 @@ export default function Support() {
       // Refresh tickets
       await fetchTickets();
       
-      alert('Support ticket created successfully!');
+      toast.success('Support ticket created successfully.');
     } catch (error) {
       console.error('Error creating ticket:', error);
-      alert('Failed to create support ticket');
+      toast.error('Failed to create support ticket.');
     } finally {
       setSubmitting(false);
     }
@@ -151,7 +189,7 @@ export default function Support() {
 
   const handleReply = async (ticketId: string) => {
     if (!replyMessage.trim()) {
-      alert('Please enter a message');
+      toast.error('Please enter a message.');
       return;
     }
 
@@ -177,9 +215,10 @@ export default function Support() {
       setReplyMessage('');
       setReplyingTo(null);
       await fetchTickets();
+      toast.success('Reply sent successfully.');
     } catch (error) {
       console.error('Error sending reply:', error);
-      alert('Failed to send reply');
+      toast.error('Failed to send reply.');
     }
   };
 
@@ -258,7 +297,7 @@ export default function Support() {
           </button>
 
           <a
-            href="mailto:support@steadfastdigital.com"
+            href={`mailto:${supportLinks.supportEmail}`}
             className="bg-gradient-to-r from-gray-700 to-gray-800 text-white p-4 rounded-lg flex items-center justify-center gap-3 hover:from-gray-800 hover:to-gray-900 transition-all"
           >
             <Mail size={24} />
@@ -270,7 +309,7 @@ export default function Support() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {/* WhatsApp Support Button - Update the phone number in href below */}
           <a
-            href="https://wa.me/1234567890"
+            href={`https://wa.me/${supportLinks.whatsappNumber}`}
             target="_blank"
             rel="noopener noreferrer"
             className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4 rounded-lg flex items-center justify-center gap-3 hover:from-green-700 hover:to-green-800 transition-all group"
@@ -281,7 +320,7 @@ export default function Support() {
 
           {/* Telegram Support Button - Update the username in href below */}
           <a
-            href="https://t.me/steadfastdigital"
+            href={supportLinks.telegramUsername.startsWith('http') ? supportLinks.telegramUsername : `https://t.me/${supportLinks.telegramUsername}`}
             target="_blank"
             rel="noopener noreferrer"
             className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-lg flex items-center justify-center gap-3 hover:from-blue-600 hover:to-blue-700 transition-all group"

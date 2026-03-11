@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { 
   MessageSquare, 
@@ -50,8 +51,12 @@ export default function LiveChatAdmin() {
   useEffect(() => {
     if (selectedChat) {
       fetchMessages(selectedChat);
+      markMessagesAsRead(selectedChat);
       // Poll for new messages in the selected chat
-      const interval = setInterval(() => fetchMessages(selectedChat), 3000);
+      const interval = setInterval(() => {
+        fetchMessages(selectedChat);
+        markMessagesAsRead(selectedChat);
+      }, 3000);
       return () => clearInterval(interval);
     }
   }, [selectedChat]);
@@ -105,6 +110,28 @@ export default function LiveChatAdmin() {
     }
   };
 
+  const markMessagesAsRead = async (username: string) => {
+    try {
+      const response = await fetch(`${serverUrl}/cs/chat/mark-read`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`,
+        },
+        body: JSON.stringify({
+          username,
+          viewer: 'admin',
+        }),
+      });
+
+      if (response.ok) {
+        await fetchChats();
+      }
+    } catch (error) {
+      console.error('Error marking chat messages as read:', error);
+    }
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -134,7 +161,7 @@ export default function LiveChatAdmin() {
       await fetchChats();
     } catch (error) {
       console.error('Error sending message:', error);
-      alert('Failed to send message');
+      toast.error('Failed to send message.');
     } finally {
       setSending(false);
     }

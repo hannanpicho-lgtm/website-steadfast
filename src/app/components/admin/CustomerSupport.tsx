@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import LiveChatAdmin from './LiveChatAdmin';
 import { 
@@ -49,6 +50,18 @@ interface ChatSummary {
   totalMessages: number;
 }
 
+interface SupportLinks {
+  whatsappNumber: string;
+  telegramUsername: string;
+  supportEmail: string;
+}
+
+const defaultSupportLinks: SupportLinks = {
+  whatsappNumber: '1234567890',
+  telegramUsername: 'steadfastdigital',
+  supportEmail: 'support@steadfastdigital.com',
+};
+
 export default function CustomerSupport() {
   const [activeTab, setActiveTab] = useState<'tickets' | 'chats' | 'links'>('tickets');
   const [tickets, setTickets] = useState<TicketType[]>([]);
@@ -60,9 +73,10 @@ export default function CustomerSupport() {
   const [searchQuery, setSearchQuery] = useState('');
   
   // Links management state
-  const [whatsappNumber, setWhatsappNumber] = useState('1234567890');
-  const [telegramUsername, setTelegramUsername] = useState('steadfastdigital');
-  const [supportEmail, setSupportEmail] = useState('support@steadfastdigital.com');
+  const [whatsappNumber, setWhatsappNumber] = useState(defaultSupportLinks.whatsappNumber);
+  const [telegramUsername, setTelegramUsername] = useState(defaultSupportLinks.telegramUsername);
+  const [supportEmail, setSupportEmail] = useState(defaultSupportLinks.supportEmail);
+  const [savedSupportLinks, setSavedSupportLinks] = useState<SupportLinks>(defaultSupportLinks);
   const [isEditingLinks, setIsEditingLinks] = useState(false);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
@@ -72,8 +86,17 @@ export default function CustomerSupport() {
       fetchTickets();
     } else if (activeTab === 'chats') {
       fetchChats();
+    } else if (activeTab === 'links') {
+      fetchSupportLinks();
     }
   }, [activeTab]);
+
+  const applySupportLinks = (links: SupportLinks) => {
+    setWhatsappNumber(links.whatsappNumber);
+    setTelegramUsername(links.telegramUsername);
+    setSupportEmail(links.supportEmail);
+    setSavedSupportLinks(links);
+  };
 
   const fetchTickets = async () => {
     try {
@@ -119,9 +142,69 @@ export default function CustomerSupport() {
     }
   };
 
+  const fetchSupportLinks = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${serverUrl}/cs/support-links`, {
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch support links');
+      }
+
+      const data = await response.json();
+      applySupportLinks({
+        whatsappNumber: data.whatsappNumber ?? defaultSupportLinks.whatsappNumber,
+        telegramUsername: data.telegramUsername ?? defaultSupportLinks.telegramUsername,
+        supportEmail: data.supportEmail ?? defaultSupportLinks.supportEmail,
+      });
+    } catch (error) {
+      console.error('Error fetching support links:', error);
+      toast.error('Failed to load support links.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const saveSupportLinks = async () => {
+    try {
+      const response = await fetch(`${serverUrl}/cs/support-links`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`,
+        },
+        body: JSON.stringify({
+          whatsappNumber,
+          telegramUsername,
+          supportEmail,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save support links');
+      }
+
+      const result = await response.json();
+      applySupportLinks(result.links ?? {
+        whatsappNumber,
+        telegramUsername,
+        supportEmail,
+      });
+      setIsEditingLinks(false);
+      toast.success('Support links saved successfully.');
+    } catch (error) {
+      console.error('Error saving support links:', error);
+      toast.error('Failed to save support links.');
+    }
+  };
+
   const handleReply = async (ticketId: string) => {
     if (!replyMessage.trim()) {
-      alert('Please enter a message');
+      toast.error('Please enter a message.');
       return;
     }
 
@@ -146,10 +229,10 @@ export default function CustomerSupport() {
 
       setReplyMessage('');
       await fetchTickets();
-      alert('Reply sent successfully');
+      toast.success('Reply sent successfully.');
     } catch (error) {
       console.error('Error sending reply:', error);
-      alert('Failed to send reply');
+      toast.error('Failed to send reply.');
     }
   };
 
@@ -172,9 +255,10 @@ export default function CustomerSupport() {
       }
 
       await fetchTickets();
+      toast.success('Ticket status updated.');
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update status');
+      toast.error('Failed to update status.');
     }
   };
 
@@ -499,10 +583,7 @@ export default function CustomerSupport() {
             ) : (
               <div className="flex gap-2">
                 <button
-                  onClick={() => {
-                    setIsEditingLinks(false);
-                    alert('Changes saved successfully!');
-                  }}
+                  onClick={saveSupportLinks}
                   className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-semibold"
                 >
                   <Save size={18} />
@@ -510,9 +591,9 @@ export default function CustomerSupport() {
                 </button>
                 <button
                   onClick={() => {
-                    setWhatsappNumber('1234567890');
-                    setTelegramUsername('steadfastdigital');
-                    setSupportEmail('support@steadfastdigital.com');
+                    setWhatsappNumber(savedSupportLinks.whatsappNumber);
+                    setTelegramUsername(savedSupportLinks.telegramUsername);
+                    setSupportEmail(savedSupportLinks.supportEmail);
                     setIsEditingLinks(false);
                   }}
                   className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors font-semibold"

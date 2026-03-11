@@ -454,6 +454,59 @@ app.get("/make-server-a1c55d7e/premium/:username", async (c) => {
 
 // ==================== CS SYSTEM ENDPOINTS ====================
 
+const SUPPORT_LINKS_KEY = 'support:links';
+const DEFAULT_SUPPORT_LINKS = {
+  whatsappNumber: '1234567890',
+  telegramUsername: 'steadfastdigital',
+  supportEmail: 'support@steadfastdigital.com',
+};
+
+function sanitizeSupportLinks(value: unknown) {
+  if (!value || typeof value !== 'object') {
+    return { ...DEFAULT_SUPPORT_LINKS };
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const whatsappNumber = typeof candidate.whatsappNumber === 'string' && candidate.whatsappNumber.trim()
+    ? candidate.whatsappNumber.trim()
+    : DEFAULT_SUPPORT_LINKS.whatsappNumber;
+  const telegramUsername = typeof candidate.telegramUsername === 'string' && candidate.telegramUsername.trim()
+    ? candidate.telegramUsername.trim()
+    : DEFAULT_SUPPORT_LINKS.telegramUsername;
+  const supportEmail = typeof candidate.supportEmail === 'string' && candidate.supportEmail.trim()
+    ? candidate.supportEmail.trim()
+    : DEFAULT_SUPPORT_LINKS.supportEmail;
+
+  return {
+    whatsappNumber,
+    telegramUsername,
+    supportEmail,
+  };
+}
+
+// Get support contact links
+app.get("/make-server-a1c55d7e/cs/support-links", async (c) => {
+  try {
+    const saved = await kv.get(SUPPORT_LINKS_KEY);
+    return c.json(sanitizeSupportLinks(saved));
+  } catch (error) {
+    console.error('Error fetching support links:', error);
+    return c.json({ error: 'Failed to fetch support links' }, 500);
+  }
+});
+
+// Update support contact links
+app.post("/make-server-a1c55d7e/cs/support-links", async (c) => {
+  try {
+    const payload = sanitizeSupportLinks(await c.req.json());
+    await kv.set(SUPPORT_LINKS_KEY, payload);
+    return c.json({ success: true, links: payload });
+  } catch (error) {
+    console.error('Error saving support links:', error);
+    return c.json({ error: 'Failed to save support links' }, 500);
+  }
+});
+
 // Create a support ticket
 app.post("/make-server-a1c55d7e/cs/create-ticket", async (c) => {
   try {
@@ -653,6 +706,53 @@ app.get("/make-server-a1c55d7e/cs/chat/:username", async (c) => {
   } catch (error) {
     console.error('Error fetching chat messages:', error);
     return c.json({ error: 'Failed to fetch chat messages' }, 500);
+  }
+});
+
+// Mark chat messages as read for the current viewer
+app.post("/make-server-a1c55d7e/cs/chat/mark-read", async (c) => {
+  try {
+    const { username, viewer } = await c.req.json();
+
+    if (!username || (viewer !== 'admin' && viewer !== 'user')) {
+      return c.json({ error: 'Missing required fields' }, 400);
+    }
+
+    const chatKey = `chat:${username}`;
+    const messages = await kv.get(chatKey) || [];
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return c.json({ success: true, updated: 0 });
+    }
+
+    const shouldMarkAdminMessages = viewer === 'user';
+    let updated = 0;
+
+    const nextMessages = messages.map((message) => {
+      if (
+        message &&
+        typeof message === 'object' &&
+        message.read === false &&
+        Boolean(message.isAdmin) === shouldMarkAdminMessages
+      ) {
+        updated += 1;
+        return {
+          ...message,
+          read: true,
+        };
+      }
+
+      return message;
+    });
+
+    if (updated > 0) {
+      await kv.set(chatKey, nextMessages);
+    }
+
+    return c.json({ success: true, updated });
+  } catch (error) {
+    console.error('Error marking chat messages as read:', error);
+    return c.json({ error: 'Failed to mark chat messages as read' }, 500);
   }
 });
 

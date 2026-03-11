@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
 import { X, MessageCircle, Send, Loader2, CheckCircle } from 'lucide-react';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 
@@ -28,8 +29,12 @@ export function LiveChat({ isOpen, onClose, username }: LiveChatProps) {
   useEffect(() => {
     if (isOpen) {
       fetchMessages();
+      markMessagesAsRead();
       // Poll for new messages every 3 seconds
-      const interval = setInterval(fetchMessages, 3000);
+      const interval = setInterval(() => {
+        fetchMessages();
+        markMessagesAsRead();
+      }, 3000);
       return () => clearInterval(interval);
     }
   }, [isOpen]);
@@ -64,6 +69,24 @@ export function LiveChat({ isOpen, onClose, username }: LiveChatProps) {
     }
   };
 
+  const markMessagesAsRead = async () => {
+    try {
+      await fetch(`${serverUrl}/cs/chat/mark-read`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`,
+        },
+        body: JSON.stringify({
+          username,
+          viewer: 'user',
+        }),
+      });
+    } catch (error) {
+      console.error('Error marking chat messages as read:', error);
+    }
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -92,7 +115,7 @@ export function LiveChat({ isOpen, onClose, username }: LiveChatProps) {
       await fetchMessages();
     } catch (error) {
       console.error('Error sending message:', error);
-      alert('Failed to send message');
+      toast.error('Failed to send message.');
     } finally {
       setSending(false);
     }
