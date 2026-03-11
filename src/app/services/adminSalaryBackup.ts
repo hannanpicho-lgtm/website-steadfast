@@ -40,9 +40,103 @@ type SalaryProjectAutosave = {
 };
 
 const SALARY_PROJECT_AUTOSAVE_KEY = 'steadfast_admin_salary_project_v1';
+const VALID_REWARD_TABS: RewardTab[] = ['workday', 'reset', 'accumulated', 'product-system', 'salary-payments'];
+const VALID_BULK_OPTIONS = ['all', 'auto', 'manual'] as const;
 
 export const AUTO_BACKUP_INTERVAL_MS = 60_000;
 export const MAX_RESTORE_POINTS = 10;
+
+function sanitizeRewardTab(value: unknown): RewardTab {
+  return typeof value === 'string' && VALID_REWARD_TABS.includes(value as RewardTab)
+    ? (value as RewardTab)
+    : 'workday';
+}
+
+function sanitizeBulkOption(value: unknown): 'all' | 'auto' | 'manual' {
+  return typeof value === 'string' && (VALID_BULK_OPTIONS as readonly string[]).includes(value)
+    ? (value as 'all' | 'auto' | 'manual')
+    : 'all';
+}
+
+function sanitizeSalaryPayment(value: unknown): SalaryPayment | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as Partial<SalaryPayment>;
+  const status = candidate.status === 'Paid' ? 'Paid' : candidate.status === 'Pending' ? 'Pending' : null;
+  const paymentMode = candidate.paymentMode === 'Automatic' ? 'Automatic' : candidate.paymentMode === 'Manual' ? 'Manual' : null;
+
+  if (
+    typeof candidate.id !== 'number' ||
+    typeof candidate.username !== 'string' ||
+    typeof candidate.daysWorked !== 'number' ||
+    typeof candidate.salaryDue !== 'number' ||
+    typeof candidate.dueDate !== 'string' ||
+    !status ||
+    !paymentMode
+  ) {
+    return null;
+  }
+
+  return {
+    id: candidate.id,
+    username: candidate.username,
+    daysWorked: candidate.daysWorked,
+    salaryDue: candidate.salaryDue,
+    status,
+    dueDate: candidate.dueDate,
+    paidDate: typeof candidate.paidDate === 'string' ? candidate.paidDate : undefined,
+    paymentMode,
+  };
+}
+
+function sanitizeRestorePoint(value: unknown): SalaryRestorePoint | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as Partial<SalaryRestorePoint>;
+  const payments = Array.isArray(candidate.payments)
+    ? candidate.payments
+        .map((payment) => sanitizeSalaryPayment(payment))
+        .filter((payment): payment is SalaryPayment => payment !== null)
+    : [];
+
+  if (payments.length === 0) {
+    return null;
+  }
+
+  return {
+    id: typeof candidate.id === 'number' ? candidate.id : Date.now(),
+    createdAt: typeof candidate.createdAt === 'string' ? candidate.createdAt : new Date().toISOString(),
+    label: typeof candidate.label === 'string' && candidate.label.trim() ? candidate.label : 'Imported backup',
+    payments,
+  };
+}
+
+function sanitizePayments(values: unknown, fallback: SalaryPayment[]): SalaryPayment[] {
+  if (!Array.isArray(values)) {
+    return fallback;
+  }
+
+  const sanitized = values
+    .map((value) => sanitizeSalaryPayment(value))
+    .filter((payment): payment is SalaryPayment => payment !== null);
+
+  return sanitized.length > 0 ? sanitized : fallback;
+}
+
+function sanitizeRestorePoints(values: unknown): SalaryRestorePoint[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value) => sanitizeRestorePoint(value))
+    .filter((point): point is SalaryRestorePoint => point !== null)
+    .slice(0, MAX_RESTORE_POINTS);
+}
 
 export function loadSalaryProjectAutosave(defaultPayments: SalaryPayment[]): {
   payments: SalaryPayment[];
@@ -50,7 +144,7 @@ export function loadSalaryProjectAutosave(defaultPayments: SalaryPayment[]): {
   activeRewardTab: RewardTab;
   selectedBulkOption: 'all' | 'auto' | 'manual';
 } {
-  let restoredPayments = defaultPayments;
+  let restoredPayments = defaultPayments.map((payment) => ({ ...payment }));
   let restoredPoints: SalaryRestorePoint[] = [];
   let restoredRewardTab: RewardTab = 'workday';
   let restoredBulkOption: 'all' | 'auto' | 'manual' = 'all';
@@ -60,18 +154,10 @@ export function loadSalaryProjectAutosave(defaultPayments: SalaryPayment[]): {
     if (savedProject) {
       const parsedProject = JSON.parse(savedProject) as SalaryProjectAutosave;
       if (parsedProject?.version === 1) {
-        if (Array.isArray(parsedProject.payments) && parsedProject.payments.length > 0) {
-          restoredPayments = parsedProject.payments;
-        }
-        if (Array.isArray(parsedProject.points)) {
-          restoredPoints = parsedProject.points.slice(0, MAX_RESTORE_POINTS);
-        }
-        if (parsedProject.uiState?.activeRewardTab) {
-          restoredRewardTab = parsedProject.uiState.activeRewardTab;
-        }
-        if (parsedProject.uiState?.selectedBulkOption) {
-          restoredBulkOption = parsedProject.uiState.selectedBulkOption;
-        }
+        restoredPayments = sanitizePayments(parsedProject.payments, defaultPayments);
+        restoredPoints = sanitizeRestorePoints(parsedProject.points);
+        restoredRewardTab = sanitizeRewardTab(parsedProject.uiState?.activeRewardTab);
+        restoredBulkOption = sanitizeBulkOption(parsedProject.uiState?.selectedBulkOption);
       }
     }
   } catch {
@@ -163,18 +249,14 @@ export function parseBackupImport(text: string): {
     throw new Error('Invalid backup file format.');
   }
 
-  const importedPoints = parsed.points
-    .filter((point) => point && Array.isArray(point.payments))
-    .map((point) => ({
-      id: Number(point.id) || Date.now(),
-      createdAt: point.createdAt || new Date().toISOString(),
-      label: point.label || 'Imported backup',
-      payments: point.payments.map((payment) => ({ ...payment })),
-    }));
+  const importedPoints = sanitizeRestorePoints(parsed.points);
+  if (importedPoints.length === 0) {
+    throw new Error('No valid backup points found in file.');
+  }
 
   return {
     points: importedPoints,
-    activeRewardTab: parsed.uiState?.activeRewardTab,
-    selectedBulkOption: parsed.uiState?.selectedBulkOption,
+    activeRewardTab: sanitizeRewardTab(parsed.uiState?.activeRewardTab),
+    selectedBulkOption: sanitizeBulkOption(parsed.uiState?.selectedBulkOption),
   };
 }
