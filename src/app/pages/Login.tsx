@@ -1,16 +1,33 @@
-import { Eye, EyeOff, Lock, Mail, User, Plane } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useState } from 'react';
+import { useEffect } from 'react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
+import { authenticateUser, ensureReferralStore, getAdminCredentials, getDemoCredentials } from '../services/referralSystem';
 
 export default function Login() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(false);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [errorText, setErrorText] = useState('');
+
+  useEffect(() => {
+    ensureReferralStore();
+  }, []);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorText('');
+
+    const result = authenticateUser(username, password);
+    if (!result.ok) {
+      setErrorText(result.error ?? 'Login failed.');
+      return;
+    }
+
     setShowWelcome(true);
   };
 
@@ -49,6 +66,8 @@ export default function Login() {
             <input
               type="text"
               placeholder="Username/Phone"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
               required
             />
@@ -59,6 +78,8 @@ export default function Login() {
             <input
               type={showPassword ? "text" : "password"}
               placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
               required
             />
@@ -94,6 +115,15 @@ export default function Login() {
           >
             SIGN IN
           </button>
+
+          {errorText ? <p className="text-red-600 text-sm text-center">{errorText}</p> : null}
+
+          <p className="text-center text-xs text-gray-500">
+            Demo login: {getDemoCredentials().username} / {getDemoCredentials().password}
+          </p>
+          <p className="text-center text-xs text-gray-500">
+            Admin demo: {getAdminCredentials().username} / {getAdminCredentials().password}
+          </p>
 
           {/* Sign Up Link */}
           <p className="text-center text-sm text-[#3d4551]">

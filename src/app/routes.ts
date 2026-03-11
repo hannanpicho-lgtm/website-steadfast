@@ -20,6 +20,8 @@ import Admin from "./pages/Admin";
 import Support from "./pages/Support";
 import DeploymentStatus from "./pages/DeploymentStatus";
 import RootLayout from "./layouts/RootLayout";
+import RequireAuthLayout from "./layouts/RequireAuthLayout";
+import RequireAdminLayout from "./layouts/RequireAdminLayout";
 
 export const router = createBrowserRouter([
   {
@@ -43,28 +45,58 @@ export const router = createBrowserRouter([
         Component: ForgotPassword,
       },
       {
-        path: "starting",
-        Component: Starting,
+        Component: RequireAuthLayout,
+        children: [
+          {
+            path: "starting",
+            Component: Starting,
+          },
+          {
+            path: "records",
+            Component: Records,
+          },
+          {
+            path: "vip-levels",
+            Component: VipLevels,
+          },
+          {
+            path: "activity",
+            Component: Activity,
+          },
+          {
+            path: "withdrawal",
+            Component: Withdrawal,
+          },
+          {
+            path: "deposit",
+            Component: Deposit,
+          },
+          {
+            path: "profile",
+            Component: Profile,
+          },
+          {
+            path: "connect-wallet",
+            Component: ConnectWallet,
+          },
+          {
+            path: "logout",
+            Component: Logout,
+          },
+          {
+            path: "support",
+            Component: Support,
+          },
+        ],
       },
       {
-        path: "records",
-        Component: Records,
-      },
-      {
-        path: "vip-levels",
-        Component: VipLevels,
-      },
-      {
-        path: "activity",
-        Component: Activity,
-      },
-      {
-        path: "withdrawal",
-        Component: Withdrawal,
-      },
-      {
-        path: "deposit",
-        Component: Deposit,
+        Component: RequireAdminLayout,
+        children: [
+          {
+            path: "admin",
+            Component: Admin,
+          },
+        ],
       },
       {
         path: "terms-conditions",
@@ -81,26 +113,6 @@ export const router = createBrowserRouter([
       {
         path: "about",
         Component: About,
-      },
-      {
-        path: "profile",
-        Component: Profile,
-      },
-      {
-        path: "connect-wallet",
-        Component: ConnectWallet,
-      },
-      {
-        path: "logout",
-        Component: Logout,
-      },
-      {
-        path: "admin",
-        Component: Admin,
-      },
-      {
-        path: "support",
-        Component: Support,
       },
       {
         path: "deployment-status",

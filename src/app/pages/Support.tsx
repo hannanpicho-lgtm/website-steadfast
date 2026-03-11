@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { Header } from '../components/Header';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { LiveChat } from '../components/LiveChat';
@@ -18,6 +19,7 @@ import {
   Phone
 } from 'lucide-react';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { getCurrentUsername } from '../services/referralSystem';
 
 interface Ticket {
   id: string;
@@ -39,6 +41,7 @@ interface Ticket {
 }
 
 export default function Support() {
+  const navigate = useNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -54,21 +57,34 @@ export default function Support() {
   const [category, setCategory] = useState('general');
   const [priority, setPriority] = useState('medium');
 
-  const username = 'ugreen'; // TODO: Get from auth context
+  const sessionUsername = getCurrentUsername();
+  const username = sessionUsername ?? 'ugreen';
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
   useEffect(() => {
+    if (!sessionUsername) {
+      navigate('/login');
+      return;
+    }
     fetchTickets();
-  }, []);
+  }, [navigate, sessionUsername]);
 
   const fetchTickets = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${serverUrl}/cs/tickets/${username}`, {
+      let response = await fetch(`${serverUrl}/cs/tickets/${username}`, {
         headers: {
           'Authorization': `Bearer ${publicAnonKey}`,
         },
       });
+
+      if (!response.ok && username !== 'ugreen') {
+        response = await fetch(`${serverUrl}/cs/tickets/ugreen`, {
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+          },
+        });
+      }
 
       if (!response.ok) {
         throw new Error('Failed to fetch tickets');

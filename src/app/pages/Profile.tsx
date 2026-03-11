@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import profileImage from '../../assets/3df251a778530e24e8d83eda03085a2dc309c248.png';
+import { getCurrentUserAccount, getInvitationCodeForCurrentUser } from '../services/referralSystem';
 
 export default function Profile() {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -14,10 +15,13 @@ export default function Profile() {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
 
+  const currentUser = getCurrentUserAccount();
+  const referralCode = getInvitationCodeForCurrentUser('STF01');
+
   const handleCopyReferral = () => {
     // Fallback copy method for environments where Clipboard API is blocked
     const textArea = document.createElement('textarea');
-    textArea.value = 'E2UA';
+    textArea.value = referralCode;
     textArea.style.position = 'fixed';
     textArea.style.left = '-999999px';
     textArea.style.top = '-999999px';
@@ -68,14 +72,14 @@ export default function Profile() {
         <div className="bg-gradient-to-r from-[#0066cc] to-[#0088ee] rounded-lg p-6 text-white mb-6 shadow-md">
           <div className="mb-4">
             <p className="text-sm opacity-90 mb-1">Hello,</p>
-            <h2 className="text-2xl font-bold">ugreen</h2>
+            <h2 className="text-2xl font-bold">{currentUser?.username ?? 'ugreen'}</h2>
           </div>
 
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="flex flex-col items-center">
               <p className="text-xs opacity-90 mb-1">My Referral Code</p>
               <div className="flex items-center gap-2">
-                <p className="text-lg font-bold">E2UA</p>
+                <p className="text-lg font-bold">{referralCode}</p>
                 <button onClick={handleCopyReferral} className="hover:opacity-80">
                   <Copy size={16} />
                 </button>
@@ -128,7 +132,7 @@ export default function Profile() {
               <div className="px-4 pb-4 border-t border-gray-100">
                 <div className="py-2">
                   <p className="text-sm text-gray-600 mb-1">Username</p>
-                  <p className="font-semibold">ugreen</p>
+                  <p className="font-semibold">{currentUser?.username ?? 'ugreen'}</p>
                 </div>
                 <div className="py-2">
                   <p className="text-sm text-gray-600 mb-1">Email</p>

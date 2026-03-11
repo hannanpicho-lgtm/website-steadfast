@@ -1,14 +1,69 @@
-import { Eye, EyeOff, Lock, Mail, User, Phone } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router';
 import { useState } from 'react';
+import { useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
+import { ensureReferralStore, getSystemInviteCode, registerUserWithInvitation } from '../services/referralSystem';
 
 export default function Signup() {
+  const navigate = useNavigate();
   const [showTransactionPassword, setShowTransactionPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [gender, setGender] = useState('male');
+  const [username, setUsername] = useState('');
+  const [phone, setPhone] = useState('');
+  const [transactionPassword, setTransactionPassword] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  const [errorText, setErrorText] = useState('');
+
+  useEffect(() => {
+    ensureReferralStore();
+  }, []);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorText('');
+
+    if (!acceptTerms) {
+      setErrorText('Please accept Terms and Conditions to continue.');
+      return;
+    }
+
+    if (loginPassword.length < 6 || transactionPassword.length < 6) {
+      setErrorText('Login and transaction passwords must be at least 6 characters.');
+      return;
+    }
+
+    if (loginPassword !== confirmPassword) {
+      setErrorText('Login password confirmation does not match.');
+      return;
+    }
+
+    const result = registerUserWithInvitation({
+      username,
+      phone,
+      loginPassword,
+      transactionPassword,
+      gender,
+      invitationCode: inviteCode,
+    });
+
+    if (!result.ok) {
+      setErrorText(result.error ?? 'Signup failed. Please try again.');
+      return;
+    }
+
+    const referralPct = 20;
+    alert(
+      `Signup successful. Your invitation code is ${result.createdUser?.invitationCode}. Parent reward credited: ${referralPct}% (${result.parentReward?.toFixed(2)} USD).`
+    );
+    navigate('/login');
+  };
 
   return (
     <div className="min-h-screen bg-white">
@@ -34,13 +89,16 @@ export default function Signup() {
         <h1 className="text-[#005a87] text-3xl font-bold text-center mb-2">SIGN UP</h1>
         <p className="text-[#3d4551] text-center text-sm mb-8">Enter your username and password to access</p>
 
-        <form className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           {/* Username */}
           <div>
             <input
               type="text"
               placeholder="Username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              required
             />
           </div>
 
@@ -53,7 +111,10 @@ export default function Signup() {
             <input
               type="tel"
               placeholder="Enter a phone number"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               className="w-full pl-24 pr-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              required
             />
           </div>
 
@@ -62,7 +123,10 @@ export default function Signup() {
             <input
               type={showTransactionPassword ? "text" : "password"}
               placeholder="Transaction Password"
+              value={transactionPassword}
+              onChange={(e) => setTransactionPassword(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              required
             />
             <button
               type="button"
@@ -78,7 +142,10 @@ export default function Signup() {
             <input
               type={showLoginPassword ? "text" : "password"}
               placeholder="Login Password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              required
             />
             <button
               type="button"
@@ -94,7 +161,10 @@ export default function Signup() {
             <input
               type={showConfirmPassword ? "text" : "password"}
               placeholder="Confirm Login Password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              required
             />
             <button
               type="button"
@@ -141,9 +211,18 @@ export default function Signup() {
             <input
               type="text"
               placeholder="Invite Code"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+              maxLength={5}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              required
             />
+            <p className="mt-2 text-xs text-gray-500">
+              Invitation code is required. It must be exactly 5 letters/numbers. For initial onboarding, use system code: {getSystemInviteCode()}.
+            </p>
           </div>
+
+          {errorText ? <p className="text-sm text-red-600">{errorText}</p> : null}
 
           {/* Terms and Conditions */}
           <div className="flex items-start gap-2">

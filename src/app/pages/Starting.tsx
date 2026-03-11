@@ -1,10 +1,11 @@
 import { UserCircle, Rocket, CreditCard, Snowflake, Loader2, Lock, AlertTriangle, DollarSign } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { getCurrentUsername } from '../services/referralSystem';
 
 // Product data for carousel
 const products = [
@@ -47,6 +48,7 @@ interface UserData {
 
 // Starting page - Product submission platform with commission tracking
 export default function Starting() {
+  const navigate = useNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,8 @@ export default function Starting() {
   const [lastCommission, setLastCommission] = useState(0);
   const [isPremium, setIsPremium] = useState(false);
   
-  const username = 'ugreen'; // TODO: Get from auth context
+  const sessionUsername = getCurrentUsername();
+  const username = sessionUsername ?? 'ugreen';
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
   // VIP commission rates
@@ -75,23 +78,37 @@ export default function Starting() {
 
   // Fetch user data on mount
   useEffect(() => {
+    if (!sessionUsername) {
+      navigate('/login');
+      return;
+    }
     fetchUserData();
-  }, []);
+  }, [navigate, sessionUsername]);
+
+  const fetchUserByName = async (name: string) => {
+    const response = await fetch(`${serverUrl}/user/${name}`, {
+      headers: {
+        'Authorization': `Bearer ${publicAnonKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch user data');
+    }
+
+    return response.json();
+  };
 
   const fetchUserData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${serverUrl}/user/${username}`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch user data');
+      let data;
+      try {
+        data = await fetchUserByName(username);
+      } catch {
+        // Fallback keeps dashboard usable for newly registered local users.
+        data = await fetchUserByName('ugreen');
       }
-      
-      const data = await response.json();
       setUserData(data);
     } catch (error) {
       console.error('Error fetching user data:', error);

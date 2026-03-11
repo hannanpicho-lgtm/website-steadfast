@@ -5,6 +5,7 @@ import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { getCurrentUsername } from '../services/referralSystem';
 
 // Product data - same as Starting page
 const products = [
@@ -55,7 +56,8 @@ export default function Records() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  const username = 'ugreen'; // TODO: Get from auth context
+  const sessionUsername = getCurrentUsername();
+  const username = sessionUsername ?? 'ugreen';
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
   // VIP commission rates
@@ -68,34 +70,48 @@ export default function Records() {
   };
 
   useEffect(() => {
+    if (!sessionUsername) {
+      navigate('/login');
+      return;
+    }
     fetchData();
-  }, []);
+  }, [navigate, sessionUsername]);
+
+  const fetchUser = async (name: string) => {
+    const userResponse = await fetch(`${serverUrl}/user/${name}`, {
+      headers: {
+        'Authorization': `Bearer ${publicAnonKey}`,
+      },
+    });
+    if (!userResponse.ok) {
+      throw new Error('Failed to fetch user data');
+    }
+    return userResponse.json();
+  };
+
+  const fetchTasks = async (name: string) => {
+    const tasksResponse = await fetch(`${serverUrl}/tasks/${name}`, {
+      headers: {
+        'Authorization': `Bearer ${publicAnonKey}`,
+      },
+    });
+    if (!tasksResponse.ok) {
+      throw new Error('Failed to fetch tasks');
+    }
+    return tasksResponse.json();
+  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      
-      // Fetch user data
-      const userResponse = await fetch(`${serverUrl}/user/${username}`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
-      });
-      
-      if (userResponse.ok) {
-        const user = await userResponse.json();
-        setUserData(user);
-      }
 
-      // Fetch task records
-      const tasksResponse = await fetch(`${serverUrl}/tasks/${username}`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
-      });
-      
-      if (tasksResponse.ok) {
-        const tasks = await tasksResponse.json();
+      try {
+        const [user, tasks] = await Promise.all([fetchUser(username), fetchTasks(username)]);
+        setUserData(user);
+        setTaskRecords(tasks);
+      } catch {
+        const [user, tasks] = await Promise.all([fetchUser('ugreen'), fetchTasks('ugreen')]);
+        setUserData(user);
         setTaskRecords(tasks);
       }
     } catch (error) {

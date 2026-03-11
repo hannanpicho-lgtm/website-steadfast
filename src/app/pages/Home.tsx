@@ -10,6 +10,7 @@ import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43
 import gladzyOwletUbsImg from '../../assets/12f5de16e3bd12e9f21217623982c3c1698003e7.png';
 import blastRoosterBoxedImg from '../../assets/5271b6862b412e3ac4a743b8cdf2a4ab80e806a0.png';
 import boxedPetPlateVitaminImg from '../../assets/740c385d72ae1fb45975a181493bcb6a217983d2.png';
+import { getCurrentUsername } from '../services/referralSystem';
 
 // Client card data
 const clientLogos = [
@@ -21,7 +22,7 @@ const clientLogos = [
 
 export default function Home() {
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const username = 'ugreen'; // TODO: Get from auth context
+  const username = getCurrentUsername() ?? 'ugreen';
 
   return (
     <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
