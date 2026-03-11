@@ -330,6 +330,10 @@ export default function Support() {
     }
   };
 
+  const sortedTickets = [...tickets].sort(
+    (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime(),
+  );
+
   return (
     <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
       <Header onContactClick={() => setIsChatOpen(true)} />
@@ -500,7 +504,7 @@ export default function Support() {
             </div>
           ) : (
             <div className="space-y-4">
-              {tickets.map((ticket) => (
+              {sortedTickets.map((ticket) => (
                 <div
                   key={ticket.id}
                   className={`rounded-lg border overflow-hidden transition-all ${recentlyUpdatedTicketIds.includes(ticket.id) ? 'bg-[#22314f] border-[#5dade2] ring-2 ring-[#5dade2]/30 shadow-lg' : 'bg-[#1a1f2e] border-gray-700'}`}

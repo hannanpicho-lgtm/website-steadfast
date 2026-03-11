@@ -401,7 +401,8 @@ export default function CustomerSupport() {
       if (searchQuery && !ticket.subject.toLowerCase().includes(searchQuery.toLowerCase()) && 
           !ticket.username.toLowerCase().includes(searchQuery.toLowerCase())) return false;
       return true;
-    });
+    })
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
 
   const ticketStats = {
     total: tickets.length,
