@@ -72,6 +72,7 @@ import {
   pruneExpiredRestorePoints,
   saveSalaryAuditLog,
   saveSalaryProjectAutosave,
+  type StorageSaveResult,
   type RewardTab,
   type SalaryAuditEvent,
   type SalaryPayment,
@@ -227,6 +228,7 @@ export default function Admin() {
   const [autoBackupIntervalMinutes, setAutoBackupIntervalMinutes] = useState(1);
   const [backupRetentionDays, setBackupRetentionDays] = useState(30);
   const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
+  const [storageWarning, setStorageWarning] = useState<string | null>(null);
   const [isSalaryStateHydrated, setIsSalaryStateHydrated] = useState(false);
   const [pendingRestorePointId, setPendingRestorePointId] = useState<number | null>(null);
   const [salaryAuditLog, setSalaryAuditLog] = useState<SalaryAuditEvent[]>([]);
@@ -234,7 +236,23 @@ export default function Admin() {
   const [auditFilterAction, setAuditFilterAction] = useState<'all' | SalaryAuditEvent['action']>('all');
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
+  const lastStorageErrorRef = useRef<string | null>(null);
   const importBackupInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleStorageSaveResult = (result: StorageSaveResult) => {
+    if (result.ok) {
+      setStorageWarning(null);
+      lastStorageErrorRef.current = null;
+      return;
+    }
+
+    const message = result.message ?? 'Unable to save backup data to browser storage.';
+    setStorageWarning(message);
+    if (lastStorageErrorRef.current !== message) {
+      toast.error(message);
+      lastStorageErrorRef.current = message;
+    }
+  };
 
   const menuItems: MenuItem[] = [
     { id: 'home', label: 'Dashboard', icon: <Home size={18} /> },
@@ -295,7 +313,7 @@ export default function Admin() {
       return;
     }
 
-    saveSalaryProjectAutosave({
+    const saveResult = saveSalaryProjectAutosave({
       activeRewardTab,
       selectedBulkOption,
       autoBackupEnabled,
@@ -304,6 +322,7 @@ export default function Admin() {
       payments: salaryPayments,
       points: pruneExpiredRestorePoints(salaryRestorePoints, backupRetentionDays),
     });
+    handleStorageSaveResult(saveResult);
     setAutoSavedAt(new Date().toISOString());
   }, [
     isSalaryStateHydrated,
@@ -325,7 +344,8 @@ export default function Admin() {
       return;
     }
 
-    saveSalaryAuditLog(salaryAuditLog);
+    const saveResult = saveSalaryAuditLog(salaryAuditLog);
+    handleStorageSaveResult(saveResult);
   }, [isSalaryStateHydrated, salaryAuditLog]);
 
   const appendSalaryAudit = (event: SalaryAuditEvent) => {
@@ -2405,6 +2425,9 @@ export default function Admin() {
                 <p className="text-gray-500 text-xs mt-1">
                   Retention: {backupRetentionDays} day{backupRetentionDays === 1 ? '' : 's'}
                 </p>
+                {storageWarning && (
+                  <p className="text-red-300 text-xs mt-1">Storage warning: {storageWarning}</p>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 <button

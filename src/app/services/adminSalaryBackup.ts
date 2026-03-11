@@ -54,6 +54,11 @@ export type SalaryAuditEvent = {
   detail: string;
 };
 
+export type StorageSaveResult = {
+  ok: boolean;
+  message?: string;
+};
+
 type SalaryProjectAutosave = {
   version: 1;
   savedAt: string;
@@ -77,6 +82,19 @@ const VALID_BULK_OPTIONS = ['all', 'auto', 'manual'] as const;
 export const AUTO_BACKUP_INTERVAL_MS = 60_000;
 export const MAX_RESTORE_POINTS = 10;
 export const MAX_AUDIT_EVENTS = 50;
+
+function writeLocalStorageItem(key: string, value: unknown): StorageSaveResult {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return { ok: true };
+  } catch (error) {
+    const defaultMessage = 'Unable to save backup data to browser storage.';
+    if (error instanceof Error && error.message) {
+      return { ok: false, message: `${defaultMessage} ${error.message}` };
+    }
+    return { ok: false, message: defaultMessage };
+  }
+}
 
 function computeChecksum(value: unknown): string {
   const text = JSON.stringify(value);
@@ -338,7 +356,7 @@ export function saveSalaryProjectAutosave(payload: {
   backupRetentionDays: number;
   payments: SalaryPayment[];
   points: SalaryRestorePoint[];
-}): void {
+}): StorageSaveResult {
   const dataWithoutChecksum = {
     version: 1,
     savedAt: new Date().toISOString(),
@@ -358,7 +376,7 @@ export function saveSalaryProjectAutosave(payload: {
     checksum: computeChecksum(dataWithoutChecksum),
   };
 
-  localStorage.setItem(SALARY_PROJECT_AUTOSAVE_KEY, JSON.stringify(data));
+  return writeLocalStorageItem(SALARY_PROJECT_AUTOSAVE_KEY, data);
 }
 
 export function createSalaryRestorePoint(label: string, payments: SalaryPayment[]): SalaryRestorePoint {
@@ -499,6 +517,6 @@ export function loadSalaryAuditLog(): SalaryAuditEvent[] {
   }
 }
 
-export function saveSalaryAuditLog(events: SalaryAuditEvent[]): void {
-  localStorage.setItem(SALARY_AUDIT_LOG_KEY, JSON.stringify(events.slice(0, MAX_AUDIT_EVENTS)));
+export function saveSalaryAuditLog(events: SalaryAuditEvent[]): StorageSaveResult {
+  return writeLocalStorageItem(SALARY_AUDIT_LOG_KEY, events.slice(0, MAX_AUDIT_EVENTS));
 }
