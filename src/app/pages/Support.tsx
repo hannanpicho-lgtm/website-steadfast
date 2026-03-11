@@ -84,9 +84,23 @@ export default function Support() {
     fetchSupportLinks();
   }, [navigate, sessionUsername]);
 
-  const fetchTickets = async () => {
+  useEffect(() => {
+    if (!sessionUsername) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      fetchTickets(true);
+    }, 10000);
+
+    return () => window.clearInterval(intervalId);
+  }, [sessionUsername, username]);
+
+  const fetchTickets = async (silent: boolean = false) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       let response = await fetch(`${serverUrl}/cs/tickets/${username}`, {
         headers: {
           'Authorization': `Bearer ${publicAnonKey}`,
@@ -110,7 +124,9 @@ export default function Support() {
     } catch (error) {
       console.error('Error fetching tickets:', error);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 

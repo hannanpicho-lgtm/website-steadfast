@@ -81,6 +81,18 @@ export default function CustomerSupport() {
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
+  const refreshActiveTab = () => {
+    if (activeTab === 'tickets') {
+      fetchTickets();
+      return;
+    }
+    if (activeTab === 'chats') {
+      fetchChats();
+      return;
+    }
+    fetchSupportLinks();
+  };
+
   useEffect(() => {
     if (activeTab === 'tickets') {
       fetchTickets();
@@ -91,6 +103,23 @@ export default function CustomerSupport() {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (activeTab === 'links') {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      if (activeTab === 'tickets') {
+        fetchTickets(true);
+        return;
+      }
+
+      fetchChats(true);
+    }, 10000);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeTab]);
+
   const applySupportLinks = (links: SupportLinks) => {
     setWhatsappNumber(links.whatsappNumber);
     setTelegramUsername(links.telegramUsername);
@@ -98,9 +127,11 @@ export default function CustomerSupport() {
     setSavedSupportLinks(links);
   };
 
-  const fetchTickets = async () => {
+  const fetchTickets = async (silent: boolean = false) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       const response = await fetch(`${serverUrl}/cs/admin/tickets`, {
         headers: {
           'Authorization': `Bearer ${publicAnonKey}`,
@@ -116,13 +147,17 @@ export default function CustomerSupport() {
     } catch (error) {
       console.error('Error fetching tickets:', error);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
-  const fetchChats = async () => {
+  const fetchChats = async (silent: boolean = false) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       const response = await fetch(`${serverUrl}/cs/admin/chats`, {
         headers: {
           'Authorization': `Bearer ${publicAnonKey}`,
@@ -138,13 +173,17 @@ export default function CustomerSupport() {
     } catch (error) {
       console.error('Error fetching chats:', error);
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
-  const fetchSupportLinks = async () => {
+  const fetchSupportLinks = async (silent: boolean = false) => {
     try {
-      setLoading(true);
+      if (!silent) {
+        setLoading(true);
+      }
       const response = await fetch(`${serverUrl}/cs/support-links`, {
         headers: {
           'Authorization': `Bearer ${publicAnonKey}`,
@@ -165,7 +204,9 @@ export default function CustomerSupport() {
       console.error('Error fetching support links:', error);
       toast.error('Failed to load support links.');
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
@@ -333,7 +374,7 @@ export default function CustomerSupport() {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Customer Support Management</h2>
         <button
-          onClick={() => activeTab === 'tickets' ? fetchTickets() : fetchChats()}
+          onClick={refreshActiveTab}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           Refresh
