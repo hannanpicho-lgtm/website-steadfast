@@ -177,11 +177,25 @@ type SalaryRestorePoint = {
 type SalaryBackupExport = {
   version: 1;
   exportedAt: string;
+  uiState: {
+    activeRewardTab: RewardTab;
+    selectedBulkOption: 'all' | 'auto' | 'manual';
+  };
+  points: SalaryRestorePoint[];
+};
+
+type SalaryProjectAutosave = {
+  version: 1;
+  savedAt: string;
+  uiState: {
+    activeRewardTab: RewardTab;
+    selectedBulkOption: 'all' | 'auto' | 'manual';
+  };
+  payments: SalaryPayment[];
   points: SalaryRestorePoint[];
 };
 
 const SALARY_PROJECT_AUTOSAVE_KEY = 'steadfast_admin_salary_project_v1';
-const SALARY_RESTORE_POINTS_KEY = 'steadfast_admin_salary_restore_points_v1';
 const AUTO_BACKUP_INTERVAL_MS = 60_000;
 const MAX_RESTORE_POINTS = 10;
 
@@ -220,6 +234,8 @@ type MenuItem = {
   badge?: number;
 };
 
+type RewardTab = 'workday' | 'reset' | 'accumulated' | 'product-system' | 'salary-payments';
+
 type ModalType = 'add-user' | 'edit-user' | 'view-user' | 'delete-user' | 'view-transaction' | 'approve-withdrawal' | 'reject-withdrawal' | 'add-task' | 'edit-vip' | 'notification' | 'add-product-manual' | 'add-product-ai' | 'edit-product' | 'view-product' | 'delete-product' | 'edit-workday-reward' | 'edit-reset-reward' | 'edit-accumulated-reward' | 'edit-product-system' | 'pay-salary' | 'pay-salary-bulk' | 'add-admin' | 'edit-admin' | 'view-admin' | 'delete-admin' | 'add-role' | 'edit-role' | 'view-role-permissions' | 'delete-role' | null;
 
 export default function Admin() {
@@ -229,7 +245,7 @@ export default function Admin() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [activeAdminTab, setActiveAdminTab] = useState('admins');
-  const [activeRewardTab, setActiveRewardTab] = useState('workday');
+  const [activeRewardTab, setActiveRewardTab] = useState<RewardTab>('workday');
   const [salaryPayments, setSalaryPayments] = useState<SalaryPayment[]>(initialSalaryPayments);
   const [salaryRestorePoints, setSalaryRestorePoints] = useState<SalaryRestorePoint[]>([]);
   const [selectedBulkOption, setSelectedBulkOption] = useState<'all' | 'auto' | 'manual'>('all');
@@ -275,28 +291,37 @@ export default function Admin() {
 
   useEffect(() => {
     let restoredPayments = initialSalaryPayments;
+    let restoredPoints: SalaryRestorePoint[] = [];
+    let restoredRewardTab: RewardTab = 'workday';
+    let restoredBulkOption: 'all' | 'auto' | 'manual' = 'all';
 
     try {
-      const savedPayments = localStorage.getItem(SALARY_PROJECT_AUTOSAVE_KEY);
-      if (savedPayments) {
-        const parsedPayments = JSON.parse(savedPayments) as SalaryPayment[];
-        if (Array.isArray(parsedPayments) && parsedPayments.length > 0) {
-          restoredPayments = parsedPayments;
-          setSalaryPayments(parsedPayments);
-        }
-      }
-
-      const savedRestorePoints = localStorage.getItem(SALARY_RESTORE_POINTS_KEY);
-      if (savedRestorePoints) {
-        const parsedPoints = JSON.parse(savedRestorePoints) as SalaryRestorePoint[];
-        if (Array.isArray(parsedPoints)) {
-          setSalaryRestorePoints(parsedPoints.slice(0, MAX_RESTORE_POINTS));
+      const savedProject = localStorage.getItem(SALARY_PROJECT_AUTOSAVE_KEY);
+      if (savedProject) {
+        const parsedProject = JSON.parse(savedProject) as SalaryProjectAutosave;
+        if (parsedProject?.version === 1) {
+          if (Array.isArray(parsedProject.payments) && parsedProject.payments.length > 0) {
+            restoredPayments = parsedProject.payments;
+          }
+          if (Array.isArray(parsedProject.points)) {
+            restoredPoints = parsedProject.points.slice(0, MAX_RESTORE_POINTS);
+          }
+          if (parsedProject.uiState?.activeRewardTab) {
+            restoredRewardTab = parsedProject.uiState.activeRewardTab;
+          }
+          if (parsedProject.uiState?.selectedBulkOption) {
+            restoredBulkOption = parsedProject.uiState.selectedBulkOption;
+          }
         }
       }
     } catch {
       // Ignore malformed local storage and continue with defaults.
     }
 
+    setSalaryPayments(restoredPayments);
+    setSalaryRestorePoints(restoredPoints);
+    setActiveRewardTab(restoredRewardTab);
+    setSelectedBulkOption(restoredBulkOption);
     salaryPaymentsRef.current = restoredPayments;
     lastAutoBackupSignatureRef.current = JSON.stringify(restoredPayments);
     setIsSalaryStateHydrated(true);
@@ -311,10 +336,20 @@ export default function Admin() {
       return;
     }
 
-    localStorage.setItem(SALARY_PROJECT_AUTOSAVE_KEY, JSON.stringify(salaryPayments));
-    localStorage.setItem(SALARY_RESTORE_POINTS_KEY, JSON.stringify(salaryRestorePoints));
+    const payload: SalaryProjectAutosave = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      uiState: {
+        activeRewardTab,
+        selectedBulkOption,
+      },
+      payments: salaryPayments,
+      points: salaryRestorePoints,
+    };
+
+    localStorage.setItem(SALARY_PROJECT_AUTOSAVE_KEY, JSON.stringify(payload));
     setAutoSavedAt(new Date().toISOString());
-  }, [isSalaryStateHydrated, salaryPayments, salaryRestorePoints]);
+  }, [isSalaryStateHydrated, activeRewardTab, selectedBulkOption, salaryPayments, salaryRestorePoints]);
 
   const createAutoBackupPoint = () => {
     const snapshot = salaryPaymentsRef.current.map((payment) => ({ ...payment }));
@@ -465,6 +500,10 @@ export default function Admin() {
     const payload: SalaryBackupExport = {
       version: 1,
       exportedAt: new Date().toISOString(),
+      uiState: {
+        activeRewardTab,
+        selectedBulkOption,
+      },
       points: salaryRestorePoints,
     };
 
@@ -505,6 +544,12 @@ export default function Admin() {
           }));
 
         setSalaryRestorePoints((prev) => [...importedPoints, ...prev].slice(0, MAX_RESTORE_POINTS));
+        if (parsed.uiState?.activeRewardTab) {
+          setActiveRewardTab(parsed.uiState.activeRewardTab);
+        }
+        if (parsed.uiState?.selectedBulkOption) {
+          setSelectedBulkOption(parsed.uiState.selectedBulkOption);
+        }
         toast.success(`Imported ${importedPoints.length} backup point(s).`);
       } catch {
         toast.error('Could not read backup file.');
