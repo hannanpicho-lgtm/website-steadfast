@@ -219,6 +219,7 @@ export default function Admin() {
   const [selectedBulkOption, setSelectedBulkOption] = useState<'all' | 'auto' | 'manual'>('all');
   const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
   const [isSalaryStateHydrated, setIsSalaryStateHydrated] = useState(false);
+  const [pendingRestorePointId, setPendingRestorePointId] = useState<number | null>(null);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const importBackupInputRef = useRef<HTMLInputElement | null>(null);
@@ -387,7 +388,30 @@ export default function Admin() {
     }
 
     const latest = salaryRestorePoints[0];
-    restoreSalaryPointById(latest.id);
+    setPendingRestorePointId(latest.id);
+  };
+
+  const requestRestoreSalaryPoint = (pointId: number) => {
+    const point = salaryRestorePoints.find((item) => item.id === pointId);
+    if (!point) {
+      toast.info('Restore point not found.');
+      return;
+    }
+
+    setPendingRestorePointId(pointId);
+  };
+
+  const confirmRestoreSalaryPoint = () => {
+    if (!pendingRestorePointId) {
+      return;
+    }
+
+    restoreSalaryPointById(pendingRestorePointId);
+    setPendingRestorePointId(null);
+  };
+
+  const cancelRestoreSalaryPoint = () => {
+    setPendingRestorePointId(null);
   };
 
   const restoreSalaryPointById = (pointId: number) => {
@@ -2315,7 +2339,7 @@ export default function Admin() {
                         <p className="text-gray-400 text-xs">{new Date(point.createdAt).toLocaleString()}</p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <button onClick={() => restoreSalaryPointById(point.id)} className="text-xs bg-[#3b4258] hover:bg-[#4a536f] text-white px-3 py-1.5 rounded transition-colors">
+                        <button onClick={() => requestRestoreSalaryPoint(point.id)} className="text-xs bg-[#3b4258] hover:bg-[#4a536f] text-white px-3 py-1.5 rounded transition-colors">
                           Restore
                         </button>
                         <button onClick={() => deleteSalaryPointById(point.id)} className="text-xs bg-red-500/20 hover:bg-red-500/30 text-red-300 px-3 py-1.5 rounded transition-colors">
@@ -3882,6 +3906,10 @@ export default function Admin() {
     }
   };
 
+  const pendingRestorePoint = pendingRestorePointId
+    ? salaryRestorePoints.find((point) => point.id === pendingRestorePointId) ?? null
+    : null;
+
   return (
     <div className="size-full flex bg-[#1a1f2e]">
       {/* Left Sidebar */}
@@ -3951,6 +3979,39 @@ export default function Admin() {
 
       {/* Modals */}
       {renderModal()}
+
+      {/* Restore Preview Modal */}
+      {pendingRestorePoint && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#252b3d] border border-gray-700 rounded-lg max-w-lg w-full p-6">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-white text-xl font-bold">Restore Backup Point</h3>
+                <p className="text-gray-400 text-sm mt-1">Review this snapshot before applying restore.</p>
+              </div>
+              <button onClick={cancelRestoreSalaryPoint} className="text-gray-400 hover:text-white">
+                <X size={22} />
+              </button>
+            </div>
+
+            <div className="bg-[#1a1f2e] border border-gray-700 rounded-lg p-4 space-y-2">
+              <p className="text-white text-sm font-semibold">{pendingRestorePoint.label}</p>
+              <p className="text-gray-400 text-xs">Created: {new Date(pendingRestorePoint.createdAt).toLocaleString()}</p>
+              <p className="text-gray-300 text-sm">Payments in snapshot: <span className="text-white font-semibold">{pendingRestorePoint.payments.length}</span></p>
+              <p className="text-gray-300 text-sm">Pending: <span className="text-yellow-300 font-semibold">{pendingRestorePoint.payments.filter((payment) => payment.status === 'Pending').length}</span> | Paid: <span className="text-green-300 font-semibold">{pendingRestorePoint.payments.filter((payment) => payment.status === 'Paid').length}</span></p>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button onClick={cancelRestoreSalaryPoint} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-2.5 rounded-lg transition-colors">
+                Cancel
+              </button>
+              <button onClick={confirmRestoreSalaryPoint} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-2.5 rounded-lg transition-colors">
+                Confirm Restore
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
