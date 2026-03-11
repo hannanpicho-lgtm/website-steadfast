@@ -174,6 +174,12 @@ type SalaryRestorePoint = {
   payments: SalaryPayment[];
 };
 
+type SalaryBackupExport = {
+  version: 1;
+  exportedAt: string;
+  points: SalaryRestorePoint[];
+};
+
 const SALARY_PROJECT_AUTOSAVE_KEY = 'steadfast_admin_salary_project_v1';
 const SALARY_RESTORE_POINTS_KEY = 'steadfast_admin_salary_restore_points_v1';
 const AUTO_BACKUP_INTERVAL_MS = 60_000;
@@ -231,6 +237,7 @@ export default function Admin() {
   const [isSalaryStateHydrated, setIsSalaryStateHydrated] = useState(false);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
+  const importBackupInputRef = useRef<HTMLInputElement | null>(null);
 
   const menuItems: MenuItem[] = [
     { id: 'home', label: 'Dashboard', icon: <Home size={18} /> },
@@ -452,6 +459,60 @@ export default function Admin() {
 
     setSalaryRestorePoints([]);
     toast.success('All backup points cleared.');
+  };
+
+  const exportBackupPoints = () => {
+    const payload: SalaryBackupExport = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      points: salaryRestorePoints,
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `salary-backups-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+
+    toast.success('Backup points exported.');
+  };
+
+  const importBackupPoints = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = String(reader.result ?? '');
+        const parsed = JSON.parse(text) as SalaryBackupExport;
+        if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.points)) {
+          toast.error('Invalid backup file format.');
+          return;
+        }
+
+        const importedPoints = parsed.points
+          .filter((point) => point && Array.isArray(point.payments))
+          .map((point) => ({
+            id: Number(point.id) || Date.now(),
+            createdAt: point.createdAt || new Date().toISOString(),
+            label: point.label || 'Imported backup',
+            payments: point.payments.map((payment) => ({ ...payment })),
+          }));
+
+        setSalaryRestorePoints((prev) => [...importedPoints, ...prev].slice(0, MAX_RESTORE_POINTS));
+        toast.success(`Imported ${importedPoints.length} backup point(s).`);
+      } catch {
+        toast.error('Could not read backup file.');
+      }
+    };
+
+    reader.readAsText(file);
+    event.target.value = '';
   };
 
   const renderModal = () => {
@@ -2216,6 +2277,21 @@ export default function Admin() {
                 </p>
               </div>
               <div className="flex items-center gap-3">
+                <input
+                  ref={importBackupInputRef}
+                  type="file"
+                  accept="application/json"
+                  onChange={importBackupPoints}
+                  className="hidden"
+                />
+                <button onClick={() => importBackupInputRef.current?.click()} className="flex items-center gap-2 bg-[#2f374d] hover:bg-[#3a4460] text-white px-4 py-2.5 rounded-lg font-semibold transition-colors">
+                  <Upload size={18} />
+                  Import
+                </button>
+                <button onClick={exportBackupPoints} className="flex items-center gap-2 bg-[#2f374d] hover:bg-[#3a4460] text-white px-4 py-2.5 rounded-lg font-semibold transition-colors">
+                  <Download size={18} />
+                  Export
+                </button>
                 <button onClick={createAutoBackupPoint} className="flex items-center gap-2 bg-[#2f374d] hover:bg-[#3a4460] text-white px-4 py-2.5 rounded-lg font-semibold transition-colors">
                   <Download size={18} />
                   Backup Now
