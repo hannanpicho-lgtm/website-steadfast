@@ -226,6 +226,8 @@ export default function Admin() {
   const [isSalaryStateHydrated, setIsSalaryStateHydrated] = useState(false);
   const [pendingRestorePointId, setPendingRestorePointId] = useState<number | null>(null);
   const [salaryAuditLog, setSalaryAuditLog] = useState<SalaryAuditEvent[]>([]);
+  const [auditSearchTerm, setAuditSearchTerm] = useState('');
+  const [auditFilterAction, setAuditFilterAction] = useState<'all' | SalaryAuditEvent['action']>('all');
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const importBackupInputRef = useRef<HTMLInputElement | null>(null);
@@ -530,6 +532,49 @@ export default function Admin() {
     setSalaryAuditLog([]);
     toast.success('Audit log cleared.');
   };
+
+  const exportSalaryAuditLog = () => {
+    if (salaryAuditLog.length === 0) {
+      toast.info('No audit events to export.');
+      return;
+    }
+
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      total: salaryAuditLog.length,
+      events: salaryAuditLog,
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `salary-audit-log-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    toast.success('Audit log exported.');
+  };
+
+  const getAuditActionLabel = (action: SalaryAuditEvent['action']) => {
+    return action.replace(/-/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+  };
+
+  const getAuditActionTone = (action: SalaryAuditEvent['action']) => {
+    if (action === 'restore' || action === 'manual-backup' || action === 'auto-backup' || action === 'import-backups' || action === 'single-payment' || action === 'bulk-payment') {
+      return 'bg-green-500/20 text-green-300';
+    }
+    if (action === 'restore-cancel' || action === 'delete-backup' || action === 'clear-backups') {
+      return 'bg-yellow-500/20 text-yellow-300';
+    }
+    return 'bg-blue-500/20 text-blue-300';
+  };
+
+  const filteredAuditLog = salaryAuditLog.filter((event) => {
+    const matchesAction = auditFilterAction === 'all' || event.action === auditFilterAction;
+    const query = auditSearchTerm.trim().toLowerCase();
+    const matchesSearch = !query || event.detail.toLowerCase().includes(query) || event.action.toLowerCase().includes(query);
+    return matchesAction && matchesSearch;
+  });
 
   const renderModal = () => {
     if (!modalType) return null;
@@ -2397,19 +2442,53 @@ export default function Admin() {
             <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-white font-bold">Backup Audit Log</h3>
-                <button onClick={clearSalaryAuditLog} className="text-xs text-gray-300 hover:text-white transition-colors">
-                  Clear Log
-                </button>
+                <div className="flex items-center gap-3">
+                  <button onClick={exportSalaryAuditLog} className="text-xs text-gray-300 hover:text-white transition-colors">
+                    Export Log
+                  </button>
+                  <button onClick={clearSalaryAuditLog} className="text-xs text-gray-300 hover:text-white transition-colors">
+                    Clear Log
+                  </button>
+                </div>
               </div>
 
-              {salaryAuditLog.length === 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                <input
+                  type="text"
+                  placeholder="Search action or detail..."
+                  value={auditSearchTerm}
+                  onChange={(event) => setAuditSearchTerm(event.target.value)}
+                  className="w-full px-3 py-2 bg-[#1a1f2e] border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#00D9FF]"
+                />
+                <select
+                  value={auditFilterAction}
+                  onChange={(event) => setAuditFilterAction(event.target.value as 'all' | SalaryAuditEvent['action'])}
+                  className="w-full px-3 py-2 bg-[#1a1f2e] border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:border-[#00D9FF]"
+                >
+                  <option value="all">All Actions</option>
+                  <option value="auto-backup">Auto Backup</option>
+                  <option value="manual-backup">Manual Backup</option>
+                  <option value="restore">Restore</option>
+                  <option value="restore-cancel">Restore Cancel</option>
+                  <option value="delete-backup">Delete Backup</option>
+                  <option value="clear-backups">Clear Backups</option>
+                  <option value="import-backups">Import Backups</option>
+                  <option value="export-backups">Export Backups</option>
+                  <option value="single-payment">Single Payment</option>
+                  <option value="bulk-payment">Bulk Payment</option>
+                </select>
+              </div>
+
+              {filteredAuditLog.length === 0 ? (
                 <p className="text-gray-400 text-sm">No audit events yet.</p>
               ) : (
                 <div className="space-y-2">
-                  {salaryAuditLog.slice(0, 8).map((event) => (
+                  {filteredAuditLog.slice(0, 8).map((event) => (
                     <div key={event.id} className="bg-[#1a1f2e] border border-gray-700 rounded-lg px-3 py-2">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-white text-sm font-semibold">{event.action}</p>
+                        <p className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${getAuditActionTone(event.action)}`}>
+                          {getAuditActionLabel(event.action)}
+                        </p>
                         <p className="text-gray-400 text-xs">{new Date(event.at).toLocaleString()}</p>
                       </div>
                       <p className="text-gray-300 text-xs mt-1">{event.detail}</p>
