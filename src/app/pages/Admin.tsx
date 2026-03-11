@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import PremiumBundles from '../components/admin/PremiumBundles';
 import CustomerSupport from '../components/admin/CustomerSupport';
@@ -174,6 +174,11 @@ type SalaryRestorePoint = {
   payments: SalaryPayment[];
 };
 
+const SALARY_PROJECT_AUTOSAVE_KEY = 'steadfast_admin_salary_project_v1';
+const SALARY_RESTORE_POINTS_KEY = 'steadfast_admin_salary_restore_points_v1';
+const AUTO_BACKUP_INTERVAL_MS = 60_000;
+const MAX_RESTORE_POINTS = 10;
+
 // Salary Payment System
 const initialSalaryPayments: SalaryPayment[] = [
   { id: 1, username: 'user001', daysWorked: 15, salaryDue: 3060, status: 'Pending', dueDate: '2024-03-10', paymentMode: 'Automatic' },
@@ -222,6 +227,10 @@ export default function Admin() {
   const [salaryPayments, setSalaryPayments] = useState<SalaryPayment[]>(initialSalaryPayments);
   const [salaryRestorePoints, setSalaryRestorePoints] = useState<SalaryRestorePoint[]>([]);
   const [selectedBulkOption, setSelectedBulkOption] = useState<'all' | 'auto' | 'manual'>('all');
+  const [autoSavedAt, setAutoSavedAt] = useState<string | null>(null);
+  const [isSalaryStateHydrated, setIsSalaryStateHydrated] = useState(false);
+  const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
+  const lastAutoBackupSignatureRef = useRef<string>('');
 
   const menuItems: MenuItem[] = [
     { id: 'home', label: 'Dashboard', icon: <Home size={18} /> },
@@ -257,6 +266,80 @@ export default function Admin() {
     setModalType('reject-withdrawal');
   };
 
+  useEffect(() => {
+    let restoredPayments = initialSalaryPayments;
+
+    try {
+      const savedPayments = localStorage.getItem(SALARY_PROJECT_AUTOSAVE_KEY);
+      if (savedPayments) {
+        const parsedPayments = JSON.parse(savedPayments) as SalaryPayment[];
+        if (Array.isArray(parsedPayments) && parsedPayments.length > 0) {
+          restoredPayments = parsedPayments;
+          setSalaryPayments(parsedPayments);
+        }
+      }
+
+      const savedRestorePoints = localStorage.getItem(SALARY_RESTORE_POINTS_KEY);
+      if (savedRestorePoints) {
+        const parsedPoints = JSON.parse(savedRestorePoints) as SalaryRestorePoint[];
+        if (Array.isArray(parsedPoints)) {
+          setSalaryRestorePoints(parsedPoints.slice(0, MAX_RESTORE_POINTS));
+        }
+      }
+    } catch {
+      // Ignore malformed local storage and continue with defaults.
+    }
+
+    salaryPaymentsRef.current = restoredPayments;
+    lastAutoBackupSignatureRef.current = JSON.stringify(restoredPayments);
+    setIsSalaryStateHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    salaryPaymentsRef.current = salaryPayments;
+  }, [salaryPayments]);
+
+  useEffect(() => {
+    if (!isSalaryStateHydrated) {
+      return;
+    }
+
+    localStorage.setItem(SALARY_PROJECT_AUTOSAVE_KEY, JSON.stringify(salaryPayments));
+    localStorage.setItem(SALARY_RESTORE_POINTS_KEY, JSON.stringify(salaryRestorePoints));
+    setAutoSavedAt(new Date().toISOString());
+  }, [isSalaryStateHydrated, salaryPayments, salaryRestorePoints]);
+
+  const createAutoBackupPoint = () => {
+    const snapshot = salaryPaymentsRef.current.map((payment) => ({ ...payment }));
+    const signature = JSON.stringify(snapshot);
+
+    if (signature === lastAutoBackupSignatureRef.current) {
+      return;
+    }
+
+    const point: SalaryRestorePoint = {
+      id: Date.now(),
+      createdAt: new Date().toISOString(),
+      label: `Auto backup ${new Date().toLocaleTimeString()}`,
+      payments: snapshot,
+    };
+
+    setSalaryRestorePoints((prev) => [point, ...prev].slice(0, MAX_RESTORE_POINTS));
+    lastAutoBackupSignatureRef.current = signature;
+  };
+
+  useEffect(() => {
+    if (!isSalaryStateHydrated) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      createAutoBackupPoint();
+    }, AUTO_BACKUP_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [isSalaryStateHydrated]);
+
   const createSalaryRestorePoint = (label: string, paymentsSnapshot: SalaryPayment[] = salaryPayments) => {
     const point: SalaryRestorePoint = {
       id: Date.now(),
@@ -265,7 +348,8 @@ export default function Admin() {
       payments: paymentsSnapshot.map((payment) => ({ ...payment })),
     };
 
-    setSalaryRestorePoints((prev) => [point, ...prev].slice(0, 5));
+    setSalaryRestorePoints((prev) => [point, ...prev].slice(0, MAX_RESTORE_POINTS));
+    lastAutoBackupSignatureRef.current = JSON.stringify(paymentsSnapshot);
   };
 
   const processSingleSalaryPayment = (paymentId: number) => {
@@ -2101,8 +2185,15 @@ export default function Admin() {
               <div>
                 <h2 className="text-2xl font-bold text-white">Rewards & Salary System</h2>
                 <p className="text-gray-400 text-sm mt-1">Manage all reward schemes, salaries, and bonus systems</p>
+                <p className="text-gray-500 text-xs mt-1">
+                  Autosave: {autoSavedAt ? new Date(autoSavedAt).toLocaleTimeString() : 'waiting for first save'}
+                </p>
               </div>
               <div className="flex items-center gap-3">
+                <button onClick={createAutoBackupPoint} className="flex items-center gap-2 bg-[#2f374d] hover:bg-[#3a4460] text-white px-4 py-2.5 rounded-lg font-semibold transition-colors">
+                  <Download size={18} />
+                  Backup Now
+                </button>
                 <button onClick={restoreLatestSalaryPoint} className="flex items-center gap-2 bg-[#3b4258] hover:bg-[#4a536f] text-white px-4 py-2.5 rounded-lg font-semibold transition-colors">
                   <RefreshCw size={18} />
                   Restore Point {salaryRestorePoints.length > 0 ? `(${salaryRestorePoints.length})` : ''}
