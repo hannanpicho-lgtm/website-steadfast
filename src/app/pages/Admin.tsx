@@ -1184,7 +1184,7 @@ export default function Admin() {
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Product Image</label>
                     <input type="url" value={manualProductForm.imageUrl} onChange={(e) => setManualProductForm((prev) => ({ ...prev, imageUrl: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://image-url..." />
-                    <p className="text-gray-500 text-xs mt-1">Paste an image URL for now.</p>
+                    <p className="text-gray-300 text-xs mt-1">Paste an image URL for now.</p>
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Product URL (Optional)</label>
@@ -1553,17 +1553,17 @@ export default function Admin() {
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Products Per Set</label>
                     <input type="number" defaultValue={productSystemConfig.productsPerSet} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
-                    <p className="text-gray-500 text-xs mt-1">How many products in each task set</p>
+                    <p className="text-gray-300 text-xs mt-1">How many products in each task set</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Max Sets Per Day</label>
                     <input type="number" defaultValue={productSystemConfig.maxSetsPerDay} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
-                    <p className="text-gray-500 text-xs mt-1">Maximum sets users can complete daily</p>
+                    <p className="text-gray-300 text-xs mt-1">Maximum sets users can complete daily</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Min Time Per Product (seconds)</label>
                     <input type="number" defaultValue={productSystemConfig.minTimePerProduct} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
-                    <p className="text-gray-500 text-xs mt-1">Minimum time required per product</p>
+                    <p className="text-gray-300 text-xs mt-1">Minimum time required per product</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Commission Approval</label>
@@ -1571,14 +1571,14 @@ export default function Admin() {
                       <option value="auto">Automatic</option>
                       <option value="manual">Manual Approval</option>
                     </select>
-                    <p className="text-gray-500 text-xs mt-1">How commissions are approved</p>
+                    <p className="text-gray-300 text-xs mt-1">How commissions are approved</p>
                   </div>
                   <div className="col-span-2">
                     <label className="flex items-center gap-2">
                       <input type="checkbox" defaultChecked={productSystemConfig.requireProductConfirmation} className="w-5 h-5 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
                       <span className="text-white font-medium">Require product submission confirmation</span>
                     </label>
-                    <p className="text-gray-500 text-xs mt-1 ml-7">Users must confirm each product submission</p>
+                    <p className="text-gray-300 text-xs mt-1 ml-7">Users must confirm each product submission</p>
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
@@ -1771,7 +1771,7 @@ export default function Admin() {
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Temporary Password *</label>
                     <input type="password" placeholder="Min. 8 characters" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required />
-                    <p className="text-gray-500 text-xs mt-1">Admin will be required to change password on first login</p>
+                    <p className="text-gray-300 text-xs mt-1">Admin will be required to change password on first login</p>
                   </div>
                   <div className="col-span-2 flex items-center gap-4">
                     <label className="flex items-center gap-2">
@@ -2369,7 +2369,7 @@ export default function Admin() {
                                 <div>
                                   <p className="text-white font-semibold">{admin.fullName}</p>
                                   <p className="text-gray-400 text-xs">{admin.email}</p>
-                                  <p className="text-gray-500 text-xs">@{admin.username}</p>
+                                  <p className="text-gray-300 text-xs">@{admin.username}</p>
                                 </div>
                               </div>
                             </td>
@@ -2397,7 +2397,7 @@ export default function Admin() {
                                   Enabled
                                 </span>
                               ) : (
-                                <span className="flex items-center gap-1 text-gray-500 text-sm">
+                                <span className="flex items-center gap-1 text-gray-300 text-sm">
                                   <XCircle size={14} />
                                   Disabled
                                 </span>
@@ -2509,7 +2509,7 @@ export default function Admin() {
                           }`} style={{ width: `${(permissionCount / totalPermissions) * 100}%` }}></div>
                         </div>
                         <div className="flex items-center gap-2 mb-3">
-                          <Users size={14} className="text-gray-500" />
+                          <Users size={14} className="text-gray-300" />
                           <span className="text-gray-400 text-xs">{adminUsers.filter(u => u.roleId === role.id).length} admin(s) with this role</span>
                         </div>
                         <button onClick={() => { setSelectedItem(role); setModalType('view-role-permissions'); }} className={`w-full py-2 rounded-lg font-semibold text-sm transition-colors ${
@@ -2538,13 +2538,13 @@ export default function Admin() {
               <div>
                 <h2 className="text-2xl font-bold text-white">Rewards & Salary System</h2>
                 <p className="text-gray-400 text-sm mt-1">Manage all reward schemes, salaries, and bonus systems</p>
-                <p className="text-gray-500 text-xs mt-1">
+                <p className="text-gray-300 text-xs mt-1">
                   Autosave: {autoSavedAt ? new Date(autoSavedAt).toLocaleTimeString() : 'waiting for first save'}
                 </p>
-                <p className="text-gray-500 text-xs mt-1">
+                <p className="text-gray-300 text-xs mt-1">
                   Auto backup: {autoBackupEnabled ? `on (${autoBackupIntervalMinutes} min)` : 'off'}
                 </p>
-                <p className="text-gray-500 text-xs mt-1">
+                <p className="text-gray-300 text-xs mt-1">
                   Retention: {backupRetentionDays} day{backupRetentionDays === 1 ? '' : 's'}
                 </p>
                 {storageWarning && (
@@ -3172,7 +3172,7 @@ export default function Admin() {
                     </div>
                     <div className="flex items-center justify-between text-xs mb-3">
                       <span className="text-gray-400">{product.category}</span>
-                      <span className="text-gray-500">SKU: {product.sku}</span>
+                      <span className="text-gray-300">SKU: {product.sku}</span>
                     </div>
                     <div className="flex items-center gap-2 mb-3 text-xs">
                       <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded">{product.merchant}</span>
@@ -3307,7 +3307,7 @@ export default function Admin() {
                         <td className="px-6 py-4 text-sm font-medium text-white">{user.username}</td>
                         <td className="px-6 py-4 text-sm text-gray-300">
                           <div>{user.email}</div>
-                          <div className="text-xs text-gray-500">{user.phone}</div>
+                          <div className="text-xs text-gray-300">{user.phone}</div>
                         </td>
                         <td className="px-6 py-4 text-sm">
                           <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300">
@@ -3467,7 +3467,7 @@ export default function Admin() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-400">{tx.date}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500 font-mono">{tx.txHash}</td>
+                        <td className="px-6 py-4 text-sm text-gray-300 font-mono">{tx.txHash}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -3672,7 +3672,7 @@ export default function Admin() {
                               </button>
                             </div>
                           ) : (
-                            <span className="text-gray-500 text-xs">Processed</span>
+                            <span className="text-gray-300 text-xs">Processed</span>
                           )}
                         </td>
                       </tr>
@@ -3731,7 +3731,7 @@ export default function Admin() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-400">{tx.date}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500 font-mono">{tx.txHash}</td>
+                        <td className="px-6 py-4 text-sm text-gray-300 font-mono">{tx.txHash}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -3746,7 +3746,7 @@ export default function Admin() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-white">Notifications</h2>
+                <h2 className="text-2xl font-bold text-[#00D9FF]">Notifications</h2>
                 <p className="text-gray-400 text-sm mt-1">Send announcements and alerts to users</p>
               </div>
               <button onClick={() => setModalType('notification')} className="flex items-center gap-2 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-4 py-2 rounded-lg font-semibold transition-colors">
@@ -3765,7 +3765,7 @@ export default function Admin() {
                   <div className="flex-1">
                     <h3 className="text-white font-semibold mb-1">System Maintenance Notice</h3>
                     <p className="text-gray-400 text-sm mb-2">Scheduled maintenance on March 10, 2024 from 2:00 AM - 4:00 AM EST</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <div className="flex items-center gap-4 text-xs text-gray-300">
                       <span className="flex items-center gap-1"><Clock size={12} /> 2 hours ago</span>
                       <span>Sent to: All Users</span>
                       <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded">High Priority</span>
@@ -3782,7 +3782,7 @@ export default function Admin() {
                   <div className="flex-1">
                     <h3 className="text-white font-semibold mb-1">New VIP Benefits Available</h3>
                     <p className="text-gray-400 text-sm mb-2">VIP 4 and VIP 5 members can now access exclusive high-commission tasks</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <div className="flex items-center gap-4 text-xs text-gray-300">
                       <span className="flex items-center gap-1"><Clock size={12} /> 1 day ago</span>
                       <span>Sent to: VIP 4, VIP 5</span>
                       <span className="px-2 py-1 bg-green-500/20 text-green-300 rounded">Normal</span>
@@ -3799,7 +3799,7 @@ export default function Admin() {
                   <div className="flex-1">
                     <h3 className="text-white font-semibold mb-1">Security Update Required</h3>
                     <p className="text-gray-400 text-sm mb-2">Please update your password for enhanced security</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                    <div className="flex items-center gap-4 text-xs text-gray-300">
                       <span className="flex items-center gap-1"><Clock size={12} /> 3 days ago</span>
                       <span>Sent to: All Users</span>
                       <span className="px-2 py-1 bg-red-500/20 text-red-300 rounded">Urgent</span>
@@ -3821,7 +3821,7 @@ export default function Admin() {
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-bold text-white">Platform Settings</h2>
+              <h2 className="text-2xl font-bold text-[#00D9FF]">Platform Settings</h2>
               <p className="text-gray-400 text-sm mt-1">Configure global platform settings and parameters</p>
             </div>
 
@@ -3924,7 +3924,7 @@ export default function Admin() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-white">Financial Overview</h2>
+                <h2 className="text-2xl font-bold text-[#00D9FF]">Financial Overview</h2>
                 <p className="text-gray-400 text-sm mt-1">Comprehensive financial analytics and metrics</p>
               </div>
               <div className="flex items-center gap-3">
@@ -4110,7 +4110,7 @@ export default function Admin() {
                           <div className="flex items-center gap-2">
                             <Shield className="text-purple-400" size={16} />
                             <span className="text-white font-semibold text-sm">{vip.name}</span>
-                            <span className="text-gray-500 text-xs">({vipUsers.length} users)</span>
+                            <span className="text-gray-300 text-xs">({vipUsers.length} users)</span>
                           </div>
                           <span className="text-[#00D9FF] font-bold">${vipRevenue.toFixed(2)}</span>
                         </div>
@@ -4183,7 +4183,7 @@ export default function Admin() {
       case 'home':
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-white">Dashboard Overview</h2>
+            <h2 className="text-2xl font-bold text-[#00D9FF]">Dashboard Overview</h2>
             
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -4292,9 +4292,9 @@ export default function Admin() {
         return (
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
-              <Database className="mx-auto text-gray-600 mb-4" size={64} />
+              <Database className="mx-auto text-gray-300 mb-4" size={64} />
               <h3 className="text-xl font-semibold text-gray-400">Section Under Development</h3>
-              <p className="text-gray-500 mt-2">This feature will be available soon.</p>
+              <p className="text-gray-300 mt-2">This feature will be available soon.</p>
             </div>
           </div>
         );
@@ -4532,4 +4532,5 @@ export default function Admin() {
     </div>
   );
 }
+
 

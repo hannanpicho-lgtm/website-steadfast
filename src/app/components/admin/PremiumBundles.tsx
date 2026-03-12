@@ -153,7 +153,7 @@ export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
                 step="0.01"
                 className="w-full bg-[#1a1f2e] text-white border border-gray-600 rounded px-4 py-2 focus:outline-none focus:border-[#00D9FF]"
               />
-              <p className="text-gray-500 text-xs mt-1">💡 This is the admin-defined premium product value</p>
+              <p className="text-gray-300 text-xs mt-1">💡 This is the admin-defined premium product value</p>
             </div>
 
             {/* Bundle Product Count */}
@@ -176,7 +176,7 @@ export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
                   </button>
                 ))}
               </div>
-              <p className="text-gray-500 text-xs mt-1">💡 System will select highest value products</p>
+              <p className="text-gray-300 text-xs mt-1">💡 System will select highest value products</p>
             </div>
 
             {/* Bundled Products Preview */}
@@ -265,7 +265,7 @@ export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-500 text-sm">Select a user and enter premium value to see calculation</p>
+                <p className="text-gray-300 text-sm">Select a user and enter premium value to see calculation</p>
               </div>
             )}
           </div>
@@ -326,7 +326,7 @@ export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
                 </td>
               </tr>
               <tr className="border-b border-gray-800">
-                <td colSpan={8} className="py-8 text-center text-gray-500">
+                <td colSpan={8} className="py-8 text-center text-gray-300">
                   No active premium assignments. Use the form above to assign a premium bundle.
                 </td>
               </tr>
@@ -354,3 +354,4 @@ export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
     </div>
   );
 }
+
