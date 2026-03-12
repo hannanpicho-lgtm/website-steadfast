@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router';
 import { useState } from 'react';
 import { useEffect } from 'react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
-import { authenticateUser, ensureReferralStore, getAdminCredentials, getDemoCredentials } from '../services/referralSystem';
+import { authenticateUser, ensureReferralStore, getAdminCredentials, getBackendDemoCredentials, getDemoCredentials } from '../services/referralSystem';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -125,6 +125,9 @@ export default function Login() {
           </p>
           <p className="text-center text-xs text-gray-500">
             Admin demo: {getAdminCredentials().username} / {getAdminCredentials().password}
+          </p>
+          <p className="text-center text-xs text-gray-500">
+            Backend demo: {getBackendDemoCredentials().username} / {getBackendDemoCredentials().password}
           </p>
 
           {/* Sign Up Link */}

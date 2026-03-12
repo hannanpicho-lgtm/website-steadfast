@@ -4,6 +4,11 @@ import { logger } from "npm:hono/logger";
 import * as kv from "./kv_store.tsx";
 const app = new Hono();
 
+const DEMO_USER_USERNAME = "ugreen";
+const DEMO_USER_PASSWORD = "demo123";
+const BACKEND_DEMO_USERNAME = "backenddemo";
+const BACKEND_DEMO_PASSWORD = "backend123";
+
 // Enable logger
 app.use('*', logger(console.log));
 
@@ -19,6 +24,61 @@ app.use(
   }),
 );
 
+function createDefaultUser(username: string) {
+  return {
+    username,
+    vipLevel: 1,
+    balance: 0,
+    todayCommission: 0,
+    holdAmount: 0,
+    luckyBonus: 0,
+    tasksCompleted: 0,
+    tasksLimit: 40,
+    lastReset: new Date().toISOString().split('T')[0],
+    isFrozen: false,
+    activePremium: null,
+    premiumQueue: [],
+    password: null,
+    authSource: 'legacy',
+  };
+}
+
+async function ensureDemoBackendAccounts() {
+  const demoUserKey = `user:${DEMO_USER_USERNAME}`;
+  const backendDemoKey = `user:${BACKEND_DEMO_USERNAME}`;
+
+  const demoUserData = await kv.get(demoUserKey);
+  if (!demoUserData) {
+    const demoUser = {
+      ...createDefaultUser(DEMO_USER_USERNAME),
+      balance: 100,
+      password: DEMO_USER_PASSWORD,
+      authSource: 'demo',
+    };
+    await kv.set(demoUserKey, demoUser);
+  } else if (!demoUserData.password) {
+    demoUserData.password = DEMO_USER_PASSWORD;
+    demoUserData.authSource = 'demo';
+    await kv.set(demoUserKey, demoUserData);
+  }
+
+  const backendDemoData = await kv.get(backendDemoKey);
+  if (!backendDemoData) {
+    const backendDemo = {
+      ...createDefaultUser(BACKEND_DEMO_USERNAME),
+      vipLevel: 2,
+      balance: 250,
+      password: BACKEND_DEMO_PASSWORD,
+      authSource: 'backend-demo',
+    };
+    await kv.set(backendDemoKey, backendDemo);
+  } else if (!backendDemoData.password) {
+    backendDemoData.password = BACKEND_DEMO_PASSWORD;
+    backendDemoData.authSource = 'backend-demo';
+    await kv.set(backendDemoKey, backendDemoData);
+  }
+}
+
 // Health check endpoint
 app.get("/make-server-a1c55d7e/health", (c) => {
   return c.json({ status: "ok" });
@@ -27,6 +87,8 @@ app.get("/make-server-a1c55d7e/health", (c) => {
 // Get user data endpoint
 app.get("/make-server-a1c55d7e/user/:username", async (c) => {
   try {
+    await ensureDemoBackendAccounts();
+
     const username = c.req.param("username");
     const userKey = `user:${username}`;
     
@@ -34,20 +96,7 @@ app.get("/make-server-a1c55d7e/user/:username", async (c) => {
     
     if (!userData) {
       // Create default user data if not exists
-      const defaultUser = {
-        username,
-        vipLevel: 1,
-        balance: 0,
-        todayCommission: 0,
-        holdAmount: 0,
-        luckyBonus: 0,
-        tasksCompleted: 0,
-        tasksLimit: 40,
-        lastReset: new Date().toISOString().split('T')[0], // Today's date
-        isFrozen: false,
-        activePremium: null,
-        premiumQueue: [],
-      };
+      const defaultUser = createDefaultUser(username);
       await kv.set(userKey, defaultUser);
       return c.json(defaultUser);
     }
@@ -65,6 +114,45 @@ app.get("/make-server-a1c55d7e/user/:username", async (c) => {
   } catch (error) {
     console.error('Error fetching user data:', error);
     return c.json({ error: 'Failed to fetch user data' }, 500);
+  }
+});
+
+// Backend signin endpoint for demo and backend-demo accounts
+app.post("/make-server-a1c55d7e/auth/signin", async (c) => {
+  try {
+    await ensureDemoBackendAccounts();
+
+    const { username, password } = await c.req.json();
+    const normalizedUsername = String(username || '').trim();
+    const normalizedPassword = String(password || '').trim();
+
+    if (!normalizedUsername || !normalizedPassword) {
+      return c.json({ error: 'Username and password are required' }, 400);
+    }
+
+    const userKey = `user:${normalizedUsername}`;
+    const userData = await kv.get(userKey);
+
+    if (!userData) {
+      return c.json({ error: 'Account not found' }, 404);
+    }
+
+    if (!userData.password || userData.password !== normalizedPassword) {
+      return c.json({ error: 'Invalid username or password' }, 401);
+    }
+
+    return c.json({
+      success: true,
+      user: {
+        username: userData.username,
+        vipLevel: userData.vipLevel,
+        balance: userData.balance,
+        authSource: userData.authSource || 'legacy',
+      },
+    });
+  } catch (error) {
+    console.error('Error during backend signin:', error);
+    return c.json({ error: 'Failed to sign in' }, 500);
   }
 });
 
