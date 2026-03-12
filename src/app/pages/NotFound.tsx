@@ -13,13 +13,13 @@ export default function NotFound() {
         <div className="mt-6 flex items-center justify-center gap-3">
           <Link
             to="/starting"
-            className="px-4 py-2 rounded-lg bg-[#0066b3] text-white text-sm font-medium hover:bg-[#0052a3] transition-colors"
+            className="btn-mobile-primary"
           >
             Go to Dashboard
           </Link>
           <Link
             to="/"
-            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
+            className="btn-mobile-outline"
           >
             Home
           </Link>

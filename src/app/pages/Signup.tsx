@@ -244,7 +244,7 @@ export default function Signup() {
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full bg-[#005a87] hover:bg-[#004a6f] text-white font-bold py-3 px-4 rounded-lg transition-colors"
+            className="btn-mobile-primary-block"
           >
             Submit
           </button>

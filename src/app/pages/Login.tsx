@@ -113,7 +113,7 @@ export default function Login() {
           {/* Sign In Button */}
           <button
             type="submit"
-            className="w-full bg-[#005a87] hover:bg-[#004a6f] text-white font-bold py-3 px-4 rounded-lg transition-colors uppercase tracking-wide"
+            className="btn-mobile-primary-block uppercase tracking-wide"
           >
             SIGN IN
           </button>
@@ -175,7 +175,7 @@ export default function Login() {
             
             <button
               onClick={handleWelcomeClose}
-              className="w-full bg-[#005a87] hover:bg-[#004a6f] text-white font-bold py-3 px-6 rounded-lg transition-colors"
+              className="btn-mobile-primary-block"
             >
               Continue
             </button>

@@ -87,7 +87,7 @@ export default function ForgotPassword() {
 
             <Link 
               to="/login"
-              className="flex items-center justify-center gap-2 bg-[#00D9FF] text-white py-3 px-6 rounded-lg font-semibold hover:bg-[#00c0e6] transition-colors"
+              className="btn-mobile-accent-block text-white"
             >
               <ArrowLeft size={20} />
               Back to Login
@@ -157,7 +157,7 @@ export default function ForgotPassword() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-[#00D9FF] text-white py-3 rounded-lg font-semibold hover:bg-[#00c0e6] transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="btn-mobile-accent-block text-white"
             >
               {isSubmitting ? (
                 <>
