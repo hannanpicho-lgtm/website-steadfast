@@ -224,7 +224,7 @@ export default function Home() {
                 className="w-full h-64 object-cover rounded-lg"
               />
             </div>
-            <div className="bg-gradient-to-br from-purple-600/80 to-pink-500/60 p-8 rounded-lg text-white">
+            <div className="bg-[#2d3548] p-8 rounded-lg text-white border border-gray-600/40 hover:border-[#00D9FF]/40 transition-colors">
               <h3 className="text-2xl font-bold mb-4">Strategic Insights</h3>
               <p className="mb-4 leading-relaxed">
                 In today's dynamic landscape, mastering channels like Google, Meta and TikTok feels like navigating a complex ecosystem.
@@ -261,7 +261,7 @@ export default function Home() {
           
           <div className="grid md:grid-cols-3 gap-6 mb-6">
             {/* Search Engine Marketing */}
-            <div className="bg-[#2d3548] p-8 rounded-lg text-white hover:bg-[#353d54] transition-colors">
+            <div className="bg-[#2d3548] p-8 rounded-lg text-white border border-gray-600/30 hover:border-[#00D9FF]/40 transition-colors">
               <h3 className="text-xl font-bold mb-6 border-b border-gray-600 pb-4">Search Engine<br/>Marketing</h3>
               <p className="text-gray-300 text-sm leading-relaxed">
                 Google Ads & Bing Ads: Designed for precision targeting, data-driven tests, and maximizing ROAS.
@@ -269,7 +269,7 @@ export default function Home() {
             </div>
 
             {/* Paid Social */}
-            <div className="bg-[#2d3548] p-8 rounded-lg text-white hover:bg-[#353d54] transition-colors">
+            <div className="bg-[#2d3548] p-8 rounded-lg text-white border border-gray-600/30 hover:border-[#00D9FF]/40 transition-colors">
               <h3 className="text-xl font-bold mb-6 border-b border-gray-600 pb-4">Paid Social</h3>
               <p className="text-gray-300 text-sm leading-relaxed">
                 Facebook, Instagram, Pinterest, TikTok, and LinkedIn Ads. Reach the right audience at the right time in the right place.
@@ -277,7 +277,7 @@ export default function Home() {
             </div>
 
             {/* Paid Content */}
-            <div className="bg-[#2d3548] p-8 rounded-lg text-white hover:bg-[#353d54] transition-colors">
+            <div className="bg-[#2d3548] p-8 rounded-lg text-white border border-gray-600/30 hover:border-[#00D9FF]/40 transition-colors">
               <h3 className="text-xl font-bold mb-6 border-b border-gray-600 pb-4">Paid Content</h3>
               <p className="text-gray-300 text-sm leading-relaxed">
                 Taboola & Outbrain: Amplify your content to drive awareness and attention.
@@ -287,7 +287,7 @@ export default function Home() {
 
           <div className="grid md:grid-cols-2 gap-6">
             {/* Affiliate Marketing */}
-            <div className="bg-[#2d3548] p-8 rounded-lg text-white hover:bg-[#353d54] transition-colors">
+            <div className="bg-[#2d3548] p-8 rounded-lg text-white border border-gray-600/30 hover:border-[#00D9FF]/40 transition-colors">
               <h3 className="text-xl font-bold mb-6 border-b border-gray-600 pb-4">Affiliate<br/>Marketing</h3>
               <p className="text-gray-300 text-sm leading-relaxed">
                 Get featured across sites and platforms your customers care about.
@@ -295,9 +295,9 @@ export default function Home() {
             </div>
 
             {/* Digital Strategy & Insights */}
-            <div className="bg-gradient-to-br from-[#00D9FF] to-[#00a8cc] p-8 rounded-lg text-[#1a1f2e] hover:from-[#00c5e6] hover:to-[#0097b8] transition-colors">
-              <h3 className="text-xl font-bold mb-6 border-b border-[#1a1f2e]/20 pb-4">Digital Strategy<br/>& Insights</h3>
-              <p className="text-[#1a1f2e] text-sm leading-relaxed font-medium">
+            <div className="bg-[#2d3548] p-8 rounded-lg text-white border border-gray-600/30 hover:border-[#00D9FF]/40 transition-colors">
+              <h3 className="text-xl font-bold mb-6 border-b border-gray-600 pb-4 text-[#00D9FF]">Digital Strategy<br/>& Insights</h3>
+              <p className="text-gray-300 text-sm leading-relaxed">
                 Data that ties it all together for the optimal performance for your media mix.
               </p>
             </div>
