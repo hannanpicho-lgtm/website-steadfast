@@ -219,6 +219,26 @@ export default function Admin() {
   const [modalType, setModalType] = useState<ModalType>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState('all');
+  const [products, setProducts] = useState(mockProducts);
+  const [manualProductForm, setManualProductForm] = useState({
+    name: '',
+    description: '',
+    category: 'Electronics',
+    merchant: 'Amazon',
+    price: '',
+    commissionRate: '',
+    sku: '',
+    stock: '',
+    imageUrl: '',
+    productUrl: '',
+  });
+  const [aiProductForm, setAiProductForm] = useState({
+    prompt: '',
+    category: '',
+    merchant: 'Amazon',
+    priceRange: '$0 - $50',
+    generateImage: 'Yes - AI Generated',
+  });
   const [activeAdminTab, setActiveAdminTab] = useState('admins');
   const [activeRewardTab, setActiveRewardTab] = useState<RewardTab>('workday');
   const [salaryPayments, setSalaryPayments] = useState<SalaryPayment[]>(initialSalaryPayments);
@@ -286,6 +306,109 @@ export default function Admin() {
     const withdrawal = mockWithdrawals.find(w => w.id === id);
     setSelectedItem(withdrawal);
     setModalType('reject-withdrawal');
+  };
+
+  const resetManualProductForm = () => {
+    setManualProductForm({
+      name: '',
+      description: '',
+      category: 'Electronics',
+      merchant: 'Amazon',
+      price: '',
+      commissionRate: '',
+      sku: '',
+      stock: '',
+      imageUrl: '',
+      productUrl: '',
+    });
+  };
+
+  const resetAiProductForm = () => {
+    setAiProductForm({
+      prompt: '',
+      category: '',
+      merchant: 'Amazon',
+      priceRange: '$0 - $50',
+      generateImage: 'Yes - AI Generated',
+    });
+  };
+
+  const handleCreateManualProduct = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const name = manualProductForm.name.trim();
+    if (!name) {
+      toast.error('Product name is required.');
+      return;
+    }
+
+    const nextId = products.reduce((maxId, product) => Math.max(maxId, product.id), 0) + 1;
+    const stock = Math.max(0, Number(manualProductForm.stock) || 0);
+    const newProduct = {
+      id: nextId,
+      name,
+      description: manualProductForm.description.trim() || 'No description provided.',
+      category: manualProductForm.category,
+      merchant: manualProductForm.merchant,
+      price: Number(manualProductForm.price) || 0,
+      commission: (Number(manualProductForm.commissionRate) || 0) / 100,
+      imageUrl: manualProductForm.imageUrl.trim() || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400',
+      status: stock > 0 ? 'Active' : 'Inactive',
+      sku: manualProductForm.sku.trim() || `PRD-${String(nextId).padStart(3, '0')}`,
+      stock,
+      createdDate: new Date().toISOString().slice(0, 10),
+      source: 'Manual',
+      productUrl: manualProductForm.productUrl.trim() || undefined,
+    };
+
+    setProducts((prev) => [newProduct, ...prev]);
+    setActiveMenu('product-management');
+    setModalType(null);
+    resetManualProductForm();
+    toast.success('Product created successfully.');
+  };
+
+  const handleCreateAiProduct = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const prompt = aiProductForm.prompt.trim();
+    if (!prompt) {
+      toast.error('Product prompt is required.');
+      return;
+    }
+
+    const nextId = products.reduce((maxId, product) => Math.max(maxId, product.id), 0) + 1;
+    const promptWords = prompt.split(/\s+/).filter(Boolean);
+    const generatedName = promptWords.slice(0, 4).join(' ') || `AI Product ${nextId}`;
+    const priceMap: Record<string, number> = {
+      '$0 - $50': 49.99,
+      '$50 - $100': 89.99,
+      '$100 - $200': 149.99,
+      '$200 - $500': 299.99,
+      '$500+': 599.99,
+    };
+
+    const newProduct = {
+      id: nextId,
+      name: generatedName,
+      description: prompt,
+      category: aiProductForm.category || 'Electronics',
+      merchant: aiProductForm.merchant,
+      price: priceMap[aiProductForm.priceRange] ?? 99.99,
+      commission: 0.02,
+      imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400',
+      status: 'Active',
+      sku: `AIP-${String(nextId).padStart(3, '0')}`,
+      stock: 100,
+      createdDate: new Date().toISOString().slice(0, 10),
+      source: 'AI Generated',
+    };
+
+    setProducts((prev) => [newProduct, ...prev]);
+    setActiveMenu('product-management');
+    setModalType(null);
+    resetAiProductForm();
+    toast.success('AI product created successfully.');
   };
 
   useEffect(() => {
@@ -1012,19 +1135,19 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleCreateManualProduct}>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Product Name</label>
-                    <input type="text" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product name" />
+                    <input type="text" value={manualProductForm.name} onChange={(e) => setManualProductForm((prev) => ({ ...prev, name: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product name" />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
-                    <textarea className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" rows={3} placeholder="Enter product description"></textarea>
+                    <textarea value={manualProductForm.description} onChange={(e) => setManualProductForm((prev) => ({ ...prev, description: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" rows={3} placeholder="Enter product description"></textarea>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Category</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select value={manualProductForm.category} onChange={(e) => setManualProductForm((prev) => ({ ...prev, category: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option>Electronics</option>
                       <option>Wearables</option>
                       <option>Gaming</option>
@@ -1034,7 +1157,7 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Merchant</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select value={manualProductForm.merchant} onChange={(e) => setManualProductForm((prev) => ({ ...prev, merchant: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option>Amazon</option>
                       <option>Walmart</option>
                       <option>Target</option>
@@ -1044,38 +1167,35 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Price ($)</label>
-                    <input type="number" step="0.01" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.00" />
+                    <input type="number" step="0.01" value={manualProductForm.price} onChange={(e) => setManualProductForm((prev) => ({ ...prev, price: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.00" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Commission Rate (%)</label>
-                    <input type="number" step="0.001" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.000" />
+                    <input type="number" step="0.001" value={manualProductForm.commissionRate} onChange={(e) => setManualProductForm((prev) => ({ ...prev, commissionRate: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.000" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">SKU</label>
-                    <input type="text" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="XXX-000" />
+                    <input type="text" value={manualProductForm.sku} onChange={(e) => setManualProductForm((prev) => ({ ...prev, sku: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="XXX-000" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Stock Quantity</label>
-                    <input type="number" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0" />
+                    <input type="number" value={manualProductForm.stock} onChange={(e) => setManualProductForm((prev) => ({ ...prev, stock: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0" />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Product Image</label>
-                    <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-[#00D9FF] transition-colors cursor-pointer">
-                      <Upload className="mx-auto text-gray-400 mb-2" size={32} />
-                      <p className="text-gray-400 text-sm">Click to upload or drag and drop</p>
-                      <p className="text-gray-500 text-xs mt-1">PNG, JPG or WebP (max. 5MB)</p>
-                    </div>
+                    <input type="url" value={manualProductForm.imageUrl} onChange={(e) => setManualProductForm((prev) => ({ ...prev, imageUrl: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://image-url..." />
+                    <p className="text-gray-500 text-xs mt-1">Paste an image URL for now.</p>
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Product URL (Optional)</label>
-                    <input type="url" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://..." />
+                    <input type="url" value={manualProductForm.productUrl} onChange={(e) => setManualProductForm((prev) => ({ ...prev, productUrl: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://..." />
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
                   <button type="submit" className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
                     Create Product
                   </button>
-                  <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
+                  <button type="button" onClick={() => { resetManualProductForm(); setModalType(null); }} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                     Cancel
                   </button>
                 </div>
@@ -1106,10 +1226,12 @@ export default function Admin() {
                   </div>
                 </div>
               </div>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleCreateAiProduct}>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Product Prompt</label>
                   <textarea 
+                    value={aiProductForm.prompt}
+                    onChange={(e) => setAiProductForm((prev) => ({ ...prev, prompt: e.target.value }))}
                     className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" 
                     rows={4} 
                     placeholder="Describe the product... (e.g., 'A premium wireless gaming mouse with RGB lighting and ergonomic design')"
@@ -1118,7 +1240,7 @@ export default function Admin() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Target Category</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select value={aiProductForm.category} onChange={(e) => setAiProductForm((prev) => ({ ...prev, category: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option value="">Auto-detect</option>
                       <option>Electronics</option>
                       <option>Wearables</option>
@@ -1129,7 +1251,7 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Merchant</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select value={aiProductForm.merchant} onChange={(e) => setAiProductForm((prev) => ({ ...prev, merchant: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option>Amazon</option>
                       <option>Walmart</option>
                       <option>Target</option>
@@ -1139,7 +1261,7 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Price Range ($)</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select value={aiProductForm.priceRange} onChange={(e) => setAiProductForm((prev) => ({ ...prev, priceRange: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option>$0 - $50</option>
                       <option>$50 - $100</option>
                       <option>$100 - $200</option>
@@ -1149,7 +1271,7 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Generate Image</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select value={aiProductForm.generateImage} onChange={(e) => setAiProductForm((prev) => ({ ...prev, generateImage: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option>Yes - AI Generated</option>
                       <option>No - I'll upload later</option>
                     </select>
@@ -1163,7 +1285,7 @@ export default function Admin() {
                     <Sparkles size={18} />
                     Generate with AI
                   </button>
-                  <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
+                  <button type="button" onClick={() => { resetAiProductForm(); setModalType(null); }} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                     Cancel
                   </button>
                 </div>
@@ -2926,7 +3048,7 @@ export default function Admin() {
         );
 
       case 'product-management':
-        const filteredProducts = mockProducts.filter(product => {
+        const filteredProducts = products.filter(product => {
           const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                product.merchant.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -2962,15 +3084,15 @@ export default function Admin() {
                   <Package className="text-blue-400" size={18} />
                   <p className="text-gray-400 text-xs">Total Products</p>
                 </div>
-                <p className="text-2xl font-bold text-white">{mockProducts.length}</p>
-                <p className="text-gray-400 text-xs mt-1">{mockProducts.filter(p => p.status === 'Active').length} active</p>
+                <p className="text-2xl font-bold text-white">{products.length}</p>
+                <p className="text-gray-400 text-xs mt-1">{products.filter(p => p.status === 'Active').length} active</p>
               </div>
               <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Tag className="text-green-400" size={18} />
                   <p className="text-gray-400 text-xs">Total Value</p>
                 </div>
-                <p className="text-2xl font-bold text-white">${mockProducts.reduce((sum, p) => sum + (p.price * p.stock), 0).toLocaleString()}</p>
+                <p className="text-2xl font-bold text-white">${products.reduce((sum, p) => sum + (p.price * p.stock), 0).toLocaleString()}</p>
                 <p className="text-gray-400 text-xs mt-1">Inventory value</p>
               </div>
               <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
@@ -2978,16 +3100,16 @@ export default function Admin() {
                   <Sparkles className="text-purple-400" size={18} />
                   <p className="text-gray-400 text-xs">AI Generated</p>
                 </div>
-                <p className="text-2xl font-bold text-white">{mockProducts.filter(p => p.source === 'AI Generated').length}</p>
-                <p className="text-gray-400 text-xs mt-1">{((mockProducts.filter(p => p.source === 'AI Generated').length / mockProducts.length) * 100).toFixed(0)}% of total</p>
+                <p className="text-2xl font-bold text-white">{products.filter(p => p.source === 'AI Generated').length}</p>
+                <p className="text-gray-400 text-xs mt-1">{products.length ? ((products.filter(p => p.source === 'AI Generated').length / products.length) * 100).toFixed(0) : '0'}% of total</p>
               </div>
               <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Upload className="text-blue-400" size={18} />
                   <p className="text-gray-400 text-xs">Manual Upload</p>
                 </div>
-                <p className="text-2xl font-bold text-white">{mockProducts.filter(p => p.source === 'Manual').length}</p>
-                <p className="text-gray-400 text-xs mt-1">{((mockProducts.filter(p => p.source === 'Manual').length / mockProducts.length) * 100).toFixed(0)}% of total</p>
+                <p className="text-2xl font-bold text-white">{products.filter(p => p.source === 'Manual').length}</p>
+                <p className="text-gray-400 text-xs mt-1">{products.length ? ((products.filter(p => p.source === 'Manual').length / products.length) * 100).toFixed(0) : '0'}% of total</p>
               </div>
             </div>
 
@@ -3095,7 +3217,7 @@ export default function Admin() {
 
             {/* Pagination */}
             <div className="flex items-center justify-between bg-[#252b3d] px-6 py-4 rounded-lg">
-              <p className="text-sm text-gray-400">Showing {filteredProducts.length} of {mockProducts.length} products</p>
+              <p className="text-sm text-gray-400">Showing {filteredProducts.length} of {products.length} products</p>
               <div className="flex items-center gap-2">
                 <button className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors">
                   Previous
