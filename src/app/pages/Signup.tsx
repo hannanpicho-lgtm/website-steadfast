@@ -252,7 +252,7 @@ export default function Signup() {
           {/* Already have account */}
           <p className="text-center text-sm text-[#3d4551]">
             Already have an account?{' '}
-            <Link to="/login" className="text-[#005a87] font-semibold hover:underline">
+            <Link to="/login" className="btn-mobile-text-action">
               Sign In
             </Link>
           </p>

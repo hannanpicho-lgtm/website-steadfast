@@ -312,4 +312,12 @@
   .btn-mobile-tab-idle {
     @apply bg-gray-200 text-gray-700 hover:bg-gray-300;
   }
+
+  .btn-mobile-text-action {
+    @apply inline-flex items-center gap-1 text-sm font-semibold text-[#005a87] transition-colors hover:text-[#004a6f] hover:underline;
+  }
+
+  .btn-mobile-text-action-alt {
+    @apply inline-flex items-center gap-1 text-sm font-semibold text-[#0066cc] transition-colors hover:text-[#0055aa] hover:underline;
+  }
 }

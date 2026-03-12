@@ -98,7 +98,7 @@ export default function ForgotPassword() {
                 setIsSuccess(false);
                 setEmail('');
               }}
-              className="mt-3 text-sm text-[#005a87] hover:underline"
+              className="mt-3 btn-mobile-text-action"
             >
               Didn't receive the email? Try again
             </button>
@@ -176,7 +176,7 @@ export default function ForgotPassword() {
             <div className="mt-6 text-center">
               <Link 
                 to="/login" 
-                className="inline-flex items-center gap-2 text-sm text-[#005a87] hover:underline font-medium"
+                className="btn-mobile-text-action"
               >
                 <ArrowLeft size={16} />
                 Back to Login
@@ -189,7 +189,7 @@ export default function ForgotPassword() {
         <div className="mt-6 text-center">
           <p className="text-gray-400 text-sm">
             Need help? Contact support at{' '}
-            <a href="mailto:support@steadfastdigital.com" className="text-[#00D9FF] hover:underline">
+            <a href="mailto:support@steadfastdigital.com" className="btn-mobile-text-action">
               support@steadfastdigital.com
             </a>
           </p>

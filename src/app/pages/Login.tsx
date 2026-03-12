@@ -96,7 +96,7 @@ export default function Login() {
 
           {/* Forgot Password & Remember Password */}
           <div className="flex items-center justify-between">
-            <Link to="/forgot-password" className="text-sm text-[#005a87] hover:underline">
+            <Link to="/forgot-password" className="btn-mobile-text-action">
               Forgot your password?
             </Link>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -133,7 +133,7 @@ export default function Login() {
           {/* Sign Up Link */}
           <p className="text-center text-sm text-[#3d4551]">
             Don't have an account yet?{' '}
-            <Link to="/signup" className="text-[#005a87] font-semibold hover:underline">
+            <Link to="/signup" className="btn-mobile-text-action">
               Sign Up
             </Link>
           </p>
@@ -144,7 +144,7 @@ export default function Login() {
             <button 
               type="button"
               onClick={() => window.open('https://steadfastdigital.com', '_blank')}
-              className="text-[#005a87] font-semibold hover:underline"
+              className="btn-mobile-text-action"
             >
               Contact our user support
             </button>
