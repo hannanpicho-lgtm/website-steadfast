@@ -4420,22 +4420,22 @@ export default function Admin() {
             <img src={steadfastLogo} alt="Steadfast" className="w-10 h-10 object-contain" />
             <div>
               <h1 className="text-white font-bold text-lg">STEADFAST</h1>
-              <p className="text-gray-400 text-xs">Admin Panel</p>
+              <p className="text-gray-300 text-xs">Admin Panel</p>
             </div>
           </div>
         </div>
 
         {/* Navigation Menu */}
         <nav className="flex-1 overflow-y-auto p-4">
-          <div className="space-y-1">
+          <div className="space-y-2">
             {menuItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveMenu(item.id)}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-semibold transition-colors ${
                   activeMenu === item.id
-                    ? 'bg-[#00D9FF] text-[#1a1f2e]'
-                    : 'text-gray-300 hover:bg-[#1a1f2e] hover:text-white'
+                    ? 'bg-[#00D9FF] text-[#101728] shadow-[0_0_0_1px_rgba(0,217,255,0.65)]'
+                    : 'text-gray-200 hover:bg-[#303a53] hover:text-white'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -4464,7 +4464,7 @@ export default function Admin() {
             </div>
             <div className="flex-1">
               <p className="text-white text-sm font-semibold">Admin User</p>
-              <p className="text-gray-400 text-xs">admin@steadfast.com</p>
+              <p className="text-gray-300 text-xs">admin@steadfast.com</p>
             </div>
           </div>
         </div>
