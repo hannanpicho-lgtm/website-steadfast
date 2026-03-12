@@ -173,7 +173,7 @@ export default function Records() {
         <div className="flex items-center gap-4 mb-6">
           <button 
             onClick={() => navigate(-1)}
-            className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors"
+            className="btn-mobile-icon"
           >
             <ChevronLeft size={20} />
           </button>
@@ -184,30 +184,30 @@ export default function Records() {
         <div className="flex gap-4 mb-6">
           <button
             onClick={() => setActiveTab('all')}
-            className={`flex-1 py-3 rounded font-semibold transition-colors ${
+            className={`flex-1 btn-mobile-tab ${
               activeTab === 'all'
-                ? 'bg-[#0066b3] text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'btn-mobile-tab-active'
+                : 'btn-mobile-tab-idle'
             }`}
           >
             All
           </button>
           <button
             onClick={() => setActiveTab('pending')}
-            className={`flex-1 py-3 rounded font-semibold transition-colors ${
+            className={`flex-1 btn-mobile-tab ${
               activeTab === 'pending'
-                ? 'bg-[#0066b3] text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'btn-mobile-tab-active'
+                : 'btn-mobile-tab-idle'
             }`}
           >
             Pending
           </button>
           <button
             onClick={() => setActiveTab('completed')}
-            className={`flex-1 py-3 rounded font-semibold transition-colors ${
+            className={`flex-1 btn-mobile-tab ${
               activeTab === 'completed'
-                ? 'bg-[#0066b3] text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'btn-mobile-tab-active'
+                : 'btn-mobile-tab-idle'
             }`}
           >
             Completed

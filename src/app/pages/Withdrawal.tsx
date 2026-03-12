@@ -35,13 +35,13 @@ export default function Withdrawal() {
           <div className="flex items-center gap-4">
             <button 
               onClick={() => navigate(-1)}
-              className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors"
+              className="btn-mobile-icon"
             >
               <ChevronLeft size={20} />
             </button>
             <h1 className="text-2xl font-bold text-[#0066b3]">Withdrawal</h1>
           </div>
-          <button className="flex items-center gap-2 text-[#0066b3] hover:text-[#0052a3] transition-colors">
+          <button className="btn-mobile-primary">
             <ScrollText size={20} />
             <span className="font-semibold">History</span>
           </button>
@@ -99,7 +99,7 @@ export default function Withdrawal() {
               <button
                 type="button"
                 onClick={handleAllClick}
-                className="absolute right-3 top-1/2 -translate-y-1/2 bg-[#0066b3] text-white px-4 py-1 rounded text-sm font-semibold hover:bg-[#0052a3] transition-colors"
+                className="absolute right-2 top-1/2 -translate-y-1/2 btn-mobile-primary px-3 py-1.5 text-xs"
               >
                 ALL
               </button>
@@ -130,7 +130,7 @@ export default function Withdrawal() {
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full bg-[#0066b3] text-white py-4 rounded-lg text-lg font-bold hover:bg-[#0052a3] transition-colors"
+            className="btn-mobile-primary-block"
           >
             Submit
           </button>

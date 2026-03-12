@@ -21,7 +21,7 @@ export default function Deposit() {
         <div className="flex items-center gap-4 mb-6">
           <button 
             onClick={() => navigate(-1)}
-            className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors"
+            className="btn-mobile-icon"
           >
             <ChevronLeft size={20} />
           </button>
@@ -38,7 +38,7 @@ export default function Deposit() {
                 <span className="text-lg text-gray-600">USD</span>
               </div>
             </div>
-            <button className="bg-[#0066b3] hover:bg-[#0052a3] transition-colors text-white px-6 py-2 rounded font-semibold">
+            <button className="btn-mobile-primary">
               TOP UP
             </button>
           </div>
@@ -57,9 +57,9 @@ export default function Deposit() {
         <div className="grid grid-cols-2 gap-4 mb-6">
           <button
             onClick={() => setActiveTab('recent')}
-            className={`py-3 rounded font-semibold transition-colors ${
+            className={`btn-mobile-tab ${
               activeTab === 'recent'
-                ? 'bg-gray-800 text-white'
+                ? 'bg-gray-800 text-white shadow-sm'
                 : 'bg-white text-gray-800 hover:bg-gray-100'
             }`}
           >
@@ -67,9 +67,9 @@ export default function Deposit() {
           </button>
           <button
             onClick={() => setActiveTab('transaction')}
-            className={`py-3 rounded font-semibold transition-colors ${
+            className={`btn-mobile-tab ${
               activeTab === 'transaction'
-                ? 'bg-gray-800 text-white'
+                ? 'bg-gray-800 text-white shadow-sm'
                 : 'bg-white text-gray-800 hover:bg-gray-100'
             }`}
           >

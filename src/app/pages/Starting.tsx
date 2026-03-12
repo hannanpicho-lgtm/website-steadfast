@@ -510,7 +510,7 @@ export default function Starting() {
 
         {/* Starting Button */}
         <button 
-          className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
+          className={`btn-mobile-accent-block mb-6 text-xl ${submitting ? 'animate-pulse' : ''}`}
           onClick={handleSubmitTask}
           disabled={submitting || (userData?.tasksCompleted >= userData?.tasksLimit)}
         >

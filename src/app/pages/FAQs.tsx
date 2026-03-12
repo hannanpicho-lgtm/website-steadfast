@@ -95,7 +95,7 @@ export default function FAQs() {
         <div className="flex items-center gap-4 mb-6">
           <button 
             onClick={() => navigate(-1)}
-            className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors"
+            className="btn-mobile-icon"
           >
             <ChevronLeft size={20} />
           </button>
