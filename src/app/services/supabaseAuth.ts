@@ -118,6 +118,7 @@ export async function buildAdminAuthHeaders(contentType = true): Promise<Record<
   return {
     ...(contentType ? { 'Content-Type': 'application/json' } : {}),
     apikey: publicAnonKey,
-    Authorization: `Bearer ${accessToken}`,
+    Authorization: `Bearer ${publicAnonKey}`,
+    'x-user-jwt': accessToken,
   };
 }

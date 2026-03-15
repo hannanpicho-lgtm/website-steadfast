@@ -21,14 +21,16 @@ const TEST_USER = `test_audit_${RUN_ID}`;
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function request(path: string, init?: RequestInit) {
+  const mergedHeaders = {
+    'Content-Type': 'application/json',
+    apikey: ANON_KEY,
+    Authorization: `Bearer ${ANON_KEY}`,
+    ...(init?.headers ?? {}),
+  } as Record<string, string>;
+
   const res = await fetch(`${BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: ANON_KEY,
-      Authorization: `Bearer ${ANON_KEY}`,
-      ...(init?.headers ?? {}),
-    },
     ...init,
+    headers: mergedHeaders,
   });
   const body = await res.json().catch(() => null);
   return { status: res.status, body };
@@ -48,7 +50,7 @@ function adminHeaders() {
   }
 
   return {
-    Authorization: `Bearer ${ADMIN_TEST_JWT}`,
+    'x-user-jwt': ADMIN_TEST_JWT,
   };
 }
 
@@ -174,7 +176,13 @@ describe('Support links', () => {
       whatsappNumber: `1555${RUN_ID.toString().slice(-7)}`,
       telegramUsername: `auditbot_${RUN_ID}`,
       supportEmail: unique,
-    });
+    }, ADMIN_TEST_JWT ? adminHeaders() : {});
+
+    if (!ADMIN_TEST_JWT) {
+      expect(status).toBe(401);
+      return;
+    }
+
     expect(status).toBe(200);
 
     const { body } = await request('/cs/support-links');
@@ -225,7 +233,13 @@ describe('Support tickets', () => {
       message: 'Admin reply to audit ticket',
       respondedBy: 'admin',
       isAdmin: true,
-    });
+    }, ADMIN_TEST_JWT ? adminHeaders() : {});
+
+    if (!ADMIN_TEST_JWT) {
+      expect(status).toBe(401);
+      return;
+    }
+
     expect(status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.ticket.responses).toHaveLength(1);
@@ -235,7 +249,13 @@ describe('Support tickets', () => {
     const { status } = await post('/cs/update-status', {
       ticketId: createdTicketId,
       status: 'hacked',
-    });
+    }, ADMIN_TEST_JWT ? adminHeaders() : {});
+
+    if (!ADMIN_TEST_JWT) {
+      expect(status).toBe(401);
+      return;
+    }
+
     expect(status).toBe(400);
   });
 
@@ -244,7 +264,13 @@ describe('Support tickets', () => {
       const { status } = await post('/cs/update-status', {
         ticketId: createdTicketId,
         status: validStatus,
-      });
+      }, ADMIN_TEST_JWT ? adminHeaders() : {});
+
+      if (!ADMIN_TEST_JWT) {
+        expect(status).toBe(401);
+        continue;
+      }
+
       expect(status).toBe(200);
     }
   });
@@ -253,7 +279,13 @@ describe('Support tickets', () => {
     const { status } = await post('/cs/update-status', {
       ticketId: 'ticket_nonexistent_abc',
       status: 'open',
-    });
+    }, ADMIN_TEST_JWT ? adminHeaders() : {});
+
+    if (!ADMIN_TEST_JWT) {
+      expect(status).toBe(401);
+      return;
+    }
+
     expect(status).toBe(404);
   });
 });
@@ -321,7 +353,13 @@ describe('Live chat', () => {
     const { status, body } = await post('/cs/chat/mark-read', {
       username: TEST_USER,
       viewer: 'admin',
-    });
+    }, ADMIN_TEST_JWT ? adminHeaders() : {});
+
+    if (!ADMIN_TEST_JWT) {
+      expect(status).toBe(401);
+      return;
+    }
+
     expect(status).toBe(200);
     expect(body.success).toBe(true);
   });
@@ -472,10 +510,14 @@ describe('Admin route authentication', () => {
   });
 });
 
-const describeIfAdminJwt = ADMIN_TEST_JWT ? describe : describe.skip;
-
-describeIfAdminJwt('Admin route success path', () => {
+describe('Admin route success path', () => {
   it('GET /cs/admin/tickets → 200 array with valid admin JWT', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await request('/cs/admin/tickets');
+      expect(status).toBe(401);
+      return;
+    }
+
     const { status, body } = await request('/cs/admin/tickets', {
       headers: adminHeaders(),
     });
@@ -484,6 +526,12 @@ describeIfAdminJwt('Admin route success path', () => {
   });
 
   it('GET /cs/admin/chats → 200 array with valid admin JWT', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await request('/cs/admin/chats');
+      expect(status).toBe(401);
+      return;
+    }
+
     const { status, body } = await request('/cs/admin/chats', {
       headers: adminHeaders(),
     });

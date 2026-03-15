@@ -40,7 +40,7 @@ app.use(
       }
       return corsAllowedOrigins.includes(origin) ? origin : "";
     },
-    allowHeaders: ["Content-Type", "Authorization", "apikey", "x-admin-secret"],
+    allowHeaders: ["Content-Type", "Authorization", "apikey", "x-admin-secret", "x-user-jwt"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
@@ -94,7 +94,9 @@ async function requireAdmin(c: any) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  const accessToken = authorization.slice('Bearer '.length).trim();
+  const authHeaderToken = authorization.slice('Bearer '.length).trim();
+  const forwardedUserJwt = c.req.header('x-user-jwt')?.trim() ?? '';
+  const accessToken = forwardedUserJwt || authHeaderToken;
   if (!accessToken) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
