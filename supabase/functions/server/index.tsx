@@ -11,6 +11,10 @@ const authClient = supabaseUrl && supabaseServiceRoleKey
   ? createClient(supabaseUrl, supabaseServiceRoleKey)
   : null;
 
+const ADMIN_RATE_LIMIT_WINDOW_MS = 60_000;
+const ADMIN_RATE_LIMIT_MAX_REQUESTS = 60;
+const adminRateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
 // Comma-separated allowlist, e.g.:
 // CORS_ALLOWED_ORIGINS=https://steadfastdigital.com,https://www.steadfastdigital.com
 const corsAllowedOrigins = (Deno.env.get("CORS_ALLOWED_ORIGINS") ?? [
@@ -105,6 +109,34 @@ async function requireAdmin(c: any) {
   }
 
   c.set('adminUser', data.user);
+  return null;
+}
+
+function enforceAdminRateLimit(c: any, bucket: string) {
+  const now = Date.now();
+  const adminUser = c.get('adminUser');
+  const userId = adminUser?.id ?? 'unknown-user';
+  const forwardedFor = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? 'unknown-ip';
+  const source = forwardedFor.split(',')[0].trim();
+  const key = `${bucket}:${userId}:${source}`;
+
+  const current = adminRateLimitStore.get(key);
+  if (!current || now > current.resetAt) {
+    adminRateLimitStore.set(key, {
+      count: 1,
+      resetAt: now + ADMIN_RATE_LIMIT_WINDOW_MS,
+    });
+    return null;
+  }
+
+  if (current.count >= ADMIN_RATE_LIMIT_MAX_REQUESTS) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+    c.header('Retry-After', String(retryAfterSeconds));
+    return c.json({ error: 'Rate limit exceeded. Please retry shortly.' }, 429);
+  }
+
+  current.count += 1;
+  adminRateLimitStore.set(key, current);
   return null;
 }
 
@@ -282,6 +314,10 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
       return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:assign-premium-bundle');
+    if (rateLimited) {
+      return rateLimited;
     }
 
     const { username, premiumProductValue, bundledProductCount, adminUsername } = await c.req.json();
@@ -495,6 +531,10 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
     if (unauthorized) {
       return unauthorized;
     }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:cancel-premium');
+    if (rateLimited) {
+      return rateLimited;
+    }
 
     const username = c.req.param("username");
     const premiumId = c.req.param("premiumId");
@@ -621,6 +661,10 @@ app.post("/make-server-a1c55d7e/cs/support-links", async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:cs-support-links-update');
+    if (rateLimited) {
+      return rateLimited;
+    }
 
     const payload = sanitizeSupportLinks(await c.req.json());
     await kv.set(SUPPORT_LINKS_KEY, payload);
@@ -704,6 +748,10 @@ app.get("/make-server-a1c55d7e/cs/admin/tickets", async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:cs-tickets-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
 
     const ticketPrefix = 'ticket:ticket_';
     const tickets = await kv.getByPrefix(ticketPrefix);
@@ -727,6 +775,10 @@ app.post("/make-server-a1c55d7e/cs/respond", async (c) => {
       const unauthorized = await requireAdmin(c);
       if (unauthorized) {
         return unauthorized;
+      }
+      const rateLimited = enforceAdminRateLimit(c, 'admin:cs-respond');
+      if (rateLimited) {
+        return rateLimited;
       }
     }
     
@@ -767,6 +819,10 @@ app.post("/make-server-a1c55d7e/cs/update-status", async (c) => {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
       return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:cs-update-status');
+    if (rateLimited) {
+      return rateLimited;
     }
 
     const { ticketId, status, assignedTo } = await c.req.json();
@@ -812,6 +868,10 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
       const unauthorized = await requireAdmin(c);
       if (unauthorized) {
         return unauthorized;
+      }
+      const rateLimited = enforceAdminRateLimit(c, 'admin:cs-chat-send');
+      if (rateLimited) {
+        return rateLimited;
       }
     }
     
@@ -872,6 +932,10 @@ app.post("/make-server-a1c55d7e/cs/chat/mark-read", async (c) => {
       if (unauthorized) {
         return unauthorized;
       }
+      const rateLimited = enforceAdminRateLimit(c, 'admin:cs-chat-mark-read');
+      if (rateLimited) {
+        return rateLimited;
+      }
     }
 
     if (!username || (viewer !== 'admin' && viewer !== 'user')) {
@@ -922,6 +986,10 @@ app.get("/make-server-a1c55d7e/cs/admin/chats", async (c) => {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
       return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:cs-chats-read');
+    if (rateLimited) {
+      return rateLimited;
     }
 
     const chatPrefix = 'chat:';
