@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router';
 import { Loader2 } from 'lucide-react';
 import { isSupabaseAdminAuthenticated } from '../services/supabaseAuth';
+import AdminSessionDiagnostics from '../components/admin/AdminSessionDiagnostics';
 
 export default function RequireAdminLayout() {
   const location = useLocation();
@@ -36,5 +37,10 @@ export default function RequireAdminLayout() {
     return <Navigate to="/login" replace state={{ from: location.pathname, adminRequired: true }} />;
   }
 
-  return <Outlet />;
+  return (
+    <>
+      <Outlet />
+      <AdminSessionDiagnostics />
+    </>
+  );
 }
