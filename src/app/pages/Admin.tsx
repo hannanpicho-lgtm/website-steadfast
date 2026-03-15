@@ -215,31 +215,13 @@ type MenuItem = {
 type ModalType = 'add-user' | 'edit-user' | 'view-user' | 'delete-user' | 'view-transaction' | 'approve-withdrawal' | 'reject-withdrawal' | 'add-task' | 'edit-vip' | 'notification' | 'add-product-manual' | 'add-product-ai' | 'edit-product' | 'view-product' | 'delete-product' | 'edit-workday-reward' | 'edit-reset-reward' | 'edit-accumulated-reward' | 'edit-product-system' | 'pay-salary' | 'pay-salary-bulk' | 'add-admin' | 'edit-admin' | 'view-admin' | 'delete-admin' | 'add-role' | 'edit-role' | 'view-role-permissions' | 'delete-role' | null;
 
 export default function Admin() {
+  const productsPerPage = 8;
+  const usersPerPage = 5;
   const [activeMenu, setActiveMenu] = useState('home');
   const [searchTerm, setSearchTerm] = useState('');
   const [modalType, setModalType] = useState<ModalType>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [filterStatus, setFilterStatus] = useState('all');
-  const [products, setProducts] = useState(mockProducts);
-  const [manualProductForm, setManualProductForm] = useState({
-    name: '',
-    description: '',
-    category: 'Electronics',
-    merchant: 'Amazon',
-    price: '',
-    commissionRate: '',
-    sku: '',
-    stock: '',
-    imageUrl: '',
-    productUrl: '',
-  });
-  const [aiProductForm, setAiProductForm] = useState({
-    prompt: '',
-    category: '',
-    merchant: 'Amazon',
-    priceRange: '$0 - $50',
-    generateImage: 'Yes - AI Generated',
-  });
   const [activeAdminTab, setActiveAdminTab] = useState('admins');
   const [activeRewardTab, setActiveRewardTab] = useState<RewardTab>('workday');
   const [salaryPayments, setSalaryPayments] = useState<SalaryPayment[]>(initialSalaryPayments);
@@ -255,6 +237,8 @@ export default function Admin() {
   const [salaryAuditLog, setSalaryAuditLog] = useState<SalaryAuditEvent[]>([]);
   const [auditSearchTerm, setAuditSearchTerm] = useState('');
   const [auditFilterAction, setAuditFilterAction] = useState<'all' | SalaryAuditEvent['action']>('all');
+  const [productPage, setProductPage] = useState(1);
+  const [userPage, setUserPage] = useState(1);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
@@ -309,109 +293,6 @@ export default function Admin() {
     setModalType('reject-withdrawal');
   };
 
-  const resetManualProductForm = () => {
-    setManualProductForm({
-      name: '',
-      description: '',
-      category: 'Electronics',
-      merchant: 'Amazon',
-      price: '',
-      commissionRate: '',
-      sku: '',
-      stock: '',
-      imageUrl: '',
-      productUrl: '',
-    });
-  };
-
-  const resetAiProductForm = () => {
-    setAiProductForm({
-      prompt: '',
-      category: '',
-      merchant: 'Amazon',
-      priceRange: '$0 - $50',
-      generateImage: 'Yes - AI Generated',
-    });
-  };
-
-  const handleCreateManualProduct = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    const name = manualProductForm.name.trim();
-    if (!name) {
-      toast.error('Product name is required.');
-      return;
-    }
-
-    const nextId = products.reduce((maxId, product) => Math.max(maxId, product.id), 0) + 1;
-    const stock = Math.max(0, Number(manualProductForm.stock) || 0);
-    const newProduct = {
-      id: nextId,
-      name,
-      description: manualProductForm.description.trim() || 'No description provided.',
-      category: manualProductForm.category,
-      merchant: manualProductForm.merchant,
-      price: Number(manualProductForm.price) || 0,
-      commission: (Number(manualProductForm.commissionRate) || 0) / 100,
-      imageUrl: manualProductForm.imageUrl.trim() || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400',
-      status: stock > 0 ? 'Active' : 'Inactive',
-      sku: manualProductForm.sku.trim() || `PRD-${String(nextId).padStart(3, '0')}`,
-      stock,
-      createdDate: new Date().toISOString().slice(0, 10),
-      source: 'Manual',
-      productUrl: manualProductForm.productUrl.trim() || undefined,
-    };
-
-    setProducts((prev) => [newProduct, ...prev]);
-    setActiveMenu('product-management');
-    setModalType(null);
-    resetManualProductForm();
-    toast.success('Product created successfully.');
-  };
-
-  const handleCreateAiProduct = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-
-    const prompt = aiProductForm.prompt.trim();
-    if (!prompt) {
-      toast.error('Product prompt is required.');
-      return;
-    }
-
-    const nextId = products.reduce((maxId, product) => Math.max(maxId, product.id), 0) + 1;
-    const promptWords = prompt.split(/\s+/).filter(Boolean);
-    const generatedName = promptWords.slice(0, 4).join(' ') || `AI Product ${nextId}`;
-    const priceMap: Record<string, number> = {
-      '$0 - $50': 49.99,
-      '$50 - $100': 89.99,
-      '$100 - $200': 149.99,
-      '$200 - $500': 299.99,
-      '$500+': 599.99,
-    };
-
-    const newProduct = {
-      id: nextId,
-      name: generatedName,
-      description: prompt,
-      category: aiProductForm.category || 'Electronics',
-      merchant: aiProductForm.merchant,
-      price: priceMap[aiProductForm.priceRange] ?? 99.99,
-      commission: 0.02,
-      imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400',
-      status: 'Active',
-      sku: `AIP-${String(nextId).padStart(3, '0')}`,
-      stock: 100,
-      createdDate: new Date().toISOString().slice(0, 10),
-      source: 'AI Generated',
-    };
-
-    setProducts((prev) => [newProduct, ...prev]);
-    setActiveMenu('product-management');
-    setModalType(null);
-    resetAiProductForm();
-    toast.success('AI product created successfully.');
-  };
-
   useEffect(() => {
     const restored = loadSalaryProjectAutosave(initialSalaryPayments);
 
@@ -462,6 +343,11 @@ export default function Admin() {
   useEffect(() => {
     setSalaryRestorePoints((prev) => pruneExpiredRestorePoints(prev, backupRetentionDays).slice(0, MAX_RESTORE_POINTS));
   }, [backupRetentionDays]);
+
+  useEffect(() => {
+    setProductPage(1);
+    setUserPage(1);
+  }, [activeMenu, searchTerm, filterStatus]);
 
   useEffect(() => {
     if (!isSalaryStateHydrated) {
@@ -1136,19 +1022,19 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4" onSubmit={handleCreateManualProduct}>
+              <form className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Product Name</label>
-                    <input type="text" value={manualProductForm.name} onChange={(e) => setManualProductForm((prev) => ({ ...prev, name: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product name" />
+                    <input type="text" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product name" />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
-                    <textarea value={manualProductForm.description} onChange={(e) => setManualProductForm((prev) => ({ ...prev, description: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" rows={3} placeholder="Enter product description"></textarea>
+                    <textarea className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" rows={3} placeholder="Enter product description"></textarea>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Category</label>
-                    <select value={manualProductForm.category} onChange={(e) => setManualProductForm((prev) => ({ ...prev, category: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option>Electronics</option>
                       <option>Wearables</option>
                       <option>Gaming</option>
@@ -1158,7 +1044,7 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Merchant</label>
-                    <select value={manualProductForm.merchant} onChange={(e) => setManualProductForm((prev) => ({ ...prev, merchant: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option>Amazon</option>
                       <option>Walmart</option>
                       <option>Target</option>
@@ -1168,35 +1054,38 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Price ($)</label>
-                    <input type="number" step="0.01" value={manualProductForm.price} onChange={(e) => setManualProductForm((prev) => ({ ...prev, price: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.00" />
+                    <input type="number" step="0.01" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.00" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Commission Rate (%)</label>
-                    <input type="number" step="0.001" value={manualProductForm.commissionRate} onChange={(e) => setManualProductForm((prev) => ({ ...prev, commissionRate: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.000" />
+                    <input type="number" step="0.001" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.000" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">SKU</label>
-                    <input type="text" value={manualProductForm.sku} onChange={(e) => setManualProductForm((prev) => ({ ...prev, sku: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="XXX-000" />
+                    <input type="text" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="XXX-000" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Stock Quantity</label>
-                    <input type="number" value={manualProductForm.stock} onChange={(e) => setManualProductForm((prev) => ({ ...prev, stock: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0" />
+                    <input type="number" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0" />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Product Image</label>
-                    <input type="url" value={manualProductForm.imageUrl} onChange={(e) => setManualProductForm((prev) => ({ ...prev, imageUrl: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://image-url..." />
-                    <p className="text-gray-300 text-xs mt-1">Paste an image URL for now.</p>
+                    <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-[#00D9FF] transition-colors cursor-pointer">
+                      <Upload className="mx-auto text-gray-400 mb-2" size={32} />
+                      <p className="text-gray-400 text-sm">Click to upload or drag and drop</p>
+                      <p className="text-gray-500 text-xs mt-1">PNG, JPG or WebP (max. 5MB)</p>
+                    </div>
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Product URL (Optional)</label>
-                    <input type="url" value={manualProductForm.productUrl} onChange={(e) => setManualProductForm((prev) => ({ ...prev, productUrl: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://..." />
+                    <input type="url" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://..." />
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
                   <button type="submit" className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
                     Create Product
                   </button>
-                  <button type="button" onClick={() => { resetManualProductForm(); setModalType(null); }} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
+                  <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                     Cancel
                   </button>
                 </div>
@@ -1227,12 +1116,10 @@ export default function Admin() {
                   </div>
                 </div>
               </div>
-              <form className="space-y-4" onSubmit={handleCreateAiProduct}>
+              <form className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Product Prompt</label>
                   <textarea 
-                    value={aiProductForm.prompt}
-                    onChange={(e) => setAiProductForm((prev) => ({ ...prev, prompt: e.target.value }))}
                     className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" 
                     rows={4} 
                     placeholder="Describe the product... (e.g., 'A premium wireless gaming mouse with RGB lighting and ergonomic design')"
@@ -1241,7 +1128,7 @@ export default function Admin() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Target Category</label>
-                    <select value={aiProductForm.category} onChange={(e) => setAiProductForm((prev) => ({ ...prev, category: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option value="">Auto-detect</option>
                       <option>Electronics</option>
                       <option>Wearables</option>
@@ -1252,7 +1139,7 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Merchant</label>
-                    <select value={aiProductForm.merchant} onChange={(e) => setAiProductForm((prev) => ({ ...prev, merchant: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option>Amazon</option>
                       <option>Walmart</option>
                       <option>Target</option>
@@ -1262,7 +1149,7 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Price Range ($)</label>
-                    <select value={aiProductForm.priceRange} onChange={(e) => setAiProductForm((prev) => ({ ...prev, priceRange: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option>$0 - $50</option>
                       <option>$50 - $100</option>
                       <option>$100 - $200</option>
@@ -1272,7 +1159,7 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Generate Image</label>
-                    <select value={aiProductForm.generateImage} onChange={(e) => setAiProductForm((prev) => ({ ...prev, generateImage: e.target.value }))} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option>Yes - AI Generated</option>
                       <option>No - I'll upload later</option>
                     </select>
@@ -1286,7 +1173,7 @@ export default function Admin() {
                     <Sparkles size={18} />
                     Generate with AI
                   </button>
-                  <button type="button" onClick={() => { resetAiProductForm(); setModalType(null); }} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
+                  <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                     Cancel
                   </button>
                 </div>
@@ -1554,17 +1441,17 @@ export default function Admin() {
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Products Per Set</label>
                     <input type="number" defaultValue={productSystemConfig.productsPerSet} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
-                    <p className="text-gray-300 text-xs mt-1">How many products in each task set</p>
+                    <p className="text-gray-500 text-xs mt-1">How many products in each task set</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Max Sets Per Day</label>
                     <input type="number" defaultValue={productSystemConfig.maxSetsPerDay} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
-                    <p className="text-gray-300 text-xs mt-1">Maximum sets users can complete daily</p>
+                    <p className="text-gray-500 text-xs mt-1">Maximum sets users can complete daily</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Min Time Per Product (seconds)</label>
                     <input type="number" defaultValue={productSystemConfig.minTimePerProduct} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
-                    <p className="text-gray-300 text-xs mt-1">Minimum time required per product</p>
+                    <p className="text-gray-500 text-xs mt-1">Minimum time required per product</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Commission Approval</label>
@@ -1572,14 +1459,14 @@ export default function Admin() {
                       <option value="auto">Automatic</option>
                       <option value="manual">Manual Approval</option>
                     </select>
-                    <p className="text-gray-300 text-xs mt-1">How commissions are approved</p>
+                    <p className="text-gray-500 text-xs mt-1">How commissions are approved</p>
                   </div>
                   <div className="col-span-2">
                     <label className="flex items-center gap-2">
                       <input type="checkbox" defaultChecked={productSystemConfig.requireProductConfirmation} className="w-5 h-5 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
                       <span className="text-white font-medium">Require product submission confirmation</span>
                     </label>
-                    <p className="text-gray-300 text-xs mt-1 ml-7">Users must confirm each product submission</p>
+                    <p className="text-gray-500 text-xs mt-1 ml-7">Users must confirm each product submission</p>
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
@@ -1772,7 +1659,7 @@ export default function Admin() {
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Temporary Password *</label>
                     <input type="password" placeholder="Min. 8 characters" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required />
-                    <p className="text-gray-300 text-xs mt-1">Admin will be required to change password on first login</p>
+                    <p className="text-gray-500 text-xs mt-1">Admin will be required to change password on first login</p>
                   </div>
                   <div className="col-span-2 flex items-center gap-4">
                     <label className="flex items-center gap-2">
@@ -2370,7 +2257,7 @@ export default function Admin() {
                                 <div>
                                   <p className="text-white font-semibold">{admin.fullName}</p>
                                   <p className="text-gray-400 text-xs">{admin.email}</p>
-                                  <p className="text-gray-300 text-xs">@{admin.username}</p>
+                                  <p className="text-gray-500 text-xs">@{admin.username}</p>
                                 </div>
                               </div>
                             </td>
@@ -2398,7 +2285,7 @@ export default function Admin() {
                                   Enabled
                                 </span>
                               ) : (
-                                <span className="flex items-center gap-1 text-gray-300 text-sm">
+                                <span className="flex items-center gap-1 text-gray-500 text-sm">
                                   <XCircle size={14} />
                                   Disabled
                                 </span>
@@ -2510,7 +2397,7 @@ export default function Admin() {
                           }`} style={{ width: `${(permissionCount / totalPermissions) * 100}%` }}></div>
                         </div>
                         <div className="flex items-center gap-2 mb-3">
-                          <Users size={14} className="text-gray-300" />
+                          <Users size={14} className="text-gray-500" />
                           <span className="text-gray-400 text-xs">{adminUsers.filter(u => u.roleId === role.id).length} admin(s) with this role</span>
                         </div>
                         <button onClick={() => { setSelectedItem(role); setModalType('view-role-permissions'); }} className={`w-full py-2 rounded-lg font-semibold text-sm transition-colors ${
@@ -2539,13 +2426,13 @@ export default function Admin() {
               <div>
                 <h2 className="text-2xl font-bold text-white">Rewards & Salary System</h2>
                 <p className="text-gray-400 text-sm mt-1">Manage all reward schemes, salaries, and bonus systems</p>
-                <p className="text-gray-300 text-xs mt-1">
+                <p className="text-gray-500 text-xs mt-1">
                   Autosave: {autoSavedAt ? new Date(autoSavedAt).toLocaleTimeString() : 'waiting for first save'}
                 </p>
-                <p className="text-gray-300 text-xs mt-1">
+                <p className="text-gray-500 text-xs mt-1">
                   Auto backup: {autoBackupEnabled ? `on (${autoBackupIntervalMinutes} min)` : 'off'}
                 </p>
-                <p className="text-gray-300 text-xs mt-1">
+                <p className="text-gray-500 text-xs mt-1">
                   Retention: {backupRetentionDays} day{backupRetentionDays === 1 ? '' : 's'}
                 </p>
                 {storageWarning && (
@@ -3049,7 +2936,7 @@ export default function Admin() {
         );
 
       case 'product-management':
-        const filteredProducts = products.filter(product => {
+        const filteredProducts = mockProducts.filter(product => {
           const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                product.merchant.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -3057,6 +2944,10 @@ export default function Admin() {
           const matchesFilter = filterStatus === 'all' || product.status.toLowerCase() === filterStatus;
           return matchesSearch && matchesFilter;
         });
+        const totalProductPages = Math.max(1, Math.ceil(filteredProducts.length / productsPerPage));
+        const safeProductPage = Math.min(productPage, totalProductPages);
+        const productStartIndex = (safeProductPage - 1) * productsPerPage;
+        const paginatedProducts = filteredProducts.slice(productStartIndex, productStartIndex + productsPerPage);
 
         return (
           <div className="space-y-6">
@@ -3085,15 +2976,15 @@ export default function Admin() {
                   <Package className="text-blue-400" size={18} />
                   <p className="text-gray-400 text-xs">Total Products</p>
                 </div>
-                <p className="text-2xl font-bold text-white">{products.length}</p>
-                <p className="text-gray-400 text-xs mt-1">{products.filter(p => p.status === 'Active').length} active</p>
+                <p className="text-2xl font-bold text-white">{mockProducts.length}</p>
+                <p className="text-gray-400 text-xs mt-1">{mockProducts.filter(p => p.status === 'Active').length} active</p>
               </div>
               <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Tag className="text-green-400" size={18} />
                   <p className="text-gray-400 text-xs">Total Value</p>
                 </div>
-                <p className="text-2xl font-bold text-white">${products.reduce((sum, p) => sum + (p.price * p.stock), 0).toLocaleString()}</p>
+                <p className="text-2xl font-bold text-white">${mockProducts.reduce((sum, p) => sum + (p.price * p.stock), 0).toLocaleString()}</p>
                 <p className="text-gray-400 text-xs mt-1">Inventory value</p>
               </div>
               <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
@@ -3101,16 +2992,16 @@ export default function Admin() {
                   <Sparkles className="text-purple-400" size={18} />
                   <p className="text-gray-400 text-xs">AI Generated</p>
                 </div>
-                <p className="text-2xl font-bold text-white">{products.filter(p => p.source === 'AI Generated').length}</p>
-                <p className="text-gray-400 text-xs mt-1">{products.length ? ((products.filter(p => p.source === 'AI Generated').length / products.length) * 100).toFixed(0) : '0'}% of total</p>
+                <p className="text-2xl font-bold text-white">{mockProducts.filter(p => p.source === 'AI Generated').length}</p>
+                <p className="text-gray-400 text-xs mt-1">{((mockProducts.filter(p => p.source === 'AI Generated').length / mockProducts.length) * 100).toFixed(0)}% of total</p>
               </div>
               <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <Upload className="text-blue-400" size={18} />
                   <p className="text-gray-400 text-xs">Manual Upload</p>
                 </div>
-                <p className="text-2xl font-bold text-white">{products.filter(p => p.source === 'Manual').length}</p>
-                <p className="text-gray-400 text-xs mt-1">{products.length ? ((products.filter(p => p.source === 'Manual').length / products.length) * 100).toFixed(0) : '0'}% of total</p>
+                <p className="text-2xl font-bold text-white">{mockProducts.filter(p => p.source === 'Manual').length}</p>
+                <p className="text-gray-400 text-xs mt-1">{((mockProducts.filter(p => p.source === 'Manual').length / mockProducts.length) * 100).toFixed(0)}% of total</p>
               </div>
             </div>
 
@@ -3143,7 +3034,7 @@ export default function Admin() {
 
             {/* Products Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredProducts.map((product) => (
+              {paginatedProducts.map((product) => (
                 <div key={product.id} className="bg-[#252b3d] rounded-lg overflow-hidden hover:ring-2 hover:ring-[#00D9FF] transition-all group">
                   <div className="relative">
                     <img src={product.imageUrl} alt={product.name} className="w-full h-48 object-cover" />
@@ -3173,7 +3064,7 @@ export default function Admin() {
                     </div>
                     <div className="flex items-center justify-between text-xs mb-3">
                       <span className="text-gray-400">{product.category}</span>
-                      <span className="text-gray-300">SKU: {product.sku}</span>
+                      <span className="text-gray-500">SKU: {product.sku}</span>
                     </div>
                     <div className="flex items-center gap-2 mb-3 text-xs">
                       <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded">{product.merchant}</span>
@@ -3218,15 +3109,26 @@ export default function Admin() {
 
             {/* Pagination */}
             <div className="flex items-center justify-between bg-[#252b3d] px-6 py-4 rounded-lg">
-              <p className="text-sm text-gray-400">Showing {filteredProducts.length} of {products.length} products</p>
+              <p className="text-sm text-gray-400">
+                Showing {filteredProducts.length === 0 ? 0 : productStartIndex + 1}
+                -{Math.min(productStartIndex + paginatedProducts.length, filteredProducts.length)} of {filteredProducts.length} products
+              </p>
               <div className="flex items-center gap-2">
-                <button className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors">
+                <button
+                  onClick={() => setProductPage((current) => Math.max(1, current - 1))}
+                  disabled={safeProductPage <= 1}
+                  className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   Previous
                 </button>
                 <button className="px-3 py-1 bg-[#00D9FF] text-[#1a1f2e] font-semibold rounded">
-                  1
+                  {safeProductPage} / {totalProductPages}
                 </button>
-                <button className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors">
+                <button
+                  onClick={() => setProductPage((current) => Math.min(totalProductPages, current + 1))}
+                  disabled={safeProductPage >= totalProductPages}
+                  className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   Next
                 </button>
               </div>
@@ -3242,6 +3144,10 @@ export default function Admin() {
           const matchesFilter = filterStatus === 'all' || user.status.toLowerCase() === filterStatus;
           return matchesSearch && matchesFilter;
         });
+        const totalUserPages = Math.max(1, Math.ceil(filteredUsers.length / usersPerPage));
+        const safeUserPage = Math.min(userPage, totalUserPages);
+        const userStartIndex = (safeUserPage - 1) * usersPerPage;
+        const paginatedUsers = filteredUsers.slice(userStartIndex, userStartIndex + usersPerPage);
 
         return (
           <div className="space-y-6">
@@ -3302,13 +3208,13 @@ export default function Admin() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
-                    {filteredUsers.map((user) => (
+                    {paginatedUsers.map((user) => (
                       <tr key={user.id} className="hover:bg-[#2c3e50] transition-colors">
                         <td className="px-6 py-4 text-sm text-gray-300">{user.id}</td>
                         <td className="px-6 py-4 text-sm font-medium text-white">{user.username}</td>
                         <td className="px-6 py-4 text-sm text-gray-300">
                           <div>{user.email}</div>
-                          <div className="text-xs text-gray-300">{user.phone}</div>
+                          <div className="text-xs text-gray-500">{user.phone}</div>
                         </td>
                         <td className="px-6 py-4 text-sm">
                           <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300">
@@ -3396,15 +3302,26 @@ export default function Admin() {
 
             {/* Pagination */}
             <div className="flex items-center justify-between bg-[#252b3d] px-6 py-4 rounded-lg">
-              <p className="text-sm text-gray-400">Showing {filteredUsers.length} of {mockUsers.length} results</p>
+              <p className="text-sm text-gray-400">
+                Showing {filteredUsers.length === 0 ? 0 : userStartIndex + 1}
+                -{Math.min(userStartIndex + paginatedUsers.length, filteredUsers.length)} of {filteredUsers.length} results
+              </p>
               <div className="flex items-center gap-2">
-                <button className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors">
+                <button
+                  onClick={() => setUserPage((current) => Math.max(1, current - 1))}
+                  disabled={safeUserPage <= 1}
+                  className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   Previous
                 </button>
                 <button className="px-3 py-1 bg-[#00D9FF] text-[#1a1f2e] font-semibold rounded">
-                  1
+                  {safeUserPage} / {totalUserPages}
                 </button>
-                <button className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors">
+                <button
+                  onClick={() => setUserPage((current) => Math.min(totalUserPages, current + 1))}
+                  disabled={safeUserPage >= totalUserPages}
+                  className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   Next
                 </button>
               </div>
@@ -3468,7 +3385,7 @@ export default function Admin() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-400">{tx.date}</td>
-                        <td className="px-6 py-4 text-sm text-gray-300 font-mono">{tx.txHash}</td>
+                        <td className="px-6 py-4 text-sm text-gray-500 font-mono">{tx.txHash}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -3673,7 +3590,7 @@ export default function Admin() {
                               </button>
                             </div>
                           ) : (
-                            <span className="text-gray-300 text-xs">Processed</span>
+                            <span className="text-gray-500 text-xs">Processed</span>
                           )}
                         </td>
                       </tr>
@@ -3732,7 +3649,7 @@ export default function Admin() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-400">{tx.date}</td>
-                        <td className="px-6 py-4 text-sm text-gray-300 font-mono">{tx.txHash}</td>
+                        <td className="px-6 py-4 text-sm text-gray-500 font-mono">{tx.txHash}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -3747,7 +3664,7 @@ export default function Admin() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-[#00D9FF]">Notifications</h2>
+                <h2 className="text-2xl font-bold text-white">Notifications</h2>
                 <p className="text-gray-400 text-sm mt-1">Send announcements and alerts to users</p>
               </div>
               <button onClick={() => setModalType('notification')} className="flex items-center gap-2 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-4 py-2 rounded-lg font-semibold transition-colors">
@@ -3766,7 +3683,7 @@ export default function Admin() {
                   <div className="flex-1">
                     <h3 className="text-white font-semibold mb-1">System Maintenance Notice</h3>
                     <p className="text-gray-400 text-sm mb-2">Scheduled maintenance on March 10, 2024 from 2:00 AM - 4:00 AM EST</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-300">
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
                       <span className="flex items-center gap-1"><Clock size={12} /> 2 hours ago</span>
                       <span>Sent to: All Users</span>
                       <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded">High Priority</span>
@@ -3783,7 +3700,7 @@ export default function Admin() {
                   <div className="flex-1">
                     <h3 className="text-white font-semibold mb-1">New VIP Benefits Available</h3>
                     <p className="text-gray-400 text-sm mb-2">VIP 4 and VIP 5 members can now access exclusive high-commission tasks</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-300">
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
                       <span className="flex items-center gap-1"><Clock size={12} /> 1 day ago</span>
                       <span>Sent to: VIP 4, VIP 5</span>
                       <span className="px-2 py-1 bg-green-500/20 text-green-300 rounded">Normal</span>
@@ -3800,7 +3717,7 @@ export default function Admin() {
                   <div className="flex-1">
                     <h3 className="text-white font-semibold mb-1">Security Update Required</h3>
                     <p className="text-gray-400 text-sm mb-2">Please update your password for enhanced security</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-300">
+                    <div className="flex items-center gap-4 text-xs text-gray-500">
                       <span className="flex items-center gap-1"><Clock size={12} /> 3 days ago</span>
                       <span>Sent to: All Users</span>
                       <span className="px-2 py-1 bg-red-500/20 text-red-300 rounded">Urgent</span>
@@ -3822,7 +3739,7 @@ export default function Admin() {
         return (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-bold text-[#00D9FF]">Platform Settings</h2>
+              <h2 className="text-2xl font-bold text-white">Platform Settings</h2>
               <p className="text-gray-400 text-sm mt-1">Configure global platform settings and parameters</p>
             </div>
 
@@ -3925,7 +3842,7 @@ export default function Admin() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-2xl font-bold text-[#00D9FF]">Financial Overview</h2>
+                <h2 className="text-2xl font-bold text-white">Financial Overview</h2>
                 <p className="text-gray-400 text-sm mt-1">Comprehensive financial analytics and metrics</p>
               </div>
               <div className="flex items-center gap-3">
@@ -4111,7 +4028,7 @@ export default function Admin() {
                           <div className="flex items-center gap-2">
                             <Shield className="text-purple-400" size={16} />
                             <span className="text-white font-semibold text-sm">{vip.name}</span>
-                            <span className="text-gray-300 text-xs">({vipUsers.length} users)</span>
+                            <span className="text-gray-500 text-xs">({vipUsers.length} users)</span>
                           </div>
                           <span className="text-[#00D9FF] font-bold">${vipRevenue.toFixed(2)}</span>
                         </div>
@@ -4184,7 +4101,7 @@ export default function Admin() {
       case 'home':
         return (
           <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-[#00D9FF]">Dashboard Overview</h2>
+            <h2 className="text-2xl font-bold text-white">Dashboard Overview</h2>
             
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -4293,9 +4210,9 @@ export default function Admin() {
         return (
           <div className="flex items-center justify-center h-96">
             <div className="text-center">
-              <Database className="mx-auto text-gray-300 mb-4" size={64} />
+              <Database className="mx-auto text-gray-600 mb-4" size={64} />
               <h3 className="text-xl font-semibold text-gray-400">Section Under Development</h3>
-              <p className="text-gray-300 mt-2">This feature will be available soon.</p>
+              <p className="text-gray-500 mt-2">This feature will be available soon.</p>
             </div>
           </div>
         );
@@ -4421,22 +4338,22 @@ export default function Admin() {
             <img src={steadfastLogo} alt="Steadfast" className="w-10 h-10 object-contain" />
             <div>
               <h1 className="text-white font-bold text-lg">STEADFAST</h1>
-              <p className="text-gray-300 text-xs">Admin Panel</p>
+              <p className="text-gray-400 text-xs">Admin Panel</p>
             </div>
           </div>
         </div>
 
         {/* Navigation Menu */}
         <nav className="flex-1 overflow-y-auto p-4">
-          <div className="space-y-2">
+          <div className="space-y-1">
             {menuItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => setActiveMenu(item.id)}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-semibold transition-colors ${
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                   activeMenu === item.id
-                    ? 'bg-[#00D9FF] text-[#101728] shadow-[0_0_0_1px_rgba(0,217,255,0.65)]'
-                    : 'text-gray-200 hover:bg-[#303a53] hover:text-white'
+                    ? 'bg-[#00D9FF] text-[#1a1f2e]'
+                    : 'text-gray-300 hover:bg-[#1a1f2e] hover:text-white'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -4465,7 +4382,7 @@ export default function Admin() {
             </div>
             <div className="flex-1">
               <p className="text-white text-sm font-semibold">Admin User</p>
-              <p className="text-gray-300 text-xs">admin@steadfast.com</p>
+              <p className="text-gray-400 text-xs">admin@steadfast.com</p>
             </div>
           </div>
         </div>
@@ -4533,5 +4450,4 @@ export default function Admin() {
     </div>
   );
 }
-
 

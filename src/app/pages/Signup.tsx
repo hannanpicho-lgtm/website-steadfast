@@ -244,7 +244,7 @@ export default function Signup() {
           {/* Submit Button */}
           <button
             type="submit"
-            className="btn-mobile-primary-block"
+            className="w-full bg-[#005a87] hover:bg-[#004a6f] text-white font-bold py-3 px-4 rounded-lg transition-colors"
           >
             Submit
           </button>
@@ -252,7 +252,7 @@ export default function Signup() {
           {/* Already have account */}
           <p className="text-center text-sm text-[#3d4551]">
             Already have an account?{' '}
-            <Link to="/login" className="btn-mobile-text-action">
+            <Link to="/login" className="text-[#005a87] font-semibold hover:underline">
               Sign In
             </Link>
           </p>

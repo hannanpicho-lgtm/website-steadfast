@@ -53,7 +53,7 @@ export default function Activity() {
       <div className="max-w-3xl mx-auto px-6 py-6">
         {/* Back Button and Title */}
         <div className="flex items-center gap-4 mb-6">
-          <Link to="/starting" className="btn-mobile-icon">
+          <Link to="/starting" className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors">
             <ChevronLeft size={20} />
           </Link>
           <h1 className="text-2xl font-bold text-[#0066b3] flex-1 text-center mr-10">Activity</h1>

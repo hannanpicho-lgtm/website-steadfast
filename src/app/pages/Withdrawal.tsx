@@ -41,7 +41,7 @@ export default function Withdrawal() {
             </button>
             <h1 className="text-2xl font-bold text-[#0066b3]">Withdrawal</h1>
           </div>
-          <button className="btn-mobile-primary">
+          <button onClick={() => navigate('/records')} className="btn-mobile-primary">
             <ScrollText size={20} />
             <span className="font-semibold">History</span>
           </button>

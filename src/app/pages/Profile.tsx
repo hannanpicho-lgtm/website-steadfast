@@ -62,7 +62,7 @@ export default function Profile() {
               className="w-24 h-24 rounded-full object-cover bg-gray-200"
             />
           </div>
-          <button className="btn-mobile-text-action-alt">
+          <button className="text-sm text-[#0066cc] flex items-center gap-1 hover:underline">
             <span>✏️</span>
             <span>Edit Profile Image</span>
           </button>
@@ -162,7 +162,7 @@ export default function Profile() {
                 <p className="text-sm text-gray-600">No wallet connected</p>
                 <Link 
                   to="/connect-wallet"
-                  className="mt-2 btn-mobile-text-action-alt"
+                  className="mt-2 inline-block text-[#0066cc] text-sm font-semibold hover:underline"
                 >
                   Connect Wallet
                 </Link>
@@ -197,7 +197,7 @@ export default function Profile() {
               <div className="px-4 pb-4 border-t border-gray-100">
                 <Link 
                   to="/deposit"
-                  className="mt-2 btn-mobile-text-action-alt"
+                  className="block mt-2 text-[#0066cc] text-sm font-semibold hover:underline"
                 >
                   Go to Deposit Page →
                 </Link>
@@ -228,7 +228,7 @@ export default function Profile() {
               <div className="px-4 pb-4 border-t border-gray-100">
                 <Link 
                   to="/withdrawal"
-                  className="mt-2 btn-mobile-text-action-alt"
+                  className="block mt-2 text-[#0066cc] text-sm font-semibold hover:underline"
                 >
                   Go to Withdrawal Page →
                 </Link>

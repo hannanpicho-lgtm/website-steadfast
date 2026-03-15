@@ -462,7 +462,7 @@ export default function Support() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex-1 btn-mobile-accent-block text-white"
+                  className="flex-1 bg-[#00D9FF] text-white py-3 rounded-lg font-semibold hover:bg-[#00c0e6] transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {submitting ? (
                     <>
@@ -479,7 +479,7 @@ export default function Support() {
                 <button
                   type="button"
                   onClick={() => setShowNewTicket(false)}
-                  className="btn-mobile-secondary"
+                  className="px-6 bg-gray-700 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
                 >
                   Cancel
                 </button>

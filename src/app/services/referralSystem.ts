@@ -6,9 +6,6 @@ const SYSTEM_ROOT_INVITE_CODE = 'STF01';
 const DEMO_USERNAME = 'ugreen';
 const DEMO_INVITE_CODE = 'UGR01';
 const DEMO_PASSWORD = 'demo123';
-const BACKEND_DEMO_USERNAME = 'backenddemo';
-const BACKEND_DEMO_INVITE_CODE = 'BCK01';
-const BACKEND_DEMO_PASSWORD = 'backend123';
 const ADMIN_USERNAME = 'admin';
 const ADMIN_INVITE_CODE = 'ADM01';
 const ADMIN_PASSWORD = 'admin123';
@@ -101,23 +98,6 @@ function createDemoAccount(): ReferralAccount {
   };
 }
 
-function createBackendDemoAccount(): ReferralAccount {
-  return {
-    username: BACKEND_DEMO_USERNAME,
-    phone: '+1 555-0002',
-    loginPassword: BACKEND_DEMO_PASSWORD,
-    transactionPassword: BACKEND_DEMO_PASSWORD,
-    gender: 'male',
-    invitationCode: BACKEND_DEMO_INVITE_CODE,
-    invitedByCode: SYSTEM_ROOT_INVITE_CODE,
-    tier: 2,
-    balance: 250,
-    referralEarnings: 0,
-    children: [],
-    createdAt: new Date().toISOString(),
-  };
-}
-
 function createAdminAccount(): ReferralAccount {
   return {
     username: ADMIN_USERNAME,
@@ -163,7 +143,6 @@ function readStore(): ReferralStore {
       accounts: [
         createSystemRootAccount(),
         createDemoAccount(),
-        createBackendDemoAccount(),
         createAdminAccount(),
       ],
       events: [],
@@ -191,18 +170,12 @@ function readStore(): ReferralStore {
       parsed.accounts.push(createAdminAccount());
     }
 
-    const hasBackendDemo = parsed.accounts.some((x) => x.username.toLowerCase() === BACKEND_DEMO_USERNAME.toLowerCase());
-    if (!hasBackendDemo) {
-      parsed.accounts.push(createBackendDemoAccount());
-    }
-
     return parsed;
   } catch {
     return {
       accounts: [
         createSystemRootAccount(),
         createDemoAccount(),
-        createBackendDemoAccount(),
         createAdminAccount(),
       ],
       events: [],
@@ -244,14 +217,6 @@ export function getAdminCredentials(): { username: string; password: string; inv
     username: ADMIN_USERNAME,
     password: ADMIN_PASSWORD,
     inviteCode: ADMIN_INVITE_CODE,
-  };
-}
-
-export function getBackendDemoCredentials(): { username: string; password: string; inviteCode: string } {
-  return {
-    username: BACKEND_DEMO_USERNAME,
-    password: BACKEND_DEMO_PASSWORD,
-    inviteCode: BACKEND_DEMO_INVITE_CODE,
   };
 }
 
