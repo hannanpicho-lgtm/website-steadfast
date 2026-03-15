@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { projectId } from '/utils/supabase/info';
 import { Lock, Calculator, AlertTriangle, Info, Eye, XCircle } from 'lucide-react';
+import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
 
 interface User {
   id: number;
@@ -55,10 +56,7 @@ export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
       
       const response = await fetch(`${serverUrl}/admin/assign-premium-bundle`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
+        headers: await buildAdminAuthHeaders(),
         body: JSON.stringify({
           username: selectedUsername,
           premiumProductValue: premiumVal,

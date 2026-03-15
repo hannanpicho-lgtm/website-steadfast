@@ -12,6 +12,8 @@
  */
 
 const BASE = 'https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e';
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2cXd2dXFlZW5rdXNkYXlvc3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxODA3ODksImV4cCI6MjA4ODc1Njc4OX0.R0dNwSW9ibeU0XE9kYdKI3E2D6vEP6dVu2VATAHXK1A';
+const ADMIN_JWT = process.env.SUPABASE_ADMIN_TEST_JWT ?? '';
 const VERBOSE = process.argv.includes('--verbose');
 const RUN_ID = Date.now();
 const TEST_USER = `smoke_${RUN_ID}`;
@@ -26,7 +28,12 @@ async function call(method, path, body, extraHeaders = {}) {
   const url = `${BASE}${path}`;
   const init = {
     method,
-    headers: { 'Content-Type': 'application/json', ...extraHeaders },
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${ANON_KEY}`,
+      ...extraHeaders,
+    },
   };
   if (body !== undefined) {
     init.body = JSON.stringify(body);
@@ -244,11 +251,23 @@ async function testAdminAuth() {
 
   for (const [method, path, body] of routes) {
     const r = await call(method, path, body);
-    check(`${method} ${path} → 401 (no secret)`, r, 401);
-
-    const r2 = await call(method, path, body, { 'x-admin-secret': 'wrong-secret' });
-    check(`${method} ${path} → 401 (wrong secret)`, r2, 401);
+    check(`${method} ${path} → 401 (anon token only)`, r, 401);
   }
+}
+
+async function testAdminSuccess() {
+  if (!ADMIN_JWT) {
+    return;
+  }
+
+  console.log('\n[Admin Success Path — requires SUPABASE_ADMIN_TEST_JWT]');
+
+  const headers = { Authorization: `Bearer ${ADMIN_JWT}` };
+  const tickets = await call('GET', '/cs/admin/tickets', undefined, headers);
+  check('GET /cs/admin/tickets → 200 (admin JWT)', tickets, 200, b => Array.isArray(b));
+
+  const chats = await call('GET', '/cs/admin/chats', undefined, headers);
+  check('GET /cs/admin/chats → 200 (admin JWT)', chats, 200, b => Array.isArray(b));
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -269,6 +288,7 @@ try {
   await testChat();
   await testAuth();
   await testAdminAuth();
+  await testAdminSuccess();
 } catch (err) {
   console.error('\n\nFatal error during smoke test:', err);
   process.exit(2);

@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { projectId } from '/utils/supabase/info';
 import LiveChatAdmin from './LiveChatAdmin';
+import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
+import { buildPublicApiHeaders } from '../../services/publicApi';
 import { 
   MessageSquare, 
   Ticket,
@@ -175,9 +177,7 @@ export default function CustomerSupport() {
         setLoading(true);
       }
       const response = await fetch(`${serverUrl}/cs/admin/tickets`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
+        headers: await buildAdminAuthHeaders(false),
       });
 
       if (!response.ok) {
@@ -201,9 +201,7 @@ export default function CustomerSupport() {
         setLoading(true);
       }
       const response = await fetch(`${serverUrl}/cs/admin/chats`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
+        headers: await buildAdminAuthHeaders(false),
       });
 
       if (!response.ok) {
@@ -227,9 +225,7 @@ export default function CustomerSupport() {
         setLoading(true);
       }
       const response = await fetch(`${serverUrl}/cs/support-links`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
+        headers: buildPublicApiHeaders(),
       });
 
       if (!response.ok) {
@@ -256,10 +252,7 @@ export default function CustomerSupport() {
     try {
       const response = await fetch(`${serverUrl}/cs/support-links`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
+        headers: await buildAdminAuthHeaders(),
         body: JSON.stringify({
           whatsappNumber,
           telegramUsername,
@@ -295,10 +288,7 @@ export default function CustomerSupport() {
     try {
       const response = await fetch(`${serverUrl}/cs/respond`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
+        headers: await buildAdminAuthHeaders(),
         body: JSON.stringify({
           ticketId,
           message: replyMessage,
@@ -328,10 +318,7 @@ export default function CustomerSupport() {
     try {
       const response = await fetch(`${serverUrl}/cs/update-status`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
+        headers: await buildAdminAuthHeaders(),
         body: JSON.stringify({
           ticketId,
           status: newStatus,
@@ -415,7 +402,7 @@ export default function CustomerSupport() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-[#00D9FF]">Customer Support Management</h2>
+        <h2 className="text-2xl font-bold text-gray-900">Customer Support Management</h2>
         <button
           onClick={refreshActiveTab}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -425,13 +412,13 @@ export default function CustomerSupport() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-700">
+      <div className="flex gap-2 border-b border-gray-200">
         <button
           onClick={() => setActiveTab('tickets')}
           className={`px-6 py-3 font-semibold transition-colors relative ${
             activeTab === 'tickets'
-              ? 'text-[#00D9FF] border-b-2 border-[#00D9FF]'
-              : 'text-gray-400 hover:text-[#00D9FF]'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -446,8 +433,8 @@ export default function CustomerSupport() {
           onClick={() => setActiveTab('chats')}
           className={`px-6 py-3 font-semibold transition-colors relative ${
             activeTab === 'chats'
-              ? 'text-[#00D9FF] border-b-2 border-[#00D9FF]'
-              : 'text-gray-400 hover:text-[#00D9FF]'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -464,8 +451,8 @@ export default function CustomerSupport() {
           onClick={() => setActiveTab('links')}
           className={`px-6 py-3 font-semibold transition-colors relative ${
             activeTab === 'links'
-              ? 'text-[#00D9FF] border-b-2 border-[#00D9FF]'
-              : 'text-gray-400 hover:text-[#00D9FF]'
+              ? 'text-blue-600 border-b-2 border-blue-600'
+              : 'text-gray-600 hover:text-gray-900'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -507,13 +494,13 @@ export default function CustomerSupport() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by subject or username..."
-                className="w-full pl-10 pr-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-[#00D9FF] focus:outline-none"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
               />
             </div>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
             >
               <option value="all">All Status</option>
               <option value="open">Open</option>
@@ -664,8 +651,8 @@ export default function CustomerSupport() {
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-xl font-bold text-[#00D9FF]">Support Contact Links</h3>
-              <p className="text-sm text-gray-300 mt-1">Manage the contact methods displayed on the Support page</p>
+              <h3 className="text-xl font-bold text-gray-900">Support Contact Links</h3>
+              <p className="text-sm text-gray-500 mt-1">Manage the contact methods displayed on the Support page</p>
             </div>
             {!isEditingLinks ? (
               <button

@@ -8,9 +8,11 @@
  * Run with:  npm run test:integration
  * Requires network access to gvqwvuqeenkusdayosty.supabase.co
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 const BASE = 'https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e';
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2cXd2dXFlZW5rdXNkYXlvc3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxODA3ODksImV4cCI6MjA4ODc1Njc4OX0.R0dNwSW9ibeU0XE9kYdKI3E2D6vEP6dVu2VATAHXK1A';
+const ADMIN_TEST_JWT = process.env.SUPABASE_ADMIN_TEST_JWT;
 
 // Unique test username per run to avoid polluting production state
 const RUN_ID = Date.now();
@@ -20,7 +22,12 @@ const TEST_USER = `test_audit_${RUN_ID}`;
 
 async function request(path: string, init?: RequestInit) {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${ANON_KEY}`,
+      ...(init?.headers ?? {}),
+    },
     ...init,
   });
   const body = await res.json().catch(() => null);
@@ -30,9 +37,19 @@ async function request(path: string, init?: RequestInit) {
 function post(path: string, payload: unknown, extraHeaders: Record<string, string> = {}) {
   return request(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...extraHeaders },
+    headers: { ...extraHeaders },
     body: JSON.stringify(payload),
   });
+}
+
+function adminHeaders() {
+  if (!ADMIN_TEST_JWT) {
+    throw new Error('SUPABASE_ADMIN_TEST_JWT is not set');
+  }
+
+  return {
+    Authorization: `Bearer ${ADMIN_TEST_JWT}`,
+  };
 }
 
 // ─── Health ───────────────────────────────────────────────────────────────────
@@ -370,7 +387,20 @@ describe('Auth endpoints', () => {
 // ─── Admin auth enforcement (P1 security fix) ─────────────────────────────────
 
 describe('Admin route authentication', () => {
-  it('POST /admin/assign-premium-bundle → 401 without x-admin-secret', async () => {
+  it('POST /admin/assign-premium-bundle → 401 without auth headers', async () => {
+    const { status } = await fetch(`${BASE}/admin/assign-premium-bundle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: TEST_USER,
+        premiumProductValue: 500,
+        bundledProductCount: 1,
+      }),
+    }).then(async (res) => ({ status: res.status }));
+    expect(status).toBe(401);
+  });
+
+  it('POST /admin/assign-premium-bundle → 401 with anon token only', async () => {
     const { status } = await post('/admin/assign-premium-bundle', {
       username: TEST_USER,
       premiumProductValue: 500,
@@ -379,7 +409,7 @@ describe('Admin route authentication', () => {
     expect(status).toBe(401);
   });
 
-  it('DELETE /admin/cancel-premium/:username/:id → 401 without x-admin-secret', async () => {
+  it('DELETE /admin/cancel-premium/:username/:id → 401 with anon token only', async () => {
     const { status } = await request(
       `/admin/cancel-premium/${TEST_USER}/premium-fake`,
       { method: 'DELETE' },
@@ -387,20 +417,77 @@ describe('Admin route authentication', () => {
     expect(status).toBe(401);
   });
 
-  it('GET /cs/admin/tickets → 401 without x-admin-secret', async () => {
+  it('GET /cs/admin/tickets → 401 with anon token only', async () => {
     const { status } = await request('/cs/admin/tickets');
     expect(status).toBe(401);
   });
 
-  it('GET /cs/admin/chats → 401 without x-admin-secret', async () => {
+  it('GET /cs/admin/chats → 401 with anon token only', async () => {
     const { status } = await request('/cs/admin/chats');
     expect(status).toBe(401);
   });
 
-  it('GET /cs/admin/tickets → 401 with a wrong secret', async () => {
-    const { status } = await request('/cs/admin/tickets', {
-      headers: { 'Content-Type': 'application/json', 'x-admin-secret': 'wrong-secret' },
+  it('POST /cs/support-links → 401 with anon token only', async () => {
+    const { status } = await post('/cs/support-links', {
+      whatsappNumber: '15551234567',
+      telegramUsername: 'secure-admin',
+      supportEmail: 'secure@example.com',
     });
     expect(status).toBe(401);
+  });
+
+  it('POST /cs/respond with isAdmin=true → 401 with anon token only', async () => {
+    const { status } = await post('/cs/respond', {
+      ticketId: 'ticket_fake',
+      message: 'Admin reply',
+      respondedBy: 'Admin',
+      isAdmin: true,
+    });
+    expect(status).toBe(401);
+  });
+
+  it('POST /cs/update-status → 401 with anon token only', async () => {
+    const { status } = await post('/cs/update-status', {
+      ticketId: 'ticket_fake',
+      status: 'resolved',
+    });
+    expect(status).toBe(401);
+  });
+
+  it('POST /cs/chat/send with isAdmin=true → 401 with anon token only', async () => {
+    const { status } = await post('/cs/chat/send', {
+      username: TEST_USER,
+      message: 'Admin message',
+      isAdmin: true,
+    });
+    expect(status).toBe(401);
+  });
+
+  it('POST /cs/chat/mark-read with viewer=admin → 401 with anon token only', async () => {
+    const { status } = await post('/cs/chat/mark-read', {
+      username: TEST_USER,
+      viewer: 'admin',
+    });
+    expect(status).toBe(401);
+  });
+});
+
+const describeIfAdminJwt = ADMIN_TEST_JWT ? describe : describe.skip;
+
+describeIfAdminJwt('Admin route success path', () => {
+  it('GET /cs/admin/tickets → 200 array with valid admin JWT', async () => {
+    const { status, body } = await request('/cs/admin/tickets', {
+      headers: adminHeaders(),
+    });
+    expect(status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
+  });
+
+  it('GET /cs/admin/chats → 200 array with valid admin JWT', async () => {
+    const { status, body } = await request('/cs/admin/chats', {
+      headers: adminHeaders(),
+    });
+    expect(status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
   });
 });

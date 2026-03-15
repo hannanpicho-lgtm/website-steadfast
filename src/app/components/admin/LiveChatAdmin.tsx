@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { projectId } from '/utils/supabase/info';
 import { 
   MessageSquare, 
   Send, 
@@ -11,6 +11,7 @@ import {
   Search,
   X
 } from 'lucide-react';
+import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
 
 interface ChatMessage {
   id: string;
@@ -73,9 +74,7 @@ export default function LiveChatAdmin() {
     try {
       setLoading(true);
       const response = await fetch(`${serverUrl}/cs/admin/chats`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
+        headers: await buildAdminAuthHeaders(false),
       });
 
       if (!response.ok) {
@@ -94,9 +93,7 @@ export default function LiveChatAdmin() {
   const fetchMessages = async (username: string) => {
     try {
       const response = await fetch(`${serverUrl}/cs/chat/${username}`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
+        headers: await buildAdminAuthHeaders(false),
       });
 
       if (!response.ok) {
@@ -114,10 +111,7 @@ export default function LiveChatAdmin() {
     try {
       const response = await fetch(`${serverUrl}/cs/chat/mark-read`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
+        headers: await buildAdminAuthHeaders(),
         body: JSON.stringify({
           username,
           viewer: 'admin',
@@ -141,10 +135,7 @@ export default function LiveChatAdmin() {
       setSending(true);
       const response = await fetch(`${serverUrl}/cs/chat/send`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
+        headers: await buildAdminAuthHeaders(),
         body: JSON.stringify({
           username: selectedChat,
           message: newMessage,

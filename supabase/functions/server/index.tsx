@@ -1,8 +1,15 @@
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
+import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
 import * as kv from "./kv_store.tsx";
 const app = new Hono();
+
+const supabaseUrl = Deno.env.get("SUPABASE_URL");
+const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const authClient = supabaseUrl && supabaseServiceRoleKey
+  ? createClient(supabaseUrl, supabaseServiceRoleKey)
+  : null;
 
 // Enable logger
 app.use('*', logger(console.log));
@@ -19,21 +26,70 @@ app.use(
   }),
 );
 
-// ── Admin authentication middleware ─────────────────────────────────────────
-// Set the ADMIN_SECRET environment variable in Supabase → Project Settings →
-// Edge Functions → Secrets. All /admin/* and /cs/admin/* routes require the
-// caller to supply the matching value in the x-admin-secret request header.
-const adminAuthMiddleware = async (c: any, next: any) => {
-  const expected = Deno.env.get('ADMIN_SECRET');
-  const supplied = c.req.header('x-admin-secret');
-  if (!expected || !supplied || supplied !== expected) {
+// ── Admin authorization helper ──────────────────────────────────────────────
+// Admin access is granted only to authenticated Supabase users with an admin
+// role in app_metadata/user_metadata. Example app_metadata:
+// { "role": "admin" } or { "roles": ["admin"] }
+function hasAdminRole(user: any): boolean {
+  if (!user || typeof user !== 'object') {
+    return false;
+  }
+
+  const roles = new Set<string>();
+  const appMetadata = typeof user.app_metadata === 'object' && user.app_metadata ? user.app_metadata : {};
+  const userMetadata = typeof user.user_metadata === 'object' && user.user_metadata ? user.user_metadata : {};
+
+  if (typeof appMetadata.role === 'string') {
+    roles.add(appMetadata.role.toLowerCase());
+  }
+  if (Array.isArray(appMetadata.roles)) {
+    appMetadata.roles.forEach((role: unknown) => {
+      if (typeof role === 'string') {
+        roles.add(role.toLowerCase());
+      }
+    });
+  }
+  if (typeof userMetadata.role === 'string') {
+    roles.add(userMetadata.role.toLowerCase());
+  }
+  if (Array.isArray(userMetadata.roles)) {
+    userMetadata.roles.forEach((role: unknown) => {
+      if (typeof role === 'string') {
+        roles.add(role.toLowerCase());
+      }
+    });
+  }
+
+  return roles.has('admin') || roles.has('super_admin');
+}
+
+async function requireAdmin(c: any) {
+  if (!authClient) {
+    return c.json({ error: 'Server auth configuration missing' }, 500);
+  }
+
+  const authorization = c.req.header('Authorization');
+  if (!authorization || !authorization.startsWith('Bearer ')) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
-  await next();
-};
 
-app.use('/make-server-a1c55d7e/admin/*', adminAuthMiddleware);
-app.use('/make-server-a1c55d7e/cs/admin/*', adminAuthMiddleware);
+  const accessToken = authorization.slice('Bearer '.length).trim();
+  if (!accessToken) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const { data, error } = await authClient.auth.getUser(accessToken);
+  if (error || !data.user) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  if (!hasAdminRole(data.user)) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  c.set('adminUser', data.user);
+  return null;
+}
 
 // ── Username sanitizer ───────────────────────────────────────────────────────
 // Prevents colon-injection attacks against KV key namespaces.
@@ -206,6 +262,11 @@ const productCatalog = [
 // Admin assigns premium bundle to user
 app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
   try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
     const { username, premiumProductValue, bundledProductCount, adminUsername } = await c.req.json();
     
     if (!username || !premiumProductValue || !bundledProductCount) {
@@ -413,6 +474,11 @@ app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
 // Cancel premium assignment (admin)
 app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", async (c) => {
   try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
     const username = c.req.param("username");
     const premiumId = c.req.param("premiumId");
     
@@ -534,6 +600,11 @@ app.get("/make-server-a1c55d7e/cs/support-links", async (c) => {
 // Update support contact links
 app.post("/make-server-a1c55d7e/cs/support-links", async (c) => {
   try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
     const payload = sanitizeSupportLinks(await c.req.json());
     await kv.set(SUPPORT_LINKS_KEY, payload);
     return c.json({ success: true, links: payload });
@@ -612,6 +683,11 @@ app.get("/make-server-a1c55d7e/cs/tickets/:username", async (c) => {
 // Get all tickets (admin)
 app.get("/make-server-a1c55d7e/cs/admin/tickets", async (c) => {
   try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
     const ticketPrefix = 'ticket:ticket_';
     const tickets = await kv.getByPrefix(ticketPrefix);
     
@@ -629,6 +705,13 @@ app.get("/make-server-a1c55d7e/cs/admin/tickets", async (c) => {
 app.post("/make-server-a1c55d7e/cs/respond", async (c) => {
   try {
     const { ticketId, message, respondedBy, isAdmin } = await c.req.json();
+
+    if (isAdmin) {
+      const unauthorized = await requireAdmin(c);
+      if (unauthorized) {
+        return unauthorized;
+      }
+    }
     
     if (!ticketId || !message || !respondedBy) {
       return c.json({ error: 'Missing required fields' }, 400);
@@ -664,6 +747,11 @@ app.post("/make-server-a1c55d7e/cs/respond", async (c) => {
 // Update ticket status
 app.post("/make-server-a1c55d7e/cs/update-status", async (c) => {
   try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
     const { ticketId, status, assignedTo } = await c.req.json();
     
     if (!ticketId || !status) {
@@ -702,6 +790,13 @@ app.post("/make-server-a1c55d7e/cs/update-status", async (c) => {
 app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
   try {
     const { username, message, isAdmin } = await c.req.json();
+
+    if (isAdmin) {
+      const unauthorized = await requireAdmin(c);
+      if (unauthorized) {
+        return unauthorized;
+      }
+    }
     
     if (!username || !message) {
       return c.json({ error: 'Missing required fields' }, 400);
@@ -755,6 +850,13 @@ app.post("/make-server-a1c55d7e/cs/chat/mark-read", async (c) => {
   try {
     const { username, viewer } = await c.req.json();
 
+    if (viewer === 'admin') {
+      const unauthorized = await requireAdmin(c);
+      if (unauthorized) {
+        return unauthorized;
+      }
+    }
+
     if (!username || (viewer !== 'admin' && viewer !== 'user')) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
@@ -800,6 +902,11 @@ app.post("/make-server-a1c55d7e/cs/chat/mark-read", async (c) => {
 // Get all active chats (admin)
 app.get("/make-server-a1c55d7e/cs/admin/chats", async (c) => {
   try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
     const chatPrefix = 'chat:';
     const allChats = await kv.getByPrefix(chatPrefix);
     

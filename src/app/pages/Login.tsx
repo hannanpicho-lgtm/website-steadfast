@@ -3,7 +3,8 @@ import { Link, useNavigate, useLocation } from 'react-router';
 import { useState } from 'react';
 import { useEffect } from 'react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
-import { authenticateUser, ensureReferralStore, getAdminCredentials, getBackendDemoCredentials, getDemoCredentials } from '../services/referralSystem';
+import { authenticateUser, ensureReferralStore, getAdminCredentials, getDemoCredentials } from '../services/referralSystem';
+import { resolveAdminIdentifier, signInAdmin } from '../services/supabaseAuth';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -14,14 +15,33 @@ export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errorText, setErrorText] = useState('');
+  const [loginTarget, setLoginTarget] = useState('/starting');
+  const adminRequired = Boolean((location.state as { adminRequired?: boolean } | null)?.adminRequired);
 
   useEffect(() => {
     ensureReferralStore();
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorText('');
+
+    const from = (location.state as { from?: string })?.from;
+    const normalizedIdentifier = username.trim().toLowerCase();
+    const wantsAdminAccess = adminRequired || from === '/admin';
+    const isLikelyAdminIdentifier = normalizedIdentifier.includes('@') || resolveAdminIdentifier(normalizedIdentifier) !== normalizedIdentifier;
+
+    if (wantsAdminAccess || isLikelyAdminIdentifier) {
+      const adminResult = await signInAdmin(username, password);
+      if (!adminResult.ok) {
+        setErrorText(adminResult.error);
+        return;
+      }
+
+      setLoginTarget('/admin');
+      setShowWelcome(true);
+      return;
+    }
 
     const result = authenticateUser(username, password);
     if (!result.ok) {
@@ -29,13 +49,13 @@ export default function Login() {
       return;
     }
 
+    setLoginTarget(from && from !== '/login' ? from : '/starting');
     setShowWelcome(true);
   };
 
   const handleWelcomeClose = () => {
     setShowWelcome(false);
-    const from = (location.state as { from?: string })?.from;
-    navigate(from && from !== '/login' ? from : '/starting', { replace: true });
+    navigate(loginTarget, { replace: true });
   };
 
   return (
@@ -60,14 +80,18 @@ export default function Login() {
       {/* Form Section */}
       <div className="max-w-2xl mx-auto px-6 py-12">
         <h1 className="text-[#005a87] text-3xl font-bold text-center mb-2">Sign In</h1>
-        <p className="text-[#3d4551] text-center text-sm mb-8">Enter your username and password to access</p>
+        <p className="text-[#3d4551] text-center text-sm mb-8">
+          {adminRequired
+            ? 'Admin access now requires a Supabase Auth admin account.'
+            : 'Enter your username and password to access'}
+        </p>
 
         <form onSubmit={handleLogin} className="space-y-5 max-w-xl mx-auto">
           {/* Username/Phone */}
           <div>
             <input
               type="text"
-              placeholder="Username/Phone"
+              placeholder={adminRequired ? 'Admin email or mapped admin username' : 'Username/Phone'}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
@@ -96,7 +120,7 @@ export default function Login() {
 
           {/* Forgot Password & Remember Password */}
           <div className="flex items-center justify-between">
-            <Link to="/forgot-password" className="btn-mobile-text-action">
+            <Link to="/forgot-password" className="text-sm text-[#005a87] hover:underline">
               Forgot your password?
             </Link>
             <label className="flex items-center gap-2 cursor-pointer">
@@ -113,7 +137,7 @@ export default function Login() {
           {/* Sign In Button */}
           <button
             type="submit"
-            className="btn-mobile-primary-block uppercase tracking-wide"
+            className="w-full bg-[#005a87] hover:bg-[#004a6f] text-white font-bold py-3 px-4 rounded-lg transition-colors uppercase tracking-wide"
           >
             SIGN IN
           </button>
@@ -124,16 +148,16 @@ export default function Login() {
             Demo login: {getDemoCredentials().username} / {getDemoCredentials().password}
           </p>
           <p className="text-center text-xs text-gray-500">
-            Admin demo: {getAdminCredentials().username} / {getAdminCredentials().password}
+            Local admin demo: {getAdminCredentials().username} / {getAdminCredentials().password}
           </p>
           <p className="text-center text-xs text-gray-500">
-            Backend demo: {getBackendDemoCredentials().username} / {getBackendDemoCredentials().password}
+            Secure admin access requires a Supabase Auth admin user with app_metadata.role = admin.
           </p>
 
           {/* Sign Up Link */}
           <p className="text-center text-sm text-[#3d4551]">
             Don't have an account yet?{' '}
-            <Link to="/signup" className="btn-mobile-text-action">
+            <Link to="/signup" className="text-[#005a87] font-semibold hover:underline">
               Sign Up
             </Link>
           </p>
@@ -144,7 +168,7 @@ export default function Login() {
             <button 
               type="button"
               onClick={() => window.open('https://steadfastdigital.com', '_blank')}
-              className="btn-mobile-text-action"
+              className="text-[#005a87] font-semibold hover:underline"
             >
               Contact our user support
             </button>
@@ -175,7 +199,7 @@ export default function Login() {
             
             <button
               onClick={handleWelcomeClose}
-              className="btn-mobile-primary-block"
+              className="w-full bg-[#005a87] hover:bg-[#004a6f] text-white font-bold py-3 px-6 rounded-lg transition-colors"
             >
               Continue
             </button>

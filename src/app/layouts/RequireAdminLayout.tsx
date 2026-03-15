@@ -1,13 +1,39 @@
-import { Navigate, Outlet } from 'react-router';
-import { isAuthenticated, isCurrentUserAdmin } from '../services/referralSystem';
+import { useEffect, useState } from 'react';
+import { Navigate, Outlet, useLocation } from 'react-router';
+import { Loader2 } from 'lucide-react';
+import { isSupabaseAdminAuthenticated } from '../services/supabaseAuth';
 
 export default function RequireAdminLayout() {
-  if (!isAuthenticated()) {
-    return <Navigate to="/login" replace />;
+  const location = useLocation();
+  const [status, setStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('checking');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    void (async () => {
+      const authorized = await isSupabaseAdminAuthenticated();
+      if (!isMounted) {
+        return;
+      }
+
+      setStatus(authorized ? 'authorized' : 'unauthorized');
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  if (status === 'checking') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#1a1f2e]">
+        <Loader2 className="animate-spin text-[#00D9FF]" size={40} />
+      </div>
+    );
   }
 
-  if (!isCurrentUserAdmin()) {
-    return <Navigate to="/starting" replace />;
+  if (status === 'unauthorized') {
+    return <Navigate to="/login" replace state={{ from: location.pathname, adminRequired: true }} />;
   }
 
   return <Outlet />;
