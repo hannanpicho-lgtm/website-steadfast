@@ -6,6 +6,7 @@ import {
   pruneExpiredRestorePoints,
   createAuditEvent,
   createSalaryRestorePoint,
+  createRecoveryPoint,
   createAutoBackupPoint,
   loadSalaryProjectAutosave,
   saveSalaryProjectAutosave,
@@ -71,6 +72,22 @@ describe('createSalaryRestorePoint', () => {
     const point = createSalaryRestorePoint('deep copy test', payments);
     payments[0].salaryDue = 99_999;
     expect(point.payments[0].salaryDue).toBe(3060);
+  });
+});
+
+// ─── createRecoveryPoint ─────────────────────────────────────────────────────
+
+describe('createRecoveryPoint', () => {
+  it('prefixes labels with Recovery point', () => {
+    const point = createRecoveryPoint('Bulk payment (all)', DEFAULT_PAYMENTS);
+    expect(point.label).toBe('Recovery point: Bulk payment (all)');
+  });
+
+  it('deep-copies payments for recovery snapshots', () => {
+    const payments = [makePayment()];
+    const point = createRecoveryPoint('Before restore', payments);
+    payments[0].status = 'Paid';
+    expect(point.payments[0].status).toBe('Pending');
   });
 });
 

@@ -358,7 +358,7 @@ export function saveSalaryProjectAutosave(payload: {
   points: SalaryRestorePoint[];
 }): StorageSaveResult {
   const dataWithoutChecksum = {
-    version: 1,
+    version: 1 as const,
     savedAt: new Date().toISOString(),
     uiState: {
       activeRewardTab: payload.activeRewardTab,
@@ -386,6 +386,10 @@ export function createSalaryRestorePoint(label: string, payments: SalaryPayment[
     label,
     payments: payments.map((payment) => ({ ...payment })),
   };
+}
+
+export function createRecoveryPoint(reason: string, payments: SalaryPayment[]): SalaryRestorePoint {
+  return createSalaryRestorePoint(`Recovery point: ${reason}`, payments);
 }
 
 export function createAutoBackupPoint(
@@ -419,7 +423,7 @@ export function buildBackupExport(payload: {
   points: SalaryRestorePoint[];
 }): SalaryBackupExport {
   const dataWithoutChecksum = {
-    version: 1,
+    version: 1 as const,
     exportedAt: new Date().toISOString(),
     uiState: {
       activeRewardTab: payload.activeRewardTab,
