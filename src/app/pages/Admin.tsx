@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router';
 import PremiumBundles from '../components/admin/PremiumBundles';
 import CustomerSupport from '../components/admin/CustomerSupport';
 import { 
@@ -52,6 +53,7 @@ import {
   Lock,
   Key,
   ShieldCheck,
+  LogOut,
   Calculator,
   AlertTriangle,
   Info,
@@ -215,6 +217,7 @@ type MenuItem = {
 type ModalType = 'add-user' | 'edit-user' | 'view-user' | 'delete-user' | 'view-transaction' | 'approve-withdrawal' | 'reject-withdrawal' | 'add-task' | 'edit-vip' | 'notification' | 'add-product-manual' | 'add-product-ai' | 'edit-product' | 'view-product' | 'delete-product' | 'edit-workday-reward' | 'edit-reset-reward' | 'edit-accumulated-reward' | 'edit-product-system' | 'pay-salary' | 'pay-salary-bulk' | 'add-admin' | 'edit-admin' | 'view-admin' | 'delete-admin' | 'add-role' | 'edit-role' | 'view-role-permissions' | 'delete-role' | null;
 
 export default function Admin() {
+  const navigate = useNavigate();
   const productsPerPage = 8;
   const usersPerPage = 5;
   const [activeMenu, setActiveMenu] = useState('home');
@@ -257,6 +260,20 @@ export default function Admin() {
       toast.error(message);
       lastStorageErrorRef.current = message;
     }
+  };
+
+  const handleCreateManualProduct = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setModalType(null);
+    setActiveMenu('product-management');
+    toast.success('Product created successfully.');
+  };
+
+  const handleCreateAiProduct = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setModalType(null);
+    setActiveMenu('product-management');
+    toast.success('AI product generated successfully.');
   };
 
   const menuItems: MenuItem[] = [
@@ -684,7 +701,7 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleCreateManualProduct}>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Username</label>
@@ -911,7 +928,7 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleCreateAiProduct}>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Merchant</label>
@@ -4385,6 +4402,13 @@ export default function Admin() {
               <p className="text-gray-400 text-xs">admin@steadfast.com</p>
             </div>
           </div>
+          <button
+            onClick={() => navigate('/logout')}
+            className="mt-3 w-full flex items-center justify-center gap-2 bg-[#1a1f2e] hover:bg-[#303a53] text-gray-200 hover:text-white py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            <LogOut size={16} />
+            Logout
+          </button>
         </div>
       </aside>
 
