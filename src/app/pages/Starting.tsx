@@ -1,4 +1,4 @@
-import { UserCircle, Rocket, CreditCard, Snowflake, Loader2, Lock, AlertTriangle, DollarSign } from 'lucide-react';
+import { UserCircle, Rocket, CreditCard, Snowflake, Loader2, Lock, AlertTriangle, DollarSign, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
 import { LiveChatBox } from '../components/LiveChatBox';
@@ -57,6 +57,7 @@ export default function Starting() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [lastCommission, setLastCommission] = useState(0);
   const [isPremium, setIsPremium] = useState(false);
+    const [carouselIndex, setCarouselIndex] = useState(0);
   
   const sessionUsername = getCurrentUsername();
   const username = sessionUsername ?? 'ugreen';
@@ -73,6 +74,14 @@ export default function Starting() {
 
   // Get current product to submit
   const currentProduct = products[currentProductIndex % products.length];
+
+  // Auto-advance carousel
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCarouselIndex(i => (i + 1) % products.length);
+    }, 3000);
+    return () => clearInterval(timer);
+  }, []);
   const commissionRate = userData ? commissionRates[userData.vipLevel] || 0.5 : 0.5;
   const estimatedCommission = currentProduct.price * (commissionRate / 100);
 
@@ -220,125 +229,55 @@ export default function Starting() {
           </Link>
         </div>
 
-        {/* Product Carousel */}
-        <div className="bg-white rounded-lg p-6 mb-6 shadow-sm overflow-hidden">
-          <div className="flex gap-6 animate-carousel">
-            {/* Product 1 */}
-            <div className="flex-shrink-0 w-full max-w-sm">
-              <div className="flex items-center justify-center mb-4">
-                <img 
-                  src="https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop" 
-                  alt="Headphones" 
-                  className="max-w-[200px] w-full object-contain"
+        {/* Product Slideshow */}
+        {(() => { const slide = products[carouselIndex]; return (
+          <div className="bg-white rounded-lg p-6 mb-6 shadow-sm relative select-none">
+            {/* Prev button */}
+            <button
+              onClick={() => setCarouselIndex(i => (i - 1 + products.length) % products.length)}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-gray-100 hover:bg-gray-200 rounded-full p-1 transition-colors"
+            >
+              <ChevronLeft size={22} className="text-gray-600" />
+            </button>
+
+            {/* Slide content */}
+            <div className="text-center px-8">
+              <div className="flex items-center justify-center mb-4 h-[180px]">
+                <img
+                  key={slide.id}
+                  src={slide.image}
+                  alt={slide.name.split(',')[0]}
+                  className="max-h-[180px] max-w-[200px] w-full object-contain"
                 />
               </div>
-              <div className="text-center">
-                <h3 className="text-base font-semibold mb-2 line-clamp-2">
-                  Premium Wireless Headphones with Noise Cancellation, 30-hour battery life, Studio quality sound...
-                </h3>
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-yellow-500">⭐</span>
-                    <span className="text-sm font-semibold">4.5</span>
-                  </div>
-                </div>
-                <p className="text-xl font-bold">Price: 299.99 USD</p>
+              <h3 className="text-base font-semibold mb-2 line-clamp-2">{slide.name}</h3>
+              <div className="flex items-center justify-center gap-1 mb-2">
+                <span className="text-yellow-500">⭐</span>
+                <span className="text-sm font-semibold">{slide.rating}</span>
               </div>
+              <p className="text-xl font-bold">Price: {slide.price.toFixed(2)} USD</p>
             </div>
 
-            {/* Product 2 */}
-            <div className="flex-shrink-0 w-full max-w-sm">
-              <div className="flex items-center justify-center mb-4">
-                <img 
-                  src="https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=400&h=300&fit=crop" 
-                  alt="Smart Watch" 
-                  className="max-w-[200px] w-full object-contain"
-                />
-              </div>
-              <div className="text-center">
-                <h3 className="text-base font-semibold mb-2 line-clamp-2">
-                  Smart Watch Pro with fitness tracking, heart rate monitor, GPS navigation, waterproof design...
-                </h3>
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-yellow-500">⭐</span>
-                    <span className="text-sm font-semibold">4.2</span>
-                  </div>
-                </div>
-                <p className="text-xl font-bold">Price: 399.00 USD</p>
-              </div>
-            </div>
+            {/* Next button */}
+            <button
+              onClick={() => setCarouselIndex(i => (i + 1) % products.length)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-gray-100 hover:bg-gray-200 rounded-full p-1 transition-colors"
+            >
+              <ChevronRight size={22} className="text-gray-600" />
+            </button>
 
-            {/* Product 3 */}
-            <div className="flex-shrink-0 w-full max-w-sm">
-              <div className="flex items-center justify-center mb-4">
-                <img 
-                  src="https://images.unsplash.com/photo-1585792180666-f7347c490ee2?w=400&h=300&fit=crop" 
-                  alt="Tablet" 
-                  className="max-w-[200px] w-full object-contain"
+            {/* Dot indicators */}
+            <div className="flex justify-center gap-2 mt-4">
+              {products.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCarouselIndex(i)}
+                  className={`w-2 h-2 rounded-full transition-colors ${i === carouselIndex ? 'bg-gray-700' : 'bg-gray-300'}`}
                 />
-              </div>
-              <div className="text-center">
-                <h3 className="text-base font-semibold mb-2 line-clamp-2">
-                  10-inch Tablet with 128GB storage, 8GB RAM, high-resolution display, perfect for work and entertainment...
-                </h3>
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-yellow-500">⭐</span>
-                    <span className="text-sm font-semibold">4.1</span>
-                  </div>
-                </div>
-                <p className="text-xl font-bold">Price: 549.99 USD</p>
-              </div>
-            </div>
-
-            {/* Product 4 */}
-            <div className="flex-shrink-0 w-full max-w-sm">
-              <div className="flex items-center justify-center mb-4">
-                <img 
-                  src="https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop" 
-                  alt="Headphones" 
-                  className="max-w-[200px] w-full object-contain"
-                />
-              </div>
-              <div className="text-center">
-                <h3 className="text-base font-semibold mb-2 line-clamp-2">
-                  Premium Wireless Headphones with Noise Cancellation, 30-hour battery life, Studio quality sound...
-                </h3>
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-yellow-500">⭐</span>
-                    <span className="text-sm font-semibold">4.5</span>
-                  </div>
-                </div>
-                <p className="text-xl font-bold">Price: 299.99 USD</p>
-              </div>
-            </div>
-
-            {/* Duplicate first product for seamless loop */}
-            <div className="flex-shrink-0 w-full max-w-sm">
-              <div className="flex items-center justify-center mb-4">
-                <img 
-                  src="https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop" 
-                  alt="Headphones" 
-                  className="max-w-[200px] w-full object-contain"
-                />
-              </div>
-              <div className="text-center">
-                <h3 className="text-base font-semibold mb-2 line-clamp-2">
-                  Premium Wireless Headphones with Noise Cancellation, 30-hour battery life, Studio quality sound...
-                </h3>
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <div className="flex items-center gap-1">
-                    <span className="text-yellow-500">⭐</span>
-                    <span className="text-sm font-semibold">4.5</span>
-                  </div>
-                </div>
-                <p className="text-xl font-bold">Price: 299.99 USD</p>
-              </div>
+              ))}
             </div>
           </div>
-        </div>
+          ); })()}
 
         {/* FREEZE BANNER - Premium Bundle Assigned */}
         {userData?.isFrozen && userData?.activePremium && (
