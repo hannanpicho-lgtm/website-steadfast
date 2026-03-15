@@ -29,5 +29,11 @@ jobs:
       - name: Run test suite
         run: npm run test:all
 
+      - name: Run strict admin integration checks
+        if: ${{ secrets.SUPABASE_ADMIN_TEST_JWT != '' }}
+        env:
+          REQUIRE_ADMIN_SUCCESS: true
+        run: npm run test:integration
+
       - name: Run production build
         run: npm run build

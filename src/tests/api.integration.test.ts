@@ -13,6 +13,7 @@ import { describe, it, expect } from 'vitest';
 const BASE = 'https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2cXd2dXFlZW5rdXNkYXlvc3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxODA3ODksImV4cCI6MjA4ODc1Njc4OX0.R0dNwSW9ibeU0XE9kYdKI3E2D6vEP6dVu2VATAHXK1A';
 const ADMIN_TEST_JWT = process.env.SUPABASE_ADMIN_TEST_JWT;
+const REQUIRE_ADMIN_SUCCESS = process.env.REQUIRE_ADMIN_SUCCESS === 'true';
 
 // Unique test username per run to avoid polluting production state
 const RUN_ID = Date.now();
@@ -513,6 +514,9 @@ describe('Admin route authentication', () => {
 describe('Admin route success path', () => {
   it('GET /cs/admin/tickets → 200 array with valid admin JWT', async () => {
     if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
       const { status } = await request('/cs/admin/tickets');
       expect(status).toBe(401);
       return;
@@ -527,6 +531,9 @@ describe('Admin route success path', () => {
 
   it('GET /cs/admin/chats → 200 array with valid admin JWT', async () => {
     if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
       const { status } = await request('/cs/admin/chats');
       expect(status).toBe(401);
       return;
