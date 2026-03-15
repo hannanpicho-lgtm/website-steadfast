@@ -60,6 +60,8 @@ import {
   MessageSquare
 } from 'lucide-react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
+import { buildAdminAuthHeaders } from '../services/supabaseAuth';
+import { projectId } from '/utils/supabase/info';
 import {
   AUTO_BACKUP_INTERVAL_MS,
   MAX_AUDIT_EVENTS,
@@ -198,7 +200,7 @@ const adminRoles = [
 ];
 
 // Admin Users
-const adminUsers = [
+const initialAdminUsers = [
   { id: 1, username: 'admin', email: 'admin@steadfastdigital.com', fullName: 'System Administrator', roleId: 1, roleName: 'Super Admin', roleColor: 'red', status: 'Active', lastLogin: '2024-03-10 09:30 AM', createdDate: '2024-01-01', phone: '+1 555-0100', department: 'IT & Operations', avatar: 'SA', twoFactorEnabled: true, loginAttempts: 0 },
   { id: 2, username: 'finance_admin', email: 'finance@steadfastdigital.com', fullName: 'Sarah Johnson', roleId: 2, roleName: 'Finance Manager', roleColor: 'green', status: 'Active', lastLogin: '2024-03-10 08:15 AM', createdDate: '2024-01-15', phone: '+1 555-0101', department: 'Finance', avatar: 'SJ', twoFactorEnabled: true, loginAttempts: 0 },
   { id: 3, username: 'product_manager', email: 'products@steadfastdigital.com', fullName: 'Michael Chen', roleId: 3, roleName: 'Product Manager', roleColor: 'blue', status: 'Active', lastLogin: '2024-03-09 05:45 PM', createdDate: '2024-02-01', phone: '+1 555-0102', department: 'Product & Operations', avatar: 'MC', twoFactorEnabled: false, loginAttempts: 0 },
@@ -206,6 +208,8 @@ const adminUsers = [
   { id: 5, username: 'moderator1', email: 'moderator@steadfastdigital.com', fullName: 'David Kim', roleId: 5, roleName: 'Content Moderator', roleColor: 'yellow', status: 'Suspended', lastLogin: '2024-03-05 02:30 PM', createdDate: '2024-02-20', phone: '+1 555-0104', department: 'Content & Quality', avatar: 'DK', twoFactorEnabled: false, loginAttempts: 3 },
   { id: 6, username: 'finance_assistant', email: 'finance.assistant@steadfastdigital.com', fullName: 'Lisa Martinez', roleId: 2, roleName: 'Finance Manager', roleColor: 'green', status: 'Active', lastLogin: '2024-03-09 11:20 AM', createdDate: '2024-02-25', phone: '+1 555-0105', department: 'Finance', avatar: 'LM', twoFactorEnabled: true, loginAttempts: 0 }
 ];
+
+const ADMIN_USERS_STORAGE_KEY = 'steadfast.adminUsers';
 
 type MenuItem = {
   id: string;
@@ -218,6 +222,7 @@ type ModalType = 'add-user' | 'edit-user' | 'view-user' | 'delete-user' | 'view-
 
 export default function Admin() {
   const navigate = useNavigate();
+  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
   const productsPerPage = 8;
   const usersPerPage = 5;
   const [activeMenu, setActiveMenu] = useState('home');
@@ -242,6 +247,23 @@ export default function Admin() {
   const [auditFilterAction, setAuditFilterAction] = useState<'all' | SalaryAuditEvent['action']>('all');
   const [productPage, setProductPage] = useState(1);
   const [userPage, setUserPage] = useState(1);
+  const [adminUsers, setAdminUsers] = useState(() => {
+    if (typeof window === 'undefined') {
+      return initialAdminUsers;
+    }
+
+    try {
+      const raw = window.localStorage.getItem(ADMIN_USERS_STORAGE_KEY);
+      if (!raw) {
+        return initialAdminUsers;
+      }
+
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : initialAdminUsers;
+    } catch {
+      return initialAdminUsers;
+    }
+  });
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
@@ -259,6 +281,119 @@ export default function Admin() {
     if (lastStorageErrorRef.current !== message) {
       toast.error(message);
       lastStorageErrorRef.current = message;
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(ADMIN_USERS_STORAGE_KEY, JSON.stringify(adminUsers));
+    } catch {
+      // Ignore storage write failures for admin UI mock data persistence.
+    }
+  }, [adminUsers]);
+
+  useEffect(() => {
+    if (activeMenu !== 'admin-users' || activeAdminTab !== 'admins') {
+      return;
+    }
+
+    void (async () => {
+      try {
+        const headers = await buildAdminAuthHeaders(false);
+        const response = await fetch(`${serverUrl}/admin/users`, { headers });
+        if (!response.ok) {
+          throw new Error(`Failed to load admin users (${response.status})`);
+        }
+
+        const payload = await response.json();
+        const users = Array.isArray(payload?.users) ? payload.users : [];
+        if (users.length > 0) {
+          setAdminUsers(users);
+        }
+      } catch (error) {
+        console.error('Failed to load admin users:', error);
+      }
+    })();
+  }, [activeAdminTab, activeMenu, serverUrl]);
+
+  const handleCreateAdminUser = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const fullName = String(formData.get('fullName') ?? '').trim();
+    const username = String(formData.get('username') ?? '').trim();
+    const email = String(formData.get('email') ?? '').trim();
+    const phone = String(formData.get('phone') ?? '').trim();
+    const department = String(formData.get('department') ?? '').trim();
+    const roleId = Number(formData.get('roleId'));
+    const password = String(formData.get('temporaryPassword') ?? '');
+    const twoFactorEnabled = formData.get('twoFactorEnabled') === 'on';
+
+    if (!fullName || !username || !email || !roleId) {
+      toast.error('Please complete all required fields.');
+      return;
+    }
+
+    if (password.length < 8) {
+      toast.error('Temporary password must be at least 8 characters.');
+      return;
+    }
+
+    if (adminUsers.some((admin) => admin.username.toLowerCase() === username.toLowerCase())) {
+      toast.error('Username already exists.');
+      return;
+    }
+
+    if (adminUsers.some((admin) => admin.email.toLowerCase() === email.toLowerCase())) {
+      toast.error('Email already exists.');
+      return;
+    }
+
+    const selectedRole = adminRoles.find((role) => role.id === roleId);
+    if (!selectedRole) {
+      toast.error('Please select a valid role.');
+      return;
+    }
+
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/users`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          fullName,
+          username,
+          email,
+          phone,
+          department,
+          roleName: selectedRole.name,
+          roleColor: selectedRole.color,
+          password,
+          twoFactorEnabled,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to create admin user');
+      }
+
+      const createdAdmin = payload?.admin;
+      if (createdAdmin) {
+        setAdminUsers((prev) => [createdAdmin, ...prev.filter((admin) => admin.id !== createdAdmin.id)]);
+      }
+
+      toast.success('Admin user created successfully!');
+      setModalType(null);
+      form.reset();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create admin user';
+      toast.error(message);
     }
   };
 
@@ -1642,31 +1777,31 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleCreateAdminUser}>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Full Name *</label>
-                    <input type="text" placeholder="John Doe" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required />
+                    <input name="fullName" type="text" placeholder="John Doe" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Username *</label>
-                    <input type="text" placeholder="johndoe" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required />
+                    <input name="username" type="text" placeholder="johndoe" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Email *</label>
-                    <input type="email" placeholder="john@steadfastdigital.com" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required />
+                    <input name="email" type="email" placeholder="john@steadfastdigital.com" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Phone</label>
-                    <input type="tel" placeholder="+1 555-0000" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input name="phone" type="tel" placeholder="+1 555-0000" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Department</label>
-                    <input type="text" placeholder="IT & Operations" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input name="department" type="text" placeholder="IT & Operations" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Role *</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required>
+                    <select name="roleId" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required>
                       <option value="">Select Role</option>
                       {adminRoles.map(role => (
                         <option key={role.id} value={role.id}>{role.name}</option>
@@ -1675,12 +1810,12 @@ export default function Admin() {
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Temporary Password *</label>
-                    <input type="password" placeholder="Min. 8 characters" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required />
+                    <input name="temporaryPassword" type="password" placeholder="Min. 8 characters" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required />
                     <p className="text-gray-500 text-xs mt-1">Admin will be required to change password on first login</p>
                   </div>
                   <div className="col-span-2 flex items-center gap-4">
                     <label className="flex items-center gap-2">
-                      <input type="checkbox" className="w-5 h-5 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
+                      <input name="twoFactorEnabled" type="checkbox" className="w-5 h-5 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
                       <span className="text-white font-medium">Enable Two-Factor Authentication</span>
                     </label>
                     <label className="flex items-center gap-2">
@@ -1690,7 +1825,7 @@ export default function Admin() {
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
-                  <button type="submit" onClick={(e) => { e.preventDefault(); toast.success('Admin user created successfully!'); setModalType(null); }} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
+                  <button type="submit" className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
                     Create Admin User
                   </button>
                   <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">

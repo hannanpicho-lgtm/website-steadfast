@@ -185,6 +185,119 @@ function enforceAdminRateLimit(c: any, bucket: string) {
   return null;
 }
 
+function getAdminRoleClaim(user: any): 'admin' | 'super_admin' {
+  const roles = new Set<string>();
+  const appMetadata = typeof user?.app_metadata === 'object' && user.app_metadata ? user.app_metadata : {};
+  const userMetadata = typeof user?.user_metadata === 'object' && user.user_metadata ? user.user_metadata : {};
+
+  if (typeof appMetadata.role === 'string') {
+    roles.add(appMetadata.role.toLowerCase());
+  }
+  if (Array.isArray(appMetadata.roles)) {
+    appMetadata.roles.forEach((role: unknown) => {
+      if (typeof role === 'string') {
+        roles.add(role.toLowerCase());
+      }
+    });
+  }
+  if (typeof userMetadata.role === 'string') {
+    roles.add(userMetadata.role.toLowerCase());
+  }
+  if (Array.isArray(userMetadata.roles)) {
+    userMetadata.roles.forEach((role: unknown) => {
+      if (typeof role === 'string') {
+        roles.add(role.toLowerCase());
+      }
+    });
+  }
+
+  return roles.has('super_admin') ? 'super_admin' : 'admin';
+}
+
+function getAdminRoleName(user: any): string {
+  const appMetadata = typeof user?.app_metadata === 'object' && user.app_metadata ? user.app_metadata : {};
+  const userMetadata = typeof user?.user_metadata === 'object' && user.user_metadata ? user.user_metadata : {};
+  const explicitRoleName = userMetadata.role_name ?? appMetadata.admin_role_name;
+  if (typeof explicitRoleName === 'string' && explicitRoleName.trim()) {
+    return explicitRoleName.trim();
+  }
+  return getAdminRoleClaim(user) === 'super_admin' ? 'Super Admin' : 'Admin';
+}
+
+function getAdminRoleColor(user: any): string {
+  const appMetadata = typeof user?.app_metadata === 'object' && user.app_metadata ? user.app_metadata : {};
+  const userMetadata = typeof user?.user_metadata === 'object' && user.user_metadata ? user.user_metadata : {};
+  const explicitColor = userMetadata.role_color ?? appMetadata.admin_role_color;
+  if (typeof explicitColor === 'string' && explicitColor.trim()) {
+    return explicitColor.trim();
+  }
+  return getAdminRoleClaim(user) === 'super_admin' ? 'red' : 'blue';
+}
+
+function formatAdminLastLogin(value: unknown): string {
+  if (typeof value !== 'string' || !value) {
+    return 'Never';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date).replace(',', '');
+}
+
+function buildAvatar(fullName: string, fallback = 'AD'): string {
+  const avatar = fullName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+  return avatar || fallback;
+}
+
+function mapAuthUserToAdminRecord(user: any) {
+  const email = typeof user?.email === 'string' ? user.email : '';
+  const userMetadata = typeof user?.user_metadata === 'object' && user.user_metadata ? user.user_metadata : {};
+  const fullName = typeof userMetadata.full_name === 'string' && userMetadata.full_name.trim()
+    ? userMetadata.full_name.trim()
+    : (typeof userMetadata.name === 'string' && userMetadata.name.trim()
+      ? userMetadata.name.trim()
+      : (email ? email.split('@')[0] : 'Admin User'));
+  const username = typeof userMetadata.username === 'string' && userMetadata.username.trim()
+    ? userMetadata.username.trim()
+    : (email ? email.split('@')[0] : String(user?.id ?? 'admin'));
+  const bannedUntil = typeof user?.banned_until === 'string' ? new Date(user.banned_until) : null;
+  const isSuspended = Boolean(bannedUntil && !Number.isNaN(bannedUntil.getTime()) && bannedUntil.getTime() > Date.now());
+  const factors = Array.isArray(user?.factors) ? user.factors : [];
+
+  return {
+    id: String(user?.id ?? username),
+    username,
+    email,
+    fullName,
+    roleId: getAdminRoleClaim(user) === 'super_admin' ? 1 : 0,
+    roleName: getAdminRoleName(user),
+    roleColor: getAdminRoleColor(user),
+    status: isSuspended ? 'Suspended' : 'Active',
+    lastLogin: formatAdminLastLogin(user?.last_sign_in_at),
+    createdDate: typeof user?.created_at === 'string' ? user.created_at.slice(0, 10) : '',
+    phone: typeof userMetadata.phone === 'string' && userMetadata.phone.trim() ? userMetadata.phone.trim() : '-',
+    department: typeof userMetadata.department === 'string' && userMetadata.department.trim() ? userMetadata.department.trim() : 'General',
+    avatar: buildAvatar(fullName, username.slice(0, 2).toUpperCase()),
+    twoFactorEnabled: factors.length > 0,
+    loginAttempts: 0,
+  };
+}
+
 // ── Password hashing (PBKDF2 via Web Crypto) ───────────────────────────────
 // Format stored in KV: "pbkdf2v1:<base64-salt>:<base64-hash>"
 // The "pbkdf2v1:" prefix lets verifyPassword detect hashed vs. legacy plaintext.
@@ -301,6 +414,122 @@ function enforceUserRateLimit(c: any, bucket: string, maxRequests = USER_RATE_LI
 // Health check endpoint
 app.get("/make-server-a1c55d7e/health", (c) => {
   return c.json({ status: "ok" });
+});
+
+app.get("/make-server-a1c55d7e/admin/users", async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const limited = enforceAdminRateLimit(c, 'admin-users:list');
+    if (limited) {
+      return limited;
+    }
+
+    if (!authClient) {
+      return c.json({ error: 'Server auth configuration missing' }, 500);
+    }
+
+    const users: any[] = [];
+    let page = 1;
+    const perPage = 200;
+
+    while (page <= 10) {
+      const { data, error } = await authClient.auth.admin.listUsers({ page, perPage });
+      if (error) {
+        throw error;
+      }
+
+      const batch = Array.isArray(data?.users) ? data.users : [];
+      users.push(...batch);
+
+      if (batch.length < perPage) {
+        break;
+      }
+
+      page += 1;
+    }
+
+    const adminUsers = users
+      .filter((user) => hasAdminRole(user))
+      .map((user) => mapAuthUserToAdminRecord(user))
+      .sort((a, b) => {
+        if (a.roleName === 'Super Admin' && b.roleName !== 'Super Admin') return -1;
+        if (a.roleName !== 'Super Admin' && b.roleName === 'Super Admin') return 1;
+        return a.fullName.localeCompare(b.fullName);
+      });
+
+    return c.json({ users: adminUsers });
+  } catch (error) {
+    console.error('Admin users list error:', error);
+    return c.json({ error: 'Failed to fetch admin users' }, 500);
+  }
+});
+
+app.post("/make-server-a1c55d7e/admin/users", async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const limited = enforceAdminRateLimit(c, 'admin-users:create');
+    if (limited) {
+      return limited;
+    }
+
+    if (!authClient) {
+      return c.json({ error: 'Server auth configuration missing' }, 500);
+    }
+
+    const body = await c.req.json();
+    const fullName = typeof body?.fullName === 'string' ? body.fullName.trim() : '';
+    const username = typeof body?.username === 'string' ? body.username.trim() : '';
+    const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const phone = typeof body?.phone === 'string' ? body.phone.trim() : '';
+    const department = typeof body?.department === 'string' ? body.department.trim() : '';
+    const roleName = typeof body?.roleName === 'string' ? body.roleName.trim() : '';
+    const roleColor = typeof body?.roleColor === 'string' ? body.roleColor.trim() : '';
+    const password = typeof body?.password === 'string' ? body.password : '';
+    const twoFactorEnabled = body?.twoFactorEnabled === true;
+
+    if (!fullName || !username || !email || !roleName || password.length < 8) {
+      return c.json({ error: 'Missing or invalid admin user fields' }, 400);
+    }
+
+    const accessRole = roleName.toLowerCase() === 'super admin' ? 'super_admin' : 'admin';
+    const { data, error } = await authClient.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        full_name: fullName,
+        username,
+        phone,
+        department,
+        role_name: roleName,
+        role_color: roleColor,
+        two_factor_enabled: twoFactorEnabled,
+      },
+      app_metadata: {
+        role: accessRole,
+        roles: [accessRole],
+        admin_role_name: roleName,
+        admin_role_color: roleColor,
+      },
+    });
+
+    if (error || !data?.user) {
+      return c.json({ error: error?.message ?? 'Failed to create admin user' }, 400);
+    }
+
+    return c.json({ admin: mapAuthUserToAdminRecord(data.user) }, 201);
+  } catch (error) {
+    console.error('Admin user create error:', error);
+    return c.json({ error: 'Failed to create admin user' }, 500);
+  }
 });
 
 // Get user data endpoint
