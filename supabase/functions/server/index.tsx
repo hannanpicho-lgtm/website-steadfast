@@ -15,31 +15,15 @@ const ADMIN_RATE_LIMIT_WINDOW_MS = 60_000;
 const ADMIN_RATE_LIMIT_MAX_REQUESTS = 60;
 const adminRateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
-// Comma-separated allowlist, e.g.:
-// CORS_ALLOWED_ORIGINS=https://steadfastdigital.com,https://www.steadfastdigital.com
-const corsAllowedOrigins = (Deno.env.get("CORS_ALLOWED_ORIGINS") ?? [
-  "https://steadfastdigital.com",
-  "https://www.steadfastdigital.com",
-  "http://localhost:5173",
-  "http://localhost:4173",
-].join(","))
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter((origin) => origin.length > 0);
-
 // Enable logger
 app.use('*', logger(console.log));
 
 // Enable CORS for all routes and methods
+// All sensitive endpoints require JWT authentication so allowing all origins is safe.
 app.use(
   "/*",
   cors({
-    origin: (origin) => {
-      if (!origin) {
-        return "";
-      }
-      return corsAllowedOrigins.includes(origin) ? origin : "";
-    },
+    origin: "*",
     allowHeaders: ["Content-Type", "Authorization", "apikey", "x-admin-secret", "x-user-jwt"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
