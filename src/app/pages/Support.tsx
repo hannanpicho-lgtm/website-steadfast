@@ -6,8 +6,6 @@ import { BottomNavigation } from '../components/BottomNavigation';
 import { LiveChat } from '../components/LiveChat';
 import { 
   MessageSquare, 
-  Mail, 
-  Plus, 
   Clock, 
   CheckCircle, 
   XCircle,
@@ -15,9 +13,7 @@ import {
   Loader2,
   Send,
   ChevronDown,
-  ChevronUp,
-  MessageCircleMore,
-  Phone
+  ChevronUp
 } from 'lucide-react';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
@@ -345,16 +341,8 @@ export default function Support() {
           <p className="text-gray-400">Get help with your account, tasks, or payments</p>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <button
-            onClick={() => setShowNewTicket(!showNewTicket)}
-            className="bg-gradient-to-r from-[#00D9FF] to-[#00a8cc] text-white p-4 rounded-lg flex items-center justify-center gap-3 hover:from-[#00c0e6] hover:to-[#008fb3] transition-all"
-          >
-            <Plus size={24} />
-            <span className="font-semibold">New Support Ticket</span>
-          </button>
-
+        {/* Contact Methods */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <button
             onClick={() => setIsChatOpen(true)}
             className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-4 rounded-lg flex items-center justify-center gap-3 hover:from-purple-700 hover:to-purple-800 transition-all"
@@ -363,29 +351,6 @@ export default function Support() {
             <span className="font-semibold">Live Chat</span>
           </button>
 
-          <a
-            href={`mailto:${supportLinks.supportEmail}`}
-            className="bg-gradient-to-r from-gray-700 to-gray-800 text-white p-4 rounded-lg flex items-center justify-center gap-3 hover:from-gray-800 hover:to-gray-900 transition-all"
-          >
-            <Mail size={24} />
-            <span className="font-semibold">Email Support</span>
-          </a>
-        </div>
-
-        {/* Contact Methods - WhatsApp & Telegram */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {/* WhatsApp Support Button - Update the phone number in href below */}
-          <a
-            href={`https://wa.me/${supportLinks.whatsappNumber}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4 rounded-lg flex items-center justify-center gap-3 hover:from-green-700 hover:to-green-800 transition-all group"
-          >
-            <MessageCircleMore size={24} className="group-hover:scale-110 transition-transform" />
-            <span className="font-semibold">WhatsApp Support</span>
-          </a>
-
-          {/* Telegram Support Button - Update the username in href below */}
           <a
             href={supportLinks.telegramUsername.startsWith('http') ? supportLinks.telegramUsername : `https://t.me/${supportLinks.telegramUsername}`}
             target="_blank"
@@ -396,97 +361,6 @@ export default function Support() {
             <span className="font-semibold">Telegram Support</span>
           </a>
         </div>
-
-        {/* New Ticket Form */}
-        {showNewTicket && (
-          <div className="bg-[#252b3d] rounded-lg p-6 mb-6 border border-gray-700">
-            <h2 className="text-xl font-bold text-white mb-4">Create New Support Ticket</h2>
-            <form onSubmit={handleCreateTicket} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-2">Subject</label>
-                <input
-                  type="text"
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Brief description of your issue"
-                  className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-[#00D9FF] focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-300 mb-2">Category</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
-                  >
-                    <option value="general">General Question</option>
-                    <option value="account">Account Issue</option>
-                    <option value="payment">Payment/Withdrawal</option>
-                    <option value="tasks">Task Submission</option>
-                    <option value="vip">VIP Level</option>
-                    <option value="technical">Technical Issue</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-300 mb-2">Priority</label>
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value)}
-                    className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-300 mb-2">Message</label>
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Describe your issue in detail..."
-                  rows={5}
-                  className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-[#00D9FF] focus:outline-none resize-none"
-                  required
-                />
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 bg-[#00D9FF] text-white py-3 rounded-lg font-semibold hover:bg-[#00c0e6] transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="animate-spin" size={20} />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Send size={20} />
-                      Submit Ticket
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowNewTicket(false)}
-                  className="w-full sm:w-auto px-6 bg-gray-700 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
 
         {/* Tickets List */}
         <div className="bg-[#252b3d] rounded-lg p-6 border border-gray-700">
