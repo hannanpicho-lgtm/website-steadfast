@@ -185,14 +185,60 @@ function enforceAdminRateLimit(c: any, bucket: string) {
   return null;
 }
 
-// ── Username sanitizer ───────────────────────────────────────────────────────
-// Prevents colon-injection attacks against KV key namespaces.
+// ── Input sanitizers ─────────────────────────────────────────────────────────
+// All of these prevent colon-injection attacks against KV key namespaces.
 function sanitizeUsername(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   // Allow alphanumeric, underscore, hyphen, dot — max 64 chars
   if (!/^[a-zA-Z0-9_.\-]{1,64}$/.test(trimmed)) return null;
   return trimmed;
+}
+
+function sanitizePremiumId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  // Premium IDs have the form premium-<timestamp>: alphanum + hyphen, max 64 chars
+  if (!/^[a-zA-Z0-9\-]{1,64}$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+function sanitizeResetToken(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  // Reset tokens have the form reset_<timestamp>_<random>: alphanum + underscore
+  if (!/^[a-zA-Z0-9_]{1,128}$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+// ── User-facing rate limiter ──────────────────────────────────────────────────
+// Applied per source IP on unauthenticated mutation endpoints.
+const USER_RATE_LIMIT_WINDOW_MS = 60_000;
+const USER_RATE_LIMIT_MAX_REQUESTS = 30;
+const FORGOT_PASSWORD_RATE_LIMIT_MAX = 5;
+const userRateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+function enforceUserRateLimit(c: any, bucket: string, maxRequests = USER_RATE_LIMIT_MAX_REQUESTS) {
+  const now = Date.now();
+  const forwardedFor = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? 'unknown-ip';
+  const source = forwardedFor.split(',')[0].trim();
+  const key = `${bucket}:${source}`;
+
+  const current = userRateLimitStore.get(key);
+  if (!current || now > current.resetAt) {
+    userRateLimitStore.set(key, { count: 1, resetAt: now + USER_RATE_LIMIT_WINDOW_MS });
+    return null;
+  }
+
+  if (current.count >= maxRequests) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+    c.header('Retry-After', String(retryAfterSeconds));
+    return c.json({ error: 'Too many requests. Please retry shortly.' }, 429);
+  }
+
+  current.count += 1;
+  userRateLimitStore.set(key, current);
+  return null;
 }
 
 // Health check endpoint
@@ -203,7 +249,10 @@ app.get("/make-server-a1c55d7e/health", (c) => {
 // Get user data endpoint
 app.get("/make-server-a1c55d7e/user/:username", async (c) => {
   try {
-    const username = c.req.param("username");
+    const username = sanitizeUsername(c.req.param("username"));
+    if (!username) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
     const userKey = `user:${username}`;
     
     const userData = await kv.get(userKey);
@@ -247,6 +296,9 @@ app.get("/make-server-a1c55d7e/user/:username", async (c) => {
 // Submit task endpoint
 app.post("/make-server-a1c55d7e/submit-task", async (c) => {
   try {
+    const rateLimited = enforceUserRateLimit(c, 'user:submit-task');
+    if (rateLimited) return rateLimited;
+
     const body = await c.req.json();
     const { productPrice } = body;
     const username = sanitizeUsername(body.username);
@@ -329,7 +381,10 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
 // Get task records endpoint
 app.get("/make-server-a1c55d7e/tasks/:username", async (c) => {
   try {
-    const username = c.req.param("username");
+    const username = sanitizeUsername(c.req.param("username"));
+    if (!username) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
     const taskPrefix = `task:${username}:`;
     
     const tasks = await kv.getByPrefix(taskPrefix);
@@ -365,8 +420,10 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       return rateLimited;
     }
 
-    const { username, premiumProductValue, bundledProductCount, adminUsername } = await c.req.json();
-    
+    const { username, premiumProductValue, bundledProductCount } = await c.req.json();
+    const adminUser = c.get('adminUser');
+    const adminUsername = adminUser?.email ?? adminUser?.id ?? 'admin';
+
     if (!username || !premiumProductValue || !bundledProductCount) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
@@ -454,6 +511,9 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
 // Complete premium bundle task
 app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
   try {
+    const rateLimited = enforceUserRateLimit(c, 'user:complete-premium-task');
+    if (rateLimited) return rateLimited;
+
     const premiumBody = await c.req.json();
     const { productPrice } = premiumBody;
     const username = sanitizeUsername(premiumBody.username);
@@ -581,9 +641,12 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
       return rateLimited;
     }
 
-    const username = c.req.param("username");
-    const premiumId = c.req.param("premiumId");
-    
+    const username = sanitizeUsername(c.req.param("username"));
+    const premiumId = sanitizePremiumId(c.req.param("premiumId"));
+    if (!username || !premiumId) {
+      return c.json({ error: 'Invalid username or premium ID' }, 400);
+    }
+
     const userKey = `user:${username}`;
     const userData = await kv.get(userKey);
     
@@ -639,7 +702,10 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
 // Get all premium assignments for a user
 app.get("/make-server-a1c55d7e/premium/:username", async (c) => {
   try {
-    const username = c.req.param("username");
+    const username = sanitizeUsername(c.req.param("username"));
+    if (!username) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
     const premiumPrefix = `premium:${username}:`;
     
     const premiums = await kv.getByPrefix(premiumPrefix);
@@ -723,8 +789,12 @@ app.post("/make-server-a1c55d7e/cs/support-links", async (c) => {
 // Create a support ticket
 app.post("/make-server-a1c55d7e/cs/create-ticket", async (c) => {
   try {
-    const { username, subject, message, category, priority } = await c.req.json();
-    
+    const rateLimited = enforceUserRateLimit(c, 'user:create-ticket');
+    if (rateLimited) return rateLimited;
+
+    const { username: rawTicketUsername, subject, message, category, priority } = await c.req.json();
+    const username = sanitizeUsername(rawTicketUsername);
+
     if (!username || !subject || !message || !category) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
@@ -763,7 +833,10 @@ app.post("/make-server-a1c55d7e/cs/create-ticket", async (c) => {
 // Get user tickets
 app.get("/make-server-a1c55d7e/cs/tickets/:username", async (c) => {
   try {
-    const username = c.req.param("username");
+    const username = sanitizeUsername(c.req.param("username"));
+    if (!username) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
     const userTicketsKey = `user:${username}:tickets`;
     
     const ticketIds = await kv.get(userTicketsKey) || [];
@@ -907,7 +980,8 @@ app.post("/make-server-a1c55d7e/cs/update-status", async (c) => {
 // Create live chat message
 app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
   try {
-    const { username, message, isAdmin } = await c.req.json();
+    const { username: rawChatUsername, message, isAdmin } = await c.req.json();
+    const username = sanitizeUsername(rawChatUsername);
 
     if (isAdmin) {
       const unauthorized = await requireAdmin(c);
@@ -923,7 +997,7 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
     if (!username || !message) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
-    
+
     const chatKey = `chat:${username}`;
     const chatMessages = await kv.get(chatKey) || [];
     
@@ -955,11 +1029,14 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
 // Get chat messages
 app.get("/make-server-a1c55d7e/cs/chat/:username", async (c) => {
   try {
-    const username = c.req.param("username");
+    const username = sanitizeUsername(c.req.param("username"));
+    if (!username) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
     const chatKey = `chat:${username}`;
-    
+
     const messages = await kv.get(chatKey) || [];
-    
+
     return c.json(messages);
   } catch (error) {
     console.error('Error fetching chat messages:', error);
@@ -1070,8 +1147,11 @@ app.get("/make-server-a1c55d7e/cs/admin/chats", async (c) => {
 // Request password reset
 app.post("/make-server-a1c55d7e/auth/forgot-password", async (c) => {
   try {
+    const rateLimited = enforceUserRateLimit(c, 'user:forgot-password', FORGOT_PASSWORD_RATE_LIMIT_MAX);
+    if (rateLimited) return rateLimited;
+
     const { email } = await c.req.json();
-    
+
     if (!email) {
       return c.json({ error: 'Email is required' }, 400);
     }
@@ -1109,9 +1189,12 @@ app.post("/make-server-a1c55d7e/auth/forgot-password", async (c) => {
 // Verify reset token
 app.get("/make-server-a1c55d7e/auth/verify-reset-token/:token", async (c) => {
   try {
-    const token = c.req.param("token");
+    const token = sanitizeResetToken(c.req.param("token"));
+    if (!token) {
+      return c.json({ valid: false, error: 'Invalid reset token format' }, 400);
+    }
     const resetKey = `password_reset:${token}`;
-    
+
     const resetData = await kv.get(resetKey);
     
     if (!resetData) {
@@ -1136,8 +1219,10 @@ app.get("/make-server-a1c55d7e/auth/verify-reset-token/:token", async (c) => {
 // Reset password with token
 app.post("/make-server-a1c55d7e/auth/reset-password", async (c) => {
   try {
-    const { token, newPassword, username } = await c.req.json();
-    
+    const { token: rawResetToken, newPassword, username: rawResetUsername } = await c.req.json();
+    const token = sanitizeResetToken(rawResetToken);
+    const username = sanitizeUsername(rawResetUsername);
+
     if (!token || !newPassword || !username) {
       return c.json({ error: 'Token, username, and new password are required' }, 400);
     }
@@ -1145,7 +1230,7 @@ app.post("/make-server-a1c55d7e/auth/reset-password", async (c) => {
     if (typeof newPassword !== 'string' || newPassword.length < 8) {
       return c.json({ error: 'Password must be at least 8 characters' }, 400);
     }
-    
+
     // Verify token
     const resetKey = `password_reset:${token}`;
     const resetData = await kv.get(resetKey);
@@ -1184,8 +1269,9 @@ app.post("/make-server-a1c55d7e/auth/reset-password", async (c) => {
 // Change password (authenticated user)
 app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
   try {
-    const { username, currentPassword, newPassword } = await c.req.json();
-    
+    const { username: rawCpUsername, currentPassword, newPassword } = await c.req.json();
+    const username = sanitizeUsername(rawCpUsername);
+
     if (!username || !currentPassword || !newPassword) {
       return c.json({ error: 'All fields are required' }, 400);
     }
@@ -1193,7 +1279,7 @@ app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
     if (typeof newPassword !== 'string' || newPassword.length < 8) {
       return c.json({ error: 'New password must be at least 8 characters' }, 400);
     }
-    
+
     const userKey = `user:${username}`;
     const userData = await kv.get(userKey);
     

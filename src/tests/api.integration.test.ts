@@ -423,6 +423,45 @@ describe('Auth endpoints', () => {
   });
 });
 
+// ─── Input sanitization (KV-injection prevention) ────────────────────────────
+
+describe('Input sanitization', () => {
+  // Colon characters in usernames would escape the KV key namespace
+  const INJECTED = 'admin%3Asecret'; // URL-encoded "admin:secret"
+
+  it('GET /user/:username → 400 for KV-injection username', async () => {
+    const { status } = await request(`/user/${INJECTED}`);
+    expect(status).toBe(400);
+  });
+
+  it('GET /tasks/:username → 400 for KV-injection username', async () => {
+    const { status } = await request(`/tasks/${INJECTED}`);
+    expect(status).toBe(400);
+  });
+
+  it('GET /premium/:username → 400 for KV-injection username', async () => {
+    const { status } = await request(`/premium/${INJECTED}`);
+    expect(status).toBe(400);
+  });
+
+  it('GET /cs/tickets/:username → 400 for KV-injection username', async () => {
+    const { status } = await request(`/cs/tickets/${INJECTED}`);
+    expect(status).toBe(400);
+  });
+
+  it('GET /cs/chat/:username → 400 for KV-injection username', async () => {
+    const { status } = await request(`/cs/chat/${INJECTED}`);
+    expect(status).toBe(400);
+  });
+
+  it('GET /auth/verify-reset-token → 400 for token containing injection chars', async () => {
+    // Hyphens are outside the allowed [a-zA-Z0-9_] range for reset tokens
+    const { status, body } = await request('/auth/verify-reset-token/bad-token-with-hyphens');
+    expect(status).toBe(400);
+    expect(body.valid).toBe(false);
+  });
+});
+
 // ─── Admin auth enforcement (P1 security fix) ─────────────────────────────────
 
 describe('Admin route authentication', () => {
