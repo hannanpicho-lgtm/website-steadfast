@@ -11,6 +11,18 @@ const authClient = supabaseUrl && supabaseServiceRoleKey
   ? createClient(supabaseUrl, supabaseServiceRoleKey)
   : null;
 
+// Comma-separated allowlist, e.g.:
+// CORS_ALLOWED_ORIGINS=https://steadfastdigital.com,https://www.steadfastdigital.com
+const corsAllowedOrigins = (Deno.env.get("CORS_ALLOWED_ORIGINS") ?? [
+  "https://steadfastdigital.com",
+  "https://www.steadfastdigital.com",
+  "http://localhost:5173",
+  "http://localhost:4173",
+].join(","))
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter((origin) => origin.length > 0);
+
 // Enable logger
 app.use('*', logger(console.log));
 
@@ -18,8 +30,13 @@ app.use('*', logger(console.log));
 app.use(
   "/*",
   cors({
-    origin: "*",
-    allowHeaders: ["Content-Type", "Authorization", "x-admin-secret"],
+    origin: (origin) => {
+      if (!origin) {
+        return "";
+      }
+      return corsAllowedOrigins.includes(origin) ? origin : "";
+    },
+    allowHeaders: ["Content-Type", "Authorization", "apikey", "x-admin-secret"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
