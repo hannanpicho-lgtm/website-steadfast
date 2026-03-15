@@ -84,29 +84,71 @@ function hasAdminRole(user: any): boolean {
   return roles.has('admin') || roles.has('super_admin');
 }
 
+function adminRequestContext(c: any) {
+  const forwardedFor = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? 'unknown-ip';
+  const source = forwardedFor.split(',')[0].trim();
+  const adminUser = c.get('adminUser');
+  return {
+    path: c.req.path,
+    method: c.req.method,
+    source,
+    userId: adminUser?.id ?? null,
+  };
+}
+
+function logAdminAuthFailure(c: any, reason: string, details: Record<string, unknown> = {}) {
+  console.warn(JSON.stringify({
+    event: 'admin_auth_failure',
+    reason,
+    ...adminRequestContext(c),
+    ...details,
+  }));
+}
+
+function logAdminRateLimit(c: any, bucket: string, retryAfterSeconds: number) {
+  console.warn(JSON.stringify({
+    event: 'admin_rate_limit_exceeded',
+    bucket,
+    retryAfterSeconds,
+    ...adminRequestContext(c),
+  }));
+}
+
 async function requireAdmin(c: any) {
   if (!authClient) {
+    logAdminAuthFailure(c, 'auth_client_missing');
     return c.json({ error: 'Server auth configuration missing' }, 500);
   }
 
   const authorization = c.req.header('Authorization');
   if (!authorization || !authorization.startsWith('Bearer ')) {
+    logAdminAuthFailure(c, 'missing_gateway_authorization');
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
   const authHeaderToken = authorization.slice('Bearer '.length).trim();
   const forwardedUserJwt = c.req.header('x-user-jwt')?.trim() ?? '';
+  const tokenSource = forwardedUserJwt ? 'x-user-jwt' : 'authorization';
   const accessToken = forwardedUserJwt || authHeaderToken;
   if (!accessToken) {
+    logAdminAuthFailure(c, 'missing_access_token_after_header_parse');
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
   const { data, error } = await authClient.auth.getUser(accessToken);
   if (error || !data.user) {
+    logAdminAuthFailure(c, 'invalid_or_expired_admin_token', {
+      tokenSource,
+      authError: error?.message ?? null,
+    });
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
   if (!hasAdminRole(data.user)) {
+    logAdminAuthFailure(c, 'admin_role_missing', {
+      tokenSource,
+      userId: data.user.id,
+    });
     return c.json({ error: 'Forbidden' }, 403);
   }
 
@@ -134,6 +176,7 @@ function enforceAdminRateLimit(c: any, bucket: string) {
   if (current.count >= ADMIN_RATE_LIMIT_MAX_REQUESTS) {
     const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
     c.header('Retry-After', String(retryAfterSeconds));
+    logAdminRateLimit(c, bucket, retryAfterSeconds);
     return c.json({ error: 'Rate limit exceeded. Please retry shortly.' }, 429);
   }
 
