@@ -31,7 +31,7 @@ export default function Withdrawal() {
       {/* Main Content */}
       <div className="max-w-3xl mx-auto px-6 py-6">
         {/* Back Button and Title */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => navigate(-1)}
@@ -41,7 +41,7 @@ export default function Withdrawal() {
             </button>
             <h1 className="text-2xl font-bold text-[#0066b3]">Withdrawal</h1>
           </div>
-          <button onClick={() => navigate('/records')} className="btn-mobile-primary">
+          <button onClick={() => navigate('/records')} className="btn-mobile-primary self-start sm:self-auto">
             <ScrollText size={20} />
             <span className="font-semibold">History</span>
           </button>

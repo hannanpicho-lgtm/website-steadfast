@@ -458,7 +458,7 @@ export default function Support() {
                 />
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   type="submit"
                   disabled={submitting}
@@ -479,7 +479,7 @@ export default function Support() {
                 <button
                   type="button"
                   onClick={() => setShowNewTicket(false)}
-                  className="px-6 bg-gray-700 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
+                  className="w-full sm:w-auto px-6 bg-gray-700 text-white py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
                 >
                   Cancel
                 </button>

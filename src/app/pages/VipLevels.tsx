@@ -76,11 +76,12 @@ export default function VipLevels() {
       {/* Main Content */}
       <div className="max-w-2xl mx-auto px-6 py-6">
         {/* Back Button and Title */}
-        <div className="flex items-center gap-4 mb-6">
-          <Link to="/starting" className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors">
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 mb-6">
+          <Link to="/starting" className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors justify-self-start">
             <ChevronLeft size={20} />
           </Link>
-          <h1 className="text-2xl font-bold text-[#0066b3] flex-1 text-center mr-10">Vip Levels</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#0066b3] text-center">Vip Levels</h1>
+          <div className="w-9" aria-hidden="true"></div>
         </div>
 
         {/* VIP Level Cards */}
@@ -90,8 +91,8 @@ export default function VipLevels() {
               key={vip.level}
               className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                <div className="flex items-center gap-4 min-w-0">
                   {/* VIP Badge */}
                   <div className={`bg-gradient-to-br ${vip.color} text-white w-16 h-16 rounded-lg flex items-center justify-center transform -rotate-3 shadow-md`}>
                     <span className="font-bold text-lg">{vip.level}</span>

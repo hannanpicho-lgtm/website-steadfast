@@ -170,21 +170,22 @@ export default function Records() {
       {/* Main Content */}
       <div className="max-w-3xl mx-auto px-6 py-6">
         {/* Back Button and Title */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 mb-6">
           <button 
             onClick={() => navigate(-1)}
-            className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors"
+            className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors justify-self-start"
           >
             <ChevronLeft size={20} />
           </button>
-          <h1 className="text-2xl font-bold text-[#0066b3] flex-1 text-center mr-10">Records</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#0066b3] text-center">Records</h1>
+          <div className="w-9" aria-hidden="true"></div>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-4 mb-6">
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
           <button
             onClick={() => setActiveTab('all')}
-            className={`flex-1 py-3 rounded font-semibold transition-colors ${
+            className={`py-2 sm:py-3 rounded text-sm sm:text-base font-semibold transition-colors ${
               activeTab === 'all'
                 ? 'bg-[#0066b3] text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -194,7 +195,7 @@ export default function Records() {
           </button>
           <button
             onClick={() => setActiveTab('pending')}
-            className={`flex-1 py-3 rounded font-semibold transition-colors ${
+            className={`py-2 sm:py-3 rounded text-sm sm:text-base font-semibold transition-colors ${
               activeTab === 'pending'
                 ? 'bg-[#0066b3] text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -204,7 +205,7 @@ export default function Records() {
           </button>
           <button
             onClick={() => setActiveTab('completed')}
-            className={`flex-1 py-3 rounded font-semibold transition-colors ${
+            className={`py-2 sm:py-3 rounded text-sm sm:text-base font-semibold transition-colors ${
               activeTab === 'completed'
                 ? 'bg-[#0066b3] text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'

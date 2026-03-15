@@ -52,11 +52,12 @@ export default function Activity() {
       {/* Main Content */}
       <div className="max-w-3xl mx-auto px-6 py-6">
         {/* Back Button and Title */}
-        <div className="flex items-center gap-4 mb-6">
-          <Link to="/starting" className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors">
+        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 mb-6">
+          <Link to="/starting" className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors justify-self-start">
             <ChevronLeft size={20} />
           </Link>
-          <h1 className="text-2xl font-bold text-[#0066b3] flex-1 text-center mr-10">Activity</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#0066b3] text-center">Activity</h1>
+          <div className="w-9" aria-hidden="true"></div>
         </div>
 
         {/* Workday Rewards Scheme Section */}
@@ -77,29 +78,29 @@ export default function Activity() {
             </div>
 
             {/* Title */}
-            <h2 className="text-4xl font-bold text-yellow-300 mb-2 text-center">Workday Rewards Scheme</h2>
-            <p className="text-xl text-white mb-8 text-center">Check In. Show Up. Get Paid</p>
+            <h2 className="text-2xl sm:text-4xl font-bold text-yellow-300 mb-2 text-center">Workday Rewards Scheme</h2>
+            <p className="text-base sm:text-xl text-white mb-8 text-center">Check In. Show Up. Get Paid</p>
 
             {/* Rewards Grid */}
             <div className="space-y-4">
               {workdayRewards.map((reward) => (
-                <div key={reward.days} className="flex items-center gap-4">
+                <div key={reward.days} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
                   {/* Days Worked */}
-                  <div className="bg-cyan-100 rounded-full px-8 py-4 min-w-[160px] text-center">
-                    <div className="text-4xl font-bold text-black">{reward.days}</div>
+                  <div className="bg-cyan-100 rounded-full px-6 py-3 sm:px-8 sm:py-4 w-full sm:w-auto sm:min-w-[160px] text-center">
+                    <div className="text-3xl sm:text-4xl font-bold text-black">{reward.days}</div>
                     <div className="text-sm text-black">Days Worked</div>
                   </div>
 
                   {/* Salary Earned */}
-                  <div className="flex-1 bg-cyan-100 rounded-full px-8 py-4 flex items-center gap-4">
+                  <div className="w-full sm:flex-1 bg-cyan-100 rounded-full px-5 py-3 sm:px-8 sm:py-4 flex items-center gap-3 sm:gap-4">
                     <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
                         <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
                       </svg>
                     </div>
-                    <div className="text-sm text-black">Salary Earned</div>
+                    <div className="text-xs sm:text-sm text-black">Salary Earned</div>
                     <div className="flex-1 text-right">
-                      <span className="text-4xl font-bold text-black">{reward.salary.toLocaleString()}</span>
+                      <span className="text-2xl sm:text-4xl font-bold text-black">{reward.salary.toLocaleString()}</span>
                       <span className="text-sm text-black ml-1">USD</span>
                     </div>
                   </div>
