@@ -65,6 +65,7 @@ import {
   buildBackupExport,
   createAuditEvent,
   createAutoBackupPoint as buildAutoBackupPoint,
+  createRecoveryPoint,
   createSalaryRestorePoint as createSalaryRestorePointRecord,
   loadSalaryAuditLog,
   loadSalaryProjectAutosave,
@@ -514,7 +515,7 @@ export default function Admin() {
   }, [isSalaryStateHydrated, autoBackupEnabled, autoBackupIntervalMinutes]);
 
   const createSalaryRestorePoint = (label: string, paymentsSnapshot: SalaryPayment[] = salaryPayments) => {
-    const point = createSalaryRestorePointRecord(label, paymentsSnapshot);
+    const point = createRecoveryPoint(label, paymentsSnapshot);
 
     setSalaryRestorePoints((prev) => [point, ...prev].slice(0, MAX_RESTORE_POINTS));
     lastAutoBackupSignatureRef.current = JSON.stringify(paymentsSnapshot);
@@ -641,7 +642,7 @@ export default function Admin() {
       return;
     }
 
-    const preRestoreSnapshot = createSalaryRestorePointRecord(`Pre-restore snapshot (${point.label})`, salaryPayments);
+    const preRestoreSnapshot = createRecoveryPoint(`Pre-restore snapshot (${point.label})`, salaryPayments);
     setSalaryPayments(point.payments.map((payment) => ({ ...payment })));
     setSalaryRestorePoints((prev) => [preRestoreSnapshot, ...prev.filter((item) => item.id !== pointId)].slice(0, MAX_RESTORE_POINTS));
     lastAutoBackupSignatureRef.current = JSON.stringify(point.payments);
