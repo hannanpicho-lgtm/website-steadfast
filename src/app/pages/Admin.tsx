@@ -199,17 +199,23 @@ const adminRoles = [
   { id: 5, name: 'Content Moderator', description: 'Monitor and moderate platform content', color: 'yellow', permissions: { dashboard: true, financials: false, rewardsSystem: false, productManagement: true, userManagement: true, transactions: false, taskManagement: true, vipConfig: false, withdrawals: false, deposits: false, notifications: true, settings: false, adminUsers: false, deleteUsers: false, editRoles: false, processPayments: false, viewReports: false }, createdDate: '2024-02-20', isDefault: false }
 ];
 
-// Admin Users
-const initialAdminUsers = [
-  { id: 1, username: 'admin', email: 'admin@steadfastdigital.com', fullName: 'System Administrator', roleId: 1, roleName: 'Super Admin', roleColor: 'red', status: 'Active', lastLogin: '2024-03-10 09:30 AM', createdDate: '2024-01-01', phone: '+1 555-0100', department: 'IT & Operations', avatar: 'SA', twoFactorEnabled: true, loginAttempts: 0 },
-  { id: 2, username: 'finance_admin', email: 'finance@steadfastdigital.com', fullName: 'Sarah Johnson', roleId: 2, roleName: 'Finance Manager', roleColor: 'green', status: 'Active', lastLogin: '2024-03-10 08:15 AM', createdDate: '2024-01-15', phone: '+1 555-0101', department: 'Finance', avatar: 'SJ', twoFactorEnabled: true, loginAttempts: 0 },
-  { id: 3, username: 'product_manager', email: 'products@steadfastdigital.com', fullName: 'Michael Chen', roleId: 3, roleName: 'Product Manager', roleColor: 'blue', status: 'Active', lastLogin: '2024-03-09 05:45 PM', createdDate: '2024-02-01', phone: '+1 555-0102', department: 'Product & Operations', avatar: 'MC', twoFactorEnabled: false, loginAttempts: 0 },
-  { id: 4, username: 'support_agent1', email: 'support1@steadfastdigital.com', fullName: 'Emily Rodriguez', roleId: 4, roleName: 'Support Agent', roleColor: 'purple', status: 'Active', lastLogin: '2024-03-10 07:00 AM', createdDate: '2024-02-10', phone: '+1 555-0103', department: 'Customer Support', avatar: 'ER', twoFactorEnabled: false, loginAttempts: 0 },
-  { id: 5, username: 'moderator1', email: 'moderator@steadfastdigital.com', fullName: 'David Kim', roleId: 5, roleName: 'Content Moderator', roleColor: 'yellow', status: 'Suspended', lastLogin: '2024-03-05 02:30 PM', createdDate: '2024-02-20', phone: '+1 555-0104', department: 'Content & Quality', avatar: 'DK', twoFactorEnabled: false, loginAttempts: 3 },
-  { id: 6, username: 'finance_assistant', email: 'finance.assistant@steadfastdigital.com', fullName: 'Lisa Martinez', roleId: 2, roleName: 'Finance Manager', roleColor: 'green', status: 'Active', lastLogin: '2024-03-09 11:20 AM', createdDate: '2024-02-25', phone: '+1 555-0105', department: 'Finance', avatar: 'LM', twoFactorEnabled: true, loginAttempts: 0 }
-];
-
-const ADMIN_USERS_STORAGE_KEY = 'steadfast.adminUsers';
+type AdminUserRecord = {
+  id: string | number;
+  username: string;
+  email: string;
+  fullName: string;
+  roleId: number;
+  roleName: string;
+  roleColor: string;
+  status: string;
+  lastLogin: string;
+  createdDate: string;
+  phone: string;
+  department: string;
+  avatar: string;
+  twoFactorEnabled: boolean;
+  loginAttempts: number;
+};
 
 type MenuItem = {
   id: string;
@@ -247,23 +253,9 @@ export default function Admin() {
   const [auditFilterAction, setAuditFilterAction] = useState<'all' | SalaryAuditEvent['action']>('all');
   const [productPage, setProductPage] = useState(1);
   const [userPage, setUserPage] = useState(1);
-  const [adminUsers, setAdminUsers] = useState(() => {
-    if (typeof window === 'undefined') {
-      return initialAdminUsers;
-    }
-
-    try {
-      const raw = window.localStorage.getItem(ADMIN_USERS_STORAGE_KEY);
-      if (!raw) {
-        return initialAdminUsers;
-      }
-
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : initialAdminUsers;
-    } catch {
-      return initialAdminUsers;
-    }
-  });
+  const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>([]);
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [adminUsersError, setAdminUsersError] = useState<string | null>(null);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
@@ -284,40 +276,37 @@ export default function Admin() {
     }
   };
 
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
+  const loadAdminUsers = async () => {
+    setAdminUsersLoading(true);
+    setAdminUsersError(null);
 
     try {
-      window.localStorage.setItem(ADMIN_USERS_STORAGE_KEY, JSON.stringify(adminUsers));
-    } catch {
-      // Ignore storage write failures for admin UI mock data persistence.
+      const headers = await buildAdminAuthHeaders(false);
+      const response = await fetch(`${serverUrl}/admin/users`, { headers });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Failed to load admin users (${response.status})`);
+      }
+
+      const users = Array.isArray(payload?.users) ? payload.users : [];
+      setAdminUsers(users);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load admin users';
+      setAdminUsers([]);
+      setAdminUsersError(message);
+      toast.error(message);
+    } finally {
+      setAdminUsersLoading(false);
     }
-  }, [adminUsers]);
+  };
 
   useEffect(() => {
     if (activeMenu !== 'admin-users' || activeAdminTab !== 'admins') {
       return;
     }
 
-    void (async () => {
-      try {
-        const headers = await buildAdminAuthHeaders(false);
-        const response = await fetch(`${serverUrl}/admin/users`, { headers });
-        if (!response.ok) {
-          throw new Error(`Failed to load admin users (${response.status})`);
-        }
-
-        const payload = await response.json();
-        const users = Array.isArray(payload?.users) ? payload.users : [];
-        if (users.length > 0) {
-          setAdminUsers(users);
-        }
-      } catch (error) {
-        console.error('Failed to load admin users:', error);
-      }
-    })();
+    void loadAdminUsers();
   }, [activeAdminTab, activeMenu, serverUrl]);
 
   const handleCreateAdminUser = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -383,10 +372,7 @@ export default function Admin() {
         throw new Error(payload?.error ?? 'Failed to create admin user');
       }
 
-      const createdAdmin = payload?.admin;
-      if (createdAdmin) {
-        setAdminUsers((prev) => [createdAdmin, ...prev.filter((admin) => admin.id !== createdAdmin.id)]);
-      }
+      await loadAdminUsers();
 
       toast.success('Admin user created successfully!');
       setModalType(null);
@@ -2393,7 +2379,34 @@ export default function Admin() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-700">
-                        {adminUsers.map((admin) => (
+                        {adminUsersLoading ? (
+                          <tr>
+                            <td colSpan={7} className="px-6 py-10 text-center text-gray-400">
+                              Loading admin users...
+                            </td>
+                          </tr>
+                        ) : adminUsersError ? (
+                          <tr>
+                            <td colSpan={7} className="px-6 py-10 text-center">
+                              <div className="space-y-3">
+                                <p className="text-red-300">{adminUsersError}</p>
+                                <button
+                                  onClick={() => void loadAdminUsers()}
+                                  className="inline-flex items-center gap-2 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-4 py-2 rounded-lg font-semibold transition-colors"
+                                >
+                                  <RefreshCw size={16} />
+                                  Retry
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ) : adminUsers.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="px-6 py-10 text-center text-gray-400">
+                              No admin users found in the live backend.
+                            </td>
+                          </tr>
+                        ) : adminUsers.map((admin) => (
                           <tr key={admin.id} className="hover:bg-[#1a1f2e] transition-colors">
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
