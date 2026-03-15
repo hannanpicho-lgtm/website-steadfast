@@ -185,6 +185,63 @@ function enforceAdminRateLimit(c: any, bucket: string) {
   return null;
 }
 
+// ── Password hashing (PBKDF2 via Web Crypto) ───────────────────────────────
+// Format stored in KV: "pbkdf2v1:<base64-salt>:<base64-hash>"
+// The "pbkdf2v1:" prefix lets verifyPassword detect hashed vs. legacy plaintext.
+const PBKDF2_ITERATIONS = 200_000;
+const PBKDF2_HASH = 'SHA-256';
+const PBKDF2_KEY_LENGTH = 32; // bytes
+
+async function hashPassword(password: string): Promise<string> {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits'],
+  );
+  const hashBuffer = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: PBKDF2_HASH },
+    keyMaterial,
+    PBKDF2_KEY_LENGTH * 8,
+  );
+  const saltB64 = btoa(String.fromCharCode(...salt));
+  const hashB64 = btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
+  return `pbkdf2v1:${saltB64}:${hashB64}`;
+}
+
+async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  // Backward-compatible: if not a hash, fall back to plaintext comparison
+  if (!stored.startsWith('pbkdf2v1:')) {
+    return stored === password;
+  }
+  const parts = stored.split(':');
+  if (parts.length !== 3) return false;
+  const salt = Uint8Array.from(atob(parts[1]), (c) => c.charCodeAt(0));
+  const expectedHash = Uint8Array.from(atob(parts[2]), (c) => c.charCodeAt(0));
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits'],
+  );
+  const hashBuffer = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: PBKDF2_HASH },
+    keyMaterial,
+    PBKDF2_KEY_LENGTH * 8,
+  );
+  const actualHash = new Uint8Array(hashBuffer);
+  // Constant-time comparison to prevent timing attacks
+  if (actualHash.length !== expectedHash.length) return false;
+  let diff = 0;
+  for (let i = 0; i < actualHash.length; i++) {
+    diff |= actualHash[i] ^ expectedHash[i];
+  }
+  return diff === 0;
+}
+
 // ── Input sanitizers ─────────────────────────────────────────────────────────
 // All of these prevent colon-injection attacks against KV key namespaces.
 function sanitizeUsername(value: unknown): string | null {
@@ -1247,11 +1304,11 @@ app.post("/make-server-a1c55d7e/auth/reset-password", async (c) => {
       return c.json({ error: 'User not found' }, 404);
     }
     
-    // Update password (in real implementation, hash the password)
-    userData.password = newPassword; // Should be hashed in production
+    // Hash the new password before storing
+    userData.password = await hashPassword(newPassword);
     userData.passwordUpdatedAt = new Date().toISOString();
     await kv.set(userKey, userData);
-    
+
     // Mark token as used
     resetData.used = true;
     resetData.usedAt = new Date().toISOString();
@@ -1287,13 +1344,13 @@ app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
       return c.json({ error: 'User not found' }, 404);
     }
     
-    // Verify current password (in real implementation, compare hashed passwords)
-    if (userData.password && userData.password !== currentPassword) {
+    // Verify current password (constant-time, supports legacy plaintext migration)
+    if (userData.password && !await verifyPassword(currentPassword, userData.password)) {
       return c.json({ error: 'Current password is incorrect' }, 401);
     }
-    
-    // Update password
-    userData.password = newPassword; // Should be hashed in production
+
+    // Hash and store the new password
+    userData.password = await hashPassword(newPassword);
     userData.passwordUpdatedAt = new Date().toISOString();
     await kv.set(userKey, userData);
     
