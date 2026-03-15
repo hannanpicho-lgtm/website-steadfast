@@ -4,11 +4,6 @@ import { logger } from "npm:hono/logger";
 import * as kv from "./kv_store.tsx";
 const app = new Hono();
 
-const DEMO_USER_USERNAME = "ugreen";
-const DEMO_USER_PASSWORD = "demo123";
-const BACKEND_DEMO_USERNAME = "backenddemo";
-const BACKEND_DEMO_PASSWORD = "backend123";
-
 // Enable logger
 app.use('*', logger(console.log));
 
@@ -17,66 +12,37 @@ app.use(
   "/*",
   cors({
     origin: "*",
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "x-admin-secret"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
   }),
 );
 
-function createDefaultUser(username: string) {
-  return {
-    username,
-    vipLevel: 1,
-    balance: 0,
-    todayCommission: 0,
-    holdAmount: 0,
-    luckyBonus: 0,
-    tasksCompleted: 0,
-    tasksLimit: 40,
-    lastReset: new Date().toISOString().split('T')[0],
-    isFrozen: false,
-    activePremium: null,
-    premiumQueue: [],
-    password: null,
-    authSource: 'legacy',
-  };
-}
-
-async function ensureDemoBackendAccounts() {
-  const demoUserKey = `user:${DEMO_USER_USERNAME}`;
-  const backendDemoKey = `user:${BACKEND_DEMO_USERNAME}`;
-
-  const demoUserData = await kv.get(demoUserKey);
-  if (!demoUserData) {
-    const demoUser = {
-      ...createDefaultUser(DEMO_USER_USERNAME),
-      balance: 100,
-      password: DEMO_USER_PASSWORD,
-      authSource: 'demo',
-    };
-    await kv.set(demoUserKey, demoUser);
-  } else if (!demoUserData.password) {
-    demoUserData.password = DEMO_USER_PASSWORD;
-    demoUserData.authSource = 'demo';
-    await kv.set(demoUserKey, demoUserData);
+// ── Admin authentication middleware ─────────────────────────────────────────
+// Set the ADMIN_SECRET environment variable in Supabase → Project Settings →
+// Edge Functions → Secrets. All /admin/* and /cs/admin/* routes require the
+// caller to supply the matching value in the x-admin-secret request header.
+const adminAuthMiddleware = async (c: any, next: any) => {
+  const expected = Deno.env.get('ADMIN_SECRET');
+  const supplied = c.req.header('x-admin-secret');
+  if (!expected || !supplied || supplied !== expected) {
+    return c.json({ error: 'Unauthorized' }, 401);
   }
+  await next();
+};
 
-  const backendDemoData = await kv.get(backendDemoKey);
-  if (!backendDemoData) {
-    const backendDemo = {
-      ...createDefaultUser(BACKEND_DEMO_USERNAME),
-      vipLevel: 2,
-      balance: 250,
-      password: BACKEND_DEMO_PASSWORD,
-      authSource: 'backend-demo',
-    };
-    await kv.set(backendDemoKey, backendDemo);
-  } else if (!backendDemoData.password) {
-    backendDemoData.password = BACKEND_DEMO_PASSWORD;
-    backendDemoData.authSource = 'backend-demo';
-    await kv.set(backendDemoKey, backendDemoData);
-  }
+app.use('/make-server-a1c55d7e/admin/*', adminAuthMiddleware);
+app.use('/make-server-a1c55d7e/cs/admin/*', adminAuthMiddleware);
+
+// ── Username sanitizer ───────────────────────────────────────────────────────
+// Prevents colon-injection attacks against KV key namespaces.
+function sanitizeUsername(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  // Allow alphanumeric, underscore, hyphen, dot — max 64 chars
+  if (!/^[a-zA-Z0-9_.\-]{1,64}$/.test(trimmed)) return null;
+  return trimmed;
 }
 
 // Health check endpoint
@@ -87,8 +53,6 @@ app.get("/make-server-a1c55d7e/health", (c) => {
 // Get user data endpoint
 app.get("/make-server-a1c55d7e/user/:username", async (c) => {
   try {
-    await ensureDemoBackendAccounts();
-
     const username = c.req.param("username");
     const userKey = `user:${username}`;
     
@@ -96,7 +60,20 @@ app.get("/make-server-a1c55d7e/user/:username", async (c) => {
     
     if (!userData) {
       // Create default user data if not exists
-      const defaultUser = createDefaultUser(username);
+      const defaultUser = {
+        username,
+        vipLevel: 1,
+        balance: 0,
+        todayCommission: 0,
+        holdAmount: 0,
+        luckyBonus: 0,
+        tasksCompleted: 0,
+        tasksLimit: 40,
+        lastReset: new Date().toISOString().split('T')[0], // Today's date
+        isFrozen: false,
+        activePremium: null,
+        premiumQueue: [],
+      };
       await kv.set(userKey, defaultUser);
       return c.json(defaultUser);
     }
@@ -117,52 +94,18 @@ app.get("/make-server-a1c55d7e/user/:username", async (c) => {
   }
 });
 
-// Backend signin endpoint for demo and backend-demo accounts
-app.post("/make-server-a1c55d7e/auth/signin", async (c) => {
-  try {
-    await ensureDemoBackendAccounts();
-
-    const { username, password } = await c.req.json();
-    const normalizedUsername = String(username || '').trim();
-    const normalizedPassword = String(password || '').trim();
-
-    if (!normalizedUsername || !normalizedPassword) {
-      return c.json({ error: 'Username and password are required' }, 400);
-    }
-
-    const userKey = `user:${normalizedUsername}`;
-    const userData = await kv.get(userKey);
-
-    if (!userData) {
-      return c.json({ error: 'Account not found' }, 404);
-    }
-
-    if (!userData.password || userData.password !== normalizedPassword) {
-      return c.json({ error: 'Invalid username or password' }, 401);
-    }
-
-    return c.json({
-      success: true,
-      user: {
-        username: userData.username,
-        vipLevel: userData.vipLevel,
-        balance: userData.balance,
-        authSource: userData.authSource || 'legacy',
-      },
-    });
-  } catch (error) {
-    console.error('Error during backend signin:', error);
-    return c.json({ error: 'Failed to sign in' }, 500);
-  }
-});
-
 // Submit task endpoint
 app.post("/make-server-a1c55d7e/submit-task", async (c) => {
   try {
-    const { username, productPrice } = await c.req.json();
-    
-    if (!username || !productPrice) {
-      return c.json({ error: 'Missing required fields' }, 400);
+    const body = await c.req.json();
+    const { productPrice } = body;
+    const username = sanitizeUsername(body.username);
+
+    if (!username) {
+      return c.json({ error: 'Invalid or missing username' }, 400);
+    }
+    if (typeof productPrice !== 'number' || !Number.isFinite(productPrice) || productPrice <= 0) {
+      return c.json({ error: 'productPrice must be a positive finite number' }, 400);
     }
     
     const userKey = `user:${username}`;
@@ -352,10 +295,15 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
 // Complete premium bundle task
 app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
   try {
-    const { username, productPrice } = await c.req.json();
-    
-    if (!username || !productPrice) {
-      return c.json({ error: 'Missing required fields' }, 400);
+    const premiumBody = await c.req.json();
+    const { productPrice } = premiumBody;
+    const username = sanitizeUsername(premiumBody.username);
+
+    if (!username) {
+      return c.json({ error: 'Invalid or missing username' }, 400);
+    }
+    if (typeof productPrice !== 'number' || !Number.isFinite(productPrice) || productPrice <= 0) {
+      return c.json({ error: 'productPrice must be a positive finite number' }, 400);
     }
     
     const userKey = `user:${username}`;
@@ -721,6 +669,11 @@ app.post("/make-server-a1c55d7e/cs/update-status", async (c) => {
     if (!ticketId || !status) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
+
+    const VALID_TICKET_STATUSES = ['open', 'in-progress', 'resolved', 'closed'];
+    if (!VALID_TICKET_STATUSES.includes(status)) {
+      return c.json({ error: `Invalid status. Must be one of: ${VALID_TICKET_STATUSES.join(', ')}` }, 400);
+    }
     
     const ticketKey = `ticket:${ticketId}`;
     const ticket = await kv.get(ticketKey);
@@ -906,11 +859,9 @@ app.post("/make-server-a1c55d7e/auth/forgot-password", async (c) => {
     console.log(`Reset token: ${resetToken}`);
     console.log(`Reset link: /reset-password?token=${resetToken}`);
     
-    return c.json({ 
-      success: true, 
+    return c.json({
+      success: true,
       message: 'Password reset instructions sent to email',
-      // For development/testing only - remove in production:
-      _devToken: resetToken 
     });
   } catch (error) {
     console.error('Error requesting password reset:', error);
@@ -952,6 +903,10 @@ app.post("/make-server-a1c55d7e/auth/reset-password", async (c) => {
     
     if (!token || !newPassword || !username) {
       return c.json({ error: 'Token, username, and new password are required' }, 400);
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      return c.json({ error: 'Password must be at least 8 characters' }, 400);
     }
     
     // Verify token
@@ -996,6 +951,10 @@ app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
     
     if (!username || !currentPassword || !newPassword) {
       return c.json({ error: 'All fields are required' }, 400);
+    }
+
+    if (typeof newPassword !== 'string' || newPassword.length < 8) {
+      return c.json({ error: 'New password must be at least 8 characters' }, 400);
     }
     
     const userKey = `user:${username}`;
