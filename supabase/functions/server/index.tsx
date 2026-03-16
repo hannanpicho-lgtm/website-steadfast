@@ -374,6 +374,13 @@ function generateAdminInviteCode(): string {
   return Array.from(bytes).map((b) => chars[b % chars.length]).join('');
 }
 
+function generateAdminShortCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const length = 5;
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  return Array.from(bytes).map((b) => chars[b % chars.length]).join('');
+}
+
 function isSuperAdmin(user: any): boolean {
   return getAdminRoleClaim(user) === 'super_admin';
 }
@@ -659,7 +666,30 @@ app.post("/make-server-a1c55d7e/admin/users", async (c) => {
       return c.json({ error: error?.message ?? 'Failed to create admin user' }, 400);
     }
 
-    return c.json({ admin: mapAuthUserToAdminRecord(data.user) }, 201);
+    // Auto-generate a 5-character invitation code for this new admin
+    let shortCode: string;
+    let attempts = 0;
+    do {
+      shortCode = generateAdminShortCode();
+      const existing = await kv.get(`admin:invite:code:${shortCode}`);
+      if (!existing) break;
+      attempts += 1;
+    } while (attempts < 20);
+
+    const codeRecord = {
+      code: shortCode,
+      subAdminId: data.user.id,
+      subAdminEmail: data.user.email ?? '',
+      subAdminName: roleName,
+      usageCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    await kv.set(`admin:invite:code:${shortCode}`, codeRecord);
+    await kv.set(`admin:invite:by-admin:${data.user.id}`, shortCode);
+
+    const adminRecord = mapAuthUserToAdminRecord(data.user);
+    return c.json({ admin: adminRecord, invitationCode: shortCode }, 201);
   } catch (error) {
     console.error('Admin user create error:', error);
     return c.json({ error: 'Failed to create admin user' }, 500);

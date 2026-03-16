@@ -58,7 +58,8 @@ import {
   Calculator,
   AlertTriangle,
   Info,
-  MessageSquare
+  MessageSquare,
+  Copy
 } from 'lucide-react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { buildAdminAuthHeaders, supabase } from '../services/supabaseAuth';
@@ -292,7 +293,7 @@ function formatRelativeTime(timestamp: string): string {
 
   return formatter.format(diffInSeconds, 'second');
 }
-type ModalType = 'add-user' | 'edit-user' | 'view-user' | 'delete-user' | 'view-transaction' | 'approve-withdrawal' | 'reject-withdrawal' | 'add-task' | 'edit-vip' | 'notification' | 'add-product-manual' | 'add-product-ai' | 'edit-product' | 'view-product' | 'delete-product' | 'edit-workday-reward' | 'edit-reset-reward' | 'edit-accumulated-reward' | 'edit-product-system' | 'pay-salary' | 'pay-salary-bulk' | 'add-admin' | 'edit-admin' | 'view-admin' | 'delete-admin' | 'add-role' | 'edit-role' | 'view-role-permissions' | 'delete-role' | null;
+type ModalType = 'add-user' | 'edit-user' | 'view-user' | 'delete-user' | 'view-transaction' | 'approve-withdrawal' | 'reject-withdrawal' | 'add-task' | 'edit-vip' | 'notification' | 'add-product-manual' | 'add-product-ai' | 'edit-product' | 'view-product' | 'delete-product' | 'edit-workday-reward' | 'edit-reset-reward' | 'edit-accumulated-reward' | 'edit-product-system' | 'pay-salary' | 'pay-salary-bulk' | 'add-admin' | 'edit-admin' | 'view-admin' | 'delete-admin' | 'admin-invitation-code' | 'add-role' | 'edit-role' | 'view-role-permissions' | 'delete-role' | null;
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -335,6 +336,7 @@ export default function Admin() {
   const [platformUsersLoading, setPlatformUsersLoading] = useState(false);
   const [platformUsersLoaded, setPlatformUsersLoaded] = useState(false);
   const [showAdminVisibilityNotice, setShowAdminVisibilityNotice] = useState(true);
+  const [newAdminInvitationCode, setNewAdminInvitationCode] = useState<string | null>(null);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
@@ -603,8 +605,16 @@ export default function Admin() {
 
       await loadAdminUsers();
 
-      toast.success('Admin user created successfully!');
-      setModalType(null);
+      // Show invitation code in modal
+      const invitationCode = payload?.invitationCode;
+      const newAdminName = fullName;
+      if (invitationCode) {
+        setNewAdminInvitationCode(invitationCode);
+        setSelectedItem({ name: newAdminName, invitationCode });
+        setModalType('admin-invitation-code');
+      } else {
+        toast.success('Admin user created successfully!');
+      }
       form.reset();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create admin user';
@@ -2274,6 +2284,56 @@ export default function Admin() {
                   Delete Admin
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Admin Invitation Code Modal */}
+          {modalType === 'admin-invitation-code' && selectedItem && (
+            <div className="p-6 text-center">
+              <div className="flex items-center justify-center mb-6">
+                <button onClick={() => setModalType(null)} className="absolute right-6 text-gray-400 hover:text-white">
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="mb-6">
+                <div className="inline-flex items-center justify-center w-16 h-16 rounded-lg bg-green-500/20 mb-4">
+                  <Check className="text-green-400" size={32} />
+                </div>
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2">Admin Account Created!</h3>
+              <p className="text-gray-400 mb-6">
+                Invitation code for <span className="text-white font-semibold">{selectedItem.name}</span>
+              </p>
+              
+              <div className="bg-[#1a1f2e] border border-[#00D9FF]/30 rounded-lg p-4 mb-6">
+                <p className="text-gray-400 text-sm mb-2">Invitation Code</p>
+                <div className="flex items-center justify-center gap-3">
+                  <code className="text-3xl font-bold text-[#00D9FF] tracking-widest">
+                    {selectedItem.invitationCode}
+                  </code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(selectedItem.invitationCode);
+                      toast.success('Code copied to clipboard!');
+                    }}
+                    className="p-2.5 bg-[#00D9FF]/20 hover:bg-[#00D9FF]/30 text-[#00D9FF] rounded-lg transition-colors"
+                    title="Copy code"
+                  >
+                    <Copy size={20} />
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-gray-400 text-sm mb-6">
+                Share this code with the user. They can use it to create accounts under this admin's hierarchy.
+              </p>
+
+              <button
+                onClick={() => setModalType(null)}
+                className="w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors"
+              >
+                Done
+              </button>
             </div>
           )}
 
