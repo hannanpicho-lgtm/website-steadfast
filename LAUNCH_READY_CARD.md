@@ -41,7 +41,7 @@
 ║  Backend:      Supabase Edge Functions (Hono)                  ║
 ║  Database:     Supabase KV Store                               ║
 ║  Build:        Vite 6.3.5                                      ║
-║  Deployment:   Ready for Vercel/Netlify/AWS                    ║
+║  Deployment:   Ready for Cloudflare/Vercel/AWS                 ║
 ║                                                                ║
 ╚════════════════════════════════════════════════════════════════╝
 

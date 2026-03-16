@@ -95,7 +95,7 @@ You now have **FIVE** comprehensive guides:
 - Go-live readiness assessment
 
 ### 2. **PRODUCTION_DEPLOYMENT_GUIDE.md**
-- 5 deployment options (Vercel, Netlify, AWS, DigitalOcean, Self-hosted)
+- 5 deployment options (Cloudflare, Vercel, AWS, DigitalOcean, Self-hosted)
 - Step-by-step deployment instructions
 - Post-deployment configuration
 - Testing procedures
@@ -163,18 +163,18 @@ git push -u origin main
 # URL: https://your-project.vercel.app
 ```
 
-### Option B: Netlify (Alternative)
+### Option B: Cloudflare (Alternative)
 
 ```bash
 # 1. Build locally
 npm run build
 
-# 2. Deploy to Netlify
-# - Visit https://netlify.com
-# - Drag & drop the 'dist' folder
-# - Site goes live immediately!
+# 2. Deploy to Cloudflare Pages
+# - Visit https://dash.cloudflare.com
+# - Create Pages project
+# - Connect your GitHub repository
 
-# 3. Configure environment variables in Netlify dashboard
+# 3. Configure environment variables in Cloudflare dashboard
 
 # 4. Done! 🎉
 ```
@@ -557,7 +557,7 @@ app.use(
 
 **Deployment Platforms:**
 - Vercel: https://vercel.com/docs
-- Netlify: https://docs.netlify.com
+- Cloudflare: https://developers.cloudflare.com/pages/
 
 ---
 

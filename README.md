@@ -53,7 +53,7 @@ Admins can:
 - KV Store (Database)
 
 **Hosting:**
-- Ready for Vercel, Netlify, AWS, or Self-hosted
+- Ready for Cloudflare, Vercel, AWS, or Self-hosted
 
 ---
 

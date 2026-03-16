@@ -69,20 +69,20 @@
 
 ---
 
-### Option 2: Netlify
+### Option 2: Cloudflare Pages
 
 **Pros:**
-- Simple deployment process
-- Free SSL
-- Automatic builds
-- Form handling built-in
-- Good for static sites
+- Global edge network
+- Strong caching and performance
+- Tight DNS/WAF integration
+- Good developer workflow with Pages
+- Automatic builds from Git
 
 **Cons:**
-- Function execution limits on free tier
-- Build minutes limited
+- Requires Cloudflare account setup
+- Some advanced config needs familiarity with dashboard settings
 
-**Best For:** Quick launches, testing, low-traffic sites
+**Best For:** Cloudflare-hosted deployments and production edge delivery
 
 ---
 
@@ -113,7 +113,7 @@
 - Built-in databases
 
 **Cons:**
-- More expensive than Vercel/Netlify
+- More expensive than Vercel/Cloudflare
 - Fewer global regions
 
 **Best For:** Medium-sized applications, predictable costs
@@ -199,7 +199,7 @@ NODE_ENV=production
 
 ---
 
-### OPTION 2: NETLIFY DEPLOYMENT
+### OPTION 2: CLOUDFLARE PAGES DEPLOYMENT
 
 #### Step 1: Build Locally
 
@@ -209,17 +209,17 @@ npm run build
 
 This creates a `dist` folder with production files.
 
-#### Step 2: Deploy to Netlify
+#### Step 2: Deploy to Cloudflare Pages
 
-**Method A: Drag & Drop**
-1. Go to https://netlify.com
+**Method A: Direct Upload**
+1. Go to https://dash.cloudflare.com
 2. Sign up / Login
-3. Drag `dist` folder to deployment zone
-4. Site goes live immediately
+3. Open Pages and create a project
+4. Upload build output from `dist`
 
 **Method B: GitHub Integration (Recommended)**
-1. Login to Netlify
-2. Click "New site from Git"
+1. Login to Cloudflare
+2. Open Pages and click "Create project"
 3. Connect GitHub repository
 4. Configure build:
    ```
@@ -227,7 +227,7 @@ This creates a `dist` folder with production files.
    Publish directory: dist
    ```
 5. Add environment variables (same as Vercel)
-6. Click "Deploy site"
+6. Click "Save and Deploy"
 
 ---
 
@@ -589,7 +589,7 @@ Test on:
 
 ### If Deployment Fails
 
-**Vercel/Netlify:**
+**Vercel/Cloudflare:**
 1. Go to Deployments tab
 2. Find last working deployment
 3. Click "Promote to Production"
@@ -758,7 +758,7 @@ app.use((c, next) => {
 ### Deployment Platforms
 
 - **Vercel:** https://vercel.com/docs
-- **Netlify:** https://docs.netlify.com
+- **Cloudflare:** https://developers.cloudflare.com/pages/
 - **AWS:** https://aws.amazon.com/documentation
 - **DigitalOcean:** https://docs.digitalocean.com
 
