@@ -2117,6 +2117,48 @@ app.post('/make-server-a1c55d7e/validate-admin-invite-code', async (c) => {
   }
 });
 
+// GET /admin/invitation-codes/mine  – any admin
+// Returns the current admin's own invitation code
+app.get('/make-server-a1c55d7e/admin/invitation-codes/mine', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-invitation-codes:mine');
+    if (limited) return limited;
+
+    const adminUser = c.get('adminUser');
+    if (!adminUser || !adminUser.id) {
+      return c.json({ error: 'Admin user not found' }, 401);
+    }
+
+    // Get this admin's code from KV
+    const codeKey = `admin:invite:by-admin:${adminUser.id}`;
+    const code = await kv.get(codeKey);
+    
+    if (!code || typeof code !== 'string') {
+      return c.json({ code: null, error: 'No invitation code found for this admin' }, 404);
+    }
+
+    const codeRecord = await kv.get(`admin:invite:code:${code}`);
+    if (!codeRecord) {
+      return c.json({ code: null, error: 'Invitation code record not found' }, 404);
+    }
+
+    return c.json({
+      code,
+      subAdminId: adminUser.id,
+      subAdminEmail: adminUser.email ?? '',
+      subAdminName: getAdminRoleName(adminUser),
+      usageCount: typeof codeRecord.usageCount === 'number' ? codeRecord.usageCount : 0,
+      createdAt: typeof codeRecord.createdAt === 'string' ? codeRecord.createdAt : '',
+    });
+  } catch (err) {
+    console.error('admin-invitation-codes:mine error:', err);
+    return c.json({ code: null, error: 'Failed to fetch your invitation code' }, 500);
+  }
+});
+
 // POST /referral/link-admin-invite
 // Called at signup to attach referredByAdminId to the new user's record.
 // Body: { username, adminInviteCode }

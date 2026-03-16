@@ -337,6 +337,8 @@ export default function Admin() {
   const [platformUsersLoaded, setPlatformUsersLoaded] = useState(false);
   const [showAdminVisibilityNotice, setShowAdminVisibilityNotice] = useState(true);
   const [newAdminInvitationCode, setNewAdminInvitationCode] = useState<string | null>(null);
+  const [currentAdminInvitationCode, setCurrentAdminInvitationCode] = useState<string | null>(null);
+  const [currentAdminCodeLoading, setCurrentAdminCodeLoading] = useState(false);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
@@ -381,6 +383,29 @@ export default function Admin() {
       toast.error(message);
     } finally {
       setAdminUsersLoading(false);
+    }
+  };
+
+  const loadCurrentAdminInvitationCode = async () => {
+    setCurrentAdminCodeLoading(true);
+
+    try {
+      const headers = await buildAdminAuthHeaders(false);
+      const response = await fetch(`${serverUrl}/admin/invitation-codes/mine`, { headers });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        // It's ok if this fails for some codes, just don't show anything
+        setCurrentAdminInvitationCode(null);
+        return;
+      }
+
+      const code = typeof payload?.code === 'string' ? payload.code : null;
+      setCurrentAdminInvitationCode(code);
+    } catch (error) {
+      setCurrentAdminInvitationCode(null);
+    } finally {
+      setCurrentAdminCodeLoading(false);
     }
   };
 
@@ -504,7 +529,11 @@ export default function Admin() {
     }
 
     void loadReferralOverview();
-  }, [activeAdminTab, activeMenu, serverUrl]);
+    // Load current admin's invitation code if not super-admin
+    if (!isSuperAdmin) {
+      void loadCurrentAdminInvitationCode();
+    }
+  }, [activeAdminTab, activeMenu, serverUrl, isSuperAdmin]);
 
   useEffect(() => {
     if (activeMenu !== 'admin-users' || activeAdminTab !== 'admins' || isSuperAdmin || !showAdminVisibilityNotice) {
@@ -3018,11 +3047,41 @@ export default function Admin() {
                         <Key size={18} />
                         Sub-Admin Invitation Codes
                       </h3>
-                      {isSuperAdmin ? (
+                    {isSuperAdmin ? (
                         <InvitationCodes currentAdminId={currentAdminId ?? ''} />
                       ) : (
-                        <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-4 text-sm text-blue-200">
-                          Invitation code management is available to super-admin accounts only.
+                        <div className="rounded-lg border border-[#00D9FF]/30 bg-[#1a1f2e] p-4">
+                          {currentAdminCodeLoading ? (
+                            <div className="text-center py-6 text-gray-400">
+                              Loading your invitation code...
+                            </div>
+                          ) : currentAdminInvitationCode ? (
+                            <div className="space-y-3">
+                              <p className="text-sm text-gray-400">Your Invitation Code</p>
+                              <div className="flex items-center justify-between bg-[#252b3d] rounded-lg p-4">
+                                <code className="text-2xl font-bold text-[#00D9FF] tracking-widest">
+                                  {currentAdminInvitationCode}
+                                </code>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(currentAdminInvitationCode);
+                                    toast.success('Code copied to clipboard!');
+                                  }}
+                                  className="p-2.5 bg-[#00D9FF]/20 hover:bg-[#00D9FF]/30 text-[#00D9FF] rounded-lg transition-colors"
+                                  title="Copy code"
+                                >
+                                  <Copy size={20} />
+                                </button>
+                              </div>
+                              <p className="text-xs text-gray-500">
+                                Share this code with users who want to create accounts under your hierarchy.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="text-center py-6 text-gray-400 text-sm">
+                              Invitation code management is available to super-admin accounts only.
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
