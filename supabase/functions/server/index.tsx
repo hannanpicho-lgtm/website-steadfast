@@ -2093,6 +2093,96 @@ app.post('/make-server-a1c55d7e/admin/invitation-codes/generate', async (c) => {
   }
 });
 
+// POST /admin/invitation-codes/assign-missing  – super-admin only
+// Generates invitation codes for all admins that don't have one yet (legacy admins)
+app.post('/make-server-a1c55d7e/admin/invitation-codes/assign-missing', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    if (!isSuperAdmin(c.get('adminUser'))) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const limited = enforceAdminRateLimit(c, 'admin-invitation-codes:assign-missing');
+    if (limited) return limited;
+
+    if (!authClient) return c.json({ error: 'Server auth configuration missing' }, 500);
+
+    // Fetch all admin users from Supabase Auth
+    const allUsers: any[] = [];
+    let page = 1;
+    while (page <= 5) {
+      const { data, error } = await authClient.auth.admin.listUsers({ page, perPage: 200 });
+      if (error) throw error;
+      const batch = Array.isArray(data?.users) ? data.users : [];
+      allUsers.push(...batch);
+      if (batch.length < 200) break;
+      page += 1;
+    }
+
+    const admins = allUsers.filter((u) => hasAdminRole(u));
+    const results: any[] = [];
+
+    for (const admin of admins) {
+      // Check if this admin already has a code
+      const existingCodeKey = `admin:invite:by-admin:${admin.id}`;
+      const existingCode = await kv.get(existingCodeKey);
+
+      if (existingCode && typeof existingCode === 'string') {
+        results.push({
+          id: admin.id,
+          email: admin.email ?? '',
+          name: getAdminRoleName(admin),
+          status: 'already_has_code',
+          code: existingCode,
+        });
+        continue;
+      }
+
+      // Generate a new code for this admin
+      let code: string;
+      let attempts = 0;
+      do {
+        code = generateAdminShortCode();
+        const existing = await kv.get(`admin:invite:code:${code}`);
+        if (!existing) break;
+        attempts += 1;
+      } while (attempts < 20);
+
+      const record = {
+        code,
+        subAdminId: admin.id,
+        subAdminEmail: admin.email ?? '',
+        subAdminName: getAdminRoleName(admin),
+        usageCount: 0,
+        createdAt: new Date().toISOString(),
+      };
+
+      await kv.set(`admin:invite:code:${code}`, record);
+      await kv.set(existingCodeKey, code);
+
+      results.push({
+        id: admin.id,
+        email: admin.email ?? '',
+        name: getAdminRoleName(admin),
+        status: 'newly_assigned',
+        code,
+      });
+    }
+
+    return c.json({
+      message: 'Invitation codes assigned to admins without codes',
+      assigned: results.filter((r) => r.status === 'newly_assigned').length,
+      already_had: results.filter((r) => r.status === 'already_has_code').length,
+      results,
+    });
+  } catch (err) {
+    console.error('assign-missing-codes error:', err);
+    return c.json({ error: 'Failed to assign invitation codes' }, 500);
+  }
+});
+
 // POST /validate-admin-invite-code  – public (no auth required)
 // Body: { code: string }
 // Returns { valid: true, subAdminId, subAdminName } or 404 if invalid.

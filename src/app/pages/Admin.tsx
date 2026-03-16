@@ -3043,10 +3043,42 @@ export default function Admin() {
 
                     {/* Invitation Codes Section */}
                     <div className="space-y-4">
-                      <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                        <Key size={18} />
-                        Sub-Admin Invitation Codes
-                      </h3>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                          <Key size={18} />
+                          Sub-Admin Invitation Codes
+                        </h3>
+                        {isSuperAdmin && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const headers = await buildAdminAuthHeaders();
+                                const response = await fetch(`${serverUrl}/admin/invitation-codes/assign-missing`, {
+                                  method: 'POST',
+                                  headers,
+                                });
+                                const payload = await response.json().catch(() => ({}));
+                                if (!response.ok) {
+                                  throw new Error(payload?.error ?? 'Failed to assign codes');
+                                }
+                                const { assigned, already_had } = payload;
+                                if (assigned > 0) {
+                                  toast.success(`Assigned codes to ${assigned} admin(s). ${already_had > 0 ? `${already_had} already had codes.` : ''}`);
+                                } else {
+                                  toast.success(`All admins already have codes! (${already_had} total)`);
+                                }
+                              } catch (error) {
+                                const message = error instanceof Error ? error.message : 'Failed to assign codes';
+                                toast.error(message);
+                              }
+                            }}
+                            className="px-3 py-1.5 text-sm bg-[#00D9FF]/20 hover:bg-[#00D9FF]/30 text-[#00D9FF] rounded-lg transition-colors font-semibold"
+                            title="Assign invitation codes to admins without one"
+                          >
+                            Assign Missing Codes
+                          </button>
+                        )}
+                      </div>
                     {isSuperAdmin ? (
                         <InvitationCodes currentAdminId={currentAdminId ?? ''} />
                       ) : (
