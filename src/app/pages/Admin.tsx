@@ -334,6 +334,7 @@ export default function Admin() {
   const [platformUsers, setPlatformUsers] = useState<PlatformUser[]>([]);
   const [platformUsersLoading, setPlatformUsersLoading] = useState(false);
   const [platformUsersLoaded, setPlatformUsersLoaded] = useState(false);
+  const [showAdminVisibilityNotice, setShowAdminVisibilityNotice] = useState(true);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
@@ -502,6 +503,18 @@ export default function Admin() {
 
     void loadReferralOverview();
   }, [activeAdminTab, activeMenu, serverUrl]);
+
+  useEffect(() => {
+    if (activeMenu !== 'admin-users' || activeAdminTab !== 'admins' || isSuperAdmin || !showAdminVisibilityNotice) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowAdminVisibilityNotice(false);
+    }, 3 * 60 * 1000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeAdminTab, activeMenu, isSuperAdmin, showAdminVisibilityNotice]);
 
   const loadPlatformUsers = async () => {
     setPlatformUsersLoaded(false);
@@ -2597,6 +2610,23 @@ export default function Admin() {
             {/* Admin Users Tab */}
             {activeAdminTab === 'admins' && (
               <div className="space-y-4">
+                {!isSuperAdmin && showAdminVisibilityNotice && (
+                  <div className="flex items-start justify-between gap-3 rounded-lg border border-blue-500/20 bg-blue-500/10 p-3 text-sm text-blue-200">
+                    <div className="flex items-start gap-2">
+                      <Info size={16} className="mt-0.5 shrink-0" />
+                      <p>Super-admin accounts are hidden for your role.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminVisibilityNotice(false)}
+                      className="rounded p-1 text-blue-200/80 hover:bg-blue-500/10 hover:text-blue-100 transition-colors"
+                      aria-label="Dismiss visibility notice"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
                 {/* Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
