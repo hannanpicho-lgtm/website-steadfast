@@ -2958,7 +2958,13 @@ export default function Admin() {
                         <Key size={18} />
                         Sub-Admin Invitation Codes
                       </h3>
-                      <InvitationCodes currentAdminId={currentAdminId ?? ''} />
+                      {isSuperAdmin ? (
+                        <InvitationCodes currentAdminId={currentAdminId ?? ''} />
+                      ) : (
+                        <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-4 text-sm text-blue-200">
+                          Invitation code management is available to super-admin accounts only.
+                        </div>
+                      )}
                     </div>
 
                     <div className="bg-[#252b3d] border border-gray-700 rounded-lg overflow-hidden">

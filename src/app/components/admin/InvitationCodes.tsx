@@ -40,7 +40,9 @@ export default function InvitationCodes({ currentAdminId }: InvitationCodesProps
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to load invitation codes';
       setError(msg);
-      toast.error(msg);
+      if (!/forbidden|super-admin access required/i.test(msg)) {
+        toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
