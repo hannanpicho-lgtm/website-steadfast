@@ -332,6 +332,7 @@ export default function Admin() {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [platformUsers, setPlatformUsers] = useState<PlatformUser[]>([]);
   const [platformUsersLoading, setPlatformUsersLoading] = useState(false);
+  const [platformUsersLoaded, setPlatformUsersLoaded] = useState(false);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
@@ -502,6 +503,7 @@ export default function Admin() {
   }, [activeAdminTab, activeMenu, serverUrl]);
 
   const loadPlatformUsers = async () => {
+    setPlatformUsersLoaded(false);
     setPlatformUsersLoading(true);
     try {
       const headers = await buildAdminAuthHeaders(false);
@@ -512,6 +514,7 @@ export default function Admin() {
     } catch {
       setPlatformUsers([]);
     } finally {
+      setPlatformUsersLoaded(true);
       setPlatformUsersLoading(false);
     }
   };
@@ -1140,7 +1143,7 @@ export default function Admin() {
                   </div>
                   <div className="bg-[#1a1f2e] p-4 rounded-lg">
                     <p className="text-gray-400 text-sm">Total Earnings</p>
-                    <p className="text-green-400 font-bold text-xl mt-1">${selectedItem.totalEarnings.toFixed(2)}</p>
+                    <p className="text-green-400 font-bold text-xl mt-1">${(typeof selectedItem.totalEarnings === 'number' ? selectedItem.totalEarnings : selectedItem.balance ?? 0).toFixed(2)}</p>
                   </div>
                 </div>
                 <div className="bg-[#1a1f2e] p-4 rounded-lg">
@@ -2884,6 +2887,15 @@ export default function Admin() {
                       </div>
                     </div>
 
+                    {/* Invitation Codes Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                        <Key size={18} />
+                        Sub-Admin Invitation Codes
+                      </h3>
+                      <InvitationCodes currentAdminId={currentAdminId ?? ''} />
+                    </div>
+
                     <div className="bg-[#252b3d] border border-gray-700 rounded-lg overflow-hidden">
                       <div className="px-6 py-4 border-b border-gray-700">
                         <h3 className="text-white font-semibold">Latest Referral Payout Events</h3>
@@ -2920,14 +2932,6 @@ export default function Admin() {
                   </>
                 )}
                 
-                  {/* Invitation Codes Section */}
-                  <div className="space-y-4 mt-6">
-                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                      <Key size={18} />
-                      Sub-Admin Invitation Codes
-                    </h3>
-                    <InvitationCodes currentAdminId={currentAdminId ?? ''} />
-                  </div>
               </div>
             )}
           </div>
@@ -3653,8 +3657,8 @@ export default function Admin() {
 
       case 'user-management': {
         type DisplayUser = { id: number; username: string; email: string; phone: string; vipLevel: number; balance: number; status: string; registered: string; tasksCompleted: number; referredByAdminName: string; };
-        const isRealData = platformUsers.length > 0;
-        const normalizedUsers: DisplayUser[] = isRealData
+        const isRealData = platformUsersLoaded;
+        const normalizedUsers: DisplayUser[] = platformUsersLoaded
           ? platformUsers.map((u, i) => ({ id: i + 1, username: u.username, email: '—', phone: '—', vipLevel: u.vipLevel, balance: u.balance, status: u.isFrozen ? 'Suspended' : 'Active', registered: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—', tasksCompleted: u.tasksCompleted, referredByAdminName: u.referredByAdminName || '—' }))
           : mockUsers.map((u) => ({ ...u, referredByAdminName: '—' }));
         const filteredUsers = normalizedUsers.filter(user => {
@@ -3678,7 +3682,7 @@ export default function Admin() {
                 You are viewing only users who signed up with your invitation code.
               </div>
             )}
-            {!isRealData && platformUsersLoading && (
+            {!platformUsersLoaded && platformUsersLoading && (
               <div className="flex items-center gap-2 text-sm text-gray-400">
                 <RefreshCw size={14} className="animate-spin" />
                 Loading users…

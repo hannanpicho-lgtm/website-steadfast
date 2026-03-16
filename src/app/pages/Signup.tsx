@@ -55,6 +55,7 @@ export default function Signup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorText('');
+    let adminCodeValidated = false;
 
     if (!acceptTerms) {
       setErrorText('Please accept Terms and Conditions to continue.');
@@ -78,8 +79,23 @@ export default function Signup() {
         setErrorText('Admin invitation code must be 8–12 letters/numbers.');
         return;
       }
-      if (adminCodeStatus === 'invalid') {
-        setErrorText('Admin invitation code is not valid. Please check and try again.');
+      setAdminCodeStatus('checking');
+      try {
+        const verifyRes = await fetch(`${serverUrl}/validate-admin-invite-code`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${publicAnonKey}` },
+          body: JSON.stringify({ code: normalizedAdminCode }),
+        });
+        if (!verifyRes.ok) {
+          setAdminCodeStatus('invalid');
+          setErrorText('Admin invitation code is not valid. Please check and try again.');
+          return;
+        }
+        setAdminCodeStatus('valid');
+        adminCodeValidated = true;
+      } catch {
+        setAdminCodeStatus('invalid');
+        setErrorText('Unable to validate admin invitation code right now. Please try again.');
         return;
       }
     }
@@ -122,7 +138,7 @@ export default function Signup() {
     }
 
     // Link admin invitation code if one was provided and is valid
-    if (normalizedAdminCode && adminCodeStatus === 'valid') {
+    if (normalizedAdminCode && adminCodeValidated) {
       try {
         await fetch(`${serverUrl}/referral/link-admin-invite`, {
           method: 'POST',
