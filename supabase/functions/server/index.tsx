@@ -562,6 +562,9 @@ app.get("/make-server-a1c55d7e/admin/users", async (c) => {
       return c.json({ error: 'Server auth configuration missing' }, 500);
     }
 
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+
     const users: any[] = [];
     let page = 1;
     const perPage = 200;
@@ -584,6 +587,7 @@ app.get("/make-server-a1c55d7e/admin/users", async (c) => {
 
     const adminUsers = users
       .filter((user) => hasAdminRole(user))
+      .filter((user) => callerIsSuperAdmin || !isSuperAdmin(user))
       .map((user) => mapAuthUserToAdminRecord(user))
       .sort((a, b) => {
         if (a.roleName === 'Super Admin' && b.roleName !== 'Super Admin') return -1;
