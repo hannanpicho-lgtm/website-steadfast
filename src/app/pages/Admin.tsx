@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import PremiumBundles from '../components/admin/PremiumBundles';
 import CustomerSupport from '../components/admin/CustomerSupport';
+import InvitationCodes from '../components/admin/InvitationCodes';
 import { 
   Home, 
   Users, 
@@ -60,7 +61,7 @@ import {
   MessageSquare
 } from 'lucide-react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
-import { buildAdminAuthHeaders } from '../services/supabaseAuth';
+import { buildAdminAuthHeaders, supabase } from '../services/supabaseAuth';
 import { projectId } from '/utils/supabase/info';
 import {
   AUTO_BACKUP_INTERVAL_MS,
@@ -245,6 +246,17 @@ type ReferralOverviewSummary = {
   referralRate: number;
 };
 
+type PlatformUser = {
+  username: string;
+  vipLevel: number;
+  balance: number;
+  tasksCompleted: number;
+  isFrozen: boolean;
+  referredByAdminId: string | null;
+  referredByAdminName: string;
+  createdAt: string | null;
+};
+
 type MenuItem = {
   id: string;
   label: string;
@@ -316,10 +328,16 @@ export default function Admin() {
   const [referralSummary, setReferralSummary] = useState<ReferralOverviewSummary | null>(null);
   const [referralsLoading, setReferralsLoading] = useState(false);
   const [referralsError, setReferralsError] = useState<string | null>(null);
+  const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [platformUsers, setPlatformUsers] = useState<PlatformUser[]>([]);
+  const [platformUsersLoading, setPlatformUsersLoading] = useState(false);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
   const importBackupInputRef = useRef<HTMLInputElement | null>(null);
+
+
 
   const handleStorageSaveResult = (result: StorageSaveResult) => {
     if (result.ok) {
@@ -390,6 +408,84 @@ export default function Admin() {
   };
 
   useEffect(() => {
+    const resolveSuperAdmin = async () => {
+      try {
+        const [{ data: userData }, { data: sessionData }] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase.auth.getSession(),
+        ]);
+
+        const user = userData?.user;
+        if (!user) {
+          setIsSuperAdmin(false);
+          return;
+        }
+
+        setCurrentAdminId(user.id);
+
+        const roles = new Set<string>();
+        const normalize = (val: any): string | undefined => {
+          if (typeof val === 'string') {
+            const n = val.trim().toLowerCase().replace(/[\s-]+/g, '_');
+            return n || undefined;
+          }
+          return undefined;
+        };
+
+        // Check metadata
+        const appMeta = (user.app_metadata ?? {}) as any;
+        const userMeta = (user.user_metadata ?? {}) as any;
+        [appMeta.role, userMeta.role].forEach((r) => {
+          const n = normalize(r);
+          if (n) roles.add(n);
+        });
+        [appMeta.roles, userMeta.roles].forEach((arr: any) => {
+          if (Array.isArray(arr)) arr.forEach((r: any) => { const n = normalize(r); if (n) roles.add(n); });
+        });
+
+        // Decode JWT access token
+        const accessToken = sessionData?.session?.access_token;
+        if (accessToken) {
+          try {
+            const parts = accessToken.split('.');
+            if (parts[1]) {
+              const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+              const jwtPayload = JSON.parse(atob(base64)) as any;
+              // Check JWT claims for role
+              [jwtPayload.role, jwtPayload.user_role].forEach((r) => {
+                const n = normalize(r);
+                if (n) roles.add(n);
+              });
+              // Check JWT app_metadata
+              if (jwtPayload.app_metadata?.role) {
+                const n = normalize(jwtPayload.app_metadata.role);
+                if (n) roles.add(n);
+              }
+              if (Array.isArray(jwtPayload.app_metadata?.roles)) {
+                jwtPayload.app_metadata.roles.forEach((r: any) => {
+                  const n = normalize(r);
+                  if (n) roles.add(n);
+                });
+              }
+            }
+          } catch (err) {
+            console.debug('JWT decode skipped');
+          }
+        }
+
+        const hasSuperAdmin = roles.has('super_admin');
+        console.log('🔐 Admin roles detected:', { hasSuperAdmin, roles: Array.from(roles) });
+        setIsSuperAdmin(hasSuperAdmin);
+      } catch (error) {
+        console.error('Failed to resolve super-admin:', error);
+        setIsSuperAdmin(false);
+      }
+    };
+
+    void resolveSuperAdmin();
+  }, []);
+
+  useEffect(() => {
     if (activeMenu !== 'admin-users' || activeAdminTab !== 'admins') {
       return;
     }
@@ -404,6 +500,26 @@ export default function Admin() {
 
     void loadReferralOverview();
   }, [activeAdminTab, activeMenu, serverUrl]);
+
+  const loadPlatformUsers = async () => {
+    setPlatformUsersLoading(true);
+    try {
+      const headers = await buildAdminAuthHeaders(false);
+      const res = await fetch(`${serverUrl}/admin/platform-users`, { headers });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload?.error ?? `Failed to load platform users (${res.status})`);
+      setPlatformUsers(Array.isArray(payload?.users) ? payload.users : []);
+    } catch {
+      setPlatformUsers([]);
+    } finally {
+      setPlatformUsersLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeMenu !== 'user-management') return;
+    void loadPlatformUsers();
+  }, [activeMenu, serverUrl]);
 
   const handleCreateAdminUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -2803,6 +2919,15 @@ export default function Admin() {
                     </div>
                   </>
                 )}
+                
+                  {/* Invitation Codes Section */}
+                  <div className="space-y-4 mt-6">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                      <Key size={18} />
+                      Sub-Admin Invitation Codes
+                    </h3>
+                    <InvitationCodes currentAdminId={currentAdminId ?? ''} />
+                  </div>
               </div>
             )}
           </div>
@@ -3526,8 +3651,13 @@ export default function Admin() {
           </div>
         );
 
-      case 'user-management':
-        const filteredUsers = mockUsers.filter(user => {
+      case 'user-management': {
+        type DisplayUser = { id: number; username: string; email: string; phone: string; vipLevel: number; balance: number; status: string; registered: string; tasksCompleted: number; referredByAdminName: string; };
+        const isRealData = platformUsers.length > 0;
+        const normalizedUsers: DisplayUser[] = isRealData
+          ? platformUsers.map((u, i) => ({ id: i + 1, username: u.username, email: '—', phone: '—', vipLevel: u.vipLevel, balance: u.balance, status: u.isFrozen ? 'Suspended' : 'Active', registered: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—', tasksCompleted: u.tasksCompleted, referredByAdminName: u.referredByAdminName || '—' }))
+          : mockUsers.map((u) => ({ ...u, referredByAdminName: '—' }));
+        const filteredUsers = normalizedUsers.filter(user => {
           const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                user.phone.includes(searchTerm);
@@ -3541,6 +3671,19 @@ export default function Admin() {
 
         return (
           <div className="space-y-6">
+            {/* Scoping Banner (sub-admins only) */}
+            {!isSuperAdmin && (
+              <div className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 text-sm text-blue-300">
+                <Shield size={14} />
+                You are viewing only users who signed up with your invitation code.
+              </div>
+            )}
+            {!isRealData && platformUsersLoading && (
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <RefreshCw size={14} className="animate-spin" />
+                Loading users…
+              </div>
+            )}
             {/* Header Actions */}
             <div className="flex items-center justify-between">
               <div>
@@ -3594,6 +3737,7 @@ export default function Admin() {
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Balance</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Registered</th>
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Referred By</th>
                       <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
@@ -3622,6 +3766,7 @@ export default function Admin() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-400">{user.registered}</td>
+                        <td className="px-6 py-4 text-sm text-gray-400">{user.referredByAdminName}</td>
                         <td className="px-6 py-4 text-sm">
                           <div className="flex items-center gap-2">
                             <button 
@@ -3718,6 +3863,7 @@ export default function Admin() {
             </div>
           </div>
         );
+      }
 
       case 'transactions':
         return (

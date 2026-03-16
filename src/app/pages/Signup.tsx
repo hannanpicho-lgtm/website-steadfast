@@ -21,11 +21,36 @@ export default function Signup() {
   const [loginPassword, setLoginPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [inviteCode, setInviteCode] = useState('');
+  const [adminCode, setAdminCode] = useState('');
+  const [adminCodeStatus, setAdminCodeStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [errorText, setErrorText] = useState('');
 
   useEffect(() => {
     ensureReferralStore();
   }, []);
+
+  const validateAdminCode = async (code: string) => {
+    const normalized = code.trim().toUpperCase();
+    if (!normalized) {
+      setAdminCodeStatus('idle');
+      return;
+    }
+    if (!/^[A-Z0-9]{8,12}$/.test(normalized)) {
+      setAdminCodeStatus('invalid');
+      return;
+    }
+    setAdminCodeStatus('checking');
+    try {
+      const res = await fetch(`${serverUrl}/validate-admin-invite-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${publicAnonKey}` },
+        body: JSON.stringify({ code: normalized }),
+      });
+      setAdminCodeStatus(res.ok ? 'valid' : 'invalid');
+    } catch {
+      setAdminCodeStatus('invalid');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,6 +69,19 @@ export default function Signup() {
     if (loginPassword !== confirmPassword) {
       setErrorText('Login password confirmation does not match.');
       return;
+    }
+
+    // Validate admin invitation code if provided
+    const normalizedAdminCode = adminCode.trim().toUpperCase();
+    if (normalizedAdminCode) {
+      if (!/^[A-Z0-9]{8,12}$/.test(normalizedAdminCode)) {
+        setErrorText('Admin invitation code must be 8–12 letters/numbers.');
+        return;
+      }
+      if (adminCodeStatus === 'invalid') {
+        setErrorText('Admin invitation code is not valid. Please check and try again.');
+        return;
+      }
     }
 
     const result = registerUserWithInvitation({
@@ -81,6 +119,25 @@ export default function Signup() {
     } catch (syncError) {
       setErrorText(syncError instanceof Error ? syncError.message : 'Failed to sync referral relationship');
       return;
+    }
+
+    // Link admin invitation code if one was provided and is valid
+    if (normalizedAdminCode && adminCodeStatus === 'valid') {
+      try {
+        await fetch(`${serverUrl}/referral/link-admin-invite`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${publicAnonKey}`,
+          },
+          body: JSON.stringify({
+            username: result.createdUser?.username,
+            adminInviteCode: normalizedAdminCode,
+          }),
+        });
+      } catch {
+        // Non-fatal: sub-admin scoping won't work but the account is created
+      }
     }
 
     const referralPct = 20;
@@ -244,6 +301,43 @@ export default function Signup() {
             />
             <p className="mt-2 text-xs text-gray-500">
               Invitation code is required. It must be exactly 5 letters/numbers and include at least one number. For initial onboarding, use system code: {getSystemInviteCode()}.
+            </p>
+          </div>
+
+          {/* Admin Invitation Code (optional) */}
+          <div>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Admin Referral Code (optional)"
+                value={adminCode}
+                onChange={(e) => {
+                  const val = e.target.value.toUpperCase();
+                  setAdminCode(val);
+                  setAdminCodeStatus('idle');
+                }}
+                onBlur={() => void validateAdminCode(adminCode)}
+                maxLength={12}
+                className={`w-full px-4 py-3 rounded-lg border-2 focus:outline-none text-[#3d4551] placeholder-gray-400 pr-10 ${
+                  adminCodeStatus === 'valid'
+                    ? 'border-green-400 focus:border-green-500'
+                    : adminCodeStatus === 'invalid'
+                      ? 'border-red-400 focus:border-red-500'
+                      : 'border-gray-300 focus:border-[#005a87]'
+                }`}
+              />
+              {adminCodeStatus === 'checking' && (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs">checking…</span>
+              )}
+              {adminCodeStatus === 'valid' && (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500 text-xs font-semibold">✓ Valid</span>
+              )}
+              {adminCodeStatus === 'invalid' && (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 text-xs font-semibold">✗ Invalid</span>
+              )}
+            </div>
+            <p className="mt-2 text-xs text-gray-500">
+              If a staff member referred you, enter their admin referral code here (8–12 characters). Leave blank if not applicable.
             </p>
           </div>
 

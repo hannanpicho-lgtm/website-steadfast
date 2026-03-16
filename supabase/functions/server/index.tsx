@@ -359,6 +359,25 @@ function sanitizeInviteCode(value: unknown): string | null {
   return normalized;
 }
 
+function sanitizeAdminInviteCode(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toUpperCase();
+  // 8–12 alphanumeric characters (different namespace from 5-char user codes)
+  if (!/^[A-Z0-9]{8,12}$/.test(normalized)) return null;
+  return normalized;
+}
+
+function generateAdminInviteCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const length = 10;
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  return Array.from(bytes).map((b) => chars[b % chars.length]).join('');
+}
+
+function isSuperAdmin(user: any): boolean {
+  return getAdminRoleClaim(user) === 'super_admin';
+}
+
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -381,6 +400,7 @@ function defaultUserRecord(username: string) {
     invitedByCode: null,
     referralEarnings: 0,
     children: [],
+    referredByAdminId: null as string | null,
   };
 }
 
@@ -399,6 +419,9 @@ function normalizeUserRecord(userData: any, username: string) {
   normalized.tasksLimit = Number.isFinite(Number(normalized.tasksLimit)) ? Number(normalized.tasksLimit) : 40;
   normalized.referralEarnings = Number.isFinite(Number(normalized.referralEarnings)) ? Number(normalized.referralEarnings) : 0;
   normalized.children = Array.isArray(normalized.children) ? normalized.children : [];
+  normalized.referredByAdminId = typeof normalized.referredByAdminId === 'string' && normalized.referredByAdminId
+    ? normalized.referredByAdminId
+    : null;
 
   return normalized;
 }
@@ -1819,6 +1842,259 @@ app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
   } catch (error) {
     console.error('Error changing password:', error);
     return c.json({ error: 'Failed to change password' }, 500);
+  }
+});
+
+// ── Admin Invitation Code endpoints ─────────────────────────────────────────
+// KV layout:
+//   admin:invite:code:<CODE>        → { subAdminId, subAdminEmail, subAdminName, usageCount, createdAt }
+//   admin:invite:by-admin:<adminId> → <CODE>  (one code per sub-admin)
+
+// GET /admin/invitation-codes  – super-admin only
+// Returns all sub-admins paired with their invitation codes.
+app.get('/make-server-a1c55d7e/admin/invitation-codes', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    if (!isSuperAdmin(c.get('adminUser'))) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const limited = enforceAdminRateLimit(c, 'admin-invitation-codes:list');
+    if (limited) return limited;
+
+    if (!authClient) return c.json({ error: 'Server auth configuration missing' }, 500);
+
+    // Fetch all admin users from Supabase Auth
+    const allUsers: any[] = [];
+    let page = 1;
+    while (page <= 5) {
+      const { data, error } = await authClient.auth.admin.listUsers({ page, perPage: 200 });
+      if (error) throw error;
+      const batch = Array.isArray(data?.users) ? data.users : [];
+      allUsers.push(...batch);
+      if (batch.length < 200) break;
+      page += 1;
+    }
+
+    const subAdmins = allUsers.filter((u) => hasAdminRole(u));
+
+    // Load existing codes from KV
+    const codeRecords = await kv.getByPrefix('admin:invite:code:');
+    const codeByAdminId = new Map<string, { code: string; usageCount: number; createdAt: string }>();
+    for (const rec of codeRecords) {
+      if (rec && typeof rec.subAdminId === 'string' && typeof rec.code === 'string') {
+        codeByAdminId.set(rec.subAdminId, {
+          code: rec.code,
+          usageCount: typeof rec.usageCount === 'number' ? rec.usageCount : 0,
+          createdAt: typeof rec.createdAt === 'string' ? rec.createdAt : '',
+        });
+      }
+    }
+
+    const codes = subAdmins.map((u) => {
+      const info = codeByAdminId.get(u.id);
+      return {
+        subAdminId: u.id,
+        subAdminEmail: u.email ?? '',
+        subAdminName: getAdminRoleName(u),
+        roleName: getAdminRoleName(u),
+        isSuperAdmin: isSuperAdmin(u),
+        code: info?.code ?? null,
+        usageCount: info?.usageCount ?? 0,
+        createdAt: info?.createdAt ?? null,
+      };
+    });
+
+    return c.json({ codes });
+  } catch (err) {
+    console.error('invitation-codes list error:', err);
+    return c.json({ error: 'Failed to fetch invitation codes' }, 500);
+  }
+});
+
+// POST /admin/invitation-codes/generate  – super-admin only
+// Body: { subAdminId: string }  Generates or regenerates a code for one sub-admin.
+app.post('/make-server-a1c55d7e/admin/invitation-codes/generate', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    if (!isSuperAdmin(c.get('adminUser'))) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const limited = enforceAdminRateLimit(c, 'admin-invitation-codes:generate');
+    if (limited) return limited;
+
+    if (!authClient) return c.json({ error: 'Server auth configuration missing' }, 500);
+
+    const body = await c.req.json();
+    const subAdminId = typeof body?.subAdminId === 'string' ? body.subAdminId.trim() : '';
+    if (!subAdminId) return c.json({ error: 'subAdminId is required' }, 400);
+
+    // Verify the target user exists and has an admin role
+    const { data: targetData, error: targetError } = await authClient.auth.admin.getUserById(subAdminId);
+    if (targetError || !targetData?.user) return c.json({ error: 'Sub-admin user not found' }, 404);
+    if (!hasAdminRole(targetData.user)) return c.json({ error: 'Target user does not have an admin role' }, 400);
+
+    // Invalidate old code if any
+    const oldCodeKey = `admin:invite:by-admin:${subAdminId}`;
+    const oldCode = await kv.get(oldCodeKey);
+    if (typeof oldCode === 'string' && oldCode) {
+      await kv.del(`admin:invite:code:${oldCode}`);
+    }
+
+    // Generate a unique code (collision-safe)
+    let code: string;
+    let attempts = 0;
+    do {
+      code = generateAdminInviteCode();
+      const existing = await kv.get(`admin:invite:code:${code}`);
+      if (!existing) break;
+      attempts += 1;
+    } while (attempts < 20);
+
+    const record = {
+      code,
+      subAdminId,
+      subAdminEmail: targetData.user.email ?? '',
+      subAdminName: getAdminRoleName(targetData.user),
+      usageCount: 0,
+      createdAt: new Date().toISOString(),
+    };
+
+    await kv.set(`admin:invite:code:${code}`, record);
+    await kv.set(oldCodeKey, code);
+
+    return c.json({ subAdminId, code, createdAt: record.createdAt });
+  } catch (err) {
+    console.error('invitation-code generate error:', err);
+    return c.json({ error: 'Failed to generate invitation code' }, 500);
+  }
+});
+
+// POST /validate-admin-invite-code  – public (no auth required)
+// Body: { code: string }
+// Returns { valid: true, subAdminId, subAdminName } or 404 if invalid.
+app.post('/make-server-a1c55d7e/validate-admin-invite-code', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'public:validate-admin-code', 20);
+    if (rateLimited) return rateLimited;
+
+    const body = await c.req.json();
+    const code = sanitizeAdminInviteCode(body?.code);
+    if (!code) return c.json({ valid: false, error: 'Invalid code format' }, 400);
+
+    const record = await kv.get(`admin:invite:code:${code}`);
+    if (!record || typeof record.subAdminId !== 'string') {
+      return c.json({ valid: false, error: 'Invitation code not found' }, 404);
+    }
+
+    return c.json({ valid: true, subAdminId: record.subAdminId, subAdminName: record.subAdminName ?? '' });
+  } catch (err) {
+    console.error('validate-admin-invite-code error:', err);
+    return c.json({ valid: false, error: 'Validation failed' }, 500);
+  }
+});
+
+// POST /referral/link-admin-invite
+// Called at signup to attach referredByAdminId to the new user's record.
+// Body: { username, adminInviteCode }
+app.post('/make-server-a1c55d7e/referral/link-admin-invite', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:link-admin-invite');
+    if (rateLimited) return rateLimited;
+
+    const body = await c.req.json();
+    const username = sanitizeUsername(body?.username);
+    const code = sanitizeAdminInviteCode(body?.adminInviteCode);
+    if (!username || !code) return c.json({ error: 'username and adminInviteCode are required' }, 400);
+
+    const record = await kv.get(`admin:invite:code:${code}`);
+    if (!record || typeof record.subAdminId !== 'string') {
+      return c.json({ error: 'Admin invitation code not found' }, 404);
+    }
+
+    const userData = await getOrCreateUserRecord(username);
+    userData.referredByAdminId = record.subAdminId;
+    await kv.set(`user:${username}`, userData);
+
+    // Increment usage count on the code record
+    record.usageCount = (typeof record.usageCount === 'number' ? record.usageCount : 0) + 1;
+    await kv.set(`admin:invite:code:${code}`, record);
+
+    return c.json({ success: true, username, referredByAdminId: record.subAdminId });
+  } catch (err) {
+    console.error('link-admin-invite error:', err);
+    return c.json({ error: 'Failed to link admin invite' }, 500);
+  }
+});
+
+// GET /admin/platform-users  – admin-gated, scoped by role
+// Super-admin: returns all platform users (KV) with referredByAdminId.
+// Sub-admin: returns only users where referredByAdminId = caller's user ID.
+app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-platform-users:list');
+    if (limited) return limited;
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+
+    // Load all KV users
+    const allRawUsers = await kv.getByPrefix('user:');
+    const allUsers = allRawUsers
+      .map((raw) => normalizeUserRecord(raw, String(raw?.username ?? '')))
+      .filter((u) => typeof u.username === 'string' && u.username && u.username !== 'steadfast_root');
+
+    // Scope: sub-admins only see their own referrals
+    const scopedUsers = callerIsSuperAdmin
+      ? allUsers
+      : allUsers.filter((u) => u.referredByAdminId === callingAdmin.id);
+
+    // For super-admin, try to resolve sub-admin names from Auth users
+    let adminNameMap: Map<string, string> = new Map();
+    if (callerIsSuperAdmin && authClient) {
+      try {
+        const authPage: any[] = [];
+        let p = 1;
+        while (p <= 5) {
+          const { data } = await authClient.auth.admin.listUsers({ page: p, perPage: 200 });
+          const batch = Array.isArray(data?.users) ? data.users : [];
+          authPage.push(...batch);
+          if (batch.length < 200) break;
+          p += 1;
+        }
+        for (const au of authPage) {
+          if (au?.id) {
+            adminNameMap.set(au.id, getAdminRoleName(au));
+          }
+        }
+      } catch (_e) { /* non-critical */ }
+    }
+
+    const users = scopedUsers.map((u) => ({
+      username: u.username,
+      vipLevel: u.vipLevel,
+      balance: u.balance,
+      tasksCompleted: u.tasksCompleted,
+      isFrozen: u.isFrozen,
+      referredByAdminId: u.referredByAdminId ?? null,
+      referredByAdminName: u.referredByAdminId
+        ? (adminNameMap.get(u.referredByAdminId) ?? u.referredByAdminId)
+        : 'Direct',
+      createdAt: typeof (u as any).createdAt === 'string' ? (u as any).createdAt : null,
+    }));
+
+    return c.json({ users, total: users.length, scoped: !callerIsSuperAdmin });
+  } catch (err) {
+    console.error('admin/platform-users error:', err);
+    return c.json({ error: 'Failed to fetch platform users' }, 500);
   }
 });
 
