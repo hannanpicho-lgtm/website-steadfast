@@ -217,6 +217,34 @@ type AdminUserRecord = {
   loginAttempts: number;
 };
 
+type ReferralOverviewRow = {
+  username: string;
+  invitationCode: string | null;
+  invitedByCode: string | null;
+  parentUsername: string | null;
+  referralEarnings: number;
+  childrenCount: number;
+  children: string[];
+  balance: number;
+};
+
+type ReferralOverviewEvent = {
+  parentUsername: string | null;
+  childUsername: string | null;
+  type: string;
+  childCommission: number;
+  parentReward: number;
+  rate: number;
+  createdAt: string;
+};
+
+type ReferralOverviewSummary = {
+  totalReferralUsers: number;
+  totalReferralEarnings: number;
+  totalParentRewards: number;
+  referralRate: number;
+};
+
 type MenuItem = {
   id: string;
   label: string;
@@ -256,6 +284,11 @@ export default function Admin() {
   const [adminUsers, setAdminUsers] = useState<AdminUserRecord[]>([]);
   const [adminUsersLoading, setAdminUsersLoading] = useState(false);
   const [adminUsersError, setAdminUsersError] = useState<string | null>(null);
+  const [referralRows, setReferralRows] = useState<ReferralOverviewRow[]>([]);
+  const [referralEvents, setReferralEvents] = useState<ReferralOverviewEvent[]>([]);
+  const [referralSummary, setReferralSummary] = useState<ReferralOverviewSummary | null>(null);
+  const [referralsLoading, setReferralsLoading] = useState(false);
+  const [referralsError, setReferralsError] = useState<string | null>(null);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
@@ -301,12 +334,48 @@ export default function Admin() {
     }
   };
 
+  const loadReferralOverview = async () => {
+    setReferralsLoading(true);
+    setReferralsError(null);
+
+    try {
+      const headers = await buildAdminAuthHeaders(false);
+      const response = await fetch(`${serverUrl}/admin/referrals/overview`, { headers });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Failed to load referral overview (${response.status})`);
+      }
+
+      setReferralRows(Array.isArray(payload?.rows) ? payload.rows : []);
+      setReferralEvents(Array.isArray(payload?.events) ? payload.events : []);
+      setReferralSummary(payload?.summary ?? null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to load referral overview';
+      setReferralRows([]);
+      setReferralEvents([]);
+      setReferralSummary(null);
+      setReferralsError(message);
+      toast.error(message);
+    } finally {
+      setReferralsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (activeMenu !== 'admin-users' || activeAdminTab !== 'admins') {
       return;
     }
 
     void loadAdminUsers();
+  }, [activeAdminTab, activeMenu, serverUrl]);
+
+  useEffect(() => {
+    if (activeMenu !== 'admin-users' || activeAdminTab !== 'referrals') {
+      return;
+    }
+
+    void loadReferralOverview();
   }, [activeAdminTab, activeMenu, serverUrl]);
 
   const handleCreateAdminUser = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -2307,6 +2376,15 @@ export default function Admin() {
                     Create New Role
                   </button>
                 )}
+                {activeAdminTab === 'referrals' && (
+                  <button
+                    onClick={() => void loadReferralOverview()}
+                    className="flex items-center gap-2 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-5 py-2.5 rounded-lg font-semibold transition-colors shadow-lg"
+                  >
+                    <RefreshCw size={18} />
+                    Refresh Referrals
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2325,6 +2403,13 @@ export default function Admin() {
               >
                 <ShieldCheck size={16} className="inline mr-2" />
                 Roles & Permissions
+              </button>
+              <button
+                onClick={() => setActiveAdminTab('referrals')}
+                className={`px-4 py-2 rounded-lg font-semibold text-sm whitespace-nowrap transition-colors ${activeAdminTab === 'referrals' ? 'bg-[#00D9FF] text-[#1a1f2e]' : 'text-gray-400 hover:text-white'}`}
+              >
+                <LinkIcon size={16} className="inline mr-2" />
+                Referral Management
               </button>
             </div>
 
@@ -2578,6 +2663,119 @@ export default function Admin() {
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Referrals Tab */}
+            {activeAdminTab === 'referrals' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
+                    <p className="text-gray-400 text-xs">Parent Commission Rate</p>
+                    <p className="text-2xl font-bold text-white mt-1">{((referralSummary?.referralRate ?? 0.2) * 100).toFixed(0)}%</p>
+                  </div>
+                  <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
+                    <p className="text-gray-400 text-xs">Referral Users</p>
+                    <p className="text-2xl font-bold text-white mt-1">{referralSummary?.totalReferralUsers ?? 0}</p>
+                  </div>
+                  <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
+                    <p className="text-gray-400 text-xs">Total Referral Earnings</p>
+                    <p className="text-2xl font-bold text-green-300 mt-1">${(referralSummary?.totalReferralEarnings ?? 0).toFixed(2)}</p>
+                  </div>
+                  <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
+                    <p className="text-gray-400 text-xs">Total Parent Rewards (events)</p>
+                    <p className="text-2xl font-bold text-[#00D9FF] mt-1">${(referralSummary?.totalParentRewards ?? 0).toFixed(2)}</p>
+                  </div>
+                </div>
+
+                {referralsLoading ? (
+                  <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-8 text-center text-gray-400">
+                    Loading referral overview...
+                  </div>
+                ) : referralsError ? (
+                  <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-8 text-center space-y-3">
+                    <p className="text-red-300">{referralsError}</p>
+                    <button
+                      onClick={() => void loadReferralOverview()}
+                      className="inline-flex items-center gap-2 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-4 py-2 rounded-lg font-semibold transition-colors"
+                    >
+                      <RefreshCw size={16} />
+                      Retry
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-[#252b3d] border border-gray-700 rounded-lg overflow-hidden">
+                      <div className="px-6 py-4 border-b border-gray-700">
+                        <h3 className="text-white font-semibold">Referral Hierarchy</h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-[#1a1f2e]">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase">User</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Invite Code</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Parent</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Children</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Referral Earnings</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Balance</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-700">
+                            {referralRows.length === 0 ? (
+                              <tr>
+                                <td colSpan={6} className="px-6 py-8 text-center text-gray-400">No referral data found.</td>
+                              </tr>
+                            ) : referralRows.map((row) => (
+                              <tr key={row.username} className="hover:bg-[#1a1f2e] transition-colors">
+                                <td className="px-6 py-3 text-white font-semibold">{row.username}</td>
+                                <td className="px-6 py-3 text-[#00D9FF] font-mono text-sm">{row.invitationCode ?? '-'}</td>
+                                <td className="px-6 py-3 text-gray-300 text-sm">{row.parentUsername ?? row.invitedByCode ?? '-'}</td>
+                                <td className="px-6 py-3 text-gray-300 text-sm">{row.childrenCount}</td>
+                                <td className="px-6 py-3 text-green-300 font-semibold">${row.referralEarnings.toFixed(2)}</td>
+                                <td className="px-6 py-3 text-white font-semibold">${row.balance.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#252b3d] border border-gray-700 rounded-lg overflow-hidden">
+                      <div className="px-6 py-4 border-b border-gray-700">
+                        <h3 className="text-white font-semibold">Latest Referral Payout Events</h3>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead className="bg-[#1a1f2e]">
+                            <tr>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Time</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Parent</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Child</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Child Commission</th>
+                              <th className="px-6 py-3 text-left text-xs font-semibold text-gray-400 uppercase">Parent Reward</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-700">
+                            {referralEvents.length === 0 ? (
+                              <tr>
+                                <td colSpan={5} className="px-6 py-8 text-center text-gray-400">No payout events recorded yet.</td>
+                              </tr>
+                            ) : referralEvents.map((event, index) => (
+                              <tr key={`${event.createdAt}-${event.parentUsername ?? 'na'}-${index}`} className="hover:bg-[#1a1f2e] transition-colors">
+                                <td className="px-6 py-3 text-gray-300 text-sm">{new Date(event.createdAt).toLocaleString()}</td>
+                                <td className="px-6 py-3 text-white text-sm">{event.parentUsername ?? '-'}</td>
+                                <td className="px-6 py-3 text-white text-sm">{event.childUsername ?? '-'}</td>
+                                <td className="px-6 py-3 text-gray-200 text-sm">${event.childCommission.toFixed(2)}</td>
+                                <td className="px-6 py-3 text-[#00D9FF] font-semibold">${event.parentReward.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>

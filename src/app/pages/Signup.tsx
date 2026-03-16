@@ -5,9 +5,11 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { ensureReferralStore, getSystemInviteCode, registerUserWithInvitation } from '../services/referralSystem';
+import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 export default function Signup() {
   const navigate = useNavigate();
+  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
   const [showTransactionPassword, setShowTransactionPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -25,7 +27,7 @@ export default function Signup() {
     ensureReferralStore();
   }, []);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorText('');
 
@@ -55,6 +57,29 @@ export default function Signup() {
 
     if (!result.ok) {
       setErrorText(result.error ?? 'Signup failed. Please try again.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${serverUrl}/referral/link-user`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`,
+        },
+        body: JSON.stringify({
+          username: result.createdUser?.username,
+          invitationCode: result.createdUser?.invitationCode,
+          parentInviteCode: inviteCode,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error ?? 'Failed to sync referral relationship to server');
+      }
+    } catch (syncError) {
+      setErrorText(syncError instanceof Error ? syncError.message : 'Failed to sync referral relationship');
       return;
     }
 

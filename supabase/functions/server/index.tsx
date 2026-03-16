@@ -14,6 +14,9 @@ const authClient = supabaseUrl && supabaseServiceRoleKey
 const ADMIN_RATE_LIMIT_WINDOW_MS = 60_000;
 const ADMIN_RATE_LIMIT_MAX_REQUESTS = 60;
 const adminRateLimitStore = new Map<string, { count: number; resetAt: number }>();
+const REFERRAL_PARENT_RATE = 0.2;
+const ROOT_REFERRAL_USERNAME = 'steadfast_root';
+const ROOT_REFERRAL_INVITE_CODE = 'STF01';
 
 // Enable logger
 app.use('*', logger(console.log));
@@ -349,6 +352,126 @@ function sanitizeUsername(value: unknown): string | null {
   return trimmed;
 }
 
+function sanitizeInviteCode(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toUpperCase();
+  if (!/^[A-Z0-9]{5}$/.test(normalized)) return null;
+  return normalized;
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function defaultUserRecord(username: string) {
+  return {
+    username,
+    vipLevel: 1,
+    balance: 0,
+    todayCommission: 0,
+    holdAmount: 0,
+    luckyBonus: 0,
+    tasksCompleted: 0,
+    tasksLimit: 40,
+    lastReset: new Date().toISOString().split('T')[0],
+    isFrozen: false,
+    activePremium: null,
+    premiumQueue: [],
+    invitationCode: null,
+    invitedByCode: null,
+    referralEarnings: 0,
+    children: [],
+  };
+}
+
+function normalizeUserRecord(userData: any, username: string) {
+  const normalized = {
+    ...defaultUserRecord(username),
+    ...(typeof userData === 'object' && userData ? userData : {}),
+  };
+
+  normalized.username = username;
+  normalized.balance = Number.isFinite(Number(normalized.balance)) ? Number(normalized.balance) : 0;
+  normalized.todayCommission = Number.isFinite(Number(normalized.todayCommission)) ? Number(normalized.todayCommission) : 0;
+  normalized.holdAmount = Number.isFinite(Number(normalized.holdAmount)) ? Number(normalized.holdAmount) : 0;
+  normalized.luckyBonus = Number.isFinite(Number(normalized.luckyBonus)) ? Number(normalized.luckyBonus) : 0;
+  normalized.tasksCompleted = Number.isFinite(Number(normalized.tasksCompleted)) ? Number(normalized.tasksCompleted) : 0;
+  normalized.tasksLimit = Number.isFinite(Number(normalized.tasksLimit)) ? Number(normalized.tasksLimit) : 40;
+  normalized.referralEarnings = Number.isFinite(Number(normalized.referralEarnings)) ? Number(normalized.referralEarnings) : 0;
+  normalized.children = Array.isArray(normalized.children) ? normalized.children : [];
+
+  return normalized;
+}
+
+async function getOrCreateUserRecord(username: string) {
+  const userKey = `user:${username}`;
+  const userData = await kv.get(userKey);
+
+  if (!userData) {
+    const created = defaultUserRecord(username);
+    await kv.set(userKey, created);
+    return created;
+  }
+
+  const normalized = normalizeUserRecord(userData, username);
+  await kv.set(userKey, normalized);
+  return normalized;
+}
+
+async function ensureRootReferralUser() {
+  const rootUser = await getOrCreateUserRecord(ROOT_REFERRAL_USERNAME);
+  rootUser.invitationCode = ROOT_REFERRAL_INVITE_CODE;
+  await kv.set(`user:${ROOT_REFERRAL_USERNAME}`, rootUser);
+  await kv.set(`referral:invite:${ROOT_REFERRAL_INVITE_CODE}`, ROOT_REFERRAL_USERNAME);
+}
+
+async function creditParentReferralFromChildCommission(childUsername: string, childCommission: number) {
+  if (!Number.isFinite(childCommission) || childCommission <= 0) {
+    return { rewarded: false, parentReward: 0 };
+  }
+
+  const childUser = await getOrCreateUserRecord(childUsername);
+  const invitedByCode = sanitizeInviteCode(childUser.invitedByCode);
+  if (!invitedByCode) {
+    return { rewarded: false, parentReward: 0 };
+  }
+
+  const parentUsername = await kv.get(`referral:invite:${invitedByCode}`);
+  if (!parentUsername || typeof parentUsername !== 'string' || parentUsername === childUsername) {
+    return { rewarded: false, parentReward: 0 };
+  }
+
+  const parentUser = await getOrCreateUserRecord(parentUsername);
+  const parentReward = roundMoney(childCommission * REFERRAL_PARENT_RATE);
+  if (parentReward <= 0) {
+    return { rewarded: false, parentReward: 0 };
+  }
+
+  parentUser.balance = roundMoney(Number(parentUser.balance ?? 0) + parentReward);
+  parentUser.referralEarnings = roundMoney(Number(parentUser.referralEarnings ?? 0) + parentReward);
+  if (!parentUser.children.includes(childUsername)) {
+    parentUser.children.push(childUsername);
+  }
+
+  await kv.set(`user:${parentUsername}`, parentUser);
+  await kv.set(`referral:event:${Date.now()}:${childUsername}`, {
+    parentUsername,
+    childUsername,
+    type: 'child_checkin',
+    rate: REFERRAL_PARENT_RATE,
+    childCommission,
+    parentReward,
+    createdAt: new Date().toISOString(),
+  });
+
+  return {
+    rewarded: true,
+    parentUsername,
+    parentReward,
+    parentInviteCode: invitedByCode,
+  };
+}
+
 function sanitizePremiumId(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -516,6 +639,72 @@ app.post("/make-server-a1c55d7e/admin/users", async (c) => {
   }
 });
 
+app.get('/make-server-a1c55d7e/admin/referrals/overview', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const limited = enforceAdminRateLimit(c, 'admin-referrals:overview');
+    if (limited) {
+      return limited;
+    }
+
+    const allUsers = await kv.getByPrefix('user:');
+    const referralUsers = allUsers
+      .map((raw) => normalizeUserRecord(raw, String(raw?.username ?? '')))
+      .filter((user) => Boolean(user.username));
+
+    const rows = referralUsers
+      .filter((user) => user.invitationCode || user.invitedByCode || Number(user.referralEarnings ?? 0) > 0 || (Array.isArray(user.children) && user.children.length > 0))
+      .map((user) => {
+        const parentCode = sanitizeInviteCode(user.invitedByCode);
+        return {
+          username: user.username,
+          invitationCode: user.invitationCode,
+          invitedByCode: parentCode,
+          parentUsername: parentCode ? (referralUsers.find((candidate) => candidate.invitationCode === parentCode)?.username ?? null) : null,
+          referralEarnings: roundMoney(Number(user.referralEarnings ?? 0)),
+          childrenCount: Array.isArray(user.children) ? user.children.length : 0,
+          children: Array.isArray(user.children) ? user.children : [],
+          balance: roundMoney(Number(user.balance ?? 0)),
+        };
+      })
+      .sort((a, b) => b.referralEarnings - a.referralEarnings);
+
+    const events = (await kv.getByPrefix('referral:event:'))
+      .map((event) => ({
+        parentUsername: event?.parentUsername ?? null,
+        childUsername: event?.childUsername ?? null,
+        type: event?.type ?? 'child_checkin',
+        childCommission: roundMoney(Number(event?.childCommission ?? 0)),
+        parentReward: roundMoney(Number(event?.parentReward ?? 0)),
+        rate: Number(event?.rate ?? REFERRAL_PARENT_RATE),
+        createdAt: typeof event?.createdAt === 'string' ? event.createdAt : new Date().toISOString(),
+      }))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 100);
+
+    const totalReferralEarnings = roundMoney(rows.reduce((sum, row) => sum + row.referralEarnings, 0));
+    const totalParentRewards = roundMoney(events.reduce((sum, event) => sum + event.parentReward, 0));
+
+    return c.json({
+      rows,
+      events,
+      summary: {
+        totalReferralUsers: rows.length,
+        totalReferralEarnings,
+        totalParentRewards,
+        referralRate: REFERRAL_PARENT_RATE,
+      },
+    });
+  } catch (error) {
+    console.error('Admin referral overview error:', error);
+    return c.json({ error: 'Failed to fetch referral overview' }, 500);
+  }
+});
+
 // Get user data endpoint
 app.get("/make-server-a1c55d7e/user/:username", async (c) => {
   try {
@@ -529,37 +718,81 @@ app.get("/make-server-a1c55d7e/user/:username", async (c) => {
     
     if (!userData) {
       // Create default user data if not exists
-      const defaultUser = {
-        username,
-        vipLevel: 1,
-        balance: 0,
-        todayCommission: 0,
-        holdAmount: 0,
-        luckyBonus: 0,
-        tasksCompleted: 0,
-        tasksLimit: 40,
-        lastReset: new Date().toISOString().split('T')[0], // Today's date
-        isFrozen: false,
-        activePremium: null,
-        premiumQueue: [],
-      };
+      const defaultUser = defaultUserRecord(username);
       await kv.set(userKey, defaultUser);
       return c.json(defaultUser);
     }
+
+    const normalizedUserData = normalizeUserRecord(userData, username);
     
     // Check if we need to reset daily tasks
     const today = new Date().toISOString().split('T')[0];
-    if (userData.lastReset !== today) {
-      userData.tasksCompleted = 0;
-      userData.todayCommission = 0;
-      userData.lastReset = today;
-      await kv.set(userKey, userData);
+    if (normalizedUserData.lastReset !== today) {
+      normalizedUserData.tasksCompleted = 0;
+      normalizedUserData.todayCommission = 0;
+      normalizedUserData.lastReset = today;
+      await kv.set(userKey, normalizedUserData);
     }
-    
-    return c.json(userData);
+
+    return c.json(normalizedUserData);
   } catch (error) {
     console.error('Error fetching user data:', error);
     return c.json({ error: 'Failed to fetch user data' }, 500);
+  }
+});
+
+// Link referral identity for a user (username -> invitation code and parent invite code)
+app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:referral-link');
+    if (rateLimited) return rateLimited;
+
+    const body = await c.req.json();
+    const username = sanitizeUsername(body.username);
+    const invitationCode = sanitizeInviteCode(body.invitationCode);
+    const parentInviteCode = sanitizeInviteCode(body.parentInviteCode);
+
+    if (!username || !invitationCode || !parentInviteCode) {
+      return c.json({ error: 'username, invitationCode and parentInviteCode are required' }, 400);
+    }
+
+    await ensureRootReferralUser();
+
+    const existingOwner = await kv.get(`referral:invite:${invitationCode}`);
+    if (existingOwner && typeof existingOwner === 'string' && existingOwner !== username) {
+      return c.json({ error: 'Invitation code already belongs to another user' }, 409);
+    }
+
+    const parentUsernameRaw = await kv.get(`referral:invite:${parentInviteCode}`);
+    if (!parentUsernameRaw || typeof parentUsernameRaw !== 'string') {
+      return c.json({ error: 'Parent invitation code not found' }, 404);
+    }
+
+    const parentUsername = parentUsernameRaw;
+    const userData = await getOrCreateUserRecord(username);
+    userData.invitationCode = invitationCode;
+    userData.invitedByCode = parentInviteCode;
+    await kv.set(`user:${username}`, userData);
+
+    await kv.set(`referral:invite:${invitationCode}`, username);
+
+    const parentData = await getOrCreateUserRecord(parentUsername);
+    if (!parentData.children.includes(username)) {
+      parentData.children.push(username);
+      await kv.set(`user:${parentUsername}`, parentData);
+    }
+
+    return c.json({
+      success: true,
+      username,
+      invitationCode,
+      parentInviteCode,
+      parentUsername,
+      referralRate: REFERRAL_PARENT_RATE,
+    });
+  } catch (error) {
+    console.error('Error linking referral user:', error);
+    return c.json({ error: 'Failed to link referral user' }, 500);
   }
 });
 
@@ -587,8 +820,10 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
       return c.json({ error: 'User not found' }, 404);
     }
     
+    const normalizedUserData = normalizeUserRecord(userData, username);
+
     // Check if user has reached daily task limit
-    if (userData.tasksCompleted >= userData.tasksLimit) {
+    if (normalizedUserData.tasksCompleted >= normalizedUserData.tasksLimit) {
       return c.json({ error: 'Daily task limit reached' }, 400);
     }
     
@@ -601,24 +836,26 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
       5: 0.025   // 2.5%
     };
     
-    const commissionRate = commissionRates[userData.vipLevel] || 0.005;
+    const commissionRate = commissionRates[normalizedUserData.vipLevel] || 0.005;
     const commission = productPrice * commissionRate;
     
     // REMOVED: Random premium chance - premium is ADMIN-ONLY now
     
     // Update user data
-    userData.tasksCompleted += 1;
-    userData.todayCommission += commission;
-    userData.balance += commission;  // Only commission is added to balance
+    normalizedUserData.tasksCompleted += 1;
+    normalizedUserData.todayCommission += commission;
+    normalizedUserData.balance += commission;  // Only commission is added to balance
     
     // Random lucky bonus (1% chance)
     if (Math.random() < 0.01) {
       const luckyAmount = Math.floor(Math.random() * 100) + 50; // $50-$150
-      userData.luckyBonus += luckyAmount;
-      userData.balance += luckyAmount;
+      normalizedUserData.luckyBonus += luckyAmount;
+      normalizedUserData.balance += luckyAmount;
     }
+
+    const referralPayout = await creditParentReferralFromChildCommission(username, commission);
     
-    await kv.set(userKey, userData);
+    await kv.set(userKey, normalizedUserData);
     
     // Save task record
     const taskKey = `task:${username}:${Date.now()}`;
@@ -628,7 +865,7 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
       commission,
       isPremium: false,  // Regular tasks are never premium
       timestamp: new Date().toISOString(),
-      tasksCompleted: userData.tasksCompleted,
+      tasksCompleted: normalizedUserData.tasksCompleted,
     };
     await kv.set(taskKey, taskRecord);
     
@@ -636,11 +873,13 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
       success: true,
       commission,
       isPremium: false,
-      tasksCompleted: userData.tasksCompleted,
-      tasksLimit: userData.tasksLimit,
-      balance: userData.balance,
-      todayCommission: userData.todayCommission,
-      luckyBonus: userData.luckyBonus,
+      tasksCompleted: normalizedUserData.tasksCompleted,
+      tasksLimit: normalizedUserData.tasksLimit,
+      balance: normalizedUserData.balance,
+      todayCommission: normalizedUserData.todayCommission,
+      luckyBonus: normalizedUserData.luckyBonus,
+      parentReferralCommission: referralPayout.rewarded ? referralPayout.parentReward : 0,
+      parentReferralUsername: referralPayout.rewarded ? referralPayout.parentUsername : null,
     });
   } catch (error) {
     console.error('Error submitting task:', error);
@@ -802,7 +1041,12 @@ app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
       return c.json({ error: 'No active premium assignment' }, 404);
     }
 
-    const premium = userData.activePremium;
+    const normalizedUserData = normalizeUserRecord(userData, username);
+    if (!normalizedUserData.activePremium) {
+      return c.json({ error: 'No active premium assignment' }, 404);
+    }
+
+    const premium = normalizedUserData.activePremium;
     
     // Calculate commission based on VIP level
     const commissionRates = {
@@ -813,7 +1057,7 @@ app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
       5: 0.025   // 2.5%
     };
     
-    const commissionRate = commissionRates[userData.vipLevel] || 0.005;
+    const commissionRate = commissionRates[normalizedUserData.vipLevel] || 0.005;
     const commission = productPrice * commissionRate;
     
     // Update premium assignment progress
@@ -821,14 +1065,14 @@ app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
     premium.commissionEarned += commission;
     
     // Add commission to balance (not product value, only commission)
-    userData.balance += commission;
-    userData.todayCommission += commission;
+    normalizedUserData.balance += commission;
+    normalizedUserData.todayCommission += commission;
     
     // Update hold amount as balance increases
-    if (userData.balance < 0) {
-      userData.holdAmount = Math.abs(userData.balance);
+    if (normalizedUserData.balance < 0) {
+      normalizedUserData.holdAmount = Math.abs(normalizedUserData.balance);
     } else {
-      userData.holdAmount = 0;
+      normalizedUserData.holdAmount = 0;
     }
     
     // Check if all tasks completed
@@ -837,35 +1081,37 @@ app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
       premium.completedAt = new Date().toISOString();
       
       // Remove from queue
-      userData.premiumQueue = userData.premiumQueue.filter(p => p.id !== premium.id);
+      normalizedUserData.premiumQueue = normalizedUserData.premiumQueue.filter(p => p.id !== premium.id);
       
       // Activate next in queue if exists
-      if (userData.premiumQueue.length > 0) {
-        const nextPremium = userData.premiumQueue[0];
-        userData.activePremium = nextPremium;
-        userData.isFrozen = true;
+      if (normalizedUserData.premiumQueue.length > 0) {
+        const nextPremium = normalizedUserData.premiumQueue[0];
+        normalizedUserData.activePremium = nextPremium;
+        normalizedUserData.isFrozen = true;
         
         // Deduct next bundle value from balance
-        const newBalance = userData.balance - nextPremium.totalBundleValue;
-        nextPremium.balanceBeforeAssignment = userData.balance;
+        const newBalance = normalizedUserData.balance - nextPremium.totalBundleValue;
+        nextPremium.balanceBeforeAssignment = normalizedUserData.balance;
         nextPremium.balanceAfterAssignment = newBalance;
         nextPremium.negativeAmount = newBalance < 0 ? Math.abs(newBalance) : 0;
         nextPremium.topUpRequired = nextPremium.negativeAmount;
         
-        userData.balance = newBalance;
+        normalizedUserData.balance = newBalance;
         if (newBalance < 0) {
-          userData.holdAmount = Math.abs(newBalance);
+          normalizedUserData.holdAmount = Math.abs(newBalance);
         }
       } else {
         // No more premiums in queue
-        userData.isFrozen = false;
-        userData.activePremium = null;
+        normalizedUserData.isFrozen = false;
+        normalizedUserData.activePremium = null;
       }
     } else {
-      userData.activePremium = premium;
+      normalizedUserData.activePremium = premium;
     }
+
+    const premiumReferralPayout = await creditParentReferralFromChildCommission(username, commission);
     
-    await kv.set(userKey, userData);
+    await kv.set(userKey, normalizedUserData);
     
     // Update premium assignment record
     const premiumKey = `premium:${username}:${premium.id}`;
@@ -888,10 +1134,12 @@ app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
       commission,
       tasksCompleted: premium.tasksCompleted,
       totalTasks: premium.totalTasks,
-      balance: userData.balance,
-      holdAmount: userData.holdAmount,
+      balance: normalizedUserData.balance,
+      holdAmount: normalizedUserData.holdAmount,
       bundleCompleted: premium.status === 'completed',
-      nextInQueue: userData.premiumQueue.length > 0,
+      nextInQueue: normalizedUserData.premiumQueue.length > 0,
+      parentReferralCommission: premiumReferralPayout.rewarded ? premiumReferralPayout.parentReward : 0,
+      parentReferralUsername: premiumReferralPayout.rewarded ? premiumReferralPayout.parentUsername : null,
     });
   } catch (error) {
     console.error('Error completing premium task:', error);
