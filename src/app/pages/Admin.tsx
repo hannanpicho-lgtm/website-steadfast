@@ -599,6 +599,40 @@ export default function Admin() {
     }
   };
 
+  const handleDeleteAdminUser = async () => {
+    if (!selectedItem?.id) {
+      toast.error('Unable to delete admin: missing identifier.');
+      return;
+    }
+
+    const targetId = String(selectedItem.id);
+    if (currentAdminId && targetId === currentAdminId) {
+      toast.error('You cannot delete your own admin account.');
+      return;
+    }
+
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/users/${targetId}`, {
+        method: 'DELETE',
+        headers,
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to delete admin user');
+      }
+
+      await loadAdminUsers();
+      toast.success('Admin user deleted successfully.');
+      setModalType(null);
+      setSelectedItem(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete admin user';
+      toast.error(message);
+    }
+  };
+
   const handleCreateManualProduct = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setModalType(null);
@@ -2223,7 +2257,7 @@ export default function Admin() {
                 <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => { toast.error('Admin deleted!'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
+                <button onClick={() => void handleDeleteAdminUser()} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
                   Delete Admin
                 </button>
               </div>

@@ -662,6 +662,90 @@ app.post("/make-server-a1c55d7e/admin/users", async (c) => {
   }
 });
 
+app.delete("/make-server-a1c55d7e/admin/users/:adminId", async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const limited = enforceAdminRateLimit(c, 'admin-users:delete');
+    if (limited) {
+      return limited;
+    }
+
+    if (!authClient) {
+      return c.json({ error: 'Server auth configuration missing' }, 500);
+    }
+
+    const callingAdmin = c.get('adminUser');
+    const adminId = String(c.req.param('adminId') ?? '').trim();
+    if (!adminId) {
+      return c.json({ error: 'adminId is required' }, 400);
+    }
+
+    if (callingAdmin?.id === adminId) {
+      return c.json({ error: 'You cannot delete your own admin account' }, 400);
+    }
+
+    const { data: targetData, error: targetError } = await authClient.auth.admin.getUserById(adminId);
+    if (targetError || !targetData?.user) {
+      return c.json({ error: 'Admin user not found' }, 404);
+    }
+
+    if (!hasAdminRole(targetData.user)) {
+      return c.json({ error: 'Target user is not an admin account' }, 400);
+    }
+
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const targetIsSuperAdmin = isSuperAdmin(targetData.user);
+
+    if (targetIsSuperAdmin && !callerIsSuperAdmin) {
+      return c.json({ error: 'Only a super-admin can delete a super-admin account' }, 403);
+    }
+
+    if (targetIsSuperAdmin) {
+      const users: any[] = [];
+      let page = 1;
+      const perPage = 200;
+      while (page <= 10) {
+        const { data, error } = await authClient.auth.admin.listUsers({ page, perPage });
+        if (error) {
+          throw error;
+        }
+        const batch = Array.isArray(data?.users) ? data.users : [];
+        users.push(...batch);
+        if (batch.length < perPage) {
+          break;
+        }
+        page += 1;
+      }
+
+      const superAdminCount = users.filter((user) => hasAdminRole(user) && isSuperAdmin(user)).length;
+      if (superAdminCount <= 1) {
+        return c.json({ error: 'Cannot delete the last remaining super-admin account' }, 400);
+      }
+    }
+
+    const { error: deleteError } = await authClient.auth.admin.deleteUser(adminId);
+    if (deleteError) {
+      return c.json({ error: deleteError.message ?? 'Failed to delete admin user' }, 400);
+    }
+
+    const adminInviteKey = `admin:invite:by-admin:${adminId}`;
+    const existingCode = await kv.get(adminInviteKey);
+    if (typeof existingCode === 'string' && existingCode) {
+      await kv.del(`admin:invite:code:${existingCode}`);
+    }
+    await kv.del(adminInviteKey);
+
+    return c.json({ success: true, deletedAdminId: adminId });
+  } catch (error) {
+    console.error('Admin user delete error:', error);
+    return c.json({ error: 'Failed to delete admin user' }, 500);
+  }
+});
+
 app.get('/make-server-a1c55d7e/admin/referrals/overview', async (c) => {
   try {
     const unauthorized = await requireAdmin(c);
