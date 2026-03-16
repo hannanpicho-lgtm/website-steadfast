@@ -252,6 +252,33 @@ type MenuItem = {
   badge?: number;
 };
 
+function formatRelativeTime(timestamp: string): string {
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) {
+    return 'just now';
+  }
+
+  const diffInSeconds = Math.round((parsed.getTime() - Date.now()) / 1000);
+  const absSeconds = Math.abs(diffInSeconds);
+  const formatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+
+  const units: Array<{ unit: Intl.RelativeTimeFormatUnit; seconds: number }> = [
+    { unit: 'year', seconds: 31_536_000 },
+    { unit: 'month', seconds: 2_592_000 },
+    { unit: 'week', seconds: 604_800 },
+    { unit: 'day', seconds: 86_400 },
+    { unit: 'hour', seconds: 3_600 },
+    { unit: 'minute', seconds: 60 },
+  ];
+
+  for (const { unit, seconds } of units) {
+    if (absSeconds >= seconds) {
+      return formatter.format(Math.round(diffInSeconds / seconds), unit);
+    }
+  }
+
+  return formatter.format(diffInSeconds, 'second');
+}
 type ModalType = 'add-user' | 'edit-user' | 'view-user' | 'delete-user' | 'view-transaction' | 'approve-withdrawal' | 'reject-withdrawal' | 'add-task' | 'edit-vip' | 'notification' | 'add-product-manual' | 'add-product-ai' | 'edit-product' | 'view-product' | 'delete-product' | 'edit-workday-reward' | 'edit-reset-reward' | 'edit-accumulated-reward' | 'edit-product-system' | 'pay-salary' | 'pay-salary-bulk' | 'add-admin' | 'edit-admin' | 'view-admin' | 'delete-admin' | 'add-role' | 'edit-role' | 'view-role-permissions' | 'delete-role' | null;
 
 export default function Admin() {
@@ -4047,7 +4074,7 @@ export default function Admin() {
                     <h3 className="text-white font-semibold mb-1">System Maintenance Notice</h3>
                     <p className="text-gray-400 text-sm mb-2">Scheduled maintenance on March 10, 2024 from 2:00 AM - 4:00 AM EST</p>
                     <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span className="flex items-center gap-1"><Clock size={12} /> 2 hours ago</span>
+                      <span className="flex items-center gap-1"><Clock size={12} /> {formatRelativeTime('2026-03-17T02:55:00Z')}</span>
                       <span>Sent to: All Users</span>
                       <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded">High Priority</span>
                     </div>
@@ -4064,7 +4091,7 @@ export default function Admin() {
                     <h3 className="text-white font-semibold mb-1">New VIP Benefits Available</h3>
                     <p className="text-gray-400 text-sm mb-2">VIP 4 and VIP 5 members can now access exclusive high-commission tasks</p>
                     <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span className="flex items-center gap-1"><Clock size={12} /> 1 day ago</span>
+                      <span className="flex items-center gap-1"><Clock size={12} /> {formatRelativeTime('2026-03-16T10:00:00Z')}</span>
                       <span>Sent to: VIP 4, VIP 5</span>
                       <span className="px-2 py-1 bg-green-500/20 text-green-300 rounded">Normal</span>
                     </div>
@@ -4081,7 +4108,7 @@ export default function Admin() {
                     <h3 className="text-white font-semibold mb-1">Security Update Required</h3>
                     <p className="text-gray-400 text-sm mb-2">Please update your password for enhanced security</p>
                     <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span className="flex items-center gap-1"><Clock size={12} /> 3 days ago</span>
+                      <span className="flex items-center gap-1"><Clock size={12} /> {formatRelativeTime('2026-03-14T16:30:00Z')}</span>
                       <span>Sent to: All Users</span>
                       <span className="px-2 py-1 bg-red-500/20 text-red-300 rounded">Urgent</span>
                     </div>
