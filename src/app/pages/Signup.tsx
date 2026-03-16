@@ -243,7 +243,7 @@ export default function Signup() {
               required
             />
             <p className="mt-2 text-xs text-gray-500">
-              Invitation code is required. It must be exactly 5 letters/numbers. For initial onboarding, use system code: {getSystemInviteCode()}.
+              Invitation code is required. It must be exactly 5 letters/numbers and include at least one number. For initial onboarding, use system code: {getSystemInviteCode()}.
             </p>
           </div>
 

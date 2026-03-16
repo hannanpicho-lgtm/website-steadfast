@@ -121,15 +121,19 @@ function round2(value: number): number {
 
 function randomCode(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const digitChars = '0123456789';
   let out = '';
   for (let i = 0; i < 5; i += 1) {
     out += chars[Math.floor(Math.random() * chars.length)];
   }
+  const digitPosition = Math.floor(Math.random() * 5);
+  const digit = digitChars[Math.floor(Math.random() * digitChars.length)];
+  out = `${out.slice(0, digitPosition)}${digit}${out.slice(digitPosition + 1)}`;
   return out;
 }
 
 function isCodeValid(code: string): boolean {
-  return /^[A-Z0-9]{5}$/.test(code);
+  return /^(?=.*\d)[A-Z0-9]{5}$/.test(code);
 }
 
 function normalizeCode(code: string): string {
@@ -226,7 +230,7 @@ export function registerUserWithInvitation(payload: RegisterPayload): RegisterRe
 
   const inviteCode = normalizeCode(payload.invitationCode);
   if (!isCodeValid(inviteCode)) {
-    return { ok: false, error: 'Invitation code must be exactly 5 letters/numbers.' };
+    return { ok: false, error: 'Invitation code must be exactly 5 letters/numbers and include at least one number.' };
   }
 
   const parent = store.accounts.find((x) => x.invitationCode === inviteCode);

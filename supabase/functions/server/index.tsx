@@ -355,7 +355,7 @@ function sanitizeUsername(value: unknown): string | null {
 function sanitizeInviteCode(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim().toUpperCase();
-  if (!/^[A-Z0-9]{5}$/.test(normalized)) return null;
+  if (!/^(?=.*\d)[A-Z0-9]{5}$/.test(normalized)) return null;
   return normalized;
 }
 
