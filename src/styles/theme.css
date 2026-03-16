@@ -321,3 +321,40 @@
     @apply inline-flex items-center gap-1 text-sm font-semibold text-[#0066cc] transition-colors hover:text-[#0055aa] hover:underline;
   }
 }
+
+@layer utilities {
+  /* Improve readability in dark dashboard shells where gray utility text can be too dim. */
+  :is(
+    [class*="bg-\\[\\#1a1f2e\\]"],
+    [class*="bg-\\[\\#252b3d\\]"],
+    [class*="bg-\\[\\#2f374d\\]"],
+    [class*="bg-\\[\\#3b4258\\]"],
+    [class*="bg-slate-900"],
+    [class*="bg-gray-900"]
+  ) .text-gray-500 {
+    color: #aeb9cd !important;
+  }
+
+  :is(
+    [class*="bg-\\[\\#1a1f2e\\]"],
+    [class*="bg-\\[\\#252b3d\\]"],
+    [class*="bg-\\[\\#2f374d\\]"],
+    [class*="bg-\\[\\#3b4258\\]"],
+    [class*="bg-slate-900"],
+    [class*="bg-gray-900"]
+  ) .text-gray-400 {
+    color: #c2ccdc !important;
+  }
+
+  :is(
+    [class*="bg-\\[\\#1a1f2e\\]"],
+    [class*="bg-\\[\\#252b3d\\]"],
+    [class*="bg-\\[\\#2f374d\\]"],
+    [class*="bg-\\[\\#3b4258\\]"],
+    [class*="bg-slate-900"],
+    [class*="bg-gray-900"]
+  ) .placeholder-gray-400::placeholder {
+    color: #9eacc3 !important;
+    opacity: 1;
+  }
+}
