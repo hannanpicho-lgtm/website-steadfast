@@ -29,7 +29,7 @@ export default function Login() {
     const from = (location.state as { from?: string })?.from;
     const normalizedIdentifier = username.trim().toLowerCase();
     const wantsAdminAccess = adminRequired || from === '/admin';
-    const isLikelyAdminIdentifier = normalizedIdentifier.includes('@') || resolveAdminIdentifier(normalizedIdentifier) !== normalizedIdentifier;
+    const isLikelyAdminIdentifier = normalizedIdentifier.includes('@');
 
     if (wantsAdminAccess || isLikelyAdminIdentifier) {
       const adminResult = await signInAdmin(username, password);
@@ -91,7 +91,7 @@ export default function Login() {
           <div>
             <input
               type="text"
-              placeholder={adminRequired ? 'Admin email or mapped admin username' : 'Username/Phone'}
+              placeholder={adminRequired ? 'Admin email address' : 'Username/Phone'}
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
@@ -151,7 +151,7 @@ export default function Login() {
             Local admin demo: {getAdminCredentials().username} / {getAdminCredentials().password}
           </p>
           <p className="text-center text-xs text-gray-500">
-            Secure admin access requires a Supabase Auth admin user with app_metadata.role = admin.
+            Secure admin access requires a real Supabase Auth admin email with app_metadata.role = admin or super_admin.
           </p>
 
           {/* Sign Up Link */}

@@ -11,26 +11,12 @@ export const supabase = createClient(supabaseUrl, publicAnonKey, {
   },
 });
 
-const ADMIN_EMAIL_ALIASES: Record<string, string> = {
-  admin: 'admin@steadfastdigital.com',
-  finance_admin: 'finance@steadfastdigital.com',
-  product_manager: 'products@steadfastdigital.com',
-  support_agent1: 'support1@steadfastdigital.com',
-  moderator1: 'moderator@steadfastdigital.com',
-  finance_assistant: 'finance.assistant@steadfastdigital.com',
-};
-
 function normalizeIdentifier(identifier: string): string {
   return identifier.trim().toLowerCase();
 }
 
 export function resolveAdminIdentifier(identifier: string): string {
-  const normalized = normalizeIdentifier(identifier);
-  if (normalized.includes('@')) {
-    return normalized;
-  }
-
-  return ADMIN_EMAIL_ALIASES[normalized] ?? normalized;
+  return normalizeIdentifier(identifier);
 }
 
 export function userHasAdminRole(user: User | null | undefined): boolean {
@@ -68,6 +54,10 @@ export function userHasAdminRole(user: User | null | undefined): boolean {
 
 export async function signInAdmin(identifier: string, password: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const email = resolveAdminIdentifier(identifier);
+  if (!email.includes('@')) {
+    return { ok: false, error: 'Enter a valid admin email address.' };
+  }
+
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
