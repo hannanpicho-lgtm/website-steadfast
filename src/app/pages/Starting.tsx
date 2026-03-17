@@ -6,6 +6,7 @@ import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
+import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 
 interface UserData {
   username: string;
@@ -46,19 +47,11 @@ export default function Starting() {
   const [isPremium, setIsPremium] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [taskCatalog, setTaskCatalog] = useState<TaskCatalogItem[]>([]);
+  const [vipConfigurations, setVipConfigurations] = useState<VipConfig[]>([]);
   
   const sessionUsername = getCurrentUsername();
   const username = sessionUsername ?? 'ugreen';
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
-
-  // VIP commission rates
-  const commissionRates: Record<number, number> = {
-    1: 0.5,   // 0.5%
-    2: 1.0,   // 1%
-    3: 1.5,   // 1.5%
-    4: 2.0,   // 2%
-    5: 2.5    // 2.5%
-  };
 
   const activeTasks = taskCatalog.filter((task) => task.status === 'Active');
   const currentProduct = activeTasks.length > 0 ? activeTasks[currentProductIndex % activeTasks.length] : null;
@@ -73,7 +66,9 @@ export default function Starting() {
     }, 3000);
     return () => clearInterval(timer);
   }, [activeTasks.length]);
-  const commissionRate = userData ? commissionRates[userData.vipLevel] || 0.5 : 0.5;
+  const commissionRate = userData
+    ? (vipConfigurations.find((tier) => tier.level === userData.vipLevel)?.commission ?? 0.005) * 100
+    : 0.5;
   const estimatedCommission = currentProduct ? currentProduct.price * (commissionRate / 100) : 0;
 
   // Fetch user data on mount
@@ -104,8 +99,9 @@ export default function Starting() {
       setLoading(true);
       let data;
       let tasksPayload: { tasks?: TaskCatalogItem[] } | null = null;
+      let vipPayload: VipConfig[] = [];
       try {
-        const [user, tasks] = await Promise.all([
+        const [user, tasks, vipConfig] = await Promise.all([
           fetchUserByName(username),
           fetch(`${serverUrl}/tasks/catalog`, {
             headers: {
@@ -118,12 +114,14 @@ export default function Starting() {
             }
             return payload;
           }),
+          fetchPublicVipConfig(),
         ]);
         data = user;
         tasksPayload = tasks;
+        vipPayload = vipConfig;
       } catch {
         // Fallback keeps dashboard usable for newly registered local users.
-        const [user, tasks] = await Promise.all([
+        const [user, tasks, vipConfig] = await Promise.all([
           fetchUserByName('ugreen'),
           fetch(`${serverUrl}/tasks/catalog`, {
             headers: {
@@ -136,12 +134,15 @@ export default function Starting() {
             }
             return payload;
           }),
+          fetchPublicVipConfig(),
         ]);
         data = user;
         tasksPayload = tasks;
+        vipPayload = vipConfig;
       }
       setUserData(data);
       setTaskCatalog(Array.isArray(tasksPayload?.tasks) ? tasksPayload.tasks : []);
+      setVipConfigurations(vipPayload);
     } catch (error) {
       console.error('Error fetching user data:', error);
     } finally {

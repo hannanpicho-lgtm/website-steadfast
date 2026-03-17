@@ -63,6 +63,7 @@ import {
 } from 'lucide-react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { buildAdminAuthHeaders, supabase } from '../services/supabaseAuth';
+import { fetchAdminVipConfig, type VipConfig, updateAdminVipConfig } from '../services/vipConfig';
 import { projectId } from '/utils/supabase/info';
 import {
   AUTO_BACKUP_INTERVAL_MS,
@@ -100,7 +101,7 @@ const mockUsers = [
 
 
 // VIP Configuration
-const vipLevels = [
+const defaultVipConfigurations: VipConfig[] = [
   { level: 1, name: 'VIP 1', investment: 100, dailyTasks: 10, commission: 0.005, color: 'bronze' },
   { level: 2, name: 'VIP 2', investment: 500, dailyTasks: 15, commission: 0.010, color: 'silver' },
   { level: 3, name: 'VIP 3', investment: 2000, dailyTasks: 20, commission: 0.015, color: 'gold' },
@@ -108,7 +109,7 @@ const vipLevels = [
   { level: 5, name: 'VIP 5', investment: 10000, dailyTasks: 30, commission: 0.025, color: 'diamond' },
 ];
 
-type VipLevelConfig = (typeof vipLevels)[number];
+type VipLevelConfig = VipConfig;
 type VipDraftState = {
   investment: string;
   dailyTasks: string;
@@ -383,7 +384,9 @@ export default function Admin() {
   const [newAdminInvitationCode, setNewAdminInvitationCode] = useState<string | null>(null);
   const [currentAdminInvitationCode, setCurrentAdminInvitationCode] = useState<string | null>(null);
   const [currentAdminCodeLoading, setCurrentAdminCodeLoading] = useState(false);
-  const [vipConfigurations, setVipConfigurations] = useState<VipLevelConfig[]>(vipLevels);
+  const [vipConfigurations, setVipConfigurations] = useState<VipLevelConfig[]>(defaultVipConfigurations);
+  const [vipConfigLoading, setVipConfigLoading] = useState(false);
+  const [savingVipLevel, setSavingVipLevel] = useState<number | null>(null);
   const [editingVipLevel, setEditingVipLevel] = useState<number | null>(null);
   const [vipDraft, setVipDraft] = useState<VipDraftState | null>(null);
   const [taskConfigurations, setTaskConfigurations] = useState<TaskConfig[]>([]);
@@ -426,7 +429,21 @@ export default function Admin() {
     setVipDraft(null);
   };
 
-  const handleSaveVipInlineEdit = (level: number) => {
+  const loadVipConfigurations = async () => {
+    setVipConfigLoading(true);
+    try {
+      const tiers = await fetchAdminVipConfig();
+      setVipConfigurations(tiers.length > 0 ? tiers : defaultVipConfigurations);
+    } catch (error) {
+      setVipConfigurations(defaultVipConfigurations);
+      const message = error instanceof Error ? error.message : 'Failed to load VIP configuration';
+      toast.error(message);
+    } finally {
+      setVipConfigLoading(false);
+    }
+  };
+
+  const handleSaveVipInlineEdit = async (level: number) => {
     if (!vipDraft) return;
 
     const investment = Number(vipDraft.investment);
@@ -448,22 +465,27 @@ export default function Admin() {
       return;
     }
 
-    setVipConfigurations((prev) =>
-      prev.map((vip) =>
-        vip.level === level
-          ? {
-              ...vip,
-              investment,
-              dailyTasks,
-              commission: commissionPercent / 100,
-            }
-          : vip,
-      ),
-    );
+    try {
+      setSavingVipLevel(level);
+      const updatedTier = await updateAdminVipConfig(level, {
+        investment,
+        dailyTasks,
+        commission: commissionPercent / 100,
+      });
 
-    toast.success('VIP level updated.');
-    setEditingVipLevel(null);
-    setVipDraft(null);
+      setVipConfigurations((prev) =>
+        prev.map((vip) => (vip.level === level ? updatedTier : vip)),
+      );
+
+      toast.success('VIP level updated.');
+      setEditingVipLevel(null);
+      setVipDraft(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update VIP level';
+      toast.error(message);
+    } finally {
+      setSavingVipLevel(null);
+    }
   };
 
   const handleStartTaskInlineEdit = (task: TaskConfig) => {
@@ -849,6 +871,14 @@ export default function Admin() {
 
     void loadTaskConfigurations();
   }, [activeMenu, serverUrl]);
+
+  useEffect(() => {
+    if (!['home', 'financials', 'vip-config'].includes(activeMenu)) {
+      return;
+    }
+
+    void loadVipConfigurations();
+  }, [activeMenu]);
 
   const handleCreateAdminUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -3062,7 +3092,7 @@ export default function Admin() {
   const activePlatformUsers = platformUsers.filter((user) => !user.isFrozen).length;
   const averageBalance = platformUsers.length > 0 ? totalUserBalances / platformUsers.length : 0;
   const averageCommissionRate = platformUsers.length > 0
-    ? (platformUsers.reduce((sum, user) => sum + (vipLevels.find((vip) => vip.level === user.vipLevel)?.commission ?? 0), 0) / platformUsers.length) * 100
+    ? (platformUsers.reduce((sum, user) => sum + (vipConfigurations.find((vip) => vip.level === user.vipLevel)?.commission ?? 0), 0) / platformUsers.length) * 100
     : 0;
   const totalFinanceVolume = totalDeposits + totalWithdrawals + totalCommissions;
 
@@ -4796,6 +4826,9 @@ export default function Admin() {
                 <h2 className="text-2xl font-bold text-white">VIP Level Configuration</h2>
                 <p className="text-gray-400 text-sm mt-1">Configure VIP tiers, benefits, and commission rates</p>
               </div>
+              {vipConfigLoading ? (
+                <div className="text-sm text-[#00D9FF]">Loading VIP tiers...</div>
+              ) : null}
             </div>
 
             {/* VIP Levels Grid */}
@@ -4828,6 +4861,7 @@ export default function Admin() {
                               min={1}
                               value={vipDraft.investment}
                               onChange={(e) => setVipDraft((prev) => (prev ? { ...prev, investment: e.target.value } : prev))}
+                              disabled={savingVipLevel === vip.level}
                               className="w-full bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-white font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
                             />
                           ) : (
@@ -4846,6 +4880,7 @@ export default function Admin() {
                               step={1}
                               value={vipDraft.dailyTasks}
                               onChange={(e) => setVipDraft((prev) => (prev ? { ...prev, dailyTasks: e.target.value } : prev))}
+                              disabled={savingVipLevel === vip.level}
                               className="w-full bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-[#00D9FF] font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
                             />
                           ) : (
@@ -4865,6 +4900,7 @@ export default function Admin() {
                                 step={0.01}
                                 value={vipDraft.commissionPercent}
                                 onChange={(e) => setVipDraft((prev) => (prev ? { ...prev, commissionPercent: e.target.value } : prev))}
+                                disabled={savingVipLevel === vip.level}
                                 className="w-full bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-green-400 font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
                               />
                               <span className="text-green-400 font-bold">%</span>
@@ -4886,7 +4922,8 @@ export default function Admin() {
                       {editingVipLevel === vip.level ? (
                         <>
                           <button
-                            onClick={() => handleSaveVipInlineEdit(vip.level)}
+                            onClick={() => void handleSaveVipInlineEdit(vip.level)}
+                            disabled={savingVipLevel === vip.level}
                             className="p-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg transition-colors"
                             title="Save"
                           >
@@ -4894,6 +4931,7 @@ export default function Admin() {
                           </button>
                           <button
                             onClick={handleCancelVipInlineEdit}
+                            disabled={savingVipLevel === vip.level}
                             className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors"
                             title="Cancel"
                           >
@@ -5405,10 +5443,10 @@ export default function Admin() {
                   <Shield className="text-gray-400" size={20} />
                 </div>
                 <div className="space-y-3">
-                  {vipLevels.map((vip) => {
+                  {vipConfigurations.map((vip) => {
                     const vipUsers = platformUsers.filter((user) => user.vipLevel === vip.level);
                     const vipRevenue = vipUsers.reduce((sum, user) => sum + user.balance, 0);
-                    const maxRevenue = Math.max(...vipLevels.map(v => 
+                    const maxRevenue = Math.max(...vipConfigurations.map(v => 
                       platformUsers.filter((user) => user.vipLevel === v.level).reduce((sum, user) => sum + user.balance, 0)
                     ));
                     

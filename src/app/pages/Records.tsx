@@ -6,6 +6,7 @@ import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
+import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 
 interface UserData {
   username: string;
@@ -60,21 +61,13 @@ export default function Records() {
   const [taskRecords, setTaskRecords] = useState<TaskRecord[]>([]);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [taskCatalog, setTaskCatalog] = useState<TaskCatalogItem[]>([]);
+  const [vipConfigurations, setVipConfigurations] = useState<VipConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   const sessionUsername = getCurrentUsername();
   const username = sessionUsername ?? 'ugreen';
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
-
-  // VIP commission rates
-  const commissionRates: Record<number, number> = {
-    1: 0.5,   // 0.5%
-    2: 1.0,   // 1%
-    3: 1.5,   // 1.5%
-    4: 2.0,   // 2%
-    5: 2.5    // 2.5%
-  };
 
   useEffect(() => {
     if (!sessionUsername) {
@@ -137,27 +130,31 @@ export default function Records() {
       setLoading(true);
 
       try {
-        const [user, tasks, transactionHistory, catalog] = await Promise.all([
+        const [user, tasks, transactionHistory, catalog, vipConfig] = await Promise.all([
           fetchUser(username),
           fetchTasks(username),
           fetchTransactions(username),
           fetchTaskCatalog(),
+          fetchPublicVipConfig(),
         ]);
         setUserData(user);
         setTaskRecords(tasks);
         setTransactions(Array.isArray(transactionHistory) ? transactionHistory : []);
         setTaskCatalog(Array.isArray(catalog?.tasks) ? catalog.tasks : []);
+        setVipConfigurations(vipConfig);
       } catch {
-        const [user, tasks, transactionHistory, catalog] = await Promise.all([
+        const [user, tasks, transactionHistory, catalog, vipConfig] = await Promise.all([
           fetchUser('ugreen'),
           fetchTasks('ugreen'),
           fetchTransactions('ugreen'),
           fetchTaskCatalog(),
+          fetchPublicVipConfig(),
         ]);
         setUserData(user);
         setTaskRecords(tasks);
         setTransactions(Array.isArray(transactionHistory) ? transactionHistory : []);
         setTaskCatalog(Array.isArray(catalog?.tasks) ? catalog.tasks : []);
+        setVipConfigurations(vipConfig);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -186,7 +183,7 @@ export default function Records() {
   });
 
   // Get pending products (remaining products to submit today)
-  const pendingCount = (userData?.tasksLimit || 40) - (userData?.tasksCompleted || 0);
+  const pendingCount = (userData?.tasksLimit || 10) - (userData?.tasksCompleted || 0);
   const pendingProducts = Array.from({ length: pendingCount }, (_, index) => {
     const product = activeTasks.length > 0
       ? activeTasks[((userData?.tasksCompleted || 0) + index) % activeTasks.length]
@@ -194,7 +191,7 @@ export default function Records() {
     if (!product) {
       return null;
     }
-    const commissionRate = commissionRates[userData?.vipLevel || 1] || 0.5;
+    const commissionRate = ((vipConfigurations.find((tier) => tier.level === (userData?.vipLevel || 1))?.commission) ?? 0.005) * 100;
     const estimatedCommission = product.price * (commissionRate / 100);
     
     return {

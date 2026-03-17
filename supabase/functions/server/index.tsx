@@ -389,6 +389,7 @@ function roundMoney(value: number): number {
 const TRANSACTION_KEY_PREFIX = 'transaction:';
 const WITHDRAWAL_KEY_PREFIX = 'withdrawal:';
 const TASK_CATALOG_KEY_PREFIX = 'task-catalog:';
+const VIP_CONFIG_KEY_PREFIX = 'vip-config:';
 
 const defaultTaskCatalog = [
   {
@@ -435,6 +436,14 @@ const defaultTaskCatalog = [
     rating: 4.3,
     productUrl: 'https://example.com/products/4k-webcam',
   },
+];
+
+const defaultVipConfig = [
+  { level: 1, name: 'VIP 1', investment: 100, dailyTasks: 10, commission: 0.005, color: 'bronze' },
+  { level: 2, name: 'VIP 2', investment: 500, dailyTasks: 15, commission: 0.01, color: 'silver' },
+  { level: 3, name: 'VIP 3', investment: 2000, dailyTasks: 20, commission: 0.015, color: 'gold' },
+  { level: 4, name: 'VIP 4', investment: 5000, dailyTasks: 25, commission: 0.02, color: 'platinum' },
+  { level: 5, name: 'VIP 5', investment: 10000, dailyTasks: 30, commission: 0.025, color: 'diamond' },
 ];
 
 function createFinanceId(prefix: string): string {
@@ -499,6 +508,66 @@ function sanitizeTaskUrl(value: unknown): string {
   } catch {
     return '';
   }
+}
+
+function normalizeVipConfigRecord(record: any) {
+  const level = Number.isFinite(Number(record?.level)) ? Number(record.level) : 1;
+  const createdAt = typeof record?.createdAt === 'string' && record.createdAt
+    ? record.createdAt
+    : new Date().toISOString();
+  const updatedAt = typeof record?.updatedAt === 'string' && record.updatedAt
+    ? record.updatedAt
+    : createdAt;
+
+  return {
+    level,
+    name: sanitizeTaskText(record?.name, `VIP ${level}`),
+    investment: roundMoney(Number(record?.investment ?? 0)),
+    dailyTasks: Math.max(1, Math.round(Number(record?.dailyTasks ?? 1))),
+    commission: Number.isFinite(Number(record?.commission)) ? Number(record.commission) : 0.005,
+    color: sanitizeTaskText(record?.color, 'bronze'),
+    createdAt,
+    updatedAt,
+  };
+}
+
+async function ensureVipConfigSeeded() {
+  const existing = await kv.getByPrefix(VIP_CONFIG_KEY_PREFIX);
+  if (existing.length > 0) {
+    return;
+  }
+
+  for (const tier of defaultVipConfig) {
+    const normalized = normalizeVipConfigRecord({
+      ...tier,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    await kv.set(`${VIP_CONFIG_KEY_PREFIX}${normalized.level}`, normalized);
+  }
+}
+
+async function listVipConfigRecords() {
+  await ensureVipConfigSeeded();
+  const tiers = await kv.getByPrefix(VIP_CONFIG_KEY_PREFIX);
+  return tiers
+    .map((tier) => normalizeVipConfigRecord(tier))
+    .sort((left, right) => left.level - right.level);
+}
+
+async function getVipConfigForLevel(level: number) {
+  const tiers = await listVipConfigRecords();
+  if (tiers.length === 0) {
+    return normalizeVipConfigRecord(defaultVipConfig[0]);
+  }
+
+  const exact = tiers.find((tier) => tier.level === level);
+  if (exact) {
+    return exact;
+  }
+
+  const highestBelow = [...tiers].reverse().find((tier) => tier.level <= level);
+  return highestBelow ?? tiers[0];
 }
 
 function normalizeTaskCatalogRecord(record: any) {
@@ -707,7 +776,7 @@ function defaultUserRecord(username: string) {
     holdAmount: 0,
     luckyBonus: 0,
     tasksCompleted: 0,
-    tasksLimit: 40,
+    tasksLimit: 10,
     lastReset: new Date().toISOString().split('T')[0],
     isFrozen: false,
     activePremium: null,
@@ -746,17 +815,44 @@ function normalizeUserRecord(userData: any, username: string) {
   return normalized;
 }
 
+async function syncUserWithVipConfig(userData: any, username: string) {
+  const normalized = normalizeUserRecord(userData, username);
+  const vipConfig = await getVipConfigForLevel(Number(normalized.vipLevel ?? 1));
+  normalized.vipLevel = vipConfig.level;
+  normalized.tasksLimit = vipConfig.dailyTasks;
+  return normalized;
+}
+
+async function syncUsersForVipLevel(level: number) {
+  const allUsers = await kv.getByPrefix('user:');
+
+  for (const rawUser of allUsers) {
+    const username = sanitizeUsername(rawUser?.username);
+    if (!username) {
+      continue;
+    }
+
+    const normalizedUser = normalizeUserRecord(rawUser, username);
+    if (Number(normalizedUser.vipLevel ?? 1) !== level) {
+      continue;
+    }
+
+    const syncedUser = await syncUserWithVipConfig(normalizedUser, username);
+    await kv.set(`user:${username}`, syncedUser);
+  }
+}
+
 async function getOrCreateUserRecord(username: string) {
   const userKey = `user:${username}`;
   const userData = await kv.get(userKey);
 
   if (!userData) {
-    const created = defaultUserRecord(username);
+    const created = await syncUserWithVipConfig(defaultUserRecord(username), username);
     await kv.set(userKey, created);
     return created;
   }
 
-  const normalized = normalizeUserRecord(userData, username);
+  const normalized = await syncUserWithVipConfig(userData, username);
   await kv.set(userKey, normalized);
   return normalized;
 }
@@ -1182,12 +1278,12 @@ app.get("/make-server-a1c55d7e/user/:username", async (c) => {
     
     if (!userData) {
       // Create default user data if not exists
-      const defaultUser = defaultUserRecord(username);
+      const defaultUser = await syncUserWithVipConfig(defaultUserRecord(username), username);
       await kv.set(userKey, defaultUser);
       return c.json(defaultUser);
     }
 
-    const normalizedUserData = normalizeUserRecord(userData, username);
+    const normalizedUserData = await syncUserWithVipConfig(userData, username);
     
     // Check if we need to reset daily tasks
     const today = new Date().toISOString().split('T')[0];
@@ -1302,23 +1398,16 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
       return c.json({ error: 'User not found' }, 404);
     }
     
-    const normalizedUserData = normalizeUserRecord(userData, username);
+    const normalizedUserData = await syncUserWithVipConfig(userData, username);
 
     // Check if user has reached daily task limit
     if (normalizedUserData.tasksCompleted >= normalizedUserData.tasksLimit) {
       return c.json({ error: 'Daily task limit reached' }, 400);
     }
     
-    // Calculate commission based on VIP level
-    const commissionRates = {
-      1: 0.005,  // 0.5%
-      2: 0.01,   // 1%
-      3: 0.015,  // 1.5%
-      4: 0.02,   // 2%
-      5: 0.025   // 2.5%
-    };
-    
-    const commissionRate = commissionRates[normalizedUserData.vipLevel] || 0.005;
+    const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
+    normalizedUserData.tasksLimit = vipConfig.dailyTasks;
+    const commissionRate = vipConfig.commission;
     const commission = roundMoney(productPrice * commissionRate);
     
     // REMOVED: Random premium chance - premium is ADMIN-ONLY now
@@ -1436,6 +1525,16 @@ app.get('/make-server-a1c55d7e/tasks/catalog', async (c) => {
   }
 });
 
+app.get('/make-server-a1c55d7e/vip-config', async (c) => {
+  try {
+    const tiers = await listVipConfigRecords();
+    return c.json({ tiers });
+  } catch (error) {
+    console.error('Error fetching VIP config:', error);
+    return c.json({ error: 'Failed to fetch VIP config' }, 500);
+  }
+});
+
 app.get('/make-server-a1c55d7e/transactions/:username', async (c) => {
   try {
     const username = sanitizeUsername(c.req.param('username'));
@@ -1490,7 +1589,7 @@ app.post('/make-server-a1c55d7e/withdrawals/request', async (c) => {
       return c.json({ error: 'User not found' }, 404);
     }
 
-    const normalizedUserData = normalizeUserRecord(userData, username);
+    const normalizedUserData = await syncUserWithVipConfig(userData, username);
     const availableAmount = roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount);
     if (amount > availableAmount) {
       return c.json({ error: 'Withdrawal amount exceeds available balance' }, 400);
@@ -1674,16 +1773,9 @@ app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
 
     const premium = normalizedUserData.activePremium;
     
-    // Calculate commission based on VIP level
-    const commissionRates = {
-      1: 0.005,  // 0.5%
-      2: 0.01,   // 1%
-      3: 0.015,  // 1.5%
-      4: 0.02,   // 2%
-      5: 0.025   // 2.5%
-    };
-    
-    const commissionRate = commissionRates[normalizedUserData.vipLevel] || 0.005;
+    const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
+    normalizedUserData.tasksLimit = vipConfig.dailyTasks;
+    const commissionRate = vipConfig.commission;
     const commission = roundMoney(productPrice * commissionRate);
     
     // Update premium assignment progress
@@ -1926,6 +2018,25 @@ app.get('/make-server-a1c55d7e/admin/tasks', async (c) => {
   }
 });
 
+app.get('/make-server-a1c55d7e/admin/vip-config', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:vip-config-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const tiers = await listVipConfigRecords();
+    return c.json({ tiers });
+  } catch (error) {
+    console.error('Error fetching admin VIP config:', error);
+    return c.json({ error: 'Failed to fetch VIP config' }, 500);
+  }
+});
+
 app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
   try {
     const unauthorized = await requireAdmin(c);
@@ -2030,6 +2141,62 @@ app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
   } catch (error) {
     console.error('Error updating admin task:', error);
     return c.json({ error: 'Failed to update task' }, 500);
+  }
+});
+
+app.put('/make-server-a1c55d7e/admin/vip-config/:level', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:vip-config-update');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const level = Number(c.req.param('level'));
+    if (!Number.isInteger(level) || level <= 0) {
+      return c.json({ error: 'Invalid VIP level' }, 400);
+    }
+
+    const existingTier = await getVipConfigForLevel(level);
+    if (existingTier.level !== level) {
+      return c.json({ error: 'VIP level not found' }, 404);
+    }
+
+    const body = await c.req.json();
+    const investment = Number.isFinite(Number(body?.investment)) ? roundMoney(Number(body.investment)) : existingTier.investment;
+    const dailyTasks = Number.isFinite(Number(body?.dailyTasks)) ? Math.round(Number(body.dailyTasks)) : existingTier.dailyTasks;
+    const commission = Number.isFinite(Number(body?.commission)) ? Number(body.commission) : existingTier.commission;
+
+    if (!Number.isFinite(investment) || investment <= 0) {
+      return c.json({ error: 'investment must be greater than 0' }, 400);
+    }
+    if (!Number.isInteger(dailyTasks) || dailyTasks <= 0) {
+      return c.json({ error: 'dailyTasks must be a whole number greater than 0' }, 400);
+    }
+    if (!Number.isFinite(commission) || commission <= 0) {
+      return c.json({ error: 'commission must be greater than 0' }, 400);
+    }
+
+    const updatedTier = normalizeVipConfigRecord({
+      ...existingTier,
+      name: body?.name ?? existingTier.name,
+      investment,
+      dailyTasks,
+      commission,
+      color: body?.color ?? existingTier.color,
+      updatedAt: new Date().toISOString(),
+    });
+
+    await kv.set(`${VIP_CONFIG_KEY_PREFIX}${level}`, updatedTier);
+    await syncUsersForVipLevel(level);
+
+    return c.json({ success: true, tier: updatedTier });
+  } catch (error) {
+    console.error('Error updating VIP config:', error);
+    return c.json({ error: 'Failed to update VIP config' }, 500);
   }
 });
 

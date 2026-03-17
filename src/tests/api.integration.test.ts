@@ -193,6 +193,22 @@ describe('Task catalog', () => {
   });
 });
 
+describe('VIP config', () => {
+  it('GET /vip-config returns an ordered array of VIP tiers', async () => {
+    const { status, body } = await request('/vip-config');
+    expect(status).toBe(200);
+    expect(Array.isArray(body.tiers)).toBe(true);
+    expect(body.tiers.length).toBeGreaterThan(0);
+
+    if (body.tiers.length > 0) {
+      expect(typeof body.tiers[0].level).toBe('number');
+      expect(typeof body.tiers[0].investment).toBe('number');
+      expect(typeof body.tiers[0].dailyTasks).toBe('number');
+      expect(typeof body.tiers[0].commission).toBe('number');
+    }
+  });
+});
+
 // ─── Finance ─────────────────────────────────────────────────────────────────
 
 describe('Finance endpoints', () => {
