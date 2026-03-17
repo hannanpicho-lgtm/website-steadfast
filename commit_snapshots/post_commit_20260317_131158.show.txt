@@ -1,0 +1,37 @@
+﻿commit 291a03c08dfa44eef74bd3204ba192de85ddcdd9
+Author: Administrator (automated commit) <admin@example.com>
+Date:   Tue Mar 17 13:10:59 2026 +0700
+
+    feat: wire Deposit and Profile pages to live API, complete admin lazy-loading, add 73 unit tests
+    
+    - Deposit.tsx: live balance + transaction history from /user and /transactions endpoints
+    - Profile.tsx: today's profit and total commission from live API (todayCommission, referralEarnings)
+    - AdminHome.tsx + AdminSettings.tsx: extracted from Admin.tsx, fully lazy-loaded
+    - Admin.tsx: all 15 cases now lazy-loaded via Suspense
+    - Certificate.tsx: rebuilt with real VIP membership data from API
+    - ConnectWallet.tsx: localStorage persistence with toast feedback
+    - Add referralSystem.test.ts (39 tests), rewardsConfig.test.ts (26 tests), publicApi.test.ts (8 tests)
+    - Total test suite: 171 tests passing across 5 files, zero TypeScript errors
+
+ ADMIN_MODULES_EXTRACTION.md         |  258 +++++++
+ src/app/admin/AdminHome.tsx         |  150 ++++
+ src/app/admin/AdminSettings.tsx     |  198 ++++++
+ src/app/admin/AdminUsers.tsx        |    2 +-
+ src/app/admin/Deposits.tsx          |   91 +++
+ src/app/admin/Notifications.tsx     |   81 +++
+ src/app/admin/ProductManagement.tsx |  230 ++++++
+ src/app/admin/Tasks.tsx             |  207 ++++++
+ src/app/admin/Transactions.tsx      |  101 +++
+ src/app/admin/UserManagement.tsx    |  251 +++++++
+ src/app/admin/VipConfig.tsx         |  162 +++++
+ src/app/admin/Withdrawals.tsx       |  121 ++++
+ src/app/pages/Admin.tsx             | 1308 ++++-------------------------------
+ src/app/pages/Certificate.tsx       |  202 +++++-
+ src/app/pages/ConnectWallet.tsx     |   86 ++-
+ src/app/pages/Deposit.tsx           |  233 +++++--
+ src/app/pages/Profile.tsx           |   33 +-
+ src/tests/publicApi.test.ts         |   48 ++
+ src/tests/referralSystem.test.ts    |  322 +++++++++
+ src/tests/rewardsConfig.test.ts     |  180 +++++
+ vitest.config.ts                    |    1 +
+ 21 files changed, 2975 insertions(+), 1290 deletions(-)

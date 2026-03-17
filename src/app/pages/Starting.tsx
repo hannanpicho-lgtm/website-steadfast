@@ -1,4 +1,4 @@
-import { UserCircle, Rocket, CreditCard, Snowflake, Loader2, Lock, AlertTriangle, DollarSign, ChevronLeft, ChevronRight } from 'lucide-react';
+import { UserCircle, Rocket, CreditCard, Snowflake, Loader2, Lock, AlertTriangle, DollarSign, ChevronLeft, ChevronRight, CheckCircle2, MessageCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
 import { LiveChatBox } from '../components/LiveChatBox';
@@ -154,7 +154,7 @@ export default function Starting() {
     if (!userData || !currentProduct || submitting) return;
     
     if (userData.tasksCompleted >= userData.tasksLimit) {
-      alert('Daily task limit reached! Please come back tomorrow.');
+      alert('Task set complete. Please contact customer support to request a reset.');
       return;
     }
 
@@ -477,20 +477,44 @@ export default function Starting() {
         </div>
 
         {/* Starting Button */}
-        <button 
-          className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
-          onClick={handleSubmitTask}
-          disabled={submitting || !currentProduct || (userData?.tasksCompleted >= userData?.tasksLimit)}
-        >
-          {submitting ? (
-            <span className="flex items-center justify-center gap-2">
-              <Loader2 className="animate-spin" size={24} />
-              Submitting...
-            </span>
-          ) : (
-            `Starting (${userData?.tasksCompleted || 0} / ${userData?.tasksLimit || 40})`
-          )}
-        </button>
+        {/* Reset Required Banner — shown when the full task set is complete */}
+        {userData && userData.tasksCompleted >= userData.tasksLimit ? (
+          <div className="bg-gradient-to-br from-[#003d99] to-[#0055cc] border-2 border-[#00D9FF] rounded-lg p-6 mb-6 shadow-xl">
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <CheckCircle2 className="text-[#00D9FF]" size={32} />
+              <h2 className="text-xl font-bold text-white text-center">DAILY SET COMPLETE</h2>
+              <CheckCircle2 className="text-[#00D9FF]" size={32} />
+            </div>
+            <p className="text-[#00D9FF] font-semibold text-center mb-2">
+              VIP{userData.vipLevel} — {userData.tasksCompleted} / {userData.tasksLimit} tasks completed
+            </p>
+            <p className="text-white/80 text-sm text-center mb-5">
+              You have completed your full task set for this cycle. Contact customer support to request a reset and continue earning commissions.
+            </p>
+            <button
+              onClick={() => setIsChatOpen(true)}
+              className="w-full flex items-center justify-center gap-2 bg-[#00D9FF] text-[#1a1f2e] font-bold py-3 rounded-lg hover:bg-[#00c5e6] transition-colors text-lg"
+            >
+              <MessageCircle size={22} />
+              Contact Support for Reset
+            </button>
+          </div>
+        ) : (
+          <button
+            className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
+            onClick={handleSubmitTask}
+            disabled={submitting || !currentProduct}
+          >
+            {submitting ? (
+              <span className="flex items-center justify-center gap-2">
+                <Loader2 className="animate-spin" size={24} />
+                Submitting...
+              </span>
+            ) : (
+              `Starting (${userData?.tasksCompleted || 0} / ${userData?.tasksLimit || 40})`
+            )}
+          </button>
+        )}
 
         {/* Success Notification */}
         {showSuccess && (
