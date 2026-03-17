@@ -388,6 +388,54 @@ function roundMoney(value: number): number {
 
 const TRANSACTION_KEY_PREFIX = 'transaction:';
 const WITHDRAWAL_KEY_PREFIX = 'withdrawal:';
+const TASK_CATALOG_KEY_PREFIX = 'task-catalog:';
+
+const defaultTaskCatalog = [
+  {
+    id: 'task-amazon-headphones',
+    merchant: 'Amazon',
+    product: 'Premium Wireless Headphones with Noise Cancellation',
+    price: 299.99,
+    commission: 0.015,
+    status: 'Active',
+    image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop',
+    rating: 4.5,
+    productUrl: 'https://example.com/products/premium-wireless-headphones',
+  },
+  {
+    id: 'task-walmart-smartwatch',
+    merchant: 'Walmart',
+    product: 'Smart Watch Pro with Fitness Tracking',
+    price: 399.0,
+    commission: 0.02,
+    status: 'Active',
+    image: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=400&h=300&fit=crop',
+    rating: 4.2,
+    productUrl: 'https://example.com/products/smart-watch-pro',
+  },
+  {
+    id: 'task-target-tablet',
+    merchant: 'Target',
+    product: '10-inch Tablet with 128GB Storage',
+    price: 549.99,
+    commission: 0.018,
+    status: 'Active',
+    image: 'https://images.unsplash.com/photo-1585792180666-f7347c490ee2?w=400&h=300&fit=crop',
+    rating: 4.1,
+    productUrl: 'https://example.com/products/10-inch-tablet',
+  },
+  {
+    id: 'task-bestbuy-webcam',
+    merchant: 'Best Buy',
+    product: '4K Webcam with Built-in Microphone',
+    price: 129.99,
+    commission: 0.012,
+    status: 'Paused',
+    image: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=400&h=300&fit=crop',
+    rating: 4.3,
+    productUrl: 'https://example.com/products/4k-webcam',
+  },
+];
 
 function createFinanceId(prefix: string): string {
   return `${prefix}_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
@@ -411,6 +459,100 @@ function sanitizeFinanceMethod(value: unknown, fallback: string): string {
     return fallback;
   }
   return trimmed;
+}
+
+function sanitizeTaskId(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!/^[a-zA-Z0-9\-]{1,128}$/.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+function sanitizeTaskStatus(value: unknown): 'Active' | 'Paused' {
+  if (typeof value !== 'string') {
+    return 'Active';
+  }
+  return value.trim().toLowerCase() === 'paused' ? 'Paused' : 'Active';
+}
+
+function sanitizeTaskText(value: unknown, fallback = ''): string {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  return trimmed.length <= 256 ? trimmed : trimmed.slice(0, 256);
+}
+
+function sanitizeTaskUrl(value: unknown): string {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
+function normalizeTaskCatalogRecord(record: any) {
+  const createdAt = typeof record?.createdAt === 'string' && record.createdAt
+    ? record.createdAt
+    : new Date().toISOString();
+  const updatedAt = typeof record?.updatedAt === 'string' && record.updatedAt
+    ? record.updatedAt
+    : createdAt;
+
+  return {
+    id: sanitizeTaskId(record?.id) ?? createFinanceId('task'),
+    merchant: sanitizeTaskText(record?.merchant, 'Marketplace'),
+    product: sanitizeTaskText(record?.product, 'Task Product'),
+    price: roundMoney(Number(record?.price ?? 0)),
+    commission: Number.isFinite(Number(record?.commission)) ? Number(record.commission) : 0.01,
+    status: sanitizeTaskStatus(record?.status),
+    image: sanitizeTaskText(record?.image),
+    rating: Number.isFinite(Number(record?.rating)) ? Number(record.rating) : 4,
+    productUrl: sanitizeTaskUrl(record?.productUrl),
+    createdAt,
+    updatedAt,
+  };
+}
+
+async function ensureTaskCatalogSeeded() {
+  const existing = await kv.getByPrefix(TASK_CATALOG_KEY_PREFIX);
+  if (existing.length > 0) {
+    return;
+  }
+
+  for (const task of defaultTaskCatalog) {
+    const normalized = normalizeTaskCatalogRecord({
+      ...task,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    await kv.set(`${TASK_CATALOG_KEY_PREFIX}${normalized.id}`, normalized);
+  }
+}
+
+async function listTaskCatalogRecords(includePaused = true) {
+  await ensureTaskCatalogSeeded();
+  const tasks = await kv.getByPrefix(TASK_CATALOG_KEY_PREFIX);
+  return tasks
+    .map((task) => normalizeTaskCatalogRecord(task))
+    .filter((task) => includePaused || task.status === 'Active')
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+}
+
+async function getTaskCatalogRecord(taskId: string) {
+  await ensureTaskCatalogSeeded();
+  const task = await kv.get(`${TASK_CATALOG_KEY_PREFIX}${taskId}`);
+  return task ? normalizeTaskCatalogRecord(task) : null;
 }
 
 function normalizeTransactionStatus(value: unknown): 'Pending' | 'Completed' | 'Rejected' | 'Failed' {
@@ -1125,15 +1267,33 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
     if (rateLimited) return rateLimited;
 
     const body = await c.req.json();
-    const { productPrice } = body;
+    const requestedTaskId = sanitizeTaskId(body?.taskId);
+    const requestedProductPrice = typeof body?.productPrice === 'number' ? body.productPrice : Number(body?.productPrice);
     const username = sanitizeUsername(body.username);
 
     if (!username) {
       return c.json({ error: 'Invalid or missing username' }, 400);
     }
-    if (typeof productPrice !== 'number' || !Number.isFinite(productPrice) || productPrice <= 0) {
-      return c.json({ error: 'productPrice must be a positive finite number' }, 400);
+
+    const taskCatalog = await listTaskCatalogRecords(false);
+    let selectedTask = requestedTaskId
+      ? taskCatalog.find((task) => task.id === requestedTaskId)
+      : null;
+
+    if (!selectedTask && Number.isFinite(requestedProductPrice) && requestedProductPrice > 0) {
+      selectedTask = taskCatalog.find((task) => task.price === roundMoney(requestedProductPrice) && task.status === 'Active')
+        ?? taskCatalog.find((task) => task.status === 'Active')
+        ?? null;
     }
+
+    if (!selectedTask) {
+      return c.json({ error: 'No active task available' }, 400);
+    }
+    if (selectedTask.status !== 'Active') {
+      return c.json({ error: 'Selected task is not active' }, 400);
+    }
+
+    const productPrice = roundMoney(selectedTask.price);
     
     const userKey = `user:${username}`;
     const userData = await kv.get(userKey);
@@ -1191,10 +1351,16 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
     // Save task record
     const taskKey = `task:${username}:${Date.now()}`;
     const taskRecord = {
+      taskId: selectedTask.id,
       username,
       productPrice,
       commission,
       isPremium: false,  // Regular tasks are never premium
+      merchant: selectedTask.merchant,
+      productName: selectedTask.product,
+      image: selectedTask.image,
+      rating: selectedTask.rating,
+      productUrl: selectedTask.productUrl,
       timestamp: new Date().toISOString(),
       tasksCompleted: normalizedUserData.tasksCompleted,
     };
@@ -1221,6 +1387,7 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
       luckyBonus: normalizedUserData.luckyBonus,
       parentReferralCommission: referralPayout.rewarded ? referralPayout.parentReward : 0,
       parentReferralUsername: referralPayout.rewarded ? referralPayout.parentUsername : null,
+      task: selectedTask,
     });
   } catch (error) {
     console.error('Error submitting task:', error);
@@ -1235,6 +1402,13 @@ app.get("/make-server-a1c55d7e/tasks/:username", async (c) => {
     if (!username) {
       return c.json({ error: 'Invalid username' }, 400);
     }
+
+    if (username === 'catalog') {
+      const includePaused = c.req.query('includePaused') === 'true';
+      const tasks = await listTaskCatalogRecords(includePaused);
+      return c.json({ tasks });
+    }
+
     const taskPrefix = `task:${username}:`;
     
     const tasks = await kv.getByPrefix(taskPrefix);
@@ -1248,6 +1422,17 @@ app.get("/make-server-a1c55d7e/tasks/:username", async (c) => {
   } catch (error) {
     console.error('Error fetching task records:', error);
     return c.json({ error: 'Failed to fetch task records' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/tasks/catalog', async (c) => {
+  try {
+    const includePaused = c.req.query('includePaused') === 'true';
+    const tasks = await listTaskCatalogRecords(includePaused);
+    return c.json({ tasks });
+  } catch (error) {
+    console.error('Error fetching task catalog:', error);
+    return c.json({ error: 'Failed to fetch task catalog' }, 500);
   }
 });
 
@@ -1697,6 +1882,183 @@ app.get('/make-server-a1c55d7e/admin/transactions', async (c) => {
   } catch (error) {
     console.error('Error fetching admin transactions:', error);
     return c.json({ error: 'Failed to fetch transactions' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/tasks', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const tasks = await listTaskCatalogRecords(true);
+    const taskRecords = await kv.getByPrefix('task:');
+    const today = new Date().toISOString().split('T')[0];
+
+    const decoratedTasks = tasks.map((task) => {
+      const matchingRecords = taskRecords.filter((record) => record?.taskId === task.id);
+      const assignedUsers = new Set(
+        matchingRecords
+          .map((record) => (typeof record?.username === 'string' ? record.username : null))
+          .filter((username): username is string => Boolean(username)),
+      ).size;
+      const completedToday = matchingRecords.filter((record) => {
+        const timestamp = typeof record?.timestamp === 'string' ? record.timestamp : '';
+        return timestamp.startsWith(today);
+      }).length;
+
+      return {
+        ...task,
+        assignedUsers,
+        completedToday,
+      };
+    });
+
+    return c.json({ tasks: decoratedTasks });
+  } catch (error) {
+    console.error('Error fetching admin tasks:', error);
+    return c.json({ error: 'Failed to fetch admin tasks' }, 500);
+  }
+});
+
+app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-create');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const body = await c.req.json();
+    const merchant = sanitizeTaskText(body?.merchant);
+    const product = sanitizeTaskText(body?.product);
+    const price = roundMoney(Number(body?.price ?? 0));
+    const commission = Number(body?.commission ?? 0);
+
+    if (!merchant || !product) {
+      return c.json({ error: 'merchant and product are required' }, 400);
+    }
+    if (!Number.isFinite(price) || price <= 0) {
+      return c.json({ error: 'price must be greater than 0' }, 400);
+    }
+    if (!Number.isFinite(commission) || commission <= 0) {
+      return c.json({ error: 'commission must be greater than 0' }, 400);
+    }
+
+    const task = normalizeTaskCatalogRecord({
+      id: createFinanceId('task'),
+      merchant,
+      product,
+      price,
+      commission,
+      status: body?.status,
+      image: sanitizeTaskText(body?.image),
+      rating: Number(body?.rating ?? 4),
+      productUrl: body?.productUrl,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+
+    await kv.set(`${TASK_CATALOG_KEY_PREFIX}${task.id}`, task);
+    return c.json({ success: true, task }, 201);
+  } catch (error) {
+    console.error('Error creating admin task:', error);
+    return c.json({ error: 'Failed to create task' }, 500);
+  }
+});
+
+app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-update');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const taskId = sanitizeTaskId(c.req.param('taskId'));
+    if (!taskId) {
+      return c.json({ error: 'Invalid task ID' }, 400);
+    }
+
+    const existingTask = await getTaskCatalogRecord(taskId);
+    if (!existingTask) {
+      return c.json({ error: 'Task not found' }, 404);
+    }
+
+    const body = await c.req.json();
+    const merchant = sanitizeTaskText(body?.merchant, existingTask.merchant);
+    const product = sanitizeTaskText(body?.product, existingTask.product);
+    const price = Number.isFinite(Number(body?.price)) ? roundMoney(Number(body.price)) : existingTask.price;
+    const commission = Number.isFinite(Number(body?.commission)) ? Number(body.commission) : existingTask.commission;
+
+    if (!merchant || !product) {
+      return c.json({ error: 'merchant and product are required' }, 400);
+    }
+    if (!Number.isFinite(price) || price <= 0) {
+      return c.json({ error: 'price must be greater than 0' }, 400);
+    }
+    if (!Number.isFinite(commission) || commission <= 0) {
+      return c.json({ error: 'commission must be greater than 0' }, 400);
+    }
+
+    const updatedTask = normalizeTaskCatalogRecord({
+      ...existingTask,
+      merchant,
+      product,
+      price,
+      commission,
+      status: body?.status ?? existingTask.status,
+      image: body?.image ?? existingTask.image,
+      rating: Number.isFinite(Number(body?.rating)) ? Number(body.rating) : existingTask.rating,
+      productUrl: body?.productUrl ?? existingTask.productUrl,
+      updatedAt: new Date().toISOString(),
+    });
+
+    await kv.set(`${TASK_CATALOG_KEY_PREFIX}${taskId}`, updatedTask);
+    return c.json({ success: true, task: updatedTask });
+  } catch (error) {
+    console.error('Error updating admin task:', error);
+    return c.json({ error: 'Failed to update task' }, 500);
+  }
+});
+
+app.delete('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-delete');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const taskId = sanitizeTaskId(c.req.param('taskId'));
+    if (!taskId) {
+      return c.json({ error: 'Invalid task ID' }, 400);
+    }
+
+    const existingTask = await getTaskCatalogRecord(taskId);
+    if (!existingTask) {
+      return c.json({ error: 'Task not found' }, 404);
+    }
+
+    await kv.del(`${TASK_CATALOG_KEY_PREFIX}${taskId}`);
+    return c.json({ success: true, deletedTaskId: taskId });
+  } catch (error) {
+    console.error('Error deleting admin task:', error);
+    return c.json({ error: 'Failed to delete task' }, 500);
   }
 });
 

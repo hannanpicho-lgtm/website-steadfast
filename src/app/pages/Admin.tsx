@@ -99,15 +99,6 @@ const mockUsers = [
 ];
 
 
-// Mock tasks data
-const mockTasks = [
-  { id: 1, merchant: 'Amazon', product: 'Wireless Headphones', price: 89.99, commission: 0.015, status: 'Active', assignedUsers: 45, completedToday: 23 },
-  { id: 2, merchant: 'Walmart', product: 'Smart Watch', price: 199.99, commission: 0.020, status: 'Active', assignedUsers: 67, completedToday: 34 },
-  { id: 3, merchant: 'Target', product: 'Laptop Stand', price: 45.50, commission: 0.012, status: 'Active', assignedUsers: 32, completedToday: 18 },
-  { id: 4, merchant: 'Amazon', product: 'USB-C Cable', price: 12.99, commission: 0.010, status: 'Paused', assignedUsers: 0, completedToday: 0 },
-  { id: 5, merchant: 'Best Buy', product: 'Gaming Mouse', price: 79.99, commission: 0.018, status: 'Active', assignedUsers: 54, completedToday: 29 },
-];
-
 // VIP Configuration
 const vipLevels = [
   { level: 1, name: 'VIP 1', investment: 100, dailyTasks: 10, commission: 0.005, color: 'bronze' },
@@ -124,13 +115,31 @@ type VipDraftState = {
   commissionPercent: string;
 };
 
-type TaskConfig = (typeof mockTasks)[number];
+type TaskConfig = {
+  id: string;
+  merchant: string;
+  product: string;
+  price: number;
+  commission: number;
+  status: 'Active' | 'Paused';
+  assignedUsers: number;
+  completedToday: number;
+  image: string;
+  rating: number;
+  productUrl: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 type TaskDraftState = {
   product: string;
   merchant: string;
   price: string;
   commissionPercent: string;
   status: string;
+  image: string;
+  rating: string;
+  productUrl: string;
 };
 
 // Mock products data
@@ -377,8 +386,9 @@ export default function Admin() {
   const [vipConfigurations, setVipConfigurations] = useState<VipLevelConfig[]>(vipLevels);
   const [editingVipLevel, setEditingVipLevel] = useState<number | null>(null);
   const [vipDraft, setVipDraft] = useState<VipDraftState | null>(null);
-  const [taskConfigurations, setTaskConfigurations] = useState<TaskConfig[]>(mockTasks);
-  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const [taskConfigurations, setTaskConfigurations] = useState<TaskConfig[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [taskDraft, setTaskDraft] = useState<TaskDraftState | null>(null);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
@@ -464,6 +474,9 @@ export default function Admin() {
       price: String(task.price),
       commissionPercent: (task.commission * 100).toFixed(2),
       status: task.status,
+      image: task.image,
+      rating: String(task.rating),
+      productUrl: task.productUrl,
     });
   };
 
@@ -472,13 +485,34 @@ export default function Admin() {
     setTaskDraft(null);
   };
 
-  const handleSaveTaskInlineEdit = (taskId: number) => {
+  const loadTaskConfigurations = async () => {
+    setTasksLoading(true);
+    try {
+      const headers = await buildAdminAuthHeaders(false);
+      const response = await fetch(`${serverUrl}/admin/tasks`, { headers });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Failed to load tasks (${response.status})`);
+      }
+
+      setTaskConfigurations(Array.isArray(payload?.tasks) ? payload.tasks : []);
+    } catch (error) {
+      setTaskConfigurations([]);
+      const message = error instanceof Error ? error.message : 'Failed to load tasks';
+      toast.error(message);
+    } finally {
+      setTasksLoading(false);
+    }
+  };
+
+  const handleSaveTaskInlineEdit = async (taskId: string) => {
     if (!taskDraft) return;
 
     const product = taskDraft.product.trim();
     const merchant = taskDraft.merchant.trim();
     const price = Number(taskDraft.price);
     const commissionPercent = Number(taskDraft.commissionPercent);
+    const rating = Number(taskDraft.rating);
 
     if (!product || !merchant) {
       toast.error('Product and merchant are required.');
@@ -495,27 +529,38 @@ export default function Admin() {
       return;
     }
 
-    setTaskConfigurations((prev) =>
-      prev.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              product,
-              merchant,
-              price,
-              commission: commissionPercent / 100,
-              status: taskDraft.status,
-            }
-          : task,
-      ),
-    );
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/tasks/${taskId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          product,
+          merchant,
+          price,
+          commission: commissionPercent / 100,
+          status: taskDraft.status,
+          image: taskDraft.image.trim(),
+          rating: Number.isFinite(rating) && rating > 0 ? rating : 4,
+          productUrl: taskDraft.productUrl.trim(),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to update task');
+      }
 
-    toast.success('Task updated.');
-    setEditingTaskId(null);
-    setTaskDraft(null);
+      await loadTaskConfigurations();
+      toast.success('Task updated.');
+      setEditingTaskId(null);
+      setTaskDraft(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update task';
+      toast.error(message);
+    }
   };
 
-  const handleDeleteTaskInline = (taskId: number) => {
+  const handleDeleteTaskInline = async (taskId: string) => {
     const target = taskConfigurations.find((task) => task.id === taskId);
     if (!target) return;
 
@@ -523,12 +568,27 @@ export default function Admin() {
       return;
     }
 
-    setTaskConfigurations((prev) => prev.filter((task) => task.id !== taskId));
-    if (editingTaskId === taskId) {
-      setEditingTaskId(null);
-      setTaskDraft(null);
+    try {
+      const headers = await buildAdminAuthHeaders(false);
+      const response = await fetch(`${serverUrl}/admin/tasks/${taskId}`, {
+        method: 'DELETE',
+        headers,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to delete task');
+      }
+
+      await loadTaskConfigurations();
+      if (editingTaskId === taskId) {
+        setEditingTaskId(null);
+        setTaskDraft(null);
+      }
+      toast.success('Task deleted.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to delete task';
+      toast.error(message);
     }
-    toast.success('Task deleted.');
   };
 
   const loadAdminUsers = async () => {
@@ -782,6 +842,14 @@ export default function Admin() {
     void loadFinanceData();
   }, [activeMenu, serverUrl]);
 
+  useEffect(() => {
+    if (!['home', 'tasks'].includes(activeMenu)) {
+      return;
+    }
+
+    void loadTaskConfigurations();
+  }, [activeMenu, serverUrl]);
+
   const handleCreateAdminUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
@@ -860,6 +928,58 @@ export default function Admin() {
       form.reset();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to create admin user';
+      toast.error(message);
+    }
+  };
+
+  const handleCreateTask = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const merchant = String(formData.get('merchant') ?? '').trim();
+    const product = String(formData.get('product') ?? '').trim();
+    const price = Number(formData.get('price'));
+    const commissionPercent = Number(formData.get('commissionPercent'));
+    const productUrl = String(formData.get('productUrl') ?? '').trim();
+    const status = String(formData.get('status') ?? 'Active').trim();
+
+    if (!merchant || !product) {
+      toast.error('Merchant and product are required.');
+      return;
+    }
+    if (!Number.isFinite(price) || price <= 0) {
+      toast.error('Price must be greater than 0.');
+      return;
+    }
+    if (!Number.isFinite(commissionPercent) || commissionPercent <= 0) {
+      toast.error('Commission rate must be greater than 0.');
+      return;
+    }
+
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/tasks`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          merchant,
+          product,
+          price,
+          commission: commissionPercent / 100,
+          productUrl,
+          status,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to create task');
+      }
+
+      await loadTaskConfigurations();
+      toast.success('Task created.');
+      setModalType(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create task';
       toast.error(message);
     }
   };
@@ -1626,11 +1746,11 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4" onSubmit={handleCreateAiProduct}>
+              <form className="space-y-4" onSubmit={handleCreateTask}>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Merchant</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select name="merchant" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option>Amazon</option>
                       <option>Walmart</option>
                       <option>Target</option>
@@ -1640,26 +1760,26 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Product Name</label>
-                    <input type="text" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product name" />
+                    <input name="product" type="text" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product name" />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Product Price ($)</label>
-                    <input type="number" step="0.01" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.00" />
+                    <input name="price" type="number" step="0.01" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.00" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Commission Rate (%)</label>
-                    <input type="number" step="0.001" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.000" />
+                    <input name="commissionPercent" type="number" step="0.001" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.000" />
                   </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Product URL</label>
-                  <input type="url" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://..." />
+                  <input name="productUrl" type="url" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://..." />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
-                  <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                  <select name="status" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                     <option>Active</option>
                     <option>Paused</option>
                   </select>
@@ -4506,6 +4626,12 @@ export default function Admin() {
 
             {/* Tasks Grid */}
             <div className="grid grid-cols-1 gap-4">
+              {tasksLoading ? (
+                <div className="bg-[#252b3d] rounded-lg p-6 text-center text-gray-400">Loading tasks…</div>
+              ) : null}
+              {!tasksLoading && taskConfigurations.length === 0 ? (
+                <div className="bg-[#252b3d] rounded-lg p-6 text-center text-gray-400">No tasks configured yet.</div>
+              ) : null}
               {taskConfigurations.map((task) => (
                 <div key={task.id} className="bg-[#252b3d] rounded-lg p-6 hover:bg-[#2c3e50] transition-colors">
                   <div className="flex items-start justify-between">
@@ -4564,7 +4690,7 @@ export default function Admin() {
                               className="w-full bg-[#11182a] border border-gray-600 rounded px-2 py-1 text-white font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
                             />
                           ) : (
-                            <p className="text-white font-bold text-lg">${task.price}</p>
+                            <p className="text-white font-bold text-lg">${task.price.toFixed(2)}</p>
                           )}
                         </div>
                         <div className="bg-[#1a1f2e] p-3 rounded-lg">
@@ -4582,7 +4708,7 @@ export default function Admin() {
                               <span className="text-[#00D9FF] font-bold">%</span>
                             </div>
                           ) : (
-                            <p className="text-[#00D9FF] font-bold text-lg">{(task.commission * 100).toFixed(1)}%</p>
+                            <p className="text-[#00D9FF] font-bold text-lg">{(task.commission * 100).toFixed(2)}%</p>
                           )}
                         </div>
                         <div className="bg-[#1a1f2e] p-3 rounded-lg">
@@ -4594,6 +4720,29 @@ export default function Admin() {
                           <p className="text-green-300 font-bold text-lg">{task.completedToday}</p>
                         </div>
                       </div>
+                      {editingTaskId === task.id && taskDraft ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                          <input
+                            type="url"
+                            value={taskDraft.productUrl}
+                            onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, productUrl: e.target.value } : prev))}
+                            className="bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-white focus:border-[#00D9FF] focus:outline-none"
+                            placeholder="Product URL"
+                          />
+                          <input
+                            type="text"
+                            value={taskDraft.image}
+                            onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, image: e.target.value } : prev))}
+                            className="bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-white focus:border-[#00D9FF] focus:outline-none"
+                            placeholder="Image URL"
+                          />
+                        </div>
+                      ) : task.productUrl ? (
+                        <a href={task.productUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-4 text-sm text-[#00D9FF] hover:underline">
+                          <LinkIcon size={14} />
+                          View product URL
+                        </a>
+                      ) : null}
                     </div>
                     <div className="flex flex-col gap-2 ml-4">
                       {editingTaskId === task.id ? (

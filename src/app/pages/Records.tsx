@@ -7,31 +7,6 @@ import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 
-// Product data - same as Starting page
-const products = [
-  {
-    id: 1,
-    name: 'Premium Wireless Headphones with Noise Cancellation, 30-hour battery life, Studio quality sound...',
-    price: 299.99,
-    rating: 4.5,
-    image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop'
-  },
-  {
-    id: 2,
-    name: 'Smart Watch Pro with fitness tracking, heart rate monitor, GPS navigation, waterproof design...',
-    price: 399.00,
-    rating: 4.2,
-    image: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=400&h=300&fit=crop'
-  },
-  {
-    id: 3,
-    name: '10-inch Tablet with 128GB storage, 8GB RAM, high-resolution display, perfect for work and entertainment...',
-    price: 549.99,
-    rating: 4.1,
-    image: 'https://images.unsplash.com/photo-1585792180666-f7347c490ee2?w=400&h=300&fit=crop'
-  }
-];
-
 interface UserData {
   username: string;
   vipLevel: number;
@@ -40,12 +15,30 @@ interface UserData {
 }
 
 interface TaskRecord {
+  taskId?: string;
   username: string;
   productPrice: number;
   commission: number;
   isPremium: boolean;
+  merchant?: string;
+  productName?: string;
+  image?: string;
+  rating?: number;
+  productUrl?: string;
   timestamp: string;
   tasksCompleted: number;
+}
+
+interface TaskCatalogItem {
+  id: string;
+  merchant: string;
+  product: string;
+  price: number;
+  commission: number;
+  status: 'Active' | 'Paused';
+  image: string;
+  rating: number;
+  productUrl: string;
 }
 
 interface TransactionRecord {
@@ -66,6 +59,7 @@ export default function Records() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [taskRecords, setTaskRecords] = useState<TaskRecord[]>([]);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
+  const [taskCatalog, setTaskCatalog] = useState<TaskCatalogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -126,28 +120,44 @@ export default function Records() {
     return transactionsResponse.json();
   };
 
+  const fetchTaskCatalog = async () => {
+    const catalogResponse = await fetch(`${serverUrl}/tasks/catalog`, {
+      headers: {
+        'Authorization': `Bearer ${publicAnonKey}`,
+      },
+    });
+    if (!catalogResponse.ok) {
+      throw new Error('Failed to fetch task catalog');
+    }
+    return catalogResponse.json();
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
 
       try {
-        const [user, tasks, transactionHistory] = await Promise.all([
+        const [user, tasks, transactionHistory, catalog] = await Promise.all([
           fetchUser(username),
           fetchTasks(username),
           fetchTransactions(username),
+          fetchTaskCatalog(),
         ]);
         setUserData(user);
         setTaskRecords(tasks);
         setTransactions(Array.isArray(transactionHistory) ? transactionHistory : []);
+        setTaskCatalog(Array.isArray(catalog?.tasks) ? catalog.tasks : []);
       } catch {
-        const [user, tasks, transactionHistory] = await Promise.all([
+        const [user, tasks, transactionHistory, catalog] = await Promise.all([
           fetchUser('ugreen'),
           fetchTasks('ugreen'),
           fetchTransactions('ugreen'),
+          fetchTaskCatalog(),
         ]);
         setUserData(user);
         setTaskRecords(tasks);
         setTransactions(Array.isArray(transactionHistory) ? transactionHistory : []);
+        setTaskCatalog(Array.isArray(catalog?.tasks) ? catalog.tasks : []);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -157,10 +167,17 @@ export default function Records() {
   };
 
   // Get completed products (products that were submitted)
+  const activeTasks = taskCatalog.filter((task) => task.status === 'Active');
+
   const completedProducts = taskRecords.map((task, index) => {
-    const productIndex = index % products.length;
+    const fallbackTask = activeTasks.length > 0 ? activeTasks[index % activeTasks.length] : null;
     return {
-      ...products[productIndex],
+      id: task.taskId ?? `${task.username}-${index}`,
+      name: task.productName ?? fallbackTask?.product ?? 'Task Product',
+      price: task.productPrice,
+      rating: task.rating ?? fallbackTask?.rating ?? 4,
+      image: task.image ?? fallbackTask?.image ?? '',
+      productUrl: task.productUrl ?? fallbackTask?.productUrl ?? '',
       commission: task.commission,
       isPremium: task.isPremium,
       timestamp: task.timestamp,
@@ -171,17 +188,23 @@ export default function Records() {
   // Get pending products (remaining products to submit today)
   const pendingCount = (userData?.tasksLimit || 40) - (userData?.tasksCompleted || 0);
   const pendingProducts = Array.from({ length: pendingCount }, (_, index) => {
-    const productIndex = ((userData?.tasksCompleted || 0) + index) % products.length;
-    const product = products[productIndex];
+    const product = activeTasks.length > 0
+      ? activeTasks[((userData?.tasksCompleted || 0) + index) % activeTasks.length]
+      : null;
+    if (!product) {
+      return null;
+    }
     const commissionRate = commissionRates[userData?.vipLevel || 1] || 0.5;
     const estimatedCommission = product.price * (commissionRate / 100);
     
     return {
+      id: product.id,
+      name: product.product,
       ...product,
       estimatedCommission,
       commissionRate
     };
-  });
+  }).filter((product): product is NonNullable<typeof product> => Boolean(product));
 
   // Determine which products to show based on active tab
   const getFilteredProducts = () => {

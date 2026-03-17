@@ -160,6 +160,39 @@ describe('GET /tasks/:username', () => {
   });
 });
 
+describe('Task catalog', () => {
+  it('GET /tasks/catalog returns an array of catalog tasks', async () => {
+    const { status, body } = await request('/tasks/catalog');
+    expect(status).toBe(200);
+    expect(Array.isArray(body.tasks)).toBe(true);
+    if (body.tasks.length > 0) {
+      expect(typeof body.tasks[0].id).toBe('string');
+      expect(typeof body.tasks[0].product).toBe('string');
+      expect(typeof body.tasks[0].price).toBe('number');
+    }
+  });
+
+  it('POST /admin/tasks creates a task when admin auth is available', async () => {
+    const { status, body } = await post('/admin/tasks', {
+      merchant: 'Audit Merchant',
+      product: `Audit Task ${RUN_ID}`,
+      price: 123.45,
+      commission: 0.02,
+      status: 'Active',
+      productUrl: 'https://example.com/audit-task',
+    }, ADMIN_TEST_JWT ? adminHeaders() : {});
+
+    if (!ADMIN_TEST_JWT) {
+      expect(status).toBe(401);
+      return;
+    }
+
+    expect(status).toBe(201);
+    expect(body.success).toBe(true);
+    expect(typeof body.task.id).toBe('string');
+  });
+});
+
 // ─── Finance ─────────────────────────────────────────────────────────────────
 
 describe('Finance endpoints', () => {

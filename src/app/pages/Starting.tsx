@@ -7,31 +7,6 @@ import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 
-// Product data for carousel
-const products = [
-  {
-    id: 1,
-    name: 'Premium Wireless Headphones with Noise Cancellation, 30-hour battery life, Studio quality sound...',
-    price: 299.99,
-    rating: 4.5,
-    image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop'
-  },
-  {
-    id: 2,
-    name: 'Smart Watch Pro with fitness tracking, heart rate monitor, GPS navigation, waterproof design...',
-    price: 399.00,
-    rating: 4.2,
-    image: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=400&h=300&fit=crop'
-  },
-  {
-    id: 3,
-    name: '10-inch Tablet with 128GB storage, 8GB RAM, high-resolution display, perfect for work and entertainment...',
-    price: 549.99,
-    rating: 4.1,
-    image: 'https://images.unsplash.com/photo-1585792180666-f7347c490ee2?w=400&h=300&fit=crop'
-  }
-];
-
 interface UserData {
   username: string;
   vipLevel: number;
@@ -46,6 +21,18 @@ interface UserData {
   premiumQueue?: any[];
 }
 
+interface TaskCatalogItem {
+  id: string;
+  merchant: string;
+  product: string;
+  price: number;
+  commission: number;
+  status: 'Active' | 'Paused';
+  image: string;
+  rating: number;
+  productUrl: string;
+}
+
 // Starting page - Product submission platform with commission tracking
 export default function Starting() {
   const navigate = useNavigate();
@@ -57,7 +44,8 @@ export default function Starting() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [lastCommission, setLastCommission] = useState(0);
   const [isPremium, setIsPremium] = useState(false);
-    const [carouselIndex, setCarouselIndex] = useState(0);
+  const [carouselIndex, setCarouselIndex] = useState(0);
+  const [taskCatalog, setTaskCatalog] = useState<TaskCatalogItem[]>([]);
   
   const sessionUsername = getCurrentUsername();
   const username = sessionUsername ?? 'ugreen';
@@ -72,18 +60,21 @@ export default function Starting() {
     5: 2.5    // 2.5%
   };
 
-  // Get current product to submit
-  const currentProduct = products[currentProductIndex % products.length];
+  const activeTasks = taskCatalog.filter((task) => task.status === 'Active');
+  const currentProduct = activeTasks.length > 0 ? activeTasks[currentProductIndex % activeTasks.length] : null;
 
   // Auto-advance carousel
   useEffect(() => {
+    if (activeTasks.length === 0) {
+      return;
+    }
     const timer = setInterval(() => {
-      setCarouselIndex(i => (i + 1) % products.length);
+      setCarouselIndex(i => (i + 1) % activeTasks.length);
     }, 3000);
     return () => clearInterval(timer);
-  }, []);
+  }, [activeTasks.length]);
   const commissionRate = userData ? commissionRates[userData.vipLevel] || 0.5 : 0.5;
-  const estimatedCommission = currentProduct.price * (commissionRate / 100);
+  const estimatedCommission = currentProduct ? currentProduct.price * (commissionRate / 100) : 0;
 
   // Fetch user data on mount
   useEffect(() => {
@@ -112,13 +103,45 @@ export default function Starting() {
     try {
       setLoading(true);
       let data;
+      let tasksPayload: { tasks?: TaskCatalogItem[] } | null = null;
       try {
-        data = await fetchUserByName(username);
+        const [user, tasks] = await Promise.all([
+          fetchUserByName(username),
+          fetch(`${serverUrl}/tasks/catalog`, {
+            headers: {
+              'Authorization': `Bearer ${publicAnonKey}`,
+            },
+          }).then(async (response) => {
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+              throw new Error(payload?.error ?? 'Failed to fetch tasks');
+            }
+            return payload;
+          }),
+        ]);
+        data = user;
+        tasksPayload = tasks;
       } catch {
         // Fallback keeps dashboard usable for newly registered local users.
-        data = await fetchUserByName('ugreen');
+        const [user, tasks] = await Promise.all([
+          fetchUserByName('ugreen'),
+          fetch(`${serverUrl}/tasks/catalog`, {
+            headers: {
+              'Authorization': `Bearer ${publicAnonKey}`,
+            },
+          }).then(async (response) => {
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+              throw new Error(payload?.error ?? 'Failed to fetch tasks');
+            }
+            return payload;
+          }),
+        ]);
+        data = user;
+        tasksPayload = tasks;
       }
       setUserData(data);
+      setTaskCatalog(Array.isArray(tasksPayload?.tasks) ? tasksPayload.tasks : []);
     } catch (error) {
       console.error('Error fetching user data:', error);
     } finally {
@@ -127,7 +150,7 @@ export default function Starting() {
   };
 
   const handleSubmitTask = async () => {
-    if (!userData || submitting) return;
+    if (!userData || !currentProduct || submitting) return;
     
     if (userData.tasksCompleted >= userData.tasksLimit) {
       alert('Daily task limit reached! Please come back tomorrow.');
@@ -145,6 +168,7 @@ export default function Starting() {
         },
         body: JSON.stringify({
           username,
+          taskId: currentProduct.id,
           productPrice: currentProduct.price,
         }),
       });
@@ -216,13 +240,13 @@ export default function Starting() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <p className="text-sm text-gray-400">Hello,</p>
-            <h1 className="text-2xl font-bold text-white">ugreen</h1>
+            <h1 className="text-2xl font-bold text-white">{userData?.username || username}</h1>
           </div>
           <Link 
             to="/vip-levels"
             className="flex items-center gap-2 bg-gradient-to-r from-orange-400 to-orange-500 text-white px-4 py-2 rounded-full hover:from-orange-500 hover:to-orange-600 transition-all cursor-pointer"
           >
-            <span className="font-bold">VIP1</span>
+            <span className="font-bold">VIP{userData?.vipLevel || 1}</span>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
             </svg>
@@ -230,11 +254,11 @@ export default function Starting() {
         </div>
 
         {/* Product Slideshow */}
-        {(() => { const slide = products[carouselIndex]; return (
+        {activeTasks.length > 0 ? (() => { const slide = activeTasks[carouselIndex % activeTasks.length]; return (
           <div className="bg-white rounded-lg p-6 mb-6 shadow-sm relative select-none">
             {/* Prev button */}
             <button
-              onClick={() => setCarouselIndex(i => (i - 1 + products.length) % products.length)}
+              onClick={() => setCarouselIndex(i => (i - 1 + activeTasks.length) % activeTasks.length)}
               className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-gray-100 hover:bg-gray-200 rounded-full p-1 transition-colors"
             >
               <ChevronLeft size={22} className="text-gray-600" />
@@ -250,7 +274,7 @@ export default function Starting() {
                   className="max-h-[180px] max-w-[200px] w-full object-contain"
                 />
               </div>
-              <h3 className="text-base font-semibold mb-2 line-clamp-2">{slide.name}</h3>
+                <h3 className="text-base font-semibold mb-2 line-clamp-2">{slide.product}</h3>
               <div className="flex items-center justify-center gap-1 mb-2">
                 <span className="text-yellow-500">⭐</span>
                 <span className="text-sm font-semibold">{slide.rating}</span>
@@ -260,7 +284,7 @@ export default function Starting() {
 
             {/* Next button */}
             <button
-              onClick={() => setCarouselIndex(i => (i + 1) % products.length)}
+              onClick={() => setCarouselIndex(i => (i + 1) % activeTasks.length)}
               className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-gray-100 hover:bg-gray-200 rounded-full p-1 transition-colors"
             >
               <ChevronRight size={22} className="text-gray-600" />
@@ -268,7 +292,7 @@ export default function Starting() {
 
             {/* Dot indicators */}
             <div className="flex justify-center gap-2 mt-4">
-              {products.map((_, i) => (
+              {activeTasks.map((_, i) => (
                 <button
                   key={i}
                   onClick={() => setCarouselIndex(i)}
@@ -277,7 +301,11 @@ export default function Starting() {
               ))}
             </div>
           </div>
-          ); })()}
+          ); })() : (
+          <div className="bg-white rounded-lg p-6 mb-6 shadow-sm text-center text-gray-500">
+            No active tasks are available right now.
+          </div>
+        )}
 
         {/* FREEZE BANNER - Premium Bundle Assigned */}
         {userData?.isFrozen && userData?.activePremium && (
@@ -397,19 +425,19 @@ export default function Starting() {
           <div className="bg-white rounded-lg p-4 mb-4">
             <div className="flex items-center justify-center mb-3">
               <img 
-                src={currentProduct.image} 
-                alt={currentProduct.name.split(',')[0]} 
+                src={currentProduct?.image} 
+                alt={currentProduct?.product || 'Task'} 
                 className="max-w-[150px] w-full object-contain"
               />
             </div>
             <div className="text-center">
               <h4 className="text-sm font-semibold mb-2 line-clamp-2 text-gray-800">
-                {currentProduct.name}
+                {currentProduct?.product || 'No active task'}
               </h4>
               <div className="flex items-center justify-center gap-2 mb-2">
                 <div className="flex items-center gap-1">
                   <span className="text-yellow-500">⭐</span>
-                  <span className="text-sm font-semibold text-gray-700">{currentProduct.rating}</span>
+                  <span className="text-sm font-semibold text-gray-700">{currentProduct?.rating ?? '-'}</span>
                 </div>
               </div>
             </div>
@@ -419,7 +447,7 @@ export default function Starting() {
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div className="bg-[#1a1f2e] rounded-lg p-4 border border-[#00D9FF]/20">
               <p className="text-gray-400 text-xs mb-1">Product Value</p>
-              <p className="text-white font-bold text-lg">${currentProduct.price.toFixed(2)}</p>
+              <p className="text-white font-bold text-lg">${currentProduct?.price.toFixed(2) ?? '0.00'}</p>
             </div>
             <div className="bg-[#1a1f2e] rounded-lg p-4 border border-[#00D9FF]/20">
               <p className="text-gray-400 text-xs mb-1">VIP Level</p>
@@ -451,7 +479,7 @@ export default function Starting() {
         <button 
           className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
           onClick={handleSubmitTask}
-          disabled={submitting || (userData?.tasksCompleted >= userData?.tasksLimit)}
+          disabled={submitting || !currentProduct || (userData?.tasksCompleted >= userData?.tasksLimit)}
         >
           {submitting ? (
             <span className="flex items-center justify-center gap-2">
