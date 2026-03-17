@@ -29,6 +29,8 @@ export default function Signup() {
     ensureReferralStore();
   }, []);
 
+  const isValidUsername = (value: string) => /^[a-zA-Z0-9_.\-]{1,64}$/.test(value);
+
   const validateAdminCode = async (code: string) => {
     const normalized = code.trim().toUpperCase();
     if (!normalized) {
@@ -74,6 +76,17 @@ export default function Signup() {
       return;
     }
 
+    const normalizedUsername = username.trim();
+    if (!normalizedUsername) {
+      setErrorText('Username is required.');
+      return;
+    }
+
+    if (!isValidUsername(normalizedUsername)) {
+      setErrorText('Username can only use letters, numbers, underscore (_), hyphen (-), and dot (.) with no spaces.');
+      return;
+    }
+
     // Validate admin invitation code if provided
     if (effectiveAdminCode) {
       if (!/^[A-Z0-9]{5}$/.test(effectiveAdminCode)) {
@@ -102,7 +115,7 @@ export default function Signup() {
     }
 
     let result = registerUserWithInvitation({
-      username,
+      username: normalizedUsername,
       phone,
       loginPassword,
       transactionPassword,
@@ -127,7 +140,7 @@ export default function Signup() {
           registrationInviteCode = getSystemInviteCode();
 
           result = registerUserWithInvitation({
-            username,
+            username: normalizedUsername,
             phone,
             loginPassword,
             transactionPassword,
@@ -229,6 +242,9 @@ export default function Signup() {
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
               required
             />
+            <p className="mt-2 text-xs text-gray-500">
+              Allowed: letters, numbers, underscore (_), hyphen (-), and dot (.) only. Spaces are not allowed.
+            </p>
           </div>
 
           {/* Phone Number */}

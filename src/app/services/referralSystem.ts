@@ -243,6 +243,10 @@ export function registerUserWithInvitation(payload: RegisterPayload): RegisterRe
     return { ok: false, error: 'Username is required.' };
   }
 
+  if (!/^[a-zA-Z0-9_.\-]{1,64}$/.test(username)) {
+    return { ok: false, error: 'Username can only use letters, numbers, underscore (_), hyphen (-), and dot (.) with no spaces.' };
+  }
+
   const exists = store.accounts.some((x) => x.username.toLowerCase() === username.toLowerCase());
   if (exists) {
     return { ok: false, error: 'Username already exists.' };
