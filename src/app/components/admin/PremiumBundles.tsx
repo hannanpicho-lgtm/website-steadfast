@@ -120,7 +120,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
         throw new Error(payload?.error ?? 'Failed to cancel premium assignment');
       }
       await loadAssignments();
-      alert('Premium assignment cancelled successfully.');
+      toast.success('Premium assignment cancelled successfully.');
     } catch (error) {
       console.error('Error cancelling premium assignment:', error);
       handleAdminError(error, 'Failed to cancel premium assignment');
@@ -129,7 +129,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
 
   const handleAssignPremium = async () => {
     if (!selectedUsername || !premiumValue || premiumVal <= 0) {
-      alert('Please select a user and enter a valid premium value');
+      toast.error('Please select a user and enter a valid premium value.');
       return;
     }
 
@@ -163,7 +163,8 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
       }
 
       const result = await response.json();
-      alert(`Premium bundle assigned successfully!\n\nQueue Position: ${result.queuePosition}\nBalance After: $${result.balanceAfter.toFixed(2)}\nTop-up Required: $${result.topUpRequired.toFixed(2)}`);
+      toast.success('Premium bundle assigned successfully.');
+      toast.info(`Queue ${result.queuePosition} · Balance after $${result.balanceAfter.toFixed(2)} · Top-up $${result.topUpRequired.toFixed(2)}`);
 
       // Reset form
       setSelectedUsername('');
