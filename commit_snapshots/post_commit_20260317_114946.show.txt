@@ -1,0 +1,221 @@
+﻿commit 00d1b2e8542f206c027001298af49e458a13e0ee
+Author: Administrator (automated commit) <admin@example.com>
+Date:   Tue Mar 17 11:49:33 2026 +0700
+
+    Add route loading fallback and split admin panels
+---
+ commit_snapshots/pre_commit_20260317_114857.diff   | 97 ++++++++++++++++++++++
+ .../pre_commit_20260317_114857.status.txt          |  3 +
+ src/app/App.tsx                                    | 16 +++-
+ src/app/pages/Admin.tsx                            | 33 ++++++--
+ 4 files changed, 141 insertions(+), 8 deletions(-)
+
+diff --git a/commit_snapshots/pre_commit_20260317_114857.diff b/commit_snapshots/pre_commit_20260317_114857.diff
+new file mode 100644
+index 00000000..8e39d687
+--- /dev/null
++++ b/commit_snapshots/pre_commit_20260317_114857.diff
+@@ -0,0 +1,97 @@
++´╗┐diff --git a/src/app/App.tsx b/src/app/App.tsx
++index 723aa53d..200dde03 100644
++--- a/src/app/App.tsx
+++++ b/src/app/App.tsx
++@@ -1,11 +1,25 @@
+++import { Suspense } from "react";
++ import { RouterProvider } from "react-router";
++ import { router } from "./routes";
++ import { Toaster } from "./components/ui/sonner";
++ 
+++function RouteLoadingFallback() {
+++  return (
+++    <div className="min-h-screen bg-[#1a1f2e] text-gray-300 flex items-center justify-center px-6">
+++      <div className="text-center space-y-3">
+++        <div className="mx-auto h-10 w-10 rounded-full border-2 border-[#00D9FF]/30 border-t-[#00D9FF] animate-spin" />
+++        <p className="text-sm uppercase tracking-[0.3em] text-[#00D9FF]">Loading route</p>
+++      </div>
+++    </div>
+++  );
+++}
+++
++ export default function App() {
++   return (
++     <>
++-      <RouterProvider router={router} />
+++      <Suspense fallback={<RouteLoadingFallback />}>
+++        <RouterProvider router={router} />
+++      </Suspense>
++       <Toaster position="top-center" richColors />
++     </>
++   );
++diff --git a/src/app/pages/Admin.tsx b/src/app/pages/Admin.tsx
++index 85c47648..75c7c6a3 100644
++--- a/src/app/pages/Admin.tsx
+++++ b/src/app/pages/Admin.tsx
++@@ -1,9 +1,6 @@
++-import { useEffect, useMemo, useRef, useState } from 'react';
+++import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
++ import { toast } from 'sonner';
++ import { useNavigate } from 'react-router';
++-import PremiumBundles from '../components/admin/PremiumBundles';
++-import CustomerSupport from '../components/admin/CustomerSupport';
++-import InvitationCodes from '../components/admin/InvitationCodes';
++ import { 
++   Home, 
++   Users, 
++@@ -93,6 +90,18 @@ import {
++   type SalaryRestorePoint,
++ } from '../services/adminSalaryBackup';
++ 
+++const PremiumBundles = lazy(() => import('../components/admin/PremiumBundles'));
+++const CustomerSupport = lazy(() => import('../components/admin/CustomerSupport'));
+++const InvitationCodes = lazy(() => import('../components/admin/InvitationCodes'));
+++
+++function AdminPanelFallback({ label }: { label: string }) {
+++  return (
+++    <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-8 text-center text-gray-400">
+++      {label}
+++    </div>
+++  );
+++}
+++
++ // Mock data for users
++ const mockUsers = [
++   { id: 1, username: 'user001', phone: '+1 234-567-8900', email: 'user001@example.com', vipLevel: 'VIP 1', balance: 1250.50, status: 'Active', registered: '2024-01-15', tasksCompleted: 45, totalEarnings: 562.50 },
++@@ -3693,7 +3702,9 @@ export default function Admin() {
++                         )}
++                       </div>
++                     {isSuperAdmin ? (
++-                        <InvitationCodes currentAdminId={currentAdminId ?? ''} />
+++                        <Suspense fallback={<AdminPanelFallback label="Loading invitation codes..." />}>
+++                          <InvitationCodes currentAdminId={currentAdminId ?? ''} />
+++                        </Suspense>
++                       ) : (
++                         <div className="rounded-lg border border-[#00D9FF]/30 bg-[#1a1f2e] p-4">
++                           {currentAdminCodeLoading ? (
++@@ -5316,10 +5327,18 @@ export default function Admin() {
++         );
++ 
++       case 'premium-bundles':
++-        return <PremiumBundles users={premiumBundleUsers} />;
+++        return (
+++          <Suspense fallback={<AdminPanelFallback label="Loading premium bundles..." />}>
+++            <PremiumBundles users={premiumBundleUsers} />
+++          </Suspense>
+++        );
++ 
++       case 'customer-support':
++-        return <CustomerSupport />;
+++        return (
+++          <Suspense fallback={<AdminPanelFallback label="Loading customer support..." />}>
+++            <CustomerSupport />
+++          </Suspense>
+++        );
++ 
++       case 'settings':
++         return (
+diff --git a/commit_snapshots/pre_commit_20260317_114857.status.txt b/commit_snapshots/pre_commit_20260317_114857.status.txt
+new file mode 100644
+index 00000000..4031b85e
+--- /dev/null
++++ b/commit_snapshots/pre_commit_20260317_114857.status.txt
+@@ -0,0 +1,3 @@
++´╗┐ M src/app/App.tsx
++ M src/app/pages/Admin.tsx
++?? commit_snapshots/pre_commit_20260317_114857.status.txt
+diff --git a/src/app/App.tsx b/src/app/App.tsx
+index 723aa53d..200dde03 100644
+--- a/src/app/App.tsx
++++ b/src/app/App.tsx
+@@ -1,11 +1,25 @@
++import { Suspense } from "react";
+ import { RouterProvider } from "react-router";
+ import { router } from "./routes";
+ import { Toaster } from "./components/ui/sonner";
+ 
++function RouteLoadingFallback() {
++  return (
++    <div className="min-h-screen bg-[#1a1f2e] text-gray-300 flex items-center justify-center px-6">
++      <div className="text-center space-y-3">
++        <div className="mx-auto h-10 w-10 rounded-full border-2 border-[#00D9FF]/30 border-t-[#00D9FF] animate-spin" />
++        <p className="text-sm uppercase tracking-[0.3em] text-[#00D9FF]">Loading route</p>
++      </div>
++    </div>
++  );
++}
++
+ export default function App() {
+   return (
+     <>
+-      <RouterProvider router={router} />
++      <Suspense fallback={<RouteLoadingFallback />}>
++        <RouterProvider router={router} />
++      </Suspense>
+       <Toaster position="top-center" richColors />
+     </>
+   );
+diff --git a/src/app/pages/Admin.tsx b/src/app/pages/Admin.tsx
+index 85c47648..75c7c6a3 100644
+--- a/src/app/pages/Admin.tsx
++++ b/src/app/pages/Admin.tsx
+@@ -1,9 +1,6 @@
+-import { useEffect, useMemo, useRef, useState } from 'react';
++import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+ import { toast } from 'sonner';
+ import { useNavigate } from 'react-router';
+-import PremiumBundles from '../components/admin/PremiumBundles';
+-import CustomerSupport from '../components/admin/CustomerSupport';
+-import InvitationCodes from '../components/admin/InvitationCodes';
+ import { 
+   Home, 
+   Users, 
+@@ -93,6 +90,18 @@ import {
+   type SalaryRestorePoint,
+ } from '../services/adminSalaryBackup';
+ 
++const PremiumBundles = lazy(() => import('../components/admin/PremiumBundles'));
++const CustomerSupport = lazy(() => import('../components/admin/CustomerSupport'));
++const InvitationCodes = lazy(() => import('../components/admin/InvitationCodes'));
++
++function AdminPanelFallback({ label }: { label: string }) {
++  return (
++    <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-8 text-center text-gray-400">
++      {label}
++    </div>
++  );
++}
++
+ // Mock data for users
+ const mockUsers = [
+   { id: 1, username: 'user001', phone: '+1 234-567-8900', email: 'user001@example.com', vipLevel: 'VIP 1', balance: 1250.50, status: 'Active', registered: '2024-01-15', tasksCompleted: 45, totalEarnings: 562.50 },
+@@ -3693,7 +3702,9 @@ export default function Admin() {
+                         )}
+                       </div>
+                     {isSuperAdmin ? (
+-                        <InvitationCodes currentAdminId={currentAdminId ?? ''} />
++                        <Suspense fallback={<AdminPanelFallback label="Loading invitation codes..." />}>
++                          <InvitationCodes currentAdminId={currentAdminId ?? ''} />
++                        </Suspense>
+                       ) : (
+                         <div className="rounded-lg border border-[#00D9FF]/30 bg-[#1a1f2e] p-4">
+                           {currentAdminCodeLoading ? (
+@@ -5316,10 +5327,18 @@ export default function Admin() {
+         );
+ 
+       case 'premium-bundles':
+-        return <PremiumBundles users={premiumBundleUsers} />;
++        return (
++          <Suspense fallback={<AdminPanelFallback label="Loading premium bundles..." />}>
++            <PremiumBundles users={premiumBundleUsers} />
++          </Suspense>
++        );
+ 
+       case 'customer-support':
+-        return <CustomerSupport />;
++        return (
++          <Suspense fallback={<AdminPanelFallback label="Loading customer support..." />}>
++            <CustomerSupport />
++          </Suspense>
++        );
+ 
+       case 'settings':
+         return (
