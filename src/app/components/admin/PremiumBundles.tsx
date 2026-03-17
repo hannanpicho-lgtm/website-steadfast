@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { projectId } from '@utils/supabase/info';
 import { Lock, Calculator, AlertTriangle, Info, Eye, XCircle } from 'lucide-react';
-import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
+import { useNavigate } from 'react-router';
+import { toast } from 'sonner';
+import { buildAdminAuthHeaders, signOutAdminSession } from '../../services/supabaseAuth';
+import { buildLoginRedirectState } from '../../services/loginRedirect';
 
 interface User {
   id: number | string;
@@ -32,6 +35,7 @@ interface PremiumBundlesProps {
 }
 
 export default function PremiumBundles({ users }: PremiumBundlesProps) {
+  const navigate = useNavigate();
   const [selectedUsername, setSelectedUsername] = useState('');
   const [premiumValue, setPremiumValue] = useState('');
   const [bundleCount, setBundleCount] = useState<1 | 2 | 3>(3);
@@ -39,8 +43,43 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
   const [assignments, setAssignments] = useState<PremiumAssignmentRecord[]>([]);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<PremiumAssignmentRecord | null>(null);
+  const [authRedirected, setAuthRedirected] = useState(false);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+
+  const handleAdminError = (errorValue: unknown, fallbackMessage: string, suppressToast = false) => {
+    const message = errorValue instanceof Error ? errorValue.message : fallbackMessage;
+    const normalized = message.toLowerCase();
+    const isAuthError = normalized.includes('session expired')
+      || normalized.includes('access denied')
+      || normalized.includes('not authorized')
+      || normalized.includes('authorized admin account')
+      || normalized.includes('sign in again');
+
+    if (isAuthError) {
+      if (!authRedirected) {
+        setAuthRedirected(true);
+        toast.error(message);
+        void signOutAdminSession();
+        navigate('/login', {
+          replace: true,
+          state: buildLoginRedirectState('/admin', {
+            adminRequired: true,
+            authReason: normalized.includes('access denied') || normalized.includes('not authorized')
+              ? 'admin-access-required'
+              : 'session-expired',
+            authMessage: message,
+          }),
+        });
+      }
+
+      return;
+    }
+
+    if (!suppressToast) {
+      toast.error(message);
+    }
+  };
 
   const productCatalog = [
     { id: 1, name: 'Premium Wireless Headphones', price: 299.99 },
@@ -80,6 +119,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
     } catch (error) {
       console.error('Error loading premium assignments:', error);
       setAssignments([]);
+      handleAdminError(error, 'Failed to load premium assignments', true);
     } finally {
       setAssignmentsLoading(false);
     }
@@ -107,7 +147,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
       alert('Premium assignment cancelled successfully.');
     } catch (error) {
       console.error('Error cancelling premium assignment:', error);
-      alert(error instanceof Error ? error.message : 'Failed to cancel premium assignment');
+      handleAdminError(error, 'Failed to cancel premium assignment');
     }
   };
 
@@ -156,7 +196,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
       await loadAssignments();
     } catch (error) {
       console.error('Error assigning premium bundle:', error);
-      alert(error instanceof Error ? error.message : 'Failed to assign premium bundle');
+      handleAdminError(error, 'Failed to assign premium bundle');
     } finally {
       setAssigningPremium(false);
     }

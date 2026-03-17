@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router';
 import { projectId } from '@utils/supabase/info';
 import LiveChatAdmin from './LiveChatAdmin';
-import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
+import { buildAdminAuthHeaders, signOutAdminSession } from '../../services/supabaseAuth';
+import { buildLoginRedirectState } from '../../services/loginRedirect';
 import { buildPublicApiHeaders } from '../../services/publicApi';
 import { 
   MessageSquare, 
@@ -65,6 +67,7 @@ const defaultSupportLinks: SupportLinks = {
 };
 
 export default function CustomerSupport() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'tickets' | 'chats' | 'links'>('tickets');
   const [tickets, setTickets] = useState<TicketType[]>([]);
   const [chats, setChats] = useState<ChatSummary[]>([]);
@@ -81,10 +84,45 @@ export default function CustomerSupport() {
   const [supportEmail, setSupportEmail] = useState(defaultSupportLinks.supportEmail);
   const [savedSupportLinks, setSavedSupportLinks] = useState<SupportLinks>(defaultSupportLinks);
   const [isEditingLinks, setIsEditingLinks] = useState(false);
+  const [authRedirected, setAuthRedirected] = useState(false);
   const ticketUpdatedAtRef = useRef<Record<string, string>>({});
   const ticketHighlightTimeoutsRef = useRef<Record<string, number>>({});
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+
+  const handleAdminError = (errorValue: unknown, fallbackMessage: string, suppressToast = false) => {
+    const message = errorValue instanceof Error ? errorValue.message : fallbackMessage;
+    const normalized = message.toLowerCase();
+    const isAuthError = normalized.includes('session expired')
+      || normalized.includes('access denied')
+      || normalized.includes('not authorized')
+      || normalized.includes('authorized admin account')
+      || normalized.includes('sign in again');
+
+    if (isAuthError) {
+      if (!authRedirected) {
+        setAuthRedirected(true);
+        toast.error(message);
+        void signOutAdminSession();
+        navigate('/login', {
+          replace: true,
+          state: buildLoginRedirectState('/admin', {
+            adminRequired: true,
+            authReason: normalized.includes('access denied') || normalized.includes('not authorized')
+              ? 'admin-access-required'
+              : 'session-expired',
+            authMessage: message,
+          }),
+        });
+      }
+
+      return;
+    }
+
+    if (!suppressToast) {
+      toast.error(message);
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -188,6 +226,7 @@ export default function CustomerSupport() {
       applyFetchedTickets(data, silent);
     } catch (error) {
       console.error('Error fetching tickets:', error);
+      handleAdminError(error, 'Failed to fetch tickets', silent);
     } finally {
       if (!silent) {
         setLoading(false);
@@ -212,6 +251,7 @@ export default function CustomerSupport() {
       setChats(data);
     } catch (error) {
       console.error('Error fetching chats:', error);
+      handleAdminError(error, 'Failed to fetch chats', silent);
     } finally {
       if (!silent) {
         setLoading(false);
@@ -274,7 +314,7 @@ export default function CustomerSupport() {
       toast.success('Support links saved successfully.');
     } catch (error) {
       console.error('Error saving support links:', error);
-      toast.error('Failed to save support links.');
+      handleAdminError(error, 'Failed to save support links.');
     }
   };
 
@@ -310,7 +350,7 @@ export default function CustomerSupport() {
       toast.success('Reply sent successfully.');
     } catch (error) {
       console.error('Error sending reply:', error);
-      toast.error('Failed to send reply.');
+      handleAdminError(error, 'Failed to send reply.');
     }
   };
 
@@ -333,7 +373,7 @@ export default function CustomerSupport() {
       toast.success('Ticket status updated.');
     } catch (error) {
       console.error('Error updating status:', error);
-      toast.error('Failed to update status.');
+      handleAdminError(error, 'Failed to update status.');
     }
   };
 

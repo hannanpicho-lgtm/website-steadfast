@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Copy, RefreshCw, Key, Users, AlertTriangle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
+import { useNavigate } from 'react-router';
+import { buildAdminAuthHeaders, signOutAdminSession } from '../../services/supabaseAuth';
+import { buildLoginRedirectState } from '../../services/loginRedirect';
 import { projectId } from '@utils/supabase/info';
 
 type AdminCodeEntry = {
@@ -21,12 +23,46 @@ type InvitationCodesProps = {
 };
 
 export default function InvitationCodes({ currentAdminId }: InvitationCodesProps) {
+  const navigate = useNavigate();
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
   const [entries, setEntries] = useState<AdminCodeEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const adminAuthRedirectedRef = useRef(false);
+
+  const handleAdminError = (errorValue: unknown, fallbackMessage: string) => {
+    const message = errorValue instanceof Error ? errorValue.message : fallbackMessage;
+    const normalized = message.toLowerCase();
+    const isAuthError = normalized.includes('session expired')
+      || normalized.includes('access denied')
+      || normalized.includes('not authorized')
+      || normalized.includes('authorized admin account')
+      || normalized.includes('sign in again');
+
+    if (isAuthError) {
+      if (!adminAuthRedirectedRef.current) {
+        adminAuthRedirectedRef.current = true;
+        toast.error(message);
+        void signOutAdminSession();
+        navigate('/login', {
+          replace: true,
+          state: buildLoginRedirectState('/admin', {
+            adminRequired: true,
+            authReason: normalized.includes('access denied') || normalized.includes('not authorized')
+              ? 'admin-access-required'
+              : 'session-expired',
+            authMessage: message,
+          }),
+        });
+      }
+
+      return;
+    }
+
+    toast.error(message);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,9 +76,7 @@ export default function InvitationCodes({ currentAdminId }: InvitationCodesProps
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to load invitation codes';
       setError(msg);
-      if (!/forbidden|super-admin access required/i.test(msg)) {
-        toast.error(msg);
-      }
+      handleAdminError(err, 'Failed to load invitation codes');
     } finally {
       setLoading(false);
     }
@@ -73,7 +107,7 @@ export default function InvitationCodes({ currentAdminId }: InvitationCodesProps
         ),
       );
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to generate code');
+      handleAdminError(err, 'Failed to generate code');
     } finally {
       setGeneratingFor(null);
     }
