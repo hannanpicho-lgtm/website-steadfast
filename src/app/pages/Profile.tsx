@@ -1,10 +1,11 @@
 import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle } from 'lucide-react';
 import { Link } from 'react-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import profileImage from '../../assets/3df251a778530e24e8d83eda03085a2dc309c248.png';
-import { getCurrentUserAccount, getInvitationCodeForCurrentUser } from '../services/referralSystem';
+import { getCurrentUserAccount, getInvitationCodeForCurrentUser, getCurrentUsername } from '../services/referralSystem';
+import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 export default function Profile() {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -14,9 +15,33 @@ export default function Profile() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [todayProfit, setTodayProfit] = useState<number>(0);
+  const [totalCommission, setTotalCommission] = useState<number>(0);
 
   const currentUser = getCurrentUserAccount();
   const referralCode = getInvitationCodeForCurrentUser('STF01');
+  const username = getCurrentUsername();
+  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+
+  useEffect(() => {
+    if (!username) return;
+
+    const load = async () => {
+      try {
+        const res = await fetch(`${serverUrl}/user/${username}`, {
+          headers: { Authorization: `Bearer ${publicAnonKey}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        setTodayProfit(Number(data.todayCommission ?? 0));
+        setTotalCommission(Number(data.referralEarnings ?? 0));
+      } catch {
+        // silently ignore — values stay at 0
+      }
+    };
+
+    void load();
+  }, [username, serverUrl]);
 
   const handleCopyReferral = () => {
     // Fallback copy method for environments where Clipboard API is blocked
@@ -87,11 +112,11 @@ export default function Profile() {
             </div>
             <div className="flex flex-col items-center border-l border-r border-white/30">
               <p className="text-xs opacity-90 mb-1">Today's Profit (USD)</p>
-              <p className="text-lg font-bold">0.00</p>
+              <p className="text-lg font-bold">{todayProfit.toFixed(2)}</p>
             </div>
             <div className="flex flex-col items-center">
               <p className="text-xs opacity-90 mb-1">Total Commission (USD)</p>
-              <p className="text-lg font-bold">0.00</p>
+              <p className="text-lg font-bold">{totalCommission.toFixed(2)}</p>
             </div>
           </div>
 

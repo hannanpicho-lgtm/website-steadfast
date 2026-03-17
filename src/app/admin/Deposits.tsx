@@ -1,0 +1,91 @@
+import React from 'react';
+import { Download } from 'lucide-react';
+
+interface DepositsProps {
+  deposits: any[];
+  financeLoading: boolean;
+  handleExport: () => void;
+  formatCurrency: (amount: number) => string;
+  formatDateTime: (date: string) => string;
+}
+
+export default function Deposits({
+  deposits,
+  financeLoading,
+  handleExport,
+  formatCurrency,
+  formatDateTime,
+}: DepositsProps) {
+  const defaultFormatCurrency = (amount: number) =>
+    new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    }).format(amount);
+
+  const defaultFormatDateTime = (date: string) => new Date(date).toLocaleString();
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Deposit Records</h2>
+          <p className="text-gray-400 text-sm mt-1">Track all user deposits and funding transactions</p>
+        </div>
+        <button onClick={handleExport} className="flex items-center gap-2 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-4 py-2 rounded-lg font-semibold transition-colors">
+          <Download size={18} />
+          Export
+        </button>
+      </div>
+
+      {/* Deposits Table */}
+      <div className="bg-[#252b3d] rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-[#1a1f2e] border-b border-gray-700">
+              <tr>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">TX ID</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Username</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Amount</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Method</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Date & Time</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">TX Hash</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-700">
+              {financeLoading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-10 text-center text-gray-400">Loading deposits…</td>
+                </tr>
+              ) : deposits.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-10 text-center text-gray-400">No deposit records available.</td>
+                </tr>
+              ) : deposits.map((deposit) => (
+                <tr key={deposit.id} className="hover:bg-[#2c3e50] transition-colors">
+                  <td className="px-6 py-4 text-sm text-gray-300">{deposit.id}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-white">{deposit.username}</td>
+                  <td className="px-6 py-4 text-sm font-semibold text-[#00D9FF]">{(formatCurrency || defaultFormatCurrency)(deposit.amount)}</td>
+                  <td className="px-6 py-4 text-sm text-gray-300">{deposit.method}</td>
+                  <td className="px-6 py-4 text-sm">
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                      deposit.status === 'Completed' ? 'bg-green-500/20 text-green-300' :
+                      deposit.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-300' :
+                      'bg-red-500/20 text-red-300'
+                    }`}>
+                      {deposit.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-400">{(formatDateTime || defaultFormatDateTime)(deposit.date)}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500 font-mono">{deposit.txHash || 'N/A'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}

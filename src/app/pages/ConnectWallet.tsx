@@ -1,9 +1,11 @@
 import { ChevronLeft, Building2, Bitcoin, Check, Copy, CreditCard, Landmark } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
+import { getCurrentUsername } from '../services/referralSystem';
 
 type WalletType = 'banking' | 'crypto' | null;
 
@@ -11,7 +13,9 @@ export default function ConnectWallet() {
   const navigate = useNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<WalletType>(null);
-  const [showSuccess, setShowSuccess] = useState(false);
+
+  const username = getCurrentUsername() ?? 'guest';
+  const storageKey = `steadfast_wallet_${username}`;
 
   // Banking form state
   const [bankingForm, setBankingForm] = useState({
@@ -30,24 +34,61 @@ export default function ConnectWallet() {
     network: 'mainnet',
   });
 
+  // Pre-fill from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as { type: string } & Record<string, string>;
+      if (parsed.type === 'banking') {
+        setSelectedType('banking');
+        setBankingForm({
+          accountName: parsed.accountName ?? '',
+          accountNumber: parsed.accountNumber ?? '',
+          bankName: parsed.bankName ?? '',
+          swiftCode: parsed.swiftCode ?? '',
+          routingNumber: parsed.routingNumber ?? '',
+          country: parsed.country ?? '',
+        });
+      } else if (parsed.type === 'crypto') {
+        setSelectedType('crypto');
+        setCryptoForm({
+          walletType: parsed.walletType ?? 'bitcoin',
+          walletAddress: parsed.walletAddress ?? '',
+          network: parsed.network ?? 'mainnet',
+        });
+      }
+    } catch {
+      // ignore malformed storage
+    }
+  }, [storageKey]);
+
   const handleBankingSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle banking wallet connection
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      navigate('/profile');
-    }, 2000);
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ type: 'banking', ...bankingForm }));
+      toast.success('Banking account connected successfully!');
+    } catch {
+      toast.error('Failed to save wallet. Please try again.');
+      return;
+    }
+    setTimeout(() => navigate('/profile'), 1200);
   };
 
   const handleCryptoSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle crypto wallet connection
-    setShowSuccess(true);
-    setTimeout(() => {
-      setShowSuccess(false);
-      navigate('/profile');
-    }, 2000);
+    if (!cryptoForm.walletAddress.trim()) {
+      toast.error('Please enter your wallet address.');
+      return;
+    }
+    try {
+      localStorage.setItem(storageKey, JSON.stringify({ type: 'crypto', ...cryptoForm }));
+      toast.success('Crypto wallet connected successfully!');
+    } catch {
+      toast.error('Failed to save wallet. Please try again.');
+      return;
+    }
+    setTimeout(() => navigate('/profile'), 1200);
   };
 
   return (
@@ -424,23 +465,6 @@ export default function ConnectWallet() {
           </div>
         )}
       </div>
-
-      {/* Success Modal */}
-      {showSuccess && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full text-center animate-scale-in">
-            <div className="mb-6">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full mb-4 animate-bounce">
-                <Check size={40} className="text-white" />
-              </div>
-              <h2 className="text-2xl font-bold mb-2 text-[#1a1f2e]">Wallet Connected!</h2>
-              <p className="text-gray-600">
-                Your {selectedType === 'banking' ? 'banking account' : 'crypto wallet'} has been successfully connected.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Live Chat */}
       <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />

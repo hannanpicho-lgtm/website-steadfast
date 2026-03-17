@@ -96,6 +96,16 @@ const InvitationCodes = lazy(() => import('../components/admin/InvitationCodes')
 const AdminUsers = lazy(() => import('../admin/AdminUsers'));
 const RewardsSystem = lazy(() => import('../admin/RewardsSystem'));
 const Financials = lazy(() => import('../admin/Financials'));
+const Transactions = lazy(() => import('../admin/Transactions'));
+const Withdrawals = lazy(() => import('../admin/Withdrawals'));
+const Deposits = lazy(() => import('../admin/Deposits'));
+const Notifications = lazy(() => import('../admin/Notifications'));
+const UserManagement = lazy(() => import('../admin/UserManagement'));
+const ProductManagement = lazy(() => import('../admin/ProductManagement'));
+const Tasks = lazy(() => import('../admin/Tasks'));
+const VipConfig = lazy(() => import('../admin/VipConfig'));
+const AdminHome = lazy(() => import('../admin/AdminHome'));
+const AdminSettings = lazy(() => import('../admin/AdminSettings'));
 
 function AdminPanelFallback({ label }: { label: string }) {
   return (
@@ -3334,1029 +3344,133 @@ export default function Admin() {
         );
 
       case 'product-management':
-        const filteredProducts = mockProducts.filter(product => {
-          const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                               product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                               product.merchant.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                               product.sku.toLowerCase().includes(searchTerm.toLowerCase());
-          const matchesFilter = filterStatus === 'all' || product.status.toLowerCase() === filterStatus;
-          return matchesSearch && matchesFilter;
-        });
-        const totalProductPages = Math.max(1, Math.ceil(filteredProducts.length / productsPerPage));
-        const safeProductPage = Math.min(productPage, totalProductPages);
-        const productStartIndex = (safeProductPage - 1) * productsPerPage;
-        const paginatedProducts = filteredProducts.slice(productStartIndex, productStartIndex + productsPerPage);
-
         return (
-          <div className="space-y-6">
-            {/* Header Actions */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white">Product Management</h2>
-                <p className="text-gray-400 text-sm mt-1">Manage product catalog with manual upload or AI generation</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button onClick={() => setModalType('add-product-manual')} className="flex items-center gap-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
-                  <Upload size={18} />
-                  Add Manually
-                </button>
-                <button onClick={() => setModalType('add-product-ai')} className="flex items-center gap-2 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
-                  <Sparkles size={18} />
-                  AI Generate
-                </button>
-              </div>
-            </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Package className="text-blue-400" size={18} />
-                  <p className="text-gray-400 text-xs">Total Products</p>
-                </div>
-                <p className="text-2xl font-bold text-white">{mockProducts.length}</p>
-                <p className="text-gray-400 text-xs mt-1">{mockProducts.filter(p => p.status === 'Active').length} active</p>
-              </div>
-              <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Tag className="text-green-400" size={18} />
-                  <p className="text-gray-400 text-xs">Total Value</p>
-                </div>
-                <p className="text-2xl font-bold text-white">${mockProducts.reduce((sum, p) => sum + (p.price * p.stock), 0).toLocaleString()}</p>
-                <p className="text-gray-400 text-xs mt-1">Inventory value</p>
-              </div>
-              <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles className="text-purple-400" size={18} />
-                  <p className="text-gray-400 text-xs">AI Generated</p>
-                </div>
-                <p className="text-2xl font-bold text-white">{mockProducts.filter(p => p.source === 'AI Generated').length}</p>
-                <p className="text-gray-400 text-xs mt-1">{((mockProducts.filter(p => p.source === 'AI Generated').length / mockProducts.length) * 100).toFixed(0)}% of total</p>
-              </div>
-              <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Upload className="text-blue-400" size={18} />
-                  <p className="text-gray-400 text-xs">Manual Upload</p>
-                </div>
-                <p className="text-2xl font-bold text-white">{mockProducts.filter(p => p.source === 'Manual').length}</p>
-                <p className="text-gray-400 text-xs mt-1">{((mockProducts.filter(p => p.source === 'Manual').length / mockProducts.length) * 100).toFixed(0)}% of total</p>
-              </div>
-            </div>
-
-            {/* Search and Filter Bar */}
-            <div className="flex items-center gap-4 bg-[#252b3d] p-4 rounded-lg">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  placeholder="Search by name, category, merchant, or SKU..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#00D9FF]"
-                />
-              </div>
-              <select 
-                value={filterStatus} 
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-              <button onClick={handleExport} className="flex items-center gap-2 bg-[#1a1f2e] hover:bg-[#2c3e50] border border-gray-600 text-white px-4 py-2 rounded-lg transition-colors">
-                <Download size={18} />
-                Export
-              </button>
-            </div>
-
-            {/* Products Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {paginatedProducts.map((product) => (
-                <div key={product.id} className="bg-[#252b3d] rounded-lg overflow-hidden hover:ring-2 hover:ring-[#00D9FF] transition-all group">
-                  <div className="relative">
-                    <img src={product.imageUrl} alt={product.name} className="w-full h-48 object-cover" />
-                    <div className="absolute top-2 right-2 flex gap-2">
-                      {product.source === 'AI Generated' && (
-                        <span className="px-2 py-1 bg-purple-500/90 backdrop-blur-sm text-white rounded text-xs font-semibold flex items-center gap-1">
-                          <Sparkles size={12} />
-                          AI
-                        </span>
-                      )}
-                      <span className={`px-2 py-1 backdrop-blur-sm text-white rounded text-xs font-semibold ${
-                        product.status === 'Active' ? 'bg-green-500/90' : 'bg-gray-500/90'
-                      }`}>
-                        {product.status}
-                      </span>
-                    </div>
-                    {product.stock === 0 && (
-                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                        <span className="text-red-400 font-bold text-lg">OUT OF STOCK</span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-4">
-                    <div className="mb-3">
-                      <h3 className="text-white font-semibold text-sm mb-1 line-clamp-2">{product.name}</h3>
-                      <p className="text-gray-400 text-xs line-clamp-2">{product.description}</p>
-                    </div>
-                    <div className="flex items-center justify-between text-xs mb-3">
-                      <span className="text-gray-400">{product.category}</span>
-                      <span className="text-gray-500">SKU: {product.sku}</span>
-                    </div>
-                    <div className="flex items-center gap-2 mb-3 text-xs">
-                      <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded">{product.merchant}</span>
-                      <span className="px-2 py-1 bg-gray-700 text-gray-300 rounded">{product.stock} in stock</span>
-                    </div>
-                    <div className="flex items-center justify-between mb-3">
-                      <div>
-                        <p className="text-gray-400 text-xs">Price</p>
-                        <p className="text-[#00D9FF] font-bold text-lg">${product.price}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-gray-400 text-xs">Commission</p>
-                        <p className="text-green-400 font-bold text-lg">{(product.commission * 100).toFixed(1)}%</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
-                        onClick={() => { setSelectedItem(product); setModalType('view-product'); }}
-                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-[#1a1f2e] hover:bg-[#00D9FF] hover:text-[#1a1f2e] text-gray-300 rounded transition-colors text-xs"
-                      >
-                        <Eye size={14} />
-                        View
-                      </button>
-                      <button 
-                        onClick={() => { setSelectedItem(product); setModalType('edit-product'); }}
-                        className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-[#1a1f2e] hover:bg-blue-500 hover:text-white text-gray-300 rounded transition-colors text-xs"
-                      >
-                        <Edit size={14} />
-                        Edit
-                      </button>
-                      <button 
-                        onClick={() => { setSelectedItem(product); setModalType('delete-product'); }}
-                        className="px-3 py-2 bg-[#1a1f2e] hover:bg-red-500 hover:text-white text-gray-300 rounded transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Pagination */}
-            <div className="flex items-center justify-between bg-[#252b3d] px-6 py-4 rounded-lg">
-              <p className="text-sm text-gray-400">
-                Showing {filteredProducts.length === 0 ? 0 : productStartIndex + 1}
-                -{Math.min(productStartIndex + paginatedProducts.length, filteredProducts.length)} of {filteredProducts.length} products
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setProductPage((current) => Math.max(1, current - 1))}
-                  disabled={safeProductPage <= 1}
-                  className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <button className="px-3 py-1 bg-[#00D9FF] text-[#1a1f2e] font-semibold rounded">
-                  {safeProductPage} / {totalProductPages}
-                </button>
-                <button
-                  onClick={() => setProductPage((current) => Math.min(totalProductPages, current + 1))}
-                  disabled={safeProductPage >= totalProductPages}
-                  className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<AdminPanelFallback label="Loading product management..." />}>
+            <ProductManagement
+              mockProducts={mockProducts}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              filterStatus={filterStatus}
+              setFilterStatus={setFilterStatus}
+              productPage={productPage}
+              setProductPage={setProductPage}
+              productsPerPage={productsPerPage}
+              setModalType={setModalType}
+              setSelectedItem={setSelectedItem}
+              handleExport={handleExport}
+            />
+          </Suspense>
         );
 
-      case 'user-management': {
-        type DisplayUser = { id: number; username: string; email: string; phone: string; vipLevel: number; balance: number; status: string; registered: string; tasksCompleted: number; referredByAdminName: string; };
-        const isRealData = platformUsersLoaded;
-        const normalizedUsers: DisplayUser[] = platformUsersLoaded
-          ? platformUsers.map((u, i) => ({ id: i + 1, username: u.username, email: '—', phone: '—', vipLevel: u.vipLevel, balance: u.balance, status: u.isFrozen ? 'Suspended' : 'Active', registered: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—', tasksCompleted: u.tasksCompleted, referredByAdminName: u.referredByAdminName || '—' }))
-          : mockUsers.map((u) => ({ ...u, referredByAdminName: '—', vipLevel: Number(u.vipLevel.replace(/\D/g, '')) }));
-        const filteredUsers = normalizedUsers.filter(user => {
-          const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                               user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                               user.phone.includes(searchTerm);
-          const matchesFilter = filterStatus === 'all' || user.status.toLowerCase() === filterStatus;
-          return matchesSearch && matchesFilter;
-        });
-        const totalUserPages = Math.max(1, Math.ceil(filteredUsers.length / usersPerPage));
-        const safeUserPage = Math.min(userPage, totalUserPages);
-        const userStartIndex = (safeUserPage - 1) * usersPerPage;
-        const paginatedUsers = filteredUsers.slice(userStartIndex, userStartIndex + usersPerPage);
-
+      case 'user-management':
         return (
-          <div className="space-y-6">
-            {/* Scoping Banner (sub-admins only) */}
-            {!isSuperAdmin && (
-              <div className="flex items-center gap-2 rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 text-sm text-blue-300">
-                <Shield size={14} />
-                You are viewing only users who signed up with your invitation code.
-              </div>
-            )}
-            {!platformUsersLoaded && platformUsersLoading && (
-              <div className="flex items-center gap-2 text-sm text-gray-400">
-                <RefreshCw size={14} className="animate-spin" />
-                Loading users…
-              </div>
-            )}
-            {/* Header Actions */}
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white">User Management</h2>
-                <p className="text-gray-400 text-sm mt-1">Manage all registered users and their accounts</p>
-              </div>
-              <button onClick={() => setModalType('add-user')} className="flex items-center gap-2 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-4 py-2 rounded-lg font-semibold transition-colors">
-                <Plus size={18} />
-                Add User
-              </button>
-            </div>
-
-            {/* Search and Filter Bar */}
-            <div className="flex items-center gap-4 bg-[#252b3d] p-4 rounded-lg">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  placeholder="Search by username, email, or phone..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#00D9FF]"
-                />
-              </div>
-              <select 
-                value={filterStatus} 
-                onChange={(e) => setFilterStatus(e.target.value)}
-                className="px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="pending">Pending</option>
-                <option value="suspended">Suspended</option>
-              </select>
-              <button onClick={handleExport} className="flex items-center gap-2 bg-[#1a1f2e] hover:bg-[#2c3e50] border border-gray-600 text-white px-4 py-2 rounded-lg transition-colors">
-                <Download size={18} />
-                Export
-              </button>
-            </div>
-
-            {/* Users Table */}
-            <div className="bg-[#252b3d] rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-[#1a1f2e] border-b border-gray-700">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">ID</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Username</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Contact</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">VIP Level</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Balance</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Registered</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Referred By</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700">
-                    {paginatedUsers.map((user) => (
-                      <tr key={user.id} className="hover:bg-[#2c3e50] transition-colors">
-                        <td className="px-6 py-4 text-sm text-gray-300">{user.id}</td>
-                        <td className="px-6 py-4 text-sm font-medium text-white">{user.username}</td>
-                        <td className="px-6 py-4 text-sm text-gray-300">
-                          <div>{user.email}</div>
-                          <div className="text-xs text-gray-500">{user.phone}</div>
-                        </td>
-                        <td className="px-6 py-4 text-sm">
-                          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300">
-                            {user.vipLevel}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm font-semibold text-[#00D9FF]">${user.balance.toFixed(2)}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            user.status === 'Active' ? 'bg-green-500/20 text-green-300' :
-                            user.status === 'Suspended' ? 'bg-red-500/20 text-red-300' :
-                            'bg-yellow-500/20 text-yellow-300'
-                          }`}>
-                            {user.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-400">{user.registered}</td>
-                        <td className="px-6 py-4 text-sm text-gray-400">{user.referredByAdminName}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <div className="flex items-center gap-2">
-                            <button 
-                              onClick={() => { setSelectedItem(user); setModalType('view-user'); }}
-                              className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
-                              title="View Details"
-                            >
-                              <Eye size={16} className="text-gray-400 hover:text-[#00D9FF]" />
-                            </button>
-                            <button 
-                              onClick={() => { setSelectedItem(user); setModalType('edit-user'); }}
-                              className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
-                              title="Edit User"
-                            >
-                              <Edit size={16} className="text-gray-400 hover:text-blue-400" />
-                            </button>
-                            <button 
-                              onClick={() => { 
-                                if (confirm(`Reset password for ${user.username}?`)) {
-                                  toast.success('Password reset link sent to user email');
-                                }
-                              }}
-                              className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
-                              title="Reset Password"
-                            >
-                              <Key size={16} className="text-gray-400 hover:text-yellow-400" />
-                            </button>
-                            {user.status === 'Suspended' ? (
-                              <button 
-                                onClick={() => { 
-                                  if (confirm(`Enable account for ${user.username}?`)) {
-                                    toast.success(`Account enabled for ${user.username}`);
-                                  }
-                                }}
-                                className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
-                                title="Enable Account"
-                              >
-                                <Check size={16} className="text-gray-400 hover:text-green-400" />
-                              </button>
-                            ) : (
-                              <button 
-                                onClick={() => { 
-                                  if (confirm(`Disable account for ${user.username}?`)) {
-                                    toast.warning(`Account disabled for ${user.username}`);
-                                  }
-                                }}
-                                className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
-                                title="Disable Account"
-                              >
-                                <X size={16} className="text-gray-400 hover:text-orange-400" />
-                              </button>
-                            )}
-                            <button 
-                              onClick={() => { setSelectedItem(user); setModalType('delete-user'); }}
-                              className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
-                              title="Delete User"
-                            >
-                              <Trash2 size={16} className="text-gray-400 hover:text-red-400" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Pagination */}
-            <div className="flex items-center justify-between bg-[#252b3d] px-6 py-4 rounded-lg">
-              <p className="text-sm text-gray-400">
-                Showing {filteredUsers.length === 0 ? 0 : userStartIndex + 1}
-                -{Math.min(userStartIndex + paginatedUsers.length, filteredUsers.length)} of {filteredUsers.length} results
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setUserPage((current) => Math.max(1, current - 1))}
-                  disabled={safeUserPage <= 1}
-                  className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <button className="px-3 py-1 bg-[#00D9FF] text-[#1a1f2e] font-semibold rounded">
-                  {safeUserPage} / {totalUserPages}
-                </button>
-                <button
-                  onClick={() => setUserPage((current) => Math.min(totalUserPages, current + 1))}
-                  disabled={safeUserPage >= totalUserPages}
-                  className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<AdminPanelFallback label="Loading user management..." />}>
+            <UserManagement
+              platformUsers={platformUsers}
+              platformUsersLoaded={platformUsersLoaded}
+              platformUsersLoading={platformUsersLoading}
+              isSuperAdmin={isSuperAdmin}
+              searchTerm={searchTerm}
+              setSearchTerm={setSearchTerm}
+              filterStatus={filterStatus}
+              setFilterStatus={setFilterStatus}
+              userPage={userPage}
+              setUserPage={setUserPage}
+              usersPerPage={usersPerPage}
+              mockUsers={mockUsers}
+              setSelectedItem={setSelectedItem}
+              setModalType={setModalType}
+              handleExport={handleExport}
+            />
+          </Suspense>
         );
-      }
 
       case 'transactions':
         return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white">Transaction History</h2>
-                <p className="text-gray-400 text-sm mt-1">Monitor all platform transactions</p>
-              </div>
-              <button onClick={handleExport} className="flex items-center gap-2 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-4 py-2 rounded-lg font-semibold transition-colors">
-                <Download size={18} />
-                Export Report
-              </button>
-            </div>
-
-            {/* Transactions Table */}
-            <div className="bg-[#252b3d] rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-[#1a1f2e] border-b border-gray-700">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">TX ID</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Username</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Type</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Amount</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Method</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Date & Time</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">TX Hash</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700">
-                    {financeLoading ? (
-                      <tr>
-                        <td colSpan={8} className="px-6 py-10 text-center text-gray-400">Loading transactions…</td>
-                      </tr>
-                    ) : transactions.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="px-6 py-10 text-center text-gray-400">No transactions recorded yet.</td>
-                      </tr>
-                    ) : transactions.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-[#2c3e50] transition-colors">
-                        <td className="px-6 py-4 text-sm text-gray-300">{tx.id}</td>
-                        <td className="px-6 py-4 text-sm font-medium text-white">{tx.username}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            tx.type === 'Deposit' ? 'bg-blue-500/20 text-blue-300' :
-                            tx.type === 'Withdrawal' ? 'bg-orange-500/20 text-orange-300' :
-                            'bg-green-500/20 text-green-300'
-                          }`}>
-                            {tx.type}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm font-semibold text-[#00D9FF]">{formatCurrency(tx.amount)}</td>
-                        <td className="px-6 py-4 text-sm text-gray-300">{tx.method}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            tx.status === 'Completed' ? 'bg-green-500/20 text-green-300' :
-                            tx.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-300' :
-                            'bg-red-500/20 text-red-300'
-                          }`}>
-                            {tx.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-400">{formatDateTime(tx.date)}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500 font-mono">{tx.txHash || 'Pending'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<AdminPanelFallback label="Loading transactions..." />}>
+            <Transactions
+              transactions={transactions}
+              financeLoading={financeLoading}
+              handleExport={handleExport}
+              formatCurrency={formatCurrency}
+              formatDateTime={formatDateTime}
+            />
+          </Suspense>
         );
 
       case 'tasks':
         return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white">Task Management</h2>
-                <p className="text-gray-400 text-sm mt-1">Manage product submission tasks for all merchants</p>
-              </div>
-              <button onClick={() => setModalType('add-task')} className="flex items-center gap-2 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-4 py-2 rounded-lg font-semibold transition-colors">
-                <Plus size={18} />
-                Add Task
-              </button>
-            </div>
-
-            {/* Tasks Grid */}
-            <div className="grid grid-cols-1 gap-4">
-              {tasksLoading ? (
-                <div className="bg-[#252b3d] rounded-lg p-6 text-center text-gray-400">Loading tasks…</div>
-              ) : null}
-              {!tasksLoading && taskConfigurations.length === 0 ? (
-                <div className="bg-[#252b3d] rounded-lg p-6 text-center text-gray-400">No tasks configured yet.</div>
-              ) : null}
-              {taskConfigurations.map((task) => (
-                <div key={task.id} className="bg-[#252b3d] rounded-lg p-6 hover:bg-[#2c3e50] transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        {editingTaskId === task.id && taskDraft ? (
-                          <input
-                            type="text"
-                            value={taskDraft.product}
-                            onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, product: e.target.value } : prev))}
-                            className="flex-1 bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-white font-semibold focus:border-[#00D9FF] focus:outline-none"
-                          />
-                        ) : (
-                          <h3 className="text-lg font-bold text-white">{task.product}</h3>
-                        )}
-                        {editingTaskId === task.id && taskDraft ? (
-                          <select
-                            value={taskDraft.status}
-                            onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, status: e.target.value } : prev))}
-                            className="px-3 py-1 rounded border border-gray-600 bg-[#11182a] text-xs font-semibold text-white focus:border-[#00D9FF] focus:outline-none"
-                          >
-                            <option value="Active">Active</option>
-                            <option value="Paused">Paused</option>
-                          </select>
-                        ) : (
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            task.status === 'Active' ? 'bg-green-500/20 text-green-300' : 'bg-gray-500/20 text-gray-300'
-                          }`}>
-                            {task.status}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-gray-400 text-sm mb-4">
-                        Merchant:{' '}
-                        {editingTaskId === task.id && taskDraft ? (
-                          <input
-                            type="text"
-                            value={taskDraft.merchant}
-                            onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, merchant: e.target.value } : prev))}
-                            className="ml-1 bg-[#11182a] border border-gray-600 rounded px-2 py-1 text-white font-semibold focus:border-[#00D9FF] focus:outline-none"
-                          />
-                        ) : (
-                          <span className="text-white font-semibold">{task.merchant}</span>
-                        )}
-                      </p>
-                      <div className="grid grid-cols-4 gap-4">
-                        <div className="bg-[#1a1f2e] p-3 rounded-lg">
-                          <p className="text-gray-400 text-xs">Product Price</p>
-                          {editingTaskId === task.id && taskDraft ? (
-                            <input
-                              type="number"
-                              min={0.01}
-                              step={0.01}
-                              value={taskDraft.price}
-                              onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, price: e.target.value } : prev))}
-                              className="w-full bg-[#11182a] border border-gray-600 rounded px-2 py-1 text-white font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
-                            />
-                          ) : (
-                            <p className="text-white font-bold text-lg">${task.price.toFixed(2)}</p>
-                          )}
-                        </div>
-                        <div className="bg-[#1a1f2e] p-3 rounded-lg">
-                          <p className="text-gray-400 text-xs">Commission</p>
-                          {editingTaskId === task.id && taskDraft ? (
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                min={0.01}
-                                step={0.01}
-                                value={taskDraft.commissionPercent}
-                                onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, commissionPercent: e.target.value } : prev))}
-                                className="w-full bg-[#11182a] border border-gray-600 rounded px-2 py-1 text-[#00D9FF] font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
-                              />
-                              <span className="text-[#00D9FF] font-bold">%</span>
-                            </div>
-                          ) : (
-                            <p className="text-[#00D9FF] font-bold text-lg">{(task.commission * 100).toFixed(2)}%</p>
-                          )}
-                        </div>
-                        <div className="bg-[#1a1f2e] p-3 rounded-lg">
-                          <p className="text-gray-400 text-xs">Assigned Users</p>
-                          <p className="text-purple-300 font-bold text-lg">{task.assignedUsers}</p>
-                        </div>
-                        <div className="bg-[#1a1f2e] p-3 rounded-lg">
-                          <p className="text-gray-400 text-xs">Completed Today</p>
-                          <p className="text-green-300 font-bold text-lg">{task.completedToday}</p>
-                        </div>
-                      </div>
-                      {editingTaskId === task.id && taskDraft ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                          <input
-                            type="url"
-                            value={taskDraft.productUrl}
-                            onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, productUrl: e.target.value } : prev))}
-                            className="bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-white focus:border-[#00D9FF] focus:outline-none"
-                            placeholder="Product URL"
-                          />
-                          <input
-                            type="text"
-                            value={taskDraft.image}
-                            onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, image: e.target.value } : prev))}
-                            className="bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-white focus:border-[#00D9FF] focus:outline-none"
-                            placeholder="Image URL"
-                          />
-                        </div>
-                      ) : task.productUrl ? (
-                        <a href={task.productUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 mt-4 text-sm text-[#00D9FF] hover:underline">
-                          <LinkIcon size={14} />
-                          View product URL
-                        </a>
-                      ) : null}
-                    </div>
-                    <div className="flex flex-col gap-2 ml-4">
-                      {editingTaskId === task.id ? (
-                        <>
-                          <button
-                            onClick={() => handleSaveTaskInlineEdit(task.id)}
-                            className="p-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg transition-colors"
-                            title="Save"
-                          >
-                            <Check size={18} className="text-green-400" />
-                          </button>
-                          <button
-                            onClick={handleCancelTaskInlineEdit}
-                            className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors"
-                            title="Cancel"
-                          >
-                            <X size={18} className="text-red-400" />
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <button
-                            onClick={() => handleStartTaskInlineEdit(task)}
-                            className="p-2 bg-[#1a1f2e] hover:bg-blue-500/20 rounded-lg transition-colors"
-                            title="Edit Task"
-                          >
-                            <Edit size={18} className="text-blue-400" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTaskInline(task.id)}
-                            className="p-2 bg-[#1a1f2e] hover:bg-red-500/20 rounded-lg transition-colors"
-                            title="Delete Task"
-                          >
-                            <Trash2 size={18} className="text-red-400" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Suspense fallback={<AdminPanelFallback label="Loading tasks..." />}>
+            <Tasks
+              taskConfigurations={taskConfigurations}
+              tasksLoading={tasksLoading}
+              editingTaskId={editingTaskId}
+              taskDraft={taskDraft}
+              setTaskDraft={setTaskDraft}
+              setModalType={setModalType}
+              setSelectedItem={setSelectedItem}
+              handleStartTaskInlineEdit={handleStartTaskInlineEdit}
+              handleCancelTaskInlineEdit={handleCancelTaskInlineEdit}
+              handleSaveTaskInlineEdit={handleSaveTaskInlineEdit}
+              handleDeleteTaskInline={handleDeleteTaskInline}
+            />
+          </Suspense>
         );
 
       case 'vip-config':
         return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white">VIP Level Configuration</h2>
-                <p className="text-gray-400 text-sm mt-1">Configure VIP tiers, benefits, and commission rates</p>
-              </div>
-              {vipConfigLoading ? (
-                <div className="text-sm text-[#00D9FF]">Loading VIP tiers...</div>
-              ) : null}
-            </div>
-
-            {/* VIP Levels Grid */}
-            <div className="grid grid-cols-1 gap-4">
-              {vipConfigurations.map((vip) => (
-                <div key={vip.level} className="bg-[#252b3d] rounded-lg p-6 border-l-4 border-purple-500">
-                  {editingVipLevel === vip.level && vipDraft ? (
-                    <div className="mb-4 rounded-lg border border-[#00D9FF]/30 bg-[#1a1f2e] p-3">
-                      <p className="text-xs text-[#00D9FF] font-semibold">Live edit mode</p>
-                    </div>
-                  ) : null}
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-4">
-                        <Shield className="text-purple-400" size={24} />
-                        <h3 className="text-xl font-bold text-white">{vip.name}</h3>
-                        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-300">
-                          Level {vip.level}
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-4 gap-4">
-                        <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                          <div className="flex items-center gap-2 mb-2">
-                            <DollarSign size={16} className="text-gray-400" />
-                            <p className="text-gray-400 text-xs">Investment Required</p>
-                          </div>
-                          {editingVipLevel === vip.level && vipDraft ? (
-                            <input
-                              type="number"
-                              min={1}
-                              value={vipDraft.investment}
-                              onChange={(e) => setVipDraft((prev) => (prev ? { ...prev, investment: e.target.value } : prev))}
-                              disabled={savingVipLevel === vip.level}
-                              className="w-full bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-white font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
-                            />
-                          ) : (
-                            <p className="text-white font-bold text-xl">${vip.investment.toLocaleString()}</p>
-                          )}
-                        </div>
-                        <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Target size={16} className="text-gray-400" />
-                            <p className="text-gray-400 text-xs">Daily Tasks</p>
-                          </div>
-                          {editingVipLevel === vip.level && vipDraft ? (
-                            <input
-                              type="number"
-                              min={1}
-                              step={1}
-                              value={vipDraft.dailyTasks}
-                              onChange={(e) => setVipDraft((prev) => (prev ? { ...prev, dailyTasks: e.target.value } : prev))}
-                              disabled={savingVipLevel === vip.level}
-                              className="w-full bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-[#00D9FF] font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
-                            />
-                          ) : (
-                            <p className="text-[#00D9FF] font-bold text-xl">{vip.dailyTasks}</p>
-                          )}
-                        </div>
-                        <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Percent size={16} className="text-gray-400" />
-                            <p className="text-gray-400 text-xs">Commission Rate</p>
-                          </div>
-                          {editingVipLevel === vip.level && vipDraft ? (
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                min={0.01}
-                                step={0.01}
-                                value={vipDraft.commissionPercent}
-                                onChange={(e) => setVipDraft((prev) => (prev ? { ...prev, commissionPercent: e.target.value } : prev))}
-                                disabled={savingVipLevel === vip.level}
-                                className="w-full bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-green-400 font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
-                              />
-                              <span className="text-green-400 font-bold">%</span>
-                            </div>
-                          ) : (
-                            <p className="text-green-400 font-bold text-xl">{(vip.commission * 100).toFixed(1)}%</p>
-                          )}
-                        </div>
-                        <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                          <div className="flex items-center gap-2 mb-2">
-                            <TrendingUp size={16} className="text-gray-400" />
-                            <p className="text-gray-400 text-xs">Max Daily Earnings</p>
-                          </div>
-                          <p className="text-purple-300 font-bold text-xl">${(vip.dailyTasks * 100 * vip.commission).toFixed(2)}</p>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="ml-4 flex flex-col gap-2">
-                      {editingVipLevel === vip.level ? (
-                        <>
-                          <button
-                            onClick={() => void handleSaveVipInlineEdit(vip.level)}
-                            disabled={savingVipLevel === vip.level}
-                            className="p-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg transition-colors"
-                            title="Save"
-                          >
-                            <Check size={18} className="text-green-400" />
-                          </button>
-                          <button
-                            onClick={handleCancelVipInlineEdit}
-                            disabled={savingVipLevel === vip.level}
-                            className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors"
-                            title="Cancel"
-                          >
-                            <X size={18} className="text-red-400" />
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => handleStartVipInlineEdit(vip)}
-                          className="p-2 bg-[#1a1f2e] hover:bg-blue-500/20 rounded-lg transition-colors"
-                          title="Edit VIP level"
-                        >
-                          <Edit size={18} className="text-blue-400" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <Suspense fallback={<AdminPanelFallback label="Loading VIP configuration..." />}>
+            <VipConfig
+              vipConfigurations={vipConfigurations}
+              vipConfigLoading={vipConfigLoading}
+              editingVipLevel={editingVipLevel}
+              vipDraft={vipDraft}
+              savingVipLevel={savingVipLevel}
+              setVipDraft={setVipDraft}
+              handleStartVipInlineEdit={handleStartVipInlineEdit}
+              handleCancelVipInlineEdit={handleCancelVipInlineEdit}
+              handleSaveVipInlineEdit={handleSaveVipInlineEdit}
+            />
+          </Suspense>
         );
 
       case 'withdrawals':
         return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white">Withdrawal Requests</h2>
-                <p className="text-gray-400 text-sm mt-1">Review and approve user withdrawal requests</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="px-3 py-2 bg-yellow-500/20 text-yellow-300 rounded-lg text-sm font-semibold">
-                  {pendingWithdrawalCount} Pending
-                </span>
-              </div>
-            </div>
-
-            {/* Withdrawals Table */}
-            <div className="bg-[#252b3d] rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-[#1a1f2e] border-b border-gray-700">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">ID</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Username</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Amount</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Method</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Wallet Address</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Requested</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700">
-                    {financeLoading ? (
-                      <tr>
-                        <td colSpan={8} className="px-6 py-10 text-center text-gray-400">Loading withdrawal requests…</td>
-                      </tr>
-                    ) : withdrawalRequests.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="px-6 py-10 text-center text-gray-400">No withdrawal requests submitted yet.</td>
-                      </tr>
-                    ) : withdrawalRequests.map((withdrawal) => (
-                      <tr key={withdrawal.id} className="hover:bg-[#2c3e50] transition-colors">
-                        <td className="px-6 py-4 text-sm text-gray-300">{withdrawal.id}</td>
-                        <td className="px-6 py-4 text-sm font-medium text-white">{withdrawal.username}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-[#00D9FF]">{formatCurrency(withdrawal.amount)}</td>
-                        <td className="px-6 py-4 text-sm text-gray-300">{withdrawal.method}</td>
-                        <td className="px-6 py-4 text-sm text-gray-400 font-mono text-xs">{withdrawal.walletAddress.slice(0, 10)}...{withdrawal.walletAddress.slice(-8)}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            withdrawal.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-300' :
-                            withdrawal.status === 'Approved' ? 'bg-green-500/20 text-green-300' :
-                            'bg-red-500/20 text-red-300'
-                          }`}>
-                            {withdrawal.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-400">{formatDateTime(withdrawal.requestedDate)}</td>
-                        <td className="px-6 py-4 text-sm">
-                          {withdrawal.status === 'Pending' ? (
-                            <div className="flex items-center gap-2">
-                              <button 
-                                onClick={() => handleApproveWithdrawal(withdrawal.id)}
-                                className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1"
-                              >
-                                <Check size={14} />
-                                Approve
-                              </button>
-                              <button 
-                                onClick={() => handleRejectWithdrawal(withdrawal.id)}
-                                className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1"
-                              >
-                                <X size={14} />
-                                Reject
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-gray-500 text-xs">Processed</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<AdminPanelFallback label="Loading withdrawal requests..." />}>
+            <Withdrawals
+              withdrawalRequests={withdrawalRequests}
+              pendingWithdrawalCount={pendingWithdrawalCount}
+              financeLoading={financeLoading}
+              handleExport={handleExport}
+              handleApproveWithdrawal={handleApproveWithdrawal}
+              handleRejectWithdrawal={handleRejectWithdrawal}
+              formatCurrency={formatCurrency}
+              formatDateTime={formatDateTime}
+            />
+          </Suspense>
         );
 
       case 'deposits':
         return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white">Deposit Records</h2>
-                <p className="text-gray-400 text-sm mt-1">Track all user deposits and funding transactions</p>
-              </div>
-              <button onClick={handleExport} className="flex items-center gap-2 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-4 py-2 rounded-lg font-semibold transition-colors">
-                <Download size={18} />
-                Export
-              </button>
-            </div>
-
-            {/* Deposits Table */}
-            <div className="bg-[#252b3d] rounded-lg overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-[#1a1f2e] border-b border-gray-700">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">TX ID</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Username</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Amount</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Method</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Date & Time</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">TX Hash</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700">
-                    {financeLoading ? (
-                      <tr>
-                        <td colSpan={7} className="px-6 py-10 text-center text-gray-400">Loading deposits…</td>
-                      </tr>
-                    ) : deposits.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="px-6 py-10 text-center text-gray-400">No deposit records available.</td>
-                      </tr>
-                    ) : deposits.map((deposit) => (
-                      <tr key={deposit.id} className="hover:bg-[#2c3e50] transition-colors">
-                        <td className="px-6 py-4 text-sm text-gray-300">{deposit.id}</td>
-                        <td className="px-6 py-4 text-sm font-medium text-white">{deposit.username}</td>
-                        <td className="px-6 py-4 text-sm font-semibold text-[#00D9FF]">{formatCurrency(deposit.amount)}</td>
-                        <td className="px-6 py-4 text-sm text-gray-300">{deposit.method}</td>
-                        <td className="px-6 py-4 text-sm">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            deposit.status === 'Completed' ? 'bg-green-500/20 text-green-300' :
-                            deposit.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-300' :
-                            'bg-red-500/20 text-red-300'
-                          }`}>
-                            {deposit.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-400">{formatDateTime(deposit.date)}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500 font-mono">{deposit.txHash || 'N/A'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<AdminPanelFallback label="Loading deposit records..." />}>
+            <Deposits
+              deposits={deposits}
+              financeLoading={financeLoading}
+              handleExport={handleExport}
+              formatCurrency={formatCurrency}
+              formatDateTime={formatDateTime}
+            />
+          </Suspense>
         );
 
       case 'notifications':
         return (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white">Notifications</h2>
-                <p className="text-gray-400 text-sm mt-1">Send announcements and alerts to users</p>
-              </div>
-              <button onClick={() => setModalType('notification')} className="flex items-center gap-2 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-4 py-2 rounded-lg font-semibold transition-colors">
-                <Bell size={18} />
-                Send Notification
-              </button>
-            </div>
-
-            {/* Recent Notifications */}
-            <div className="space-y-4">
-              <div className="bg-[#252b3d] rounded-lg p-6">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 bg-blue-500/20 rounded-lg">
-                    <Bell className="text-blue-400" size={24} />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-white font-semibold mb-1">System Maintenance Notice</h3>
-                    <p className="text-gray-400 text-sm mb-2">Scheduled maintenance on March 10, 2024 from 2:00 AM - 4:00 AM EST</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span className="flex items-center gap-1"><Clock size={12} /> {formatRelativeTime('2026-03-17T02:55:00Z')}</span>
-                      <span>Sent to: All Users</span>
-                      <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded">High Priority</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-[#252b3d] rounded-lg p-6">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 bg-green-500/20 rounded-lg">
-                    <TrendingUp className="text-green-400" size={24} />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-white font-semibold mb-1">New VIP Benefits Available</h3>
-                    <p className="text-gray-400 text-sm mb-2">VIP 4 and VIP 5 members can now access exclusive high-commission tasks</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span className="flex items-center gap-1"><Clock size={12} /> {formatRelativeTime('2026-03-16T10:00:00Z')}</span>
-                      <span>Sent to: VIP 4, VIP 5</span>
-                      <span className="px-2 py-1 bg-green-500/20 text-green-300 rounded">Normal</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-[#252b3d] rounded-lg p-6">
-                <div className="flex items-start gap-4">
-                  <div className="p-3 bg-purple-500/20 rounded-lg">
-                    <Shield className="text-purple-400" size={24} />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-white font-semibold mb-1">Security Update Required</h3>
-                    <p className="text-gray-400 text-sm mb-2">Please update your password for enhanced security</p>
-                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                      <span className="flex items-center gap-1"><Clock size={12} /> {formatRelativeTime('2026-03-14T16:30:00Z')}</span>
-                      <span>Sent to: All Users</span>
-                      <span className="px-2 py-1 bg-red-500/20 text-red-300 rounded">Urgent</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<AdminPanelFallback label="Loading notifications..." />}>
+            <Notifications
+              setModalType={setModalType}
+              formatRelativeTime={formatRelativeTime}
+            />
+          </Suspense>
         );
 
       case 'premium-bundles':
@@ -4375,84 +3489,9 @@ export default function Admin() {
 
       case 'settings':
         return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-white">Platform Settings</h2>
-              <p className="text-gray-400 text-sm mt-1">Configure global platform settings and parameters</p>
-            </div>
-
-            {/* Settings Sections */}
-            <div className="space-y-4">
-              <div className="bg-[#252b3d] rounded-lg p-6">
-                <h3 className="text-white font-semibold text-lg mb-4">General Settings</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-white">Platform Maintenance Mode</p>
-                      <p className="text-gray-400 text-sm">Temporarily disable user access</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" />
-                      <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00D9FF]"></div>
-                    </label>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-white">Allow New User Registration</p>
-                      <p className="text-gray-400 text-sm">Enable or disable new sign-ups</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" defaultChecked />
-                      <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#00D9FF]"></div>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-[#252b3d] rounded-lg p-6">
-                <h3 className="text-white font-semibold text-lg mb-4">Transaction Settings</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Minimum Withdrawal Amount ($)</label>
-                    <input type="number" defaultValue="50" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Maximum Withdrawal Amount ($)</label>
-                    <input type="number" defaultValue="10000" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Withdrawal Fee (%)</label>
-                    <input type="number" step="0.1" defaultValue="2.0" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Minimum Deposit Amount ($)</label>
-                    <input type="number" defaultValue="10" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-[#252b3d] rounded-lg p-6">
-                <h3 className="text-white font-semibold text-lg mb-4">Task Settings</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Task Refresh Time (hours)</label>
-                    <input type="number" defaultValue="24" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Auto-Assign Tasks</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
-                      <option>Enabled</option>
-                      <option>Disabled</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <button className="w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
-                Save All Settings
-              </button>
-            </div>
-          </div>
+          <Suspense fallback={<AdminPanelFallback label="Loading settings..." />}>
+            <AdminSettings isSuperAdmin={isSuperAdmin} />
+          </Suspense>
         );
 
       case 'financials':
@@ -4485,116 +3524,19 @@ export default function Admin() {
 
       case 'home':
         return (
-          <div className="space-y-6">
-            <h2 className="text-2xl font-bold text-white">Dashboard Overview</h2>
-            
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border border-blue-500/30 rounded-lg p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-400 text-sm">Total Users</p>
-                    <p className="text-3xl font-bold text-white mt-2">{platformUsersLoaded ? platformUsers.length : mockUsers.length}</p>
-                    <p className="text-green-400 text-xs mt-2">+12.5% from last month</p>
-                  </div>
-                  <Users className="text-blue-400" size={40} />
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-br from-green-500/20 to-green-600/20 border border-green-500/30 rounded-lg p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-400 text-sm">Total Revenue</p>
-                    <p className="text-3xl font-bold text-white mt-2">{formatCurrency(platformRevenue)}</p>
-                    <p className="text-green-400 text-xs mt-2">Live finance ledger</p>
-                  </div>
-                  <DollarSign className="text-green-400" size={40} />
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border border-purple-500/30 rounded-lg p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-400 text-sm">Active Tasks</p>
-                    <p className="text-3xl font-bold text-white mt-2">{taskConfigurations.filter(t => t.status === 'Active').length}</p>
-                    <p className="text-yellow-400 text-xs mt-2">{taskConfigurations.reduce((sum, t) => sum + t.completedToday, 0)} completed today</p>
-                  </div>
-                  <Activity className="text-purple-400" size={40} />
-                </div>
-              </div>
-
-              <div className="bg-gradient-to-br from-orange-500/20 to-orange-600/20 border border-orange-500/30 rounded-lg p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-400 text-sm">Pending Withdrawals</p>
-                    <p className="text-3xl font-bold text-white mt-2">{pendingWithdrawalCount}</p>
-                    <p className="text-red-400 text-xs mt-2">Requires attention</p>
-                  </div>
-                  <Bell className="text-orange-400" size={40} />
-                </div>
-              </div>
-            </div>
-
-            {/* Recent Activity */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="bg-[#252b3d] rounded-lg p-6">
-                <h3 className="text-white font-semibold text-lg mb-4">Recent Transactions</h3>
-                <div className="space-y-3">
-                  {(financeLoading ? [] : transactions.slice(0, 5)).map((tx) => (
-                    <div key={tx.id} className="flex items-center justify-between p-3 bg-[#1a1f2e] rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-lg ${
-                          tx.type === 'Deposit' ? 'bg-blue-500/20' :
-                          tx.type === 'Withdrawal' ? 'bg-orange-500/20' :
-                          'bg-green-500/20'
-                        }`}>
-                          <DollarSign size={16} className={
-                            tx.type === 'Deposit' ? 'text-blue-400' :
-                            tx.type === 'Withdrawal' ? 'text-orange-400' :
-                            'text-green-400'
-                          } />
-                        </div>
-                        <div>
-                          <p className="text-white text-sm font-semibold">{tx.username}</p>
-                          <p className="text-gray-400 text-xs">{tx.type}</p>
-                        </div>
-                      </div>
-                      <p className="text-[#00D9FF] font-bold">{formatCurrency(tx.amount)}</p>
-                    </div>
-                  ))}
-                  {!financeLoading && transactions.length === 0 && (
-                    <div className="p-3 bg-[#1a1f2e] rounded-lg text-sm text-gray-400">No transactions recorded yet.</div>
-                  )}
-                  {financeLoading && (
-                    <div className="p-3 bg-[#1a1f2e] rounded-lg text-sm text-gray-400">Loading recent transactions…</div>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-[#252b3d] rounded-lg p-6">
-                <h3 className="text-white font-semibold text-lg mb-4">Top Performers</h3>
-                <div className="space-y-3">
-                  {mockUsers.sort((a, b) => b.tasksCompleted - a.tasksCompleted).slice(0, 5).map((user, index) => (
-                    <div key={user.id} className="flex items-center justify-between p-3 bg-[#1a1f2e] rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center">
-                          <span className="text-purple-300 font-bold text-sm">#{index + 1}</span>
-                        </div>
-                        <div>
-                          <p className="text-white text-sm font-semibold">{user.username}</p>
-                          <p className="text-gray-400 text-xs">{user.vipLevel}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[#00D9FF] font-bold text-sm">{user.tasksCompleted} tasks</p>
-                        <p className="text-green-400 text-xs">${user.totalEarnings.toFixed(2)}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          <Suspense fallback={<AdminPanelFallback label="Loading dashboard..." />}>
+            <AdminHome
+              platformUsersLoaded={platformUsersLoaded}
+              platformUsers={platformUsers}
+              mockUsers={mockUsers}
+              platformRevenue={platformRevenue}
+              formatCurrency={formatCurrency}
+              taskConfigurations={taskConfigurations}
+              pendingWithdrawalCount={pendingWithdrawalCount}
+              financeLoading={financeLoading}
+              transactions={transactions}
+            />
+          </Suspense>
         );
 
       default:

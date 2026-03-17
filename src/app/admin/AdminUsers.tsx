@@ -3,7 +3,7 @@ import { Plus, UserCog, ShieldCheck, LinkIcon, Info, X, Users, Check, Lock, XCir
 import { toast } from 'sonner';
 import InvitationCodes from '@/app/components/admin/InvitationCodes';
 import { Suspense } from 'react';
-import AdminPanelFallback from '@/app/components/AdminPanelFallback';
+import AdminPanelFallback from '../components/AdminPanelFallback';
 
 interface AdminUsersProps {
   activeAdminTab: any;
