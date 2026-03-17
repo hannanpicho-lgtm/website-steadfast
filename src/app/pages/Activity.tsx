@@ -1,48 +1,87 @@
-import { UserCircle, ChevronLeft } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { Link } from 'react-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
+import { defaultRewardsConfig, fetchPublicRewardsConfig } from '../services/rewardsConfig';
+import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 
-// Workday rewards data
-const workdayRewards = [
-  { days: 1, salary: 204 },
-  { days: 7, salary: 1428 },
-  { days: 15, salary: 3060 },
-  { days: 22, salary: 4488 },
-  { days: 30, salary: 6120 }
-];
+const vipColorByTier: Record<string, string> = {
+  bronze: 'bg-gray-500',
+  silver: 'bg-blue-500',
+  gold: 'bg-purple-500',
+  platinum: 'bg-yellow-500',
+  diamond: 'bg-red-500',
+};
 
-// VIP levels data
-const vipLevels = [
+type ActivityVipLevel = {
+  level: number;
+  range: string;
+  products: number;
+  rate: string;
+  color: string;
+};
+
+const fallbackVipLevels: ActivityVipLevel[] = [
   { level: 1, range: '100-499', products: 10, rate: '0.5%', color: 'bg-gray-500' },
   { level: 2, range: '500-1999', products: 15, rate: '1.0%', color: 'bg-blue-500' },
   { level: 3, range: '2000-4999', products: 20, rate: '1.5%', color: 'bg-purple-500' },
   { level: 4, range: '5000-9999', products: 25, rate: '2.0%', color: 'bg-yellow-500' },
-  { level: 5, range: '10000', products: 30, rate: '2.5%', color: 'bg-red-500' }
+  { level: 5, range: '10000', products: 30, rate: '2.5%', color: 'bg-red-500' },
 ];
 
-// Reset rewards data
-const resetRewards = [
-  { deposit: 100, reward: 28, label: 'Bronze', color: 'bg-orange-300', labelColor: 'bg-orange-600' },
-  { deposit: 500, reward: 158, label: 'Silver', color: 'bg-gray-300', labelColor: 'bg-gray-600' },
-  { deposit: 2000, reward: 688, label: 'Gold', color: 'bg-yellow-300', labelColor: 'bg-yellow-600' },
-  { deposit: 5000, reward: 1788, label: 'Platinum', color: 'bg-blue-300', labelColor: 'bg-blue-600' },
-  { deposit: 10000, reward: 3888, label: 'Diamond', color: 'bg-purple-300', labelColor: 'bg-purple-600' },
-  { deposit: 30000, reward: 12888, label: 'Crown', color: 'bg-red-300', labelColor: 'bg-red-600' }
-];
+function mapVipConfigToActivity(tiers: VipConfig[]): ActivityVipLevel[] {
+  const sorted = [...tiers].sort((a, b) => a.level - b.level);
 
-// Accumulated rewards data
-const accumulatedRewards = [
-  { range: '1000 - 4999', rate: '0.3%' },
-  { range: '5000 - 19999', rate: '0.5%' },
-  { range: '20000 - 49999', rate: '0.8%' },
-  { range: '50000 or Above', rate: '1.0%' }
-];
+  return sorted.map((tier, index) => {
+    const nextTier = sorted[index + 1];
+    const range = nextTier
+      ? `${tier.investment}-${Math.max(tier.investment, nextTier.investment - 1)}`
+      : `${tier.investment}`;
+
+    return {
+      level: tier.level,
+      range,
+      products: tier.dailyTasks,
+      rate: `${(tier.commission * 100).toFixed(1)}%`,
+      color: vipColorByTier[tier.color] ?? 'bg-gray-500',
+    };
+  });
+}
 
 export default function Activity() {
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [workdayRewards, setWorkdayRewards] = useState(defaultRewardsConfig.workday);
+  const [resetRewards, setResetRewards] = useState(defaultRewardsConfig.reset);
+  const [accumulatedRewards, setAccumulatedRewards] = useState(defaultRewardsConfig.accumulated);
+  const [vipLevels, setVipLevels] = useState<ActivityVipLevel[]>(fallbackVipLevels);
+
+  useEffect(() => {
+    const loadActivityConfig = async () => {
+      try {
+        const [rewards, vipTiers] = await Promise.all([
+          fetchPublicRewardsConfig(),
+          fetchPublicVipConfig(),
+        ]);
+
+        setWorkdayRewards(rewards.workday);
+        setResetRewards(rewards.reset);
+        setAccumulatedRewards(rewards.accumulated);
+
+        if (vipTiers.length > 0) {
+          setVipLevels(mapVipConfigToActivity(vipTiers));
+        }
+      } catch {
+        setWorkdayRewards(defaultRewardsConfig.workday);
+        setResetRewards(defaultRewardsConfig.reset);
+        setAccumulatedRewards(defaultRewardsConfig.accumulated);
+        setVipLevels(fallbackVipLevels);
+      }
+    };
+
+    void loadActivityConfig();
+  }, []);
 
   return (
     <div className="size-full overflow-auto pb-20 bg-white">

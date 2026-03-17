@@ -63,6 +63,12 @@ import {
 } from 'lucide-react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { buildAdminAuthHeaders, supabase } from '../services/supabaseAuth';
+import {
+  defaultRewardsConfig,
+  fetchAdminRewardsConfig,
+  type RewardsConfig,
+  updateAdminRewardsConfig,
+} from '../services/rewardsConfig';
 import { fetchAdminVipConfig, type VipConfig, updateAdminVipConfig } from '../services/vipConfig';
 import { projectId } from '/utils/supabase/info';
 import {
@@ -154,42 +160,6 @@ const mockProducts = [
   { id: 7, name: '4K Webcam with Microphone', description: 'Professional 4K webcam with built-in noise-canceling mic', category: 'Electronics', merchant: 'Best Buy', price: 129.99, commission: 0.020, imageUrl: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=400', status: 'Active', sku: 'WEB-007', stock: 95, createdDate: '2024-03-03', source: 'AI Generated' },
   { id: 8, name: 'Mechanical Keyboard RGB', description: 'Premium mechanical keyboard with RGB backlighting', category: 'Gaming', merchant: 'Walmart', price: 159.99, commission: 0.018, imageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=400', status: 'Active', sku: 'MKB-008', stock: 145, createdDate: '2024-03-05', source: 'AI Generated' },
 ];
-
-// Workday Rewards Data (from Activity page)
-const workdayRewardsData = [
-  { id: 1, days: 1, salary: 204, enabled: true },
-  { id: 2, days: 7, salary: 1428, enabled: true },
-  { id: 3, days: 15, salary: 3060, enabled: true },
-  { id: 4, days: 22, salary: 4488, enabled: true },
-  { id: 5, days: 30, salary: 6120, enabled: true }
-];
-
-// Reset Rewards Data (Anniversary bonuses)
-const resetRewardsData = [
-  { id: 1, deposit: 100, reward: 28, label: 'Bronze', color: 'bg-orange-300', labelColor: 'bg-orange-600', enabled: true },
-  { id: 2, deposit: 500, reward: 158, label: 'Silver', color: 'bg-gray-300', labelColor: 'bg-gray-600', enabled: true },
-  { id: 3, deposit: 2000, reward: 688, label: 'Gold', color: 'bg-yellow-300', labelColor: 'bg-yellow-600', enabled: true },
-  { id: 4, deposit: 5000, reward: 1788, label: 'Platinum', color: 'bg-blue-300', labelColor: 'bg-blue-600', enabled: true },
-  { id: 5, deposit: 10000, reward: 3888, label: 'Diamond', color: 'bg-purple-300', labelColor: 'bg-purple-600', enabled: true },
-  { id: 6, deposit: 30000, reward: 12888, label: 'Crown', color: 'bg-red-300', labelColor: 'bg-red-600', enabled: true }
-];
-
-// Accumulated Deposit Rewards Data
-const accumulatedRewardsData = [
-  { id: 1, minDeposit: 1000, maxDeposit: 4999, rate: 0.003, enabled: true },
-  { id: 2, minDeposit: 5000, maxDeposit: 19999, rate: 0.005, enabled: true },
-  { id: 3, minDeposit: 20000, maxDeposit: 49999, rate: 0.008, enabled: true },
-  { id: 4, minDeposit: 50000, maxDeposit: null, rate: 0.010, enabled: true }
-];
-
-// Product System Configuration
-const productSystemConfig = {
-  productsPerSet: 10,
-  maxSetsPerDay: 5,
-  minTimePerProduct: 30, // seconds
-  autoApproveCommission: true,
-  requireProductConfirmation: true
-};
 
 // Salary Payment System
 const initialSalaryPayments: SalaryPayment[] = [
@@ -389,6 +359,9 @@ export default function Admin() {
   const [savingVipLevel, setSavingVipLevel] = useState<number | null>(null);
   const [editingVipLevel, setEditingVipLevel] = useState<number | null>(null);
   const [vipDraft, setVipDraft] = useState<VipDraftState | null>(null);
+  const [rewardsConfig, setRewardsConfig] = useState<RewardsConfig>(defaultRewardsConfig);
+  const [rewardsConfigLoading, setRewardsConfigLoading] = useState(false);
+  const [rewardsConfigSaving, setRewardsConfigSaving] = useState(false);
   const [taskConfigurations, setTaskConfigurations] = useState<TaskConfig[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -486,6 +459,163 @@ export default function Admin() {
     } finally {
       setSavingVipLevel(null);
     }
+  };
+
+  const loadRewardsConfigurations = async () => {
+    setRewardsConfigLoading(true);
+    try {
+      const config = await fetchAdminRewardsConfig();
+      setRewardsConfig(config);
+    } catch (error) {
+      setRewardsConfig(defaultRewardsConfig);
+      const message = error instanceof Error ? error.message : 'Failed to load rewards configuration';
+      toast.error(message);
+    } finally {
+      setRewardsConfigLoading(false);
+    }
+  };
+
+  const persistRewardsConfig = async (payload: Partial<RewardsConfig>, successMessage: string) => {
+    setRewardsConfigSaving(true);
+    try {
+      const updated = await updateAdminRewardsConfig(payload);
+      setRewardsConfig(updated);
+      toast.success(successMessage);
+      setModalType(null);
+      setSelectedItem(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to update rewards configuration';
+      toast.error(message);
+    } finally {
+      setRewardsConfigSaving(false);
+    }
+  };
+
+  const handleSaveWorkdayReward = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedItem?.id) {
+      return;
+    }
+
+    const formData = new FormData(event.currentTarget);
+    const days = Number(formData.get('days'));
+    const salary = Number(formData.get('salary'));
+    const enabled = formData.get('enabled') === 'on';
+
+    if (!Number.isInteger(days) || days <= 0) {
+      toast.error('Days worked must be a whole number greater than 0.');
+      return;
+    }
+    if (!Number.isFinite(salary) || salary < 0) {
+      toast.error('Salary must be 0 or greater.');
+      return;
+    }
+
+    const workday = rewardsConfig.workday.map((reward) =>
+      reward.id === selectedItem.id ? { ...reward, days, salary, enabled } : reward,
+    );
+    await persistRewardsConfig({ workday }, 'Workday reward updated.');
+  };
+
+  const handleSaveResetReward = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedItem?.id) {
+      return;
+    }
+
+    const formData = new FormData(event.currentTarget);
+    const deposit = Number(formData.get('deposit'));
+    const rewardAmount = Number(formData.get('reward'));
+    const label = String(formData.get('label') ?? '').trim();
+    const enabled = String(formData.get('enabled') ?? 'true') === 'true';
+
+    if (!Number.isFinite(deposit) || deposit < 0) {
+      toast.error('Deposit amount must be 0 or greater.');
+      return;
+    }
+    if (!Number.isFinite(rewardAmount) || rewardAmount < 0) {
+      toast.error('Reward amount must be 0 or greater.');
+      return;
+    }
+    if (!label) {
+      toast.error('Tier label is required.');
+      return;
+    }
+
+    const reset = rewardsConfig.reset.map((reward) =>
+      reward.id === selectedItem.id
+        ? { ...reward, deposit, reward: rewardAmount, label, enabled }
+        : reward,
+    );
+    await persistRewardsConfig({ reset }, 'Reset reward updated.');
+  };
+
+  const handleSaveAccumulatedReward = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedItem?.id) {
+      return;
+    }
+
+    const formData = new FormData(event.currentTarget);
+    const minDeposit = Number(formData.get('minDeposit'));
+    const rawMaxDeposit = String(formData.get('maxDeposit') ?? '').trim();
+    const maxDeposit = rawMaxDeposit ? Number(rawMaxDeposit) : null;
+    const ratePercent = Number(formData.get('ratePercent'));
+    const enabled = String(formData.get('enabled') ?? 'true') === 'true';
+
+    if (!Number.isFinite(minDeposit) || minDeposit < 0) {
+      toast.error('Minimum deposit must be 0 or greater.');
+      return;
+    }
+    if (maxDeposit !== null && (!Number.isFinite(maxDeposit) || maxDeposit < minDeposit)) {
+      toast.error('Maximum deposit must be greater than or equal to minimum deposit.');
+      return;
+    }
+    if (!Number.isFinite(ratePercent) || ratePercent < 0) {
+      toast.error('Reward rate must be 0 or greater.');
+      return;
+    }
+
+    const accumulated = rewardsConfig.accumulated.map((reward) =>
+      reward.id === selectedItem.id
+        ? { ...reward, minDeposit, maxDeposit, rate: ratePercent / 100, enabled }
+        : reward,
+    );
+    await persistRewardsConfig({ accumulated }, 'Accumulated reward updated.');
+  };
+
+  const handleSaveProductSystemConfig = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const productsPerSet = Number(formData.get('productsPerSet'));
+    const maxSetsPerDay = Number(formData.get('maxSetsPerDay'));
+    const minTimePerProduct = Number(formData.get('minTimePerProduct'));
+    const autoApproveCommission = String(formData.get('commissionApproval') ?? 'auto') === 'auto';
+    const requireProductConfirmation = formData.get('requireProductConfirmation') === 'on';
+
+    if (!Number.isInteger(productsPerSet) || productsPerSet <= 0) {
+      toast.error('Products per set must be a whole number greater than 0.');
+      return;
+    }
+    if (!Number.isInteger(maxSetsPerDay) || maxSetsPerDay <= 0) {
+      toast.error('Max sets per day must be a whole number greater than 0.');
+      return;
+    }
+    if (!Number.isInteger(minTimePerProduct) || minTimePerProduct <= 0) {
+      toast.error('Min time per product must be a whole number greater than 0.');
+      return;
+    }
+
+    await persistRewardsConfig({
+      productSystem: {
+        productsPerSet,
+        maxSetsPerDay,
+        minTimePerProduct,
+        autoApproveCommission,
+        requireProductConfirmation,
+      },
+    }, 'Product system configuration updated.');
   };
 
   const handleStartTaskInlineEdit = (task: TaskConfig) => {
@@ -878,6 +1008,14 @@ export default function Admin() {
     }
 
     void loadVipConfigurations();
+  }, [activeMenu]);
+
+  useEffect(() => {
+    if (!['home', 'financials', 'rewards-system'].includes(activeMenu)) {
+      return;
+    }
+
+    void loadRewardsConfigurations();
   }, [activeMenu]);
 
   const handleCreateAdminUser = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -2162,25 +2300,25 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleSaveWorkdayReward}>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Days Worked</label>
-                    <input type="number" defaultValue={selectedItem.days} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input name="days" type="number" defaultValue={selectedItem.days} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Salary Amount ($)</label>
-                    <input type="number" step="0.01" defaultValue={selectedItem.salary} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input name="salary" type="number" step="0.01" defaultValue={selectedItem.salary} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                   </div>
                   <div className="col-span-2">
                     <label className="flex items-center gap-2">
-                      <input type="checkbox" defaultChecked={selectedItem.enabled} className="w-5 h-5 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
+                      <input name="enabled" type="checkbox" defaultChecked={selectedItem.enabled} className="w-5 h-5 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
                       <span className="text-white font-medium">Enable this reward tier</span>
                     </label>
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
-                  <button type="submit" className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
+                  <button type="submit" disabled={rewardsConfigSaving} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] disabled:opacity-60 text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
                     Save Changes
                   </button>
                   <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
@@ -2205,30 +2343,30 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleSaveResetReward}>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Deposit Amount ($)</label>
-                    <input type="number" defaultValue={selectedItem.deposit} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input name="deposit" type="number" defaultValue={selectedItem.deposit} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Reward Amount ($)</label>
-                    <input type="number" step="0.01" defaultValue={selectedItem.reward} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input name="reward" type="number" step="0.01" defaultValue={selectedItem.reward} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Tier Label</label>
-                    <input type="text" defaultValue={selectedItem.label} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input name="label" type="text" defaultValue={selectedItem.label} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
-                    <select defaultValue={selectedItem.enabled ? 'true' : 'false'} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select name="enabled" defaultValue={selectedItem.enabled ? 'true' : 'false'} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option value="true">Active</option>
                       <option value="false">Inactive</option>
                     </select>
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
-                  <button type="submit" className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 rounded-lg transition-colors">
+                  <button type="submit" disabled={rewardsConfigSaving} className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-60 text-white font-bold py-3 rounded-lg transition-colors">
                     Save Changes
                   </button>
                   <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
@@ -2253,30 +2391,30 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleSaveAccumulatedReward}>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Minimum Deposit ($)</label>
-                    <input type="number" defaultValue={selectedItem.minDeposit} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input name="minDeposit" type="number" defaultValue={selectedItem.minDeposit} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Maximum Deposit ($)</label>
-                    <input type="number" defaultValue={selectedItem.maxDeposit || ''} placeholder="Leave empty for unlimited" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input name="maxDeposit" type="number" defaultValue={selectedItem.maxDeposit || ''} placeholder="Leave empty for unlimited" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Reward Rate (%)</label>
-                    <input type="number" step="0.001" defaultValue={(selectedItem.rate * 100).toFixed(3)} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input name="ratePercent" type="number" step="0.001" defaultValue={(selectedItem.rate * 100).toFixed(3)} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
-                    <select defaultValue={selectedItem.enabled ? 'true' : 'false'} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select name="enabled" defaultValue={selectedItem.enabled ? 'true' : 'false'} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option value="true">Active</option>
                       <option value="false">Inactive</option>
                     </select>
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
-                  <button type="submit" className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
+                  <button type="submit" disabled={rewardsConfigSaving} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] disabled:opacity-60 text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
                     Save Changes
                   </button>
                   <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
@@ -2301,26 +2439,26 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleSaveProductSystemConfig}>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Products Per Set</label>
-                    <input type="number" defaultValue={productSystemConfig.productsPerSet} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input name="productsPerSet" type="number" defaultValue={rewardsConfig.productSystem.productsPerSet} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                     <p className="text-gray-500 text-xs mt-1">How many products in each task set</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Max Sets Per Day</label>
-                    <input type="number" defaultValue={productSystemConfig.maxSetsPerDay} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input name="maxSetsPerDay" type="number" defaultValue={rewardsConfig.productSystem.maxSetsPerDay} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                     <p className="text-gray-500 text-xs mt-1">Maximum sets users can complete daily</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Min Time Per Product (seconds)</label>
-                    <input type="number" defaultValue={productSystemConfig.minTimePerProduct} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input name="minTimePerProduct" type="number" defaultValue={rewardsConfig.productSystem.minTimePerProduct} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                     <p className="text-gray-500 text-xs mt-1">Minimum time required per product</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Commission Approval</label>
-                    <select defaultValue={productSystemConfig.autoApproveCommission ? 'auto' : 'manual'} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select name="commissionApproval" defaultValue={rewardsConfig.productSystem.autoApproveCommission ? 'auto' : 'manual'} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option value="auto">Automatic</option>
                       <option value="manual">Manual Approval</option>
                     </select>
@@ -2328,14 +2466,14 @@ export default function Admin() {
                   </div>
                   <div className="col-span-2">
                     <label className="flex items-center gap-2">
-                      <input type="checkbox" defaultChecked={productSystemConfig.requireProductConfirmation} className="w-5 h-5 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
+                      <input name="requireProductConfirmation" type="checkbox" defaultChecked={rewardsConfig.productSystem.requireProductConfirmation} className="w-5 h-5 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
                       <span className="text-white font-medium">Require product submission confirmation</span>
                     </label>
                     <p className="text-gray-500 text-xs mt-1 ml-7">Users must confirm each product submission</p>
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
-                  <button type="submit" className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
+                  <button type="submit" disabled={rewardsConfigSaving} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] disabled:opacity-60 text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
                     Save Configuration
                   </button>
                   <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
@@ -3860,7 +3998,7 @@ export default function Admin() {
                     <p className="text-gray-400 text-sm">Configure daily attendance salary rewards</p>
                   </div>
                   <div className="space-y-3">
-                    {workdayRewardsData.map((reward) => (
+                    {rewardsConfig.workday.map((reward) => (
                       <div key={reward.id} className="bg-[#1a1f2e] rounded-lg p-4 flex items-center justify-between hover:ring-2 hover:ring-[#00D9FF] transition-all">
                         <div className="flex items-center gap-4 flex-1">
                           <div className="bg-blue-500/20 p-3 rounded-lg">
@@ -3902,7 +4040,7 @@ export default function Admin() {
                     <p className="text-gray-400 text-sm">Configure deposit-based bonus rewards</p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {resetRewardsData.map((reward) => (
+                    {rewardsConfig.reset.map((reward) => (
                       <div key={reward.id} className={`${reward.color} rounded-xl p-5 relative overflow-hidden hover:ring-4 hover:ring-[#00D9FF] transition-all`}>
                         <div className={`absolute top-2 right-2 px-2 py-1 ${reward.labelColor} text-white rounded-full text-xs font-bold`}>
                           {reward.label}
@@ -3941,7 +4079,7 @@ export default function Admin() {
                     <p className="text-gray-400 text-sm">Daily deposit accumulation percentage rewards</p>
                   </div>
                   <div className="space-y-3">
-                    {accumulatedRewardsData.map((reward) => (
+                    {rewardsConfig.accumulated.map((reward) => (
                       <div key={reward.id} className="bg-[#1a1f2e] rounded-lg p-5 hover:ring-2 hover:ring-[#00D9FF] transition-all">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-4 flex-1">
@@ -4000,7 +4138,7 @@ export default function Admin() {
                         <Package className="text-blue-400" size={24} />
                         <h4 className="text-white font-bold">Products Per Set</h4>
                       </div>
-                      <p className="text-[#00D9FF] font-bold text-3xl">{productSystemConfig.productsPerSet}</p>
+                      <p className="text-[#00D9FF] font-bold text-3xl">{rewardsConfig.productSystem.productsPerSet}</p>
                       <p className="text-gray-400 text-sm mt-1">Number of products in each task set</p>
                     </div>
                     <div className="bg-[#1a1f2e] rounded-lg p-5 border-l-4 border-green-500">
@@ -4008,7 +4146,7 @@ export default function Admin() {
                         <Zap className="text-green-400" size={24} />
                         <h4 className="text-white font-bold">Max Sets Per Day</h4>
                       </div>
-                      <p className="text-green-400 font-bold text-3xl">{productSystemConfig.maxSetsPerDay}</p>
+                      <p className="text-green-400 font-bold text-3xl">{rewardsConfig.productSystem.maxSetsPerDay}</p>
                       <p className="text-gray-400 text-sm mt-1">Maximum task sets users can complete daily</p>
                     </div>
                     <div className="bg-[#1a1f2e] rounded-lg p-5 border-l-4 border-yellow-500">
@@ -4016,7 +4154,7 @@ export default function Admin() {
                         <Clock className="text-yellow-400" size={24} />
                         <h4 className="text-white font-bold">Min Time Per Product</h4>
                       </div>
-                      <p className="text-yellow-400 font-bold text-3xl">{productSystemConfig.minTimePerProduct}s</p>
+                      <p className="text-yellow-400 font-bold text-3xl">{rewardsConfig.productSystem.minTimePerProduct}s</p>
                       <p className="text-gray-400 text-sm mt-1">Minimum time required per product task</p>
                     </div>
                     <div className="bg-[#1a1f2e] rounded-lg p-5 border-l-4 border-purple-500">
@@ -4024,8 +4162,8 @@ export default function Admin() {
                         <Check className="text-purple-400" size={24} />
                         <h4 className="text-white font-bold">Auto-Approve Commission</h4>
                       </div>
-                      <p className={`font-bold text-3xl ${productSystemConfig.autoApproveCommission ? 'text-green-400' : 'text-red-400'}`}>
-                        {productSystemConfig.autoApproveCommission ? 'ON' : 'OFF'}
+                      <p className={`font-bold text-3xl ${rewardsConfig.productSystem.autoApproveCommission ? 'text-green-400' : 'text-red-400'}`}>
+                        {rewardsConfig.productSystem.autoApproveCommission ? 'ON' : 'OFF'}
                       </p>
                       <p className="text-gray-400 text-sm mt-1">Automatically approve commission payments</p>
                     </div>

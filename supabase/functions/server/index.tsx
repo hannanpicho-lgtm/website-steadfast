@@ -390,6 +390,7 @@ const TRANSACTION_KEY_PREFIX = 'transaction:';
 const WITHDRAWAL_KEY_PREFIX = 'withdrawal:';
 const TASK_CATALOG_KEY_PREFIX = 'task-catalog:';
 const VIP_CONFIG_KEY_PREFIX = 'vip-config:';
+const REWARDS_CONFIG_KEY = 'rewards-config:primary';
 
 const defaultTaskCatalog = [
   {
@@ -445,6 +446,37 @@ const defaultVipConfig = [
   { level: 4, name: 'VIP 4', investment: 5000, dailyTasks: 25, commission: 0.02, color: 'platinum' },
   { level: 5, name: 'VIP 5', investment: 10000, dailyTasks: 30, commission: 0.025, color: 'diamond' },
 ];
+
+const defaultRewardsConfig = {
+  workday: [
+    { id: 1, days: 1, salary: 204, enabled: true },
+    { id: 2, days: 7, salary: 1428, enabled: true },
+    { id: 3, days: 15, salary: 3060, enabled: true },
+    { id: 4, days: 22, salary: 4488, enabled: true },
+    { id: 5, days: 30, salary: 6120, enabled: true },
+  ],
+  reset: [
+    { id: 1, deposit: 100, reward: 28, label: 'Bronze', color: 'bg-orange-300', labelColor: 'bg-orange-600', enabled: true },
+    { id: 2, deposit: 500, reward: 158, label: 'Silver', color: 'bg-gray-300', labelColor: 'bg-gray-600', enabled: true },
+    { id: 3, deposit: 2000, reward: 688, label: 'Gold', color: 'bg-yellow-300', labelColor: 'bg-yellow-600', enabled: true },
+    { id: 4, deposit: 5000, reward: 1788, label: 'Platinum', color: 'bg-blue-300', labelColor: 'bg-blue-600', enabled: true },
+    { id: 5, deposit: 10000, reward: 3888, label: 'Diamond', color: 'bg-purple-300', labelColor: 'bg-purple-600', enabled: true },
+    { id: 6, deposit: 30000, reward: 12888, label: 'Crown', color: 'bg-red-300', labelColor: 'bg-red-600', enabled: true },
+  ],
+  accumulated: [
+    { id: 1, minDeposit: 1000, maxDeposit: 4999, rate: 0.003, enabled: true },
+    { id: 2, minDeposit: 5000, maxDeposit: 19999, rate: 0.005, enabled: true },
+    { id: 3, minDeposit: 20000, maxDeposit: 49999, rate: 0.008, enabled: true },
+    { id: 4, minDeposit: 50000, maxDeposit: null, rate: 0.01, enabled: true },
+  ],
+  productSystem: {
+    productsPerSet: 10,
+    maxSetsPerDay: 5,
+    minTimePerProduct: 30,
+    autoApproveCommission: true,
+    requireProductConfirmation: true,
+  },
+};
 
 function createFinanceId(prefix: string): string {
   return `${prefix}_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
@@ -508,6 +540,100 @@ function sanitizeTaskUrl(value: unknown): string {
   } catch {
     return '';
   }
+}
+
+function normalizeBoolean(value: unknown, fallback = false): boolean {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  return fallback;
+}
+
+function normalizeWorkdayRewardRecord(record: any, index: number) {
+  const id = Number.isFinite(Number(record?.id)) ? Math.max(1, Math.round(Number(record.id))) : index + 1;
+  return {
+    id,
+    days: Math.max(1, Math.round(Number(record?.days ?? 1))),
+    salary: Math.max(0, roundMoney(Number(record?.salary ?? 0))),
+    enabled: normalizeBoolean(record?.enabled, true),
+  };
+}
+
+function normalizeResetRewardRecord(record: any, index: number) {
+  const id = Number.isFinite(Number(record?.id)) ? Math.max(1, Math.round(Number(record.id))) : index + 1;
+  return {
+    id,
+    deposit: Math.max(0, roundMoney(Number(record?.deposit ?? 0))),
+    reward: Math.max(0, roundMoney(Number(record?.reward ?? 0))),
+    label: sanitizeTaskText(record?.label, `Tier ${id}`),
+    color: sanitizeTaskText(record?.color, 'bg-gray-300'),
+    labelColor: sanitizeTaskText(record?.labelColor, 'bg-gray-600'),
+    enabled: normalizeBoolean(record?.enabled, true),
+  };
+}
+
+function normalizeAccumulatedRewardRecord(record: any, index: number) {
+  const id = Number.isFinite(Number(record?.id)) ? Math.max(1, Math.round(Number(record.id))) : index + 1;
+  const minDeposit = Math.max(0, roundMoney(Number(record?.minDeposit ?? 0)));
+  const rawMax = Number(record?.maxDeposit);
+  const maxDeposit = Number.isFinite(rawMax)
+    ? Math.max(minDeposit, roundMoney(rawMax))
+    : null;
+  const rate = Number.isFinite(Number(record?.rate)) ? Math.max(0, Number(record.rate)) : 0;
+
+  return {
+    id,
+    minDeposit,
+    maxDeposit,
+    rate,
+    enabled: normalizeBoolean(record?.enabled, true),
+  };
+}
+
+function normalizeProductSystemConfig(record: any) {
+  return {
+    productsPerSet: Math.max(1, Math.round(Number(record?.productsPerSet ?? 10))),
+    maxSetsPerDay: Math.max(1, Math.round(Number(record?.maxSetsPerDay ?? 5))),
+    minTimePerProduct: Math.max(1, Math.round(Number(record?.minTimePerProduct ?? 30))),
+    autoApproveCommission: normalizeBoolean(record?.autoApproveCommission, true),
+    requireProductConfirmation: normalizeBoolean(record?.requireProductConfirmation, true),
+  };
+}
+
+function normalizeRewardsConfigRecord(record: any) {
+  const source = typeof record === 'object' && record ? record : defaultRewardsConfig;
+  const workday = Array.isArray(source.workday) && source.workday.length > 0
+    ? source.workday.map((entry: any, index: number) => normalizeWorkdayRewardRecord(entry, index))
+    : defaultRewardsConfig.workday.map((entry, index) => normalizeWorkdayRewardRecord(entry, index));
+  const reset = Array.isArray(source.reset) && source.reset.length > 0
+    ? source.reset.map((entry: any, index: number) => normalizeResetRewardRecord(entry, index))
+    : defaultRewardsConfig.reset.map((entry, index) => normalizeResetRewardRecord(entry, index));
+  const accumulated = Array.isArray(source.accumulated) && source.accumulated.length > 0
+    ? source.accumulated.map((entry: any, index: number) => normalizeAccumulatedRewardRecord(entry, index))
+    : defaultRewardsConfig.accumulated.map((entry, index) => normalizeAccumulatedRewardRecord(entry, index));
+
+  return {
+    workday,
+    reset,
+    accumulated,
+    productSystem: normalizeProductSystemConfig(source.productSystem ?? defaultRewardsConfig.productSystem),
+    updatedAt: typeof source.updatedAt === 'string' && source.updatedAt
+      ? source.updatedAt
+      : new Date().toISOString(),
+  };
+}
+
+async function getRewardsConfigRecord() {
+  const existing = await kv.get(REWARDS_CONFIG_KEY);
+  if (!existing) {
+    const seeded = normalizeRewardsConfigRecord(defaultRewardsConfig);
+    await kv.set(REWARDS_CONFIG_KEY, seeded);
+    return seeded;
+  }
+
+  const normalized = normalizeRewardsConfigRecord(existing);
+  await kv.set(REWARDS_CONFIG_KEY, normalized);
+  return normalized;
 }
 
 function normalizeVipConfigRecord(record: any) {
@@ -1535,6 +1661,16 @@ app.get('/make-server-a1c55d7e/vip-config', async (c) => {
   }
 });
 
+app.get('/make-server-a1c55d7e/rewards-config', async (c) => {
+  try {
+    const config = await getRewardsConfigRecord();
+    return c.json({ config });
+  } catch (error) {
+    console.error('Error fetching rewards config:', error);
+    return c.json({ error: 'Failed to fetch rewards config' }, 500);
+  }
+});
+
 app.get('/make-server-a1c55d7e/transactions/:username', async (c) => {
   try {
     const username = sanitizeUsername(c.req.param('username'));
@@ -2037,6 +2173,25 @@ app.get('/make-server-a1c55d7e/admin/vip-config', async (c) => {
   }
 });
 
+app.get('/make-server-a1c55d7e/admin/rewards-config', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:rewards-config-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const config = await getRewardsConfigRecord();
+    return c.json({ config });
+  } catch (error) {
+    console.error('Error fetching admin rewards config:', error);
+    return c.json({ error: 'Failed to fetch rewards config' }, 500);
+  }
+});
+
 app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
   try {
     const unauthorized = await requireAdmin(c);
@@ -2197,6 +2352,42 @@ app.put('/make-server-a1c55d7e/admin/vip-config/:level', async (c) => {
   } catch (error) {
     console.error('Error updating VIP config:', error);
     return c.json({ error: 'Failed to update VIP config' }, 500);
+  }
+});
+
+app.put('/make-server-a1c55d7e/admin/rewards-config', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:rewards-config-update');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const body = await c.req.json();
+    const existing = await getRewardsConfigRecord();
+
+    const merged = {
+      ...existing,
+      workday: Array.isArray(body?.workday) ? body.workday : existing.workday,
+      reset: Array.isArray(body?.reset) ? body.reset : existing.reset,
+      accumulated: Array.isArray(body?.accumulated) ? body.accumulated : existing.accumulated,
+      productSystem: body?.productSystem && typeof body.productSystem === 'object'
+        ? { ...existing.productSystem, ...body.productSystem }
+        : existing.productSystem,
+      updatedAt: new Date().toISOString(),
+    };
+
+    const config = normalizeRewardsConfigRecord(merged);
+    config.updatedAt = new Date().toISOString();
+    await kv.set(REWARDS_CONFIG_KEY, config);
+
+    return c.json({ success: true, config });
+  } catch (error) {
+    console.error('Error updating admin rewards config:', error);
+    return c.json({ error: 'Failed to update rewards config' }, 500);
   }
 });
 
