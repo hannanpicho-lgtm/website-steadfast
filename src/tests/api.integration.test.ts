@@ -160,6 +160,45 @@ describe('GET /tasks/:username', () => {
   });
 });
 
+// ─── Finance ─────────────────────────────────────────────────────────────────
+
+describe('Finance endpoints', () => {
+  it('GET /transactions/:username returns an array', async () => {
+    const { status, body } = await request(`/transactions/${TEST_USER}`);
+    expect(status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
+  });
+
+  it('POST /withdrawals/request returns 400 when walletAddress is missing', async () => {
+    const { status } = await post('/withdrawals/request', {
+      username: TEST_USER,
+      amount: 0.5,
+      method: 'USDT',
+    });
+    expect(status).toBe(400);
+  });
+
+  it('POST /withdrawals/request creates a pending withdrawal when balance is available', async () => {
+    const { status, body } = await post('/withdrawals/request', {
+      username: TEST_USER,
+      amount: 0.5,
+      walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      method: 'USDT',
+    });
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.withdrawal.status).toBe('Pending');
+    expect(typeof body.availableAmount).toBe('number');
+  });
+
+  it('GET /withdrawals/:username returns the submitted request', async () => {
+    const { status, body } = await request(`/withdrawals/${TEST_USER}`);
+    expect(status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
+    expect(body.some((record: { walletAddress: string }) => record.walletAddress === '0x1234567890abcdef1234567890abcdef12345678')).toBe(true);
+  });
+});
+
 // ─── Support Links ────────────────────────────────────────────────────────────
 
 describe('Support links', () => {

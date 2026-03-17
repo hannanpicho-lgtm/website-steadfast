@@ -48,11 +48,24 @@ interface TaskRecord {
   tasksCompleted: number;
 }
 
+interface TransactionRecord {
+  id: string;
+  username: string;
+  type: 'Deposit' | 'Withdrawal' | 'Commission';
+  amount: number;
+  status: 'Pending' | 'Completed' | 'Rejected' | 'Failed';
+  date: string;
+  method: string;
+  txHash: string;
+  description: string;
+}
+
 export default function Records() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'completed'>('all');
   const [userData, setUserData] = useState<UserData | null>(null);
   const [taskRecords, setTaskRecords] = useState<TaskRecord[]>([]);
+  const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
@@ -101,18 +114,40 @@ export default function Records() {
     return tasksResponse.json();
   };
 
+  const fetchTransactions = async (name: string) => {
+    const transactionsResponse = await fetch(`${serverUrl}/transactions/${name}`, {
+      headers: {
+        'Authorization': `Bearer ${publicAnonKey}`,
+      },
+    });
+    if (!transactionsResponse.ok) {
+      throw new Error('Failed to fetch transactions');
+    }
+    return transactionsResponse.json();
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
 
       try {
-        const [user, tasks] = await Promise.all([fetchUser(username), fetchTasks(username)]);
+        const [user, tasks, transactionHistory] = await Promise.all([
+          fetchUser(username),
+          fetchTasks(username),
+          fetchTransactions(username),
+        ]);
         setUserData(user);
         setTaskRecords(tasks);
+        setTransactions(Array.isArray(transactionHistory) ? transactionHistory : []);
       } catch {
-        const [user, tasks] = await Promise.all([fetchUser('ugreen'), fetchTasks('ugreen')]);
+        const [user, tasks, transactionHistory] = await Promise.all([
+          fetchUser('ugreen'),
+          fetchTasks('ugreen'),
+          fetchTransactions('ugreen'),
+        ]);
         setUserData(user);
         setTaskRecords(tasks);
+        setTransactions(Array.isArray(transactionHistory) ? transactionHistory : []);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -336,6 +371,56 @@ export default function Records() {
               );
             })
           )}
+        </div>
+
+        <div className="mt-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg sm:text-xl font-bold text-[#0066b3]">Financial Activity</h2>
+            <span className="text-sm text-gray-500">{transactions.length} entries</span>
+          </div>
+
+          <div className="space-y-3">
+            {loading ? (
+              <div className="bg-gray-50 rounded-lg p-6 text-center text-gray-500">Loading transaction history...</div>
+            ) : transactions.length === 0 ? (
+              <div className="bg-gray-50 rounded-lg p-6 text-center text-gray-500">No financial activity recorded yet.</div>
+            ) : transactions.map((transaction) => (
+              <div key={transaction.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        transaction.type === 'Withdrawal'
+                          ? 'bg-orange-100 text-orange-700'
+                          : transaction.type === 'Deposit'
+                            ? 'bg-blue-100 text-blue-700'
+                            : 'bg-green-100 text-green-700'
+                      }`}>
+                        {transaction.type}
+                      </span>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                        transaction.status === 'Completed'
+                          ? 'bg-green-100 text-green-700'
+                          : transaction.status === 'Pending'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-red-100 text-red-700'
+                      }`}>
+                        {transaction.status}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-gray-900">{transaction.description || `${transaction.type} via ${transaction.method}`}</p>
+                    <p className="text-xs text-gray-500 mt-1">{new Date(transaction.date).toLocaleString()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-base font-bold ${transaction.type === 'Withdrawal' ? 'text-orange-600' : 'text-green-600'}`}>
+                      {transaction.type === 'Withdrawal' ? '-' : '+'}${transaction.amount.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">{transaction.method}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

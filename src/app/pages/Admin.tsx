@@ -98,16 +98,6 @@ const mockUsers = [
   { id: 8, username: 'user008', phone: '+1 234-567-8907', email: 'user008@example.com', vipLevel: 'VIP 1', balance: 890.75, status: 'Pending', registered: '2024-02-05', tasksCompleted: 12, totalEarnings: 150.00 },
 ];
 
-// Mock transactions data
-const mockTransactions = [
-  { id: 1, username: 'user001', type: 'Deposit', amount: 500.00, status: 'Completed', date: '2024-03-01 10:30:00', txHash: '0x1a2b3c4d5e6f', method: 'USDT' },
-  { id: 2, username: 'user002', type: 'Withdrawal', amount: 250.00, status: 'Pending', date: '2024-03-02 14:15:00', txHash: '0x4d5e6f7g8h9i', method: 'USDT' },
-  { id: 3, username: 'user003', type: 'Commission', amount: 125.50, status: 'Completed', date: '2024-03-03 09:45:00', txHash: '0x7g8h9i0j1k2l', method: 'System' },
-  { id: 4, username: 'user004', type: 'Deposit', amount: 1000.00, status: 'Failed', date: '2024-03-04 16:20:00', txHash: '0xjk1l2m3n4o5p', method: 'USDT' },
-  { id: 5, username: 'user005', type: 'Withdrawal', amount: 750.00, status: 'Completed', date: '2024-03-05 11:00:00', txHash: '0x3n4o5p6q7r8s', method: 'USDT' },
-  { id: 6, username: 'user006', type: 'Commission', amount: 89.25, status: 'Completed', date: '2024-03-06 13:30:00', txHash: '0x9t0u1v2w3x4y', method: 'System' },
-  { id: 7, username: 'user007', type: 'Deposit', amount: 5000.00, status: 'Completed', date: '2024-03-07 15:45:00', txHash: '0x5z6a7b8c9d0e', method: 'USDT' },
-];
 
 // Mock tasks data
 const mockTasks = [
@@ -116,14 +106,6 @@ const mockTasks = [
   { id: 3, merchant: 'Target', product: 'Laptop Stand', price: 45.50, commission: 0.012, status: 'Active', assignedUsers: 32, completedToday: 18 },
   { id: 4, merchant: 'Amazon', product: 'USB-C Cable', price: 12.99, commission: 0.010, status: 'Paused', assignedUsers: 0, completedToday: 0 },
   { id: 5, merchant: 'Best Buy', product: 'Gaming Mouse', price: 79.99, commission: 0.018, status: 'Active', assignedUsers: 54, completedToday: 29 },
-];
-
-// Mock withdrawal requests
-const mockWithdrawals = [
-  { id: 1, username: 'user002', amount: 250.00, walletAddress: '0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb', status: 'Pending', requestedDate: '2024-03-02 14:15:00', method: 'USDT' },
-  { id: 2, username: 'user008', amount: 150.00, walletAddress: '0x8ba1f109551bD432803012645Ac136ddd64DBA72', status: 'Pending', requestedDate: '2024-03-08 09:30:00', method: 'USDT' },
-  { id: 3, username: 'user005', amount: 750.00, walletAddress: '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed', status: 'Approved', requestedDate: '2024-03-05 11:00:00', method: 'USDT' },
-  { id: 4, username: 'user003', amount: 450.00, walletAddress: '0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359', status: 'Approved', requestedDate: '2024-03-07 16:45:00', method: 'USDT' },
 ];
 
 // VIP Configuration
@@ -275,6 +257,36 @@ type PlatformUser = {
   createdAt: string | null;
 };
 
+type TransactionRecord = {
+  id: string;
+  username: string;
+  type: 'Deposit' | 'Withdrawal' | 'Commission';
+  amount: number;
+  status: 'Pending' | 'Completed' | 'Rejected' | 'Failed';
+  date: string;
+  txHash: string;
+  method: string;
+  source: string;
+  description: string;
+  referenceId: string;
+};
+
+type WithdrawalRequestRecord = {
+  id: string;
+  username: string;
+  amount: number;
+  walletAddress: string;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  requestedDate: string;
+  method: string;
+  transactionId: string;
+  reviewedAt: string | null;
+  txHash: string;
+  rejectionReason: string;
+  reviewerId: string | null;
+  reviewerEmail: string | null;
+};
+
 type MenuItem = {
   id: string;
   label: string;
@@ -351,6 +363,13 @@ export default function Admin() {
   const [platformUsers, setPlatformUsers] = useState<PlatformUser[]>([]);
   const [platformUsersLoading, setPlatformUsersLoading] = useState(false);
   const [platformUsersLoaded, setPlatformUsersLoaded] = useState(false);
+  const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
+  const [withdrawalRequests, setWithdrawalRequests] = useState<WithdrawalRequestRecord[]>([]);
+  const [financeLoading, setFinanceLoading] = useState(false);
+  const [financeLoaded, setFinanceLoaded] = useState(false);
+  const [approveWithdrawalTxHash, setApproveWithdrawalTxHash] = useState('');
+  const [rejectWithdrawalReason, setRejectWithdrawalReason] = useState('');
+  const [processingWithdrawal, setProcessingWithdrawal] = useState(false);
   const [showAdminVisibilityNotice, setShowAdminVisibilityNotice] = useState(true);
   const [newAdminInvitationCode, setNewAdminInvitationCode] = useState<string | null>(null);
   const [currentAdminInvitationCode, setCurrentAdminInvitationCode] = useState<string | null>(null);
@@ -715,9 +734,52 @@ export default function Admin() {
     }
   };
 
+  const loadFinanceData = async () => {
+    setFinanceLoaded(false);
+    setFinanceLoading(true);
+    try {
+      const headers = await buildAdminAuthHeaders(false);
+      const [transactionsResponse, withdrawalsResponse] = await Promise.all([
+        fetch(`${serverUrl}/admin/transactions`, { headers }),
+        fetch(`${serverUrl}/admin/withdrawals`, { headers }),
+      ]);
+
+      const [transactionsPayload, withdrawalsPayload] = await Promise.all([
+        transactionsResponse.json().catch(() => ({})),
+        withdrawalsResponse.json().catch(() => ({})),
+      ]);
+
+      if (!transactionsResponse.ok) {
+        throw new Error(transactionsPayload?.error ?? `Failed to load transactions (${transactionsResponse.status})`);
+      }
+      if (!withdrawalsResponse.ok) {
+        throw new Error(withdrawalsPayload?.error ?? `Failed to load withdrawals (${withdrawalsResponse.status})`);
+      }
+
+      setTransactions(Array.isArray(transactionsPayload?.transactions) ? transactionsPayload.transactions : []);
+      setWithdrawalRequests(Array.isArray(withdrawalsPayload?.withdrawals) ? withdrawalsPayload.withdrawals : []);
+    } catch (error) {
+      setTransactions([]);
+      setWithdrawalRequests([]);
+      const message = error instanceof Error ? error.message : 'Failed to load finance data';
+      toast.error(message);
+    } finally {
+      setFinanceLoaded(true);
+      setFinanceLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (activeMenu !== 'user-management' && activeMenu !== 'premium-bundles') return;
+    if (activeMenu !== 'user-management' && activeMenu !== 'premium-bundles' && activeMenu !== 'financials' && activeMenu !== 'home') return;
     void loadPlatformUsers();
+  }, [activeMenu, serverUrl]);
+
+  useEffect(() => {
+    if (!['home', 'financials', 'transactions', 'withdrawals', 'deposits'].includes(activeMenu)) {
+      return;
+    }
+
+    void loadFinanceData();
   }, [activeMenu, serverUrl]);
 
   const handleCreateAdminUser = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -850,6 +912,9 @@ export default function Admin() {
     toast.success('AI product generated successfully.');
   };
 
+  const pendingWithdrawalCount = withdrawalRequests.filter((withdrawal) => withdrawal.status === 'Pending').length;
+  const financeTransactionCount = transactions.length;
+
   const menuItems: MenuItem[] = [
     { id: 'home', label: 'Dashboard', icon: <Home size={18} /> },
     { id: 'financials', label: 'Financial Overview', icon: <Wallet size={18} /> },
@@ -857,12 +922,12 @@ export default function Admin() {
     { id: 'product-management', label: 'Product Management', icon: <Package size={18} /> },
     { id: 'premium-bundles', label: 'Premium Bundles', icon: <Lock size={18} /> },
     { id: 'customer-support', label: 'Customer Support', icon: <MessageSquare size={18} /> },
-    { id: 'admin-users', label: 'Admin Users & Roles', icon: <UserCog size={18} />, badge: 6 },
-    { id: 'user-management', label: 'User Management', icon: <Users size={18} />, badge: 8 },
-    { id: 'transactions', label: 'Transactions', icon: <DollarSign size={18} />, badge: 7 },
+    { id: 'admin-users', label: 'Admin Users & Roles', icon: <UserCog size={18} />, badge: adminUsers.length || undefined },
+    { id: 'user-management', label: 'User Management', icon: <Users size={18} />, badge: platformUsersLoaded ? platformUsers.length || undefined : undefined },
+    { id: 'transactions', label: 'Transactions', icon: <DollarSign size={18} />, badge: financeLoaded ? financeTransactionCount || undefined : undefined },
     { id: 'tasks', label: 'Task Management', icon: <FileText size={18} /> },
     { id: 'vip-config', label: 'VIP Configuration', icon: <Shield size={18} /> },
-    { id: 'withdrawals', label: 'Withdrawal Requests', icon: <Activity size={18} />, badge: 2 },
+    { id: 'withdrawals', label: 'Withdrawal Requests', icon: <Activity size={18} />, badge: financeLoaded ? pendingWithdrawalCount || undefined : undefined },
     { id: 'deposits', label: 'Deposit Records', icon: <Database size={18} /> },
     { id: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
     { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
@@ -872,16 +937,55 @@ export default function Admin() {
     toast.success('Exporting data as CSV…');
   };
 
-  const handleApproveWithdrawal = (id: number) => {
-    const withdrawal = mockWithdrawals.find(w => w.id === id);
+  const handleApproveWithdrawal = (id: string) => {
+    const withdrawal = withdrawalRequests.find((item) => item.id === id);
+    setApproveWithdrawalTxHash('');
     setSelectedItem(withdrawal);
     setModalType('approve-withdrawal');
   };
 
-  const handleRejectWithdrawal = (id: number) => {
-    const withdrawal = mockWithdrawals.find(w => w.id === id);
+  const handleRejectWithdrawal = (id: string) => {
+    const withdrawal = withdrawalRequests.find((item) => item.id === id);
+    setRejectWithdrawalReason('');
     setSelectedItem(withdrawal);
     setModalType('reject-withdrawal');
+  };
+
+  const processWithdrawalReview = async (action: 'approve' | 'reject') => {
+    if (!selectedItem?.id) {
+      return;
+    }
+
+    setProcessingWithdrawal(true);
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/withdrawals/${selectedItem.id}/review`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          action,
+          txHash: action === 'approve' ? approveWithdrawalTxHash.trim() : '',
+          rejectionReason: action === 'reject' ? rejectWithdrawalReason.trim() : '',
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to process withdrawal request');
+      }
+
+      await Promise.all([loadFinanceData(), loadPlatformUsers()]);
+      toast.success(action === 'approve' ? 'Withdrawal approved.' : 'Withdrawal rejected.');
+      setModalType(null);
+      setSelectedItem(null);
+      setApproveWithdrawalTxHash('');
+      setRejectWithdrawalReason('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to process withdrawal request';
+      toast.error(message);
+    } finally {
+      setProcessingWithdrawal(false);
+    }
   };
 
   useEffect(() => {
@@ -1445,14 +1549,24 @@ export default function Admin() {
                 </div>
                 <div className="bg-[#1a1f2e] p-4 rounded-lg">
                   <p className="text-gray-400 text-sm">Transaction Hash (Optional)</p>
-                  <input type="text" className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white mt-2 focus:border-[#00D9FF] focus:outline-none" placeholder="Enter blockchain TX hash" />
+                  <input
+                    type="text"
+                    value={approveWithdrawalTxHash}
+                    onChange={(event) => setApproveWithdrawalTxHash(event.target.value)}
+                    className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white mt-2 focus:border-[#00D9FF] focus:outline-none"
+                    placeholder="Enter blockchain TX hash"
+                  />
                 </div>
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => { toast.success('Withdrawal approved'); setModalType(null); }} className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors">
+                <button
+                  onClick={() => void processWithdrawalReview('approve')}
+                  disabled={processingWithdrawal}
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-60"
+                >
                   Approve & Process
                 </button>
               </div>
@@ -1479,14 +1593,24 @@ export default function Admin() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Reason for Rejection</label>
-                  <textarea className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" rows={4} placeholder="Enter reason..."></textarea>
+                  <textarea
+                    value={rejectWithdrawalReason}
+                    onChange={(event) => setRejectWithdrawalReason(event.target.value)}
+                    className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+                    rows={4}
+                    placeholder="Enter reason..."
+                  ></textarea>
                 </div>
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => { toast.error('Withdrawal rejected'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
+                <button
+                  onClick={() => void processWithdrawalReview('reject')}
+                  disabled={processingWithdrawal}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-60"
+                >
                   Reject Request
                 </button>
               </div>
@@ -2798,6 +2922,43 @@ export default function Admin() {
       vipLevel: String(user.vipLevel),
       balance: user.balance,
     }));
+
+  const totalDeposits = transactions
+    .filter((transaction) => transaction.type === 'Deposit' && transaction.status === 'Completed')
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const totalWithdrawals = transactions
+    .filter((transaction) => transaction.type === 'Withdrawal' && transaction.status === 'Completed')
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const totalCommissions = transactions
+    .filter((transaction) => transaction.type === 'Commission' && transaction.status === 'Completed')
+    .reduce((sum, transaction) => sum + transaction.amount, 0);
+  const pendingWithdrawalAmount = withdrawalRequests
+    .filter((withdrawal) => withdrawal.status === 'Pending')
+    .reduce((sum, withdrawal) => sum + withdrawal.amount, 0);
+  const deposits = transactions.filter((transaction) => transaction.type === 'Deposit');
+  const platformRevenue = totalDeposits - totalWithdrawals - totalCommissions;
+  const totalUserBalances = platformUsers.reduce((sum, user) => sum + user.balance, 0);
+  const totalCompletedTasks = platformUsers.reduce((sum, user) => sum + user.tasksCompleted, 0);
+  const activePlatformUsers = platformUsers.filter((user) => !user.isFrozen).length;
+  const averageBalance = platformUsers.length > 0 ? totalUserBalances / platformUsers.length : 0;
+  const averageCommissionRate = platformUsers.length > 0
+    ? (platformUsers.reduce((sum, user) => sum + (vipLevels.find((vip) => vip.level === user.vipLevel)?.commission ?? 0), 0) / platformUsers.length) * 100
+    : 0;
+  const totalFinanceVolume = totalDeposits + totalWithdrawals + totalCommissions;
+
+  const formatCurrency = (amount: number) => `$${amount.toFixed(2)}`;
+  const formatDateTime = (value: string | null) => {
+    if (!value) {
+      return 'N/A';
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+
+    return parsed.toLocaleString();
+  };
 
   const renderContent = () => {
     switch (activeMenu) {
@@ -4286,9 +4447,17 @@ export default function Admin() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
-                    {mockTransactions.map((tx) => (
+                    {financeLoading ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-10 text-center text-gray-400">Loading transactions…</td>
+                      </tr>
+                    ) : transactions.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-10 text-center text-gray-400">No transactions recorded yet.</td>
+                      </tr>
+                    ) : transactions.map((tx) => (
                       <tr key={tx.id} className="hover:bg-[#2c3e50] transition-colors">
-                        <td className="px-6 py-4 text-sm text-gray-300">#{tx.id}</td>
+                        <td className="px-6 py-4 text-sm text-gray-300">{tx.id}</td>
                         <td className="px-6 py-4 text-sm font-medium text-white">{tx.username}</td>
                         <td className="px-6 py-4 text-sm">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -4299,7 +4468,7 @@ export default function Admin() {
                             {tx.type}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm font-semibold text-[#00D9FF]">${tx.amount.toFixed(2)}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-[#00D9FF]">{formatCurrency(tx.amount)}</td>
                         <td className="px-6 py-4 text-sm text-gray-300">{tx.method}</td>
                         <td className="px-6 py-4 text-sm">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -4310,8 +4479,8 @@ export default function Admin() {
                             {tx.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-400">{tx.date}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500 font-mono">{tx.txHash}</td>
+                        <td className="px-6 py-4 text-sm text-gray-400">{formatDateTime(tx.date)}</td>
+                        <td className="px-6 py-4 text-sm text-gray-500 font-mono">{tx.txHash || 'Pending'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -4609,7 +4778,7 @@ export default function Admin() {
               </div>
               <div className="flex items-center gap-3">
                 <span className="px-3 py-2 bg-yellow-500/20 text-yellow-300 rounded-lg text-sm font-semibold">
-                  {mockWithdrawals.filter(w => w.status === 'Pending').length} Pending
+                  {pendingWithdrawalCount} Pending
                 </span>
               </div>
             </div>
@@ -4631,11 +4800,19 @@ export default function Admin() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
-                    {mockWithdrawals.map((withdrawal) => (
+                    {financeLoading ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-10 text-center text-gray-400">Loading withdrawal requests…</td>
+                      </tr>
+                    ) : withdrawalRequests.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-10 text-center text-gray-400">No withdrawal requests submitted yet.</td>
+                      </tr>
+                    ) : withdrawalRequests.map((withdrawal) => (
                       <tr key={withdrawal.id} className="hover:bg-[#2c3e50] transition-colors">
-                        <td className="px-6 py-4 text-sm text-gray-300">#{withdrawal.id}</td>
+                        <td className="px-6 py-4 text-sm text-gray-300">{withdrawal.id}</td>
                         <td className="px-6 py-4 text-sm font-medium text-white">{withdrawal.username}</td>
-                        <td className="px-6 py-4 text-sm font-bold text-[#00D9FF]">${withdrawal.amount.toFixed(2)}</td>
+                        <td className="px-6 py-4 text-sm font-bold text-[#00D9FF]">{formatCurrency(withdrawal.amount)}</td>
                         <td className="px-6 py-4 text-sm text-gray-300">{withdrawal.method}</td>
                         <td className="px-6 py-4 text-sm text-gray-400 font-mono text-xs">{withdrawal.walletAddress.slice(0, 10)}...{withdrawal.walletAddress.slice(-8)}</td>
                         <td className="px-6 py-4 text-sm">
@@ -4647,7 +4824,7 @@ export default function Admin() {
                             {withdrawal.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-400">{withdrawal.requestedDate}</td>
+                        <td className="px-6 py-4 text-sm text-gray-400">{formatDateTime(withdrawal.requestedDate)}</td>
                         <td className="px-6 py-4 text-sm">
                           {withdrawal.status === 'Pending' ? (
                             <div className="flex items-center gap-2">
@@ -4680,7 +4857,6 @@ export default function Admin() {
         );
 
       case 'deposits':
-        const deposits = mockTransactions.filter(tx => tx.type === 'Deposit');
         return (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -4710,11 +4886,19 @@ export default function Admin() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-700">
-                    {deposits.map((tx) => (
+                    {financeLoading ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-10 text-center text-gray-400">Loading deposits…</td>
+                      </tr>
+                    ) : deposits.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-10 text-center text-gray-400">No deposit records available.</td>
+                      </tr>
+                    ) : deposits.map((deposit) => (
                       <tr key={tx.id} className="hover:bg-[#2c3e50] transition-colors">
-                        <td className="px-6 py-4 text-sm text-gray-300">#{tx.id}</td>
+                        <td className="px-6 py-4 text-sm text-gray-300">{deposit.id}</td>
                         <td className="px-6 py-4 text-sm font-medium text-white">{tx.username}</td>
-                        <td className="px-6 py-4 text-sm font-semibold text-green-400">${tx.amount.toFixed(2)}</td>
+                        <td className="px-6 py-4 text-sm font-semibold text-[#00D9FF]">{formatCurrency(deposit.amount)}</td>
                         <td className="px-6 py-4 text-sm text-gray-300">{tx.method}</td>
                         <td className="px-6 py-4 text-sm">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
@@ -4725,8 +4909,8 @@ export default function Admin() {
                             {tx.status}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-sm text-gray-400">{tx.date}</td>
-                        <td className="px-6 py-4 text-sm text-gray-500 font-mono">{tx.txHash}</td>
+                        <td className="px-6 py-4 text-sm text-gray-400">{formatDateTime(deposit.date)}</td>
+                        <td className="px-6 py-4 text-sm text-gray-500 font-mono">{deposit.txHash || 'N/A'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -4895,26 +5079,6 @@ export default function Admin() {
         );
 
       case 'financials':
-        // Calculate financial metrics
-        const totalDeposits = mockTransactions
-          .filter(tx => tx.type === 'Deposit' && tx.status === 'Completed')
-          .reduce((sum, tx) => sum + tx.amount, 0);
-        
-        const totalWithdrawals = mockTransactions
-          .filter(tx => tx.type === 'Withdrawal' && tx.status === 'Completed')
-          .reduce((sum, tx) => sum + tx.amount, 0);
-        
-        const totalCommissions = mockTransactions
-          .filter(tx => tx.type === 'Commission' && tx.status === 'Completed')
-          .reduce((sum, tx) => sum + tx.amount, 0);
-        
-        const totalUserBalances = mockUsers.reduce((sum, user) => sum + user.balance, 0);
-        const totalEarnings = mockUsers.reduce((sum, user) => sum + user.totalEarnings, 0);
-        const platformRevenue = totalDeposits - totalWithdrawals - totalCommissions;
-        const pendingWithdrawalAmount = mockWithdrawals
-          .filter(w => w.status === 'Pending')
-          .reduce((sum, w) => sum + w.amount, 0);
-
         return (
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -4941,10 +5105,10 @@ export default function Admin() {
                   <span className="px-2 py-1 bg-green-500/20 text-green-300 rounded text-xs font-semibold">+12.5%</span>
                 </div>
                 <p className="text-gray-400 text-sm mb-1">Total Revenue</p>
-                <p className="text-3xl font-bold text-white mb-2">${platformRevenue.toFixed(2)}</p>
+                <p className="text-3xl font-bold text-white mb-2">{formatCurrency(platformRevenue)}</p>
                 <div className="flex items-center gap-1 text-green-400 text-xs">
                   <ArrowUpRight size={14} />
-                  <span>$8,432 from last month</span>
+                  <span>{financeLoading ? 'Refreshing live ledger…' : 'Calculated from completed deposits, withdrawals, and commissions'}</span>
                 </div>
               </div>
 
@@ -4957,8 +5121,8 @@ export default function Admin() {
                   <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs font-semibold">Income</span>
                 </div>
                 <p className="text-gray-400 text-sm mb-1">Total Deposits</p>
-                <p className="text-3xl font-bold text-white mb-2">${totalDeposits.toFixed(2)}</p>
-                <p className="text-gray-400 text-xs">{mockTransactions.filter(tx => tx.type === 'Deposit').length} transactions</p>
+                <p className="text-3xl font-bold text-white mb-2">{formatCurrency(totalDeposits)}</p>
+                <p className="text-gray-400 text-xs">{deposits.length} transactions</p>
               </div>
 
               {/* Total Withdrawals */}
@@ -4970,8 +5134,8 @@ export default function Admin() {
                   <span className="px-2 py-1 bg-orange-500/20 text-orange-300 rounded text-xs font-semibold">Outflow</span>
                 </div>
                 <p className="text-gray-400 text-sm mb-1">Total Withdrawals</p>
-                <p className="text-3xl font-bold text-white mb-2">${totalWithdrawals.toFixed(2)}</p>
-                <p className="text-gray-400 text-xs">{mockTransactions.filter(tx => tx.type === 'Withdrawal').length} transactions</p>
+                <p className="text-3xl font-bold text-white mb-2">{formatCurrency(totalWithdrawals)}</p>
+                <p className="text-gray-400 text-xs">{transactions.filter((tx) => tx.type === 'Withdrawal').length} transactions</p>
               </div>
 
               {/* Total Commissions Paid */}
@@ -4983,8 +5147,8 @@ export default function Admin() {
                   <span className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded text-xs font-semibold">Paid</span>
                 </div>
                 <p className="text-gray-400 text-sm mb-1">Commissions Paid</p>
-                <p className="text-3xl font-bold text-white mb-2">${totalCommissions.toFixed(2)}</p>
-                <p className="text-gray-400 text-xs">To {mockUsers.length} active users</p>
+                <p className="text-3xl font-bold text-white mb-2">{formatCurrency(totalCommissions)}</p>
+                <p className="text-gray-400 text-xs">Across {platformUsers.length} users</p>
               </div>
             </div>
 
@@ -4998,11 +5162,11 @@ export default function Admin() {
                   </div>
                   <h3 className="text-white font-semibold">Total User Balances</h3>
                 </div>
-                <p className="text-3xl font-bold text-[#00D9FF] mb-2">${totalUserBalances.toFixed(2)}</p>
-                <p className="text-gray-400 text-sm">Across {mockUsers.length} users</p>
+                  <p className="text-3xl font-bold text-[#00D9FF] mb-2">{formatCurrency(totalUserBalances)}</p>
+                  <p className="text-gray-400 text-sm">Across {platformUsers.length} users</p>
                 <div className="mt-4 pt-4 border-t border-gray-700">
                   <p className="text-gray-400 text-xs mb-1">Average Balance</p>
-                  <p className="text-white font-semibold">${(totalUserBalances / mockUsers.length).toFixed(2)}</p>
+                    <p className="text-white font-semibold">{formatCurrency(averageBalance)}</p>
                 </div>
               </div>
 
@@ -5014,12 +5178,12 @@ export default function Admin() {
                   </div>
                   <h3 className="text-white font-semibold">Platform Net Profit</h3>
                 </div>
-                <p className="text-3xl font-bold text-green-400 mb-2">${platformRevenue.toFixed(2)}</p>
+                  <p className="text-3xl font-bold text-green-400 mb-2">{formatCurrency(platformRevenue)}</p>
                 <p className="text-gray-400 text-sm">After all expenses</p>
                 <div className="mt-4 pt-4 border-t border-gray-700">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-400">Profit Margin</span>
-                    <span className="text-green-400 font-semibold">{((platformRevenue / totalDeposits) * 100).toFixed(1)}%</span>
+                      <span className="text-green-400 font-semibold">{totalDeposits > 0 ? ((platformRevenue / totalDeposits) * 100).toFixed(1) : '0.0'}%</span>
                   </div>
                 </div>
               </div>
@@ -5032,8 +5196,8 @@ export default function Admin() {
                   </div>
                   <h3 className="text-white font-semibold">Pending Withdrawals</h3>
                 </div>
-                <p className="text-3xl font-bold text-yellow-400 mb-2">${pendingWithdrawalAmount.toFixed(2)}</p>
-                <p className="text-gray-400 text-sm">{mockWithdrawals.filter(w => w.status === 'Pending').length} requests</p>
+                  <p className="text-3xl font-bold text-yellow-400 mb-2">{formatCurrency(pendingWithdrawalAmount)}</p>
+                  <p className="text-gray-400 text-sm">{pendingWithdrawalCount} requests</p>
                 <div className="mt-4 pt-4 border-t border-gray-700">
                   <p className="text-red-400 text-xs">⚠️ Requires immediate action</p>
                 </div>
@@ -5052,34 +5216,34 @@ export default function Admin() {
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-gray-400 text-sm">Deposits</span>
-                      <span className="text-white font-semibold">${totalDeposits.toFixed(2)}</span>
+                      <span className="text-white font-semibold">{formatCurrency(totalDeposits)}</span>
                     </div>
                     <div className="w-full bg-[#1a1f2e] rounded-full h-2">
-                      <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${(totalDeposits / (totalDeposits + totalWithdrawals + totalCommissions)) * 100}%` }}></div>
+                      <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${totalFinanceVolume > 0 ? (totalDeposits / totalFinanceVolume) * 100 : 0}%` }}></div>
                     </div>
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-gray-400 text-sm">Withdrawals</span>
-                      <span className="text-white font-semibold">${totalWithdrawals.toFixed(2)}</span>
+                      <span className="text-white font-semibold">{formatCurrency(totalWithdrawals)}</span>
                     </div>
                     <div className="w-full bg-[#1a1f2e] rounded-full h-2">
-                      <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${(totalWithdrawals / (totalDeposits + totalWithdrawals + totalCommissions)) * 100}%` }}></div>
+                      <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${totalFinanceVolume > 0 ? (totalWithdrawals / totalFinanceVolume) * 100 : 0}%` }}></div>
                     </div>
                   </div>
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-gray-400 text-sm">Commissions</span>
-                      <span className="text-white font-semibold">${totalCommissions.toFixed(2)}</span>
+                      <span className="text-white font-semibold">{formatCurrency(totalCommissions)}</span>
                     </div>
                     <div className="w-full bg-[#1a1f2e] rounded-full h-2">
-                      <div className="bg-green-500 h-2 rounded-full" style={{ width: `${(totalCommissions / (totalDeposits + totalWithdrawals + totalCommissions)) * 100}%` }}></div>
+                      <div className="bg-green-500 h-2 rounded-full" style={{ width: `${totalFinanceVolume > 0 ? (totalCommissions / totalFinanceVolume) * 100 : 0}%` }}></div>
                     </div>
                   </div>
                   <div className="pt-4 border-t border-gray-700">
                     <div className="flex items-center justify-between">
                       <span className="text-gray-400 font-semibold">Total Volume</span>
-                      <span className="text-[#00D9FF] font-bold text-lg">${(totalDeposits + totalWithdrawals + totalCommissions).toFixed(2)}</span>
+                      <span className="text-[#00D9FF] font-bold text-lg">{formatCurrency(totalFinanceVolume)}</span>
                     </div>
                   </div>
                 </div>
@@ -5088,15 +5252,15 @@ export default function Admin() {
               {/* VIP Revenue Breakdown */}
               <div className="bg-[#252b3d] rounded-lg p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-white font-semibold text-lg">Revenue by VIP Level</h3>
+                  <h3 className="text-white font-semibold text-lg">Balances by VIP Level</h3>
                   <Shield className="text-gray-400" size={20} />
                 </div>
                 <div className="space-y-3">
                   {vipLevels.map((vip) => {
-                    const vipUsers = mockUsers.filter(u => u.vipLevel === vip.name);
-                    const vipRevenue = vipUsers.reduce((sum, u) => sum + u.totalEarnings, 0);
+                    const vipUsers = platformUsers.filter((user) => user.vipLevel === vip.level);
+                    const vipRevenue = vipUsers.reduce((sum, user) => sum + user.balance, 0);
                     const maxRevenue = Math.max(...vipLevels.map(v => 
-                      mockUsers.filter(u => u.vipLevel === v.name).reduce((s, u) => s + u.totalEarnings, 0)
+                      platformUsers.filter((user) => user.vipLevel === v.level).reduce((sum, user) => sum + user.balance, 0)
                     ));
                     
                     return (
@@ -5107,18 +5271,18 @@ export default function Admin() {
                             <span className="text-white font-semibold text-sm">{vip.name}</span>
                             <span className="text-gray-500 text-xs">({vipUsers.length} users)</span>
                           </div>
-                          <span className="text-[#00D9FF] font-bold">${vipRevenue.toFixed(2)}</span>
+                          <span className="text-[#00D9FF] font-bold">{formatCurrency(vipRevenue)}</span>
                         </div>
                         <div className="w-full bg-[#252b3d] rounded-full h-1.5">
-                          <div className="bg-purple-500 h-1.5 rounded-full" style={{ width: `${(vipRevenue / maxRevenue) * 100}%` }}></div>
+                          <div className="bg-purple-500 h-1.5 rounded-full" style={{ width: `${maxRevenue > 0 ? (vipRevenue / maxRevenue) * 100 : 0}%` }}></div>
                         </div>
                       </div>
                     );
                   })}
                   <div className="pt-3 border-t border-gray-700">
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-400 font-semibold">Total User Earnings</span>
-                      <span className="text-green-400 font-bold text-lg">${totalEarnings.toFixed(2)}</span>
+                      <span className="text-gray-400 font-semibold">Total User Balances</span>
+                      <span className="text-green-400 font-bold text-lg">{formatCurrency(totalUserBalances)}</span>
                     </div>
                   </div>
                 </div>
@@ -5132,9 +5296,9 @@ export default function Admin() {
                   <CreditCard className="text-gray-400" size={16} />
                   <p className="text-gray-400 text-xs">Active Users</p>
                 </div>
-                <p className="text-2xl font-bold text-white">{mockUsers.filter(u => u.status === 'Active').length}</p>
+                <p className="text-2xl font-bold text-white">{activePlatformUsers}</p>
                 <p className="text-green-400 text-xs mt-1">
-                  {((mockUsers.filter(u => u.status === 'Active').length / mockUsers.length) * 100).toFixed(1)}% of total
+                  {platformUsers.length > 0 ? ((activePlatformUsers / platformUsers.length) * 100).toFixed(1) : '0.0'}% of total
                 </p>
               </div>
 
@@ -5143,7 +5307,7 @@ export default function Admin() {
                   <Target className="text-gray-400" size={16} />
                   <p className="text-gray-400 text-xs">Tasks Completed</p>
                 </div>
-                <p className="text-2xl font-bold text-white">{mockUsers.reduce((sum, u) => sum + u.tasksCompleted, 0)}</p>
+                <p className="text-2xl font-bold text-white">{totalCompletedTasks}</p>
                 <p className="text-blue-400 text-xs mt-1">
                   {taskConfigurations.reduce((sum, t) => sum + t.completedToday, 0)} today
                 </p>
@@ -5155,7 +5319,7 @@ export default function Admin() {
                   <p className="text-gray-400 text-xs">Avg Commission Rate</p>
                 </div>
                 <p className="text-2xl font-bold text-white">
-                  {((mockUsers.reduce((sum, u) => sum + vipLevels.find(v => v.name === u.vipLevel)!.commission, 0) / mockUsers.length) * 100).toFixed(2)}%
+                  {averageCommissionRate.toFixed(2)}%
                 </p>
                 <p className="text-purple-400 text-xs mt-1">Across all VIP levels</p>
               </div>
@@ -5186,7 +5350,7 @@ export default function Admin() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-gray-400 text-sm">Total Users</p>
-                    <p className="text-3xl font-bold text-white mt-2">{mockUsers.length}</p>
+                    <p className="text-3xl font-bold text-white mt-2">{platformUsersLoaded ? platformUsers.length : mockUsers.length}</p>
                     <p className="text-green-400 text-xs mt-2">+12.5% from last month</p>
                   </div>
                   <Users className="text-blue-400" size={40} />
@@ -5197,8 +5361,8 @@ export default function Admin() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-gray-400 text-sm">Total Revenue</p>
-                    <p className="text-3xl font-bold text-white mt-2">$89,432</p>
-                    <p className="text-green-400 text-xs mt-2">+8.3% from last month</p>
+                    <p className="text-3xl font-bold text-white mt-2">{formatCurrency(platformRevenue)}</p>
+                    <p className="text-green-400 text-xs mt-2">Live finance ledger</p>
                   </div>
                   <DollarSign className="text-green-400" size={40} />
                 </div>
@@ -5219,7 +5383,7 @@ export default function Admin() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-gray-400 text-sm">Pending Withdrawals</p>
-                    <p className="text-3xl font-bold text-white mt-2">{mockWithdrawals.filter(w => w.status === 'Pending').length}</p>
+                    <p className="text-3xl font-bold text-white mt-2">{pendingWithdrawalCount}</p>
                     <p className="text-red-400 text-xs mt-2">Requires attention</p>
                   </div>
                   <Bell className="text-orange-400" size={40} />
@@ -5232,7 +5396,7 @@ export default function Admin() {
               <div className="bg-[#252b3d] rounded-lg p-6">
                 <h3 className="text-white font-semibold text-lg mb-4">Recent Transactions</h3>
                 <div className="space-y-3">
-                  {mockTransactions.slice(0, 5).map((tx) => (
+                  {(financeLoading ? [] : transactions.slice(0, 5)).map((tx) => (
                     <div key={tx.id} className="flex items-center justify-between p-3 bg-[#1a1f2e] rounded-lg">
                       <div className="flex items-center gap-3">
                         <div className={`p-2 rounded-lg ${
@@ -5251,9 +5415,15 @@ export default function Admin() {
                           <p className="text-gray-400 text-xs">{tx.type}</p>
                         </div>
                       </div>
-                      <p className="text-[#00D9FF] font-bold">${tx.amount.toFixed(2)}</p>
+                      <p className="text-[#00D9FF] font-bold">{formatCurrency(tx.amount)}</p>
                     </div>
                   ))}
+                  {!financeLoading && transactions.length === 0 && (
+                    <div className="p-3 bg-[#1a1f2e] rounded-lg text-sm text-gray-400">No transactions recorded yet.</div>
+                  )}
+                  {financeLoading && (
+                    <div className="p-3 bg-[#1a1f2e] rounded-lg text-sm text-gray-400">Loading recent transactions…</div>
+                  )}
                 </div>
               </div>
 

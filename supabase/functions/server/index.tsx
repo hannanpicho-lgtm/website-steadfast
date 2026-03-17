@@ -386,6 +386,176 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+const TRANSACTION_KEY_PREFIX = 'transaction:';
+const WITHDRAWAL_KEY_PREFIX = 'withdrawal:';
+
+function createFinanceId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+}
+
+function sanitizeWalletAddress(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 256 || /[\u0000-\u001F]/.test(trimmed)) {
+    return null;
+  }
+  return trimmed;
+}
+
+function sanitizeFinanceMethod(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 32) {
+    return fallback;
+  }
+  return trimmed;
+}
+
+function normalizeTransactionStatus(value: unknown): 'Pending' | 'Completed' | 'Rejected' | 'Failed' {
+  if (typeof value !== 'string') {
+    return 'Pending';
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'completed' || normalized === 'approved') {
+    return 'Completed';
+  }
+  if (normalized === 'rejected') {
+    return 'Rejected';
+  }
+  if (normalized === 'failed') {
+    return 'Failed';
+  }
+  return 'Pending';
+}
+
+function normalizeWithdrawalStatus(value: unknown): 'Pending' | 'Approved' | 'Rejected' {
+  if (typeof value !== 'string') {
+    return 'Pending';
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'approved') {
+    return 'Approved';
+  }
+  if (normalized === 'rejected') {
+    return 'Rejected';
+  }
+  return 'Pending';
+}
+
+function normalizeTransactionType(value: unknown): 'Deposit' | 'Withdrawal' | 'Commission' {
+  if (typeof value !== 'string') {
+    return 'Commission';
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'deposit') {
+    return 'Deposit';
+  }
+  if (normalized === 'withdrawal') {
+    return 'Withdrawal';
+  }
+  return 'Commission';
+}
+
+function normalizeTransactionRecord(record: any) {
+  const createdAt = typeof record?.createdAt === 'string' && record.createdAt
+    ? record.createdAt
+    : new Date().toISOString();
+  const updatedAt = typeof record?.updatedAt === 'string' && record.updatedAt
+    ? record.updatedAt
+    : createdAt;
+
+  return {
+    id: typeof record?.id === 'string' && record.id ? record.id : createFinanceId('tx'),
+    username: typeof record?.username === 'string' ? record.username : '',
+    type: normalizeTransactionType(record?.type),
+    amount: roundMoney(Number(record?.amount ?? 0)),
+    status: normalizeTransactionStatus(record?.status),
+    date: typeof record?.date === 'string' && record.date ? record.date : createdAt,
+    txHash: typeof record?.txHash === 'string' && record.txHash ? record.txHash : '',
+    method: sanitizeFinanceMethod(record?.method, 'System'),
+    source: typeof record?.source === 'string' && record.source ? record.source : 'system',
+    description: typeof record?.description === 'string' && record.description ? record.description : '',
+    referenceId: typeof record?.referenceId === 'string' && record.referenceId ? record.referenceId : '',
+    createdAt,
+    updatedAt,
+  };
+}
+
+function normalizeWithdrawalRecord(record: any) {
+  const requestedDate = typeof record?.requestedDate === 'string' && record.requestedDate
+    ? record.requestedDate
+    : new Date().toISOString();
+
+  return {
+    id: typeof record?.id === 'string' && record.id ? record.id : createFinanceId('wd'),
+    username: typeof record?.username === 'string' ? record.username : '',
+    amount: roundMoney(Number(record?.amount ?? 0)),
+    walletAddress: typeof record?.walletAddress === 'string' ? record.walletAddress : '',
+    status: normalizeWithdrawalStatus(record?.status),
+    requestedDate,
+    method: sanitizeFinanceMethod(record?.method, 'USDT'),
+    transactionId: typeof record?.transactionId === 'string' && record.transactionId ? record.transactionId : '',
+    reviewedAt: typeof record?.reviewedAt === 'string' && record.reviewedAt ? record.reviewedAt : null,
+    txHash: typeof record?.txHash === 'string' && record.txHash ? record.txHash : '',
+    rejectionReason: typeof record?.rejectionReason === 'string' && record.rejectionReason ? record.rejectionReason : '',
+    reviewerId: typeof record?.reviewerId === 'string' && record.reviewerId ? record.reviewerId : null,
+    reviewerEmail: typeof record?.reviewerEmail === 'string' && record.reviewerEmail ? record.reviewerEmail : null,
+  };
+}
+
+async function createTransactionRecord(input: {
+  username: string;
+  type: 'Deposit' | 'Withdrawal' | 'Commission';
+  amount: number;
+  status?: 'Pending' | 'Completed' | 'Rejected' | 'Failed';
+  method?: string;
+  txHash?: string;
+  source?: string;
+  description?: string;
+  referenceId?: string;
+}) {
+  const timestamp = new Date().toISOString();
+  const transaction = normalizeTransactionRecord({
+    id: createFinanceId('tx'),
+    username: input.username,
+    type: input.type,
+    amount: roundMoney(input.amount),
+    status: input.status ?? 'Completed',
+    method: input.method ?? 'System',
+    txHash: input.txHash ?? '',
+    source: input.source ?? 'system',
+    description: input.description ?? '',
+    referenceId: input.referenceId ?? '',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    date: timestamp,
+  });
+
+  await kv.set(`${TRANSACTION_KEY_PREFIX}${transaction.id}`, transaction);
+  return transaction;
+}
+
+async function listTransactionRecords(username?: string) {
+  const records = await kv.getByPrefix(TRANSACTION_KEY_PREFIX);
+  return records
+    .map((record) => normalizeTransactionRecord(record))
+    .filter((record) => !username || record.username === username)
+    .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
+}
+
+async function listWithdrawalRecords(username?: string) {
+  const records = await kv.getByPrefix(WITHDRAWAL_KEY_PREFIX);
+  return records
+    .map((record) => normalizeWithdrawalRecord(record))
+    .filter((record) => !username || record.username === username)
+    .sort((left, right) => new Date(right.requestedDate).getTime() - new Date(left.requestedDate).getTime());
+}
+
 function defaultUserRecord(username: string) {
   return {
     username,
@@ -405,6 +575,7 @@ function defaultUserRecord(username: string) {
     referralEarnings: 0,
     children: [],
     referredByAdminId: null as string | null,
+    createdAt: new Date().toISOString(),
   };
 }
 
@@ -426,6 +597,9 @@ function normalizeUserRecord(userData: any, username: string) {
   normalized.referredByAdminId = typeof normalized.referredByAdminId === 'string' && normalized.referredByAdminId
     ? normalized.referredByAdminId
     : null;
+  normalized.createdAt = typeof normalized.createdAt === 'string' && normalized.createdAt
+    ? normalized.createdAt
+    : new Date().toISOString();
 
   return normalized;
 }
@@ -489,6 +663,16 @@ async function creditParentReferralFromChildCommission(childUsername: string, ch
     childCommission,
     parentReward,
     createdAt: new Date().toISOString(),
+  });
+
+  await createTransactionRecord({
+    username: parentUsername,
+    type: 'Commission',
+    amount: parentReward,
+    method: 'Referral',
+    source: 'referral',
+    description: `Referral commission from ${childUsername}`,
+    referenceId: childUsername,
   });
 
   return {
@@ -975,20 +1159,29 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
     };
     
     const commissionRate = commissionRates[normalizedUserData.vipLevel] || 0.005;
-    const commission = productPrice * commissionRate;
+    const commission = roundMoney(productPrice * commissionRate);
     
     // REMOVED: Random premium chance - premium is ADMIN-ONLY now
     
     // Update user data
     normalizedUserData.tasksCompleted += 1;
-    normalizedUserData.todayCommission += commission;
-    normalizedUserData.balance += commission;  // Only commission is added to balance
+    normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
+    normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);  // Only commission is added to balance
     
     // Random lucky bonus (1% chance)
     if (Math.random() < 0.01) {
       const luckyAmount = Math.floor(Math.random() * 100) + 50; // $50-$150
-      normalizedUserData.luckyBonus += luckyAmount;
-      normalizedUserData.balance += luckyAmount;
+      normalizedUserData.luckyBonus = roundMoney(normalizedUserData.luckyBonus + luckyAmount);
+      normalizedUserData.balance = roundMoney(normalizedUserData.balance + luckyAmount);
+
+      await createTransactionRecord({
+        username,
+        type: 'Commission',
+        amount: luckyAmount,
+        method: 'Lucky Bonus',
+        source: 'lucky_bonus',
+        description: 'Lucky bonus reward',
+      });
     }
 
     const referralPayout = await creditParentReferralFromChildCommission(username, commission);
@@ -1006,6 +1199,16 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
       tasksCompleted: normalizedUserData.tasksCompleted,
     };
     await kv.set(taskKey, taskRecord);
+
+    await createTransactionRecord({
+      username,
+      type: 'Commission',
+      amount: commission,
+      method: 'System',
+      source: 'task',
+      description: 'Task commission credited',
+      referenceId: taskKey,
+    });
     
     return c.json({
       success: true,
@@ -1045,6 +1248,106 @@ app.get("/make-server-a1c55d7e/tasks/:username", async (c) => {
   } catch (error) {
     console.error('Error fetching task records:', error);
     return c.json({ error: 'Failed to fetch task records' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/transactions/:username', async (c) => {
+  try {
+    const username = sanitizeUsername(c.req.param('username'));
+    if (!username) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    const transactions = await listTransactionRecords(username);
+    return c.json(transactions);
+  } catch (error) {
+    console.error('Error fetching transaction records:', error);
+    return c.json({ error: 'Failed to fetch transaction records' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/withdrawals/:username', async (c) => {
+  try {
+    const username = sanitizeUsername(c.req.param('username'));
+    if (!username) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    const withdrawals = await listWithdrawalRecords(username);
+    return c.json(withdrawals);
+  } catch (error) {
+    console.error('Error fetching withdrawal records:', error);
+    return c.json({ error: 'Failed to fetch withdrawal records' }, 500);
+  }
+});
+
+app.post('/make-server-a1c55d7e/withdrawals/request', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:withdrawal-request');
+    if (rateLimited) return rateLimited;
+
+    const body = await c.req.json();
+    const username = sanitizeUsername(body?.username);
+    const walletAddress = sanitizeWalletAddress(body?.walletAddress);
+    const method = sanitizeFinanceMethod(body?.method, 'USDT');
+    const amount = roundMoney(Number(body?.amount ?? 0));
+
+    if (!username || !walletAddress) {
+      return c.json({ error: 'username and walletAddress are required' }, 400);
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return c.json({ error: 'Withdrawal amount must be greater than 0' }, 400);
+    }
+
+    const userKey = `user:${username}`;
+    const userData = await kv.get(userKey);
+    if (!userData) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const normalizedUserData = normalizeUserRecord(userData, username);
+    const availableAmount = roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount);
+    if (amount > availableAmount) {
+      return c.json({ error: 'Withdrawal amount exceeds available balance' }, 400);
+    }
+
+    const transaction = await createTransactionRecord({
+      username,
+      type: 'Withdrawal',
+      amount,
+      status: 'Pending',
+      method,
+      source: 'withdrawal_request',
+      description: 'Withdrawal request submitted',
+    });
+
+    const withdrawal = normalizeWithdrawalRecord({
+      id: createFinanceId('wd'),
+      username,
+      amount,
+      walletAddress,
+      method,
+      status: 'Pending',
+      requestedDate: new Date().toISOString(),
+      transactionId: transaction.id,
+      txHash: '',
+    });
+
+    normalizedUserData.holdAmount = roundMoney(normalizedUserData.holdAmount + amount);
+
+    await kv.set(userKey, normalizedUserData);
+    await kv.set(`${WITHDRAWAL_KEY_PREFIX}${withdrawal.id}`, withdrawal);
+
+    return c.json({
+      success: true,
+      withdrawal,
+      balance: normalizedUserData.balance,
+      holdAmount: normalizedUserData.holdAmount,
+      availableAmount: roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount),
+    });
+  } catch (error) {
+    console.error('Error submitting withdrawal request:', error);
+    return c.json({ error: 'Failed to submit withdrawal request' }, 500);
   }
 });
 
@@ -1196,15 +1499,15 @@ app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
     };
     
     const commissionRate = commissionRates[normalizedUserData.vipLevel] || 0.005;
-    const commission = productPrice * commissionRate;
+    const commission = roundMoney(productPrice * commissionRate);
     
     // Update premium assignment progress
     premium.tasksCompleted += 1;
-    premium.commissionEarned += commission;
+    premium.commissionEarned = roundMoney(Number(premium.commissionEarned ?? 0) + commission);
     
     // Add commission to balance (not product value, only commission)
-    normalizedUserData.balance += commission;
-    normalizedUserData.todayCommission += commission;
+    normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);
+    normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
     
     // Update hold amount as balance increases
     if (normalizedUserData.balance < 0) {
@@ -1266,6 +1569,16 @@ app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
       timestamp: new Date().toISOString(),
     };
     await kv.set(taskKey, taskRecord);
+
+    await createTransactionRecord({
+      username,
+      type: 'Commission',
+      amount: commission,
+      method: 'Premium Task',
+      source: 'premium_task',
+      description: 'Premium task commission credited',
+      referenceId: premium.id,
+    });
     
     return c.json({
       success: true,
@@ -1352,6 +1665,163 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
   } catch (error) {
     console.error('Error cancelling premium assignment:', error);
     return c.json({ error: 'Failed to cancel premium assignment' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/transactions', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:transactions-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const allUsers = await kv.getByPrefix('user:');
+    const visibleUsernames = new Set(
+      allUsers
+        .map((raw) => normalizeUserRecord(raw, String(raw?.username ?? '')))
+        .filter((user) => Boolean(user.username) && user.username !== ROOT_REFERRAL_USERNAME)
+        .filter((user) => callerIsSuperAdmin || user.referredByAdminId === callingAdmin?.id)
+        .map((user) => user.username),
+    );
+
+    const transactions = (await listTransactionRecords())
+      .filter((transaction) => visibleUsernames.has(transaction.username));
+
+    return c.json({ transactions });
+  } catch (error) {
+    console.error('Error fetching admin transactions:', error);
+    return c.json({ error: 'Failed to fetch transactions' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/withdrawals', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:withdrawals-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const allUsers = await kv.getByPrefix('user:');
+    const visibleUsernames = new Set(
+      allUsers
+        .map((raw) => normalizeUserRecord(raw, String(raw?.username ?? '')))
+        .filter((user) => Boolean(user.username) && user.username !== ROOT_REFERRAL_USERNAME)
+        .filter((user) => callerIsSuperAdmin || user.referredByAdminId === callingAdmin?.id)
+        .map((user) => user.username),
+    );
+
+    const withdrawals = (await listWithdrawalRecords())
+      .filter((withdrawal) => visibleUsernames.has(withdrawal.username));
+
+    return c.json({ withdrawals });
+  } catch (error) {
+    console.error('Error fetching admin withdrawals:', error);
+    return c.json({ error: 'Failed to fetch withdrawals' }, 500);
+  }
+});
+
+app.post('/make-server-a1c55d7e/admin/withdrawals/:withdrawalId/review', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:withdrawal-review');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const withdrawalId = String(c.req.param('withdrawalId') ?? '').trim();
+    if (!withdrawalId) {
+      return c.json({ error: 'withdrawalId is required' }, 400);
+    }
+
+    const body = await c.req.json();
+    const action = typeof body?.action === 'string' ? body.action.trim().toLowerCase() : '';
+    if (action !== 'approve' && action !== 'reject') {
+      return c.json({ error: 'action must be approve or reject' }, 400);
+    }
+
+    const txHash = typeof body?.txHash === 'string' ? body.txHash.trim() : '';
+    const rejectionReason = typeof body?.rejectionReason === 'string' ? body.rejectionReason.trim() : '';
+    const withdrawalKey = `${WITHDRAWAL_KEY_PREFIX}${withdrawalId}`;
+    const existingWithdrawal = await kv.get(withdrawalKey);
+    if (!existingWithdrawal) {
+      return c.json({ error: 'Withdrawal request not found' }, 404);
+    }
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const withdrawal = normalizeWithdrawalRecord(existingWithdrawal);
+    if (withdrawal.status !== 'Pending') {
+      return c.json({ error: 'Withdrawal request has already been processed' }, 400);
+    }
+
+    const userKey = `user:${withdrawal.username}`;
+    const userData = await kv.get(userKey);
+    if (!userData) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const normalizedUserData = normalizeUserRecord(userData, withdrawal.username);
+    if (!callerIsSuperAdmin && normalizedUserData.referredByAdminId !== callingAdmin?.id) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const reviewedAt = new Date().toISOString();
+    withdrawal.status = action === 'approve' ? 'Approved' : 'Rejected';
+    withdrawal.reviewedAt = reviewedAt;
+    withdrawal.reviewerId = callingAdmin?.id ?? null;
+    withdrawal.reviewerEmail = typeof callingAdmin?.email === 'string' ? callingAdmin.email : null;
+    withdrawal.txHash = txHash;
+    withdrawal.rejectionReason = action === 'reject' ? rejectionReason : '';
+
+    if (action === 'approve') {
+      normalizedUserData.holdAmount = roundMoney(Math.max(0, normalizedUserData.holdAmount - withdrawal.amount));
+      normalizedUserData.balance = roundMoney(normalizedUserData.balance - withdrawal.amount);
+    } else {
+      normalizedUserData.holdAmount = roundMoney(Math.max(0, normalizedUserData.holdAmount - withdrawal.amount));
+    }
+
+    const transactionKey = `${TRANSACTION_KEY_PREFIX}${withdrawal.transactionId}`;
+    const existingTransaction = await kv.get(transactionKey);
+    if (existingTransaction) {
+      const updatedTransaction = normalizeTransactionRecord({
+        ...existingTransaction,
+        status: action === 'approve' ? 'Completed' : 'Rejected',
+        txHash,
+        updatedAt: reviewedAt,
+        date: reviewedAt,
+        description: action === 'approve' ? 'Withdrawal approved by admin' : 'Withdrawal rejected by admin',
+      });
+      await kv.set(transactionKey, updatedTransaction);
+    }
+
+    await kv.set(withdrawalKey, withdrawal);
+    await kv.set(userKey, normalizedUserData);
+
+    return c.json({
+      success: true,
+      withdrawal,
+      balance: normalizedUserData.balance,
+      holdAmount: normalizedUserData.holdAmount,
+      availableAmount: roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount),
+    });
+  } catch (error) {
+    console.error('Error reviewing withdrawal request:', error);
+    return c.json({ error: 'Failed to review withdrawal request' }, 500);
   }
 });
 
