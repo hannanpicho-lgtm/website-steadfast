@@ -1,10 +1,144 @@
-import { Eye, EyeOff } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, Lock, ShieldAlert } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router';
 import { useState } from 'react';
 import { useEffect } from 'react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { authenticateUser, ensureReferralStore, getAdminCredentials, getDemoCredentials } from '../services/referralSystem';
-import { resolveAdminIdentifier, signInAdmin } from '../services/supabaseAuth';
+import { signInAdmin } from '../services/supabaseAuth';
+
+type LoginAuthReason = 'sign-in-required' | 'admin-access-required' | 'session-expired';
+
+type LoginLocationState = {
+  from?: string;
+  adminRequired?: boolean;
+  authReason?: LoginAuthReason;
+  authMessage?: string;
+};
+
+type LoginNoticeTone = 'info' | 'warning' | 'error';
+
+type LoginNotice = {
+  title: string;
+  message: string;
+  hint: string;
+  tone: LoginNoticeTone;
+};
+
+function formatRouteLabel(pathname?: string): string | null {
+  if (!pathname || pathname === '/login') {
+    return null;
+  }
+
+  const formatted = pathname
+    .replace(/^\//, '')
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => segment.replace(/-/g, ' '))
+    .map((segment) => segment.replace(/\b\w/g, (char) => char.toUpperCase()))
+    .join(' / ');
+
+  return formatted || null;
+}
+
+function buildRouteNotice(state: LoginLocationState | null): LoginNotice | null {
+  if (!state) {
+    return null;
+  }
+
+  const destination = formatRouteLabel(state.from);
+
+  if (state.authMessage) {
+    return {
+      title: 'Sign In Required',
+      message: state.authMessage,
+      hint: destination ? `Continue after sign-in to return to ${destination}.` : 'Sign in again to continue.',
+      tone: 'warning',
+    };
+  }
+
+  if (state.authReason === 'admin-access-required' || state.adminRequired) {
+    return {
+      title: 'Admin Access Required',
+      message: destination
+        ? `Use an authorized admin account to open ${destination}.`
+        : 'Use an authorized admin account to continue.',
+      hint: 'Admin sign-in requires a Supabase Auth email with admin or super_admin access.',
+      tone: 'warning',
+    };
+  }
+
+  if (state.authReason === 'session-expired') {
+    return {
+      title: 'Session Expired',
+      message: 'Your session ended before the request could complete.',
+      hint: destination ? `Sign in again to continue to ${destination}.` : 'Sign in again to continue.',
+      tone: 'warning',
+    };
+  }
+
+  if (state.authReason === 'sign-in-required' || state.from) {
+    return {
+      title: 'Sign In Required',
+      message: destination ? `Sign in to continue to ${destination}.` : 'Sign in to continue.',
+      hint: 'Your destination will open after a successful sign-in.',
+      tone: 'info',
+    };
+  }
+
+  return null;
+}
+
+function buildLoginErrorNotice(error: string, isAdminAttempt: boolean): LoginNotice {
+  const normalized = error.trim().toLowerCase();
+
+  if (normalized.includes('invalid login credentials')) {
+    return {
+      title: isAdminAttempt ? 'Admin Sign-In Failed' : 'Sign-In Failed',
+      message: isAdminAttempt ? 'The admin email or password is incorrect.' : 'The username or password is incorrect.',
+      hint: 'Check your credentials carefully or use password reset if you no longer know them.',
+      tone: 'error',
+    };
+  }
+
+  if (normalized.includes('not authorized')) {
+    return {
+      title: 'Admin Access Denied',
+      message: 'This account signed in successfully but does not have admin permissions.',
+      hint: 'Use an account with app_metadata.role set to admin or super_admin.',
+      tone: 'error',
+    };
+  }
+
+  if (normalized.includes('valid admin email')) {
+    return {
+      title: 'Admin Email Required',
+      message: 'Admin access only accepts a valid email address.',
+      hint: 'Enter the full admin email address used in Supabase Auth.',
+      tone: 'error',
+    };
+  }
+
+  return {
+    title: isAdminAttempt ? 'Admin Sign-In Failed' : 'Sign-In Failed',
+    message: error,
+    hint: isAdminAttempt
+      ? 'If this persists, confirm the account is active in Supabase Auth and has the correct admin role.'
+      : 'Try again or contact support if you cannot access your account.',
+    tone: 'error',
+  };
+}
+
+function getNoticeClasses(tone: LoginNoticeTone): string {
+  if (tone === 'error') {
+    return 'border-red-200 bg-red-50 text-red-900';
+  }
+
+  if (tone === 'warning') {
+    return 'border-amber-200 bg-amber-50 text-amber-900';
+  }
+
+  return 'border-sky-200 bg-sky-50 text-sky-900';
+}
 
 export default function Login() {
   const navigate = useNavigate();
@@ -16,7 +150,11 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [errorText, setErrorText] = useState('');
   const [loginTarget, setLoginTarget] = useState('/starting');
-  const adminRequired = Boolean((location.state as { adminRequired?: boolean } | null)?.adminRequired);
+  const loginState = (location.state as LoginLocationState | null) ?? null;
+  const adminRequired = Boolean(loginState?.adminRequired);
+  const routeNotice = buildRouteNotice(loginState);
+  const isAdminAttempt = adminRequired || username.trim().includes('@');
+  const errorNotice = errorText ? buildLoginErrorNotice(errorText, isAdminAttempt) : null;
 
   useEffect(() => {
     ensureReferralStore();
@@ -26,7 +164,7 @@ export default function Login() {
     e.preventDefault();
     setErrorText('');
 
-    const from = (location.state as { from?: string })?.from;
+    const from = loginState?.from;
     const normalizedIdentifier = username.trim().toLowerCase();
     const wantsAdminAccess = adminRequired || from === '/admin';
     const isLikelyAdminIdentifier = normalizedIdentifier.includes('@');
@@ -86,6 +224,21 @@ export default function Login() {
             : 'Enter your username and password to access'}
         </p>
 
+        {routeNotice ? (
+          <div className={`max-w-xl mx-auto mb-5 rounded-2xl border px-4 py-4 ${getNoticeClasses(routeNotice.tone)}`}>
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 shrink-0">
+                {routeNotice.tone === 'warning' ? <ShieldAlert size={20} /> : <Lock size={20} />}
+              </div>
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-[0.14em]">{routeNotice.title}</h2>
+                <p className="mt-1 text-sm">{routeNotice.message}</p>
+                <p className="mt-2 text-xs opacity-80">{routeNotice.hint}</p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <form onSubmit={handleLogin} className="space-y-5 max-w-xl mx-auto">
           {/* Username/Phone */}
           <div>
@@ -93,7 +246,10 @@ export default function Login() {
               type="text"
               placeholder={adminRequired ? 'Admin email address' : 'Username/Phone'}
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                setErrorText('');
+              }}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
               required
             />
@@ -105,7 +261,10 @@ export default function Login() {
               type={showPassword ? "text" : "password"}
               placeholder="Password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setErrorText('');
+              }}
               className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
               required
             />
@@ -142,7 +301,18 @@ export default function Login() {
             SIGN IN
           </button>
 
-          {errorText ? <p className="text-red-600 text-sm text-center">{errorText}</p> : null}
+          {errorNotice ? (
+            <div className={`rounded-2xl border px-4 py-4 ${getNoticeClasses(errorNotice.tone)}`} role="alert">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="mt-0.5 shrink-0" />
+                <div>
+                  <h2 className="text-sm font-bold uppercase tracking-[0.14em]">{errorNotice.title}</h2>
+                  <p className="mt-1 text-sm">{errorNotice.message}</p>
+                  <p className="mt-2 text-xs opacity-80">{errorNotice.hint}</p>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <p className="text-center text-xs text-gray-500">
             Demo login: {getDemoCredentials().username} / {getDemoCredentials().password}

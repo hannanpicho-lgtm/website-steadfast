@@ -34,7 +34,7 @@ export default function RequireAdminLayout() {
   }
 
   if (status === 'unauthorized') {
-    return <Navigate to="/login" replace state={{ from: location.pathname, adminRequired: true }} />;
+    return <Navigate to="/login" replace state={{ from: location.pathname, adminRequired: true, authReason: 'admin-access-required' }} />;
   }
 
   return (

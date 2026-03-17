@@ -3,7 +3,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   buildBackupExport,
   parseBackupImport,
-  mergeSalaryRestorePoints,
   pruneExpiredRestorePoints,
   createAuditEvent,
   createSalaryRestorePoint,
@@ -148,39 +147,6 @@ describe('pruneExpiredRestorePoints', () => {
   it('drops points with unparseable createdAt', () => {
     const bad = makeRestorePoint({ createdAt: 'not-a-date' });
     expect(pruneExpiredRestorePoints([bad], 30)).toHaveLength(0);
-  });
-});
-
-// ─── mergeSalaryRestorePoints ────────────────────────────────────────────────
-
-describe('mergeSalaryRestorePoints', () => {
-  const now = new Date('2026-03-17T12:00:00.000Z').getTime();
-  const daysAgo = (n: number) => new Date(now - n * 86_400_000).toISOString();
-
-  it('sorts merged points newest-first and limits them to MAX_RESTORE_POINTS', () => {
-    const incoming = Array.from({ length: 6 }, (_, index) =>
-      makeRestorePoint({ id: index + 1, createdAt: daysAgo(index), label: `incoming-${index}` }),
-    );
-    const existing = Array.from({ length: 6 }, (_, index) =>
-      makeRestorePoint({ id: index + 101, createdAt: daysAgo(index + 6), label: `existing-${index}` }),
-    );
-
-    const result = mergeSalaryRestorePoints(incoming, existing, 30, now);
-
-    expect(result).toHaveLength(MAX_RESTORE_POINTS);
-    expect(result[0].label).toBe('incoming-0');
-    expect(result[result.length - 1]?.label).toBe('existing-3');
-  });
-
-  it('deduplicates points by id and removes expired points', () => {
-    const duplicate = makeRestorePoint({ id: 77, createdAt: daysAgo(1), label: 'incoming copy' });
-    const olderDuplicate = makeRestorePoint({ id: 77, createdAt: daysAgo(2), label: 'existing copy' });
-    const expired = makeRestorePoint({ id: 88, createdAt: daysAgo(45), label: 'expired' });
-
-    const result = mergeSalaryRestorePoints([duplicate, expired], [olderDuplicate], 30, now);
-
-    expect(result).toHaveLength(1);
-    expect(result[0].label).toBe('incoming copy');
   });
 });
 

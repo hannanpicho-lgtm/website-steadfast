@@ -79,7 +79,6 @@ import {
   createSalaryRestorePoint as createSalaryRestorePointRecord,
   loadSalaryAuditLog,
   loadSalaryProjectAutosave,
-  mergeSalaryRestorePoints,
   parseBackupImport,
   pruneExpiredRestorePoints,
   saveSalaryAuditLog,
@@ -396,11 +395,11 @@ export default function Admin() {
 
 
 
-  const handleStorageSaveResult = (result: StorageSaveResult): boolean => {
+  const handleStorageSaveResult = (result: StorageSaveResult) => {
     if (result.ok) {
       setStorageWarning(null);
       lastStorageErrorRef.current = null;
-      return true;
+      return;
     }
 
     const message = result.message ?? 'Unable to save backup data to browser storage.';
@@ -409,8 +408,6 @@ export default function Admin() {
       toast.error(message);
       lastStorageErrorRef.current = message;
     }
-
-    return false;
   };
 
   const handleStartVipInlineEdit = (vip: VipLevelConfig) => {
@@ -1335,9 +1332,8 @@ export default function Admin() {
       payments: salaryPayments,
       points: pruneExpiredRestorePoints(salaryRestorePoints, backupRetentionDays),
     });
-    if (handleStorageSaveResult(saveResult)) {
-      setAutoSavedAt(new Date().toISOString());
-    }
+    handleStorageSaveResult(saveResult);
+    setAutoSavedAt(new Date().toISOString());
   }, [
     isSalaryStateHydrated,
     activeRewardTab,
@@ -1597,9 +1593,8 @@ export default function Admin() {
       try {
         const text = String(reader.result ?? '');
         const parsed = parseBackupImport(text);
-        const retentionDays = parsed.backupRetentionDays ?? backupRetentionDays;
 
-        setSalaryRestorePoints((prev) => mergeSalaryRestorePoints(parsed.points, prev, retentionDays));
+        setSalaryRestorePoints((prev) => [...parsed.points, ...prev].slice(0, MAX_RESTORE_POINTS));
         if (parsed.activeRewardTab) {
           setActiveRewardTab(parsed.activeRewardTab);
         }

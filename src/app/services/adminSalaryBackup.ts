@@ -499,27 +499,6 @@ export function pruneExpiredRestorePoints(
   });
 }
 
-export function mergeSalaryRestorePoints(
-  incomingPoints: SalaryRestorePoint[],
-  existingPoints: SalaryRestorePoint[],
-  retentionDays: number,
-  referenceTimeMs: number = Date.now(),
-): SalaryRestorePoint[] {
-  const seenIds = new Set<number>();
-  const combined = [...incomingPoints, ...existingPoints].filter((point) => {
-    if (seenIds.has(point.id)) {
-      return false;
-    }
-
-    seenIds.add(point.id);
-    return true;
-  });
-
-  return pruneExpiredRestorePoints(combined, retentionDays, referenceTimeMs)
-    .sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
-    .slice(0, MAX_RESTORE_POINTS);
-}
-
 export function createAuditEvent(action: SalaryAuditAction, detail: string): SalaryAuditEvent {
   return {
     id: Date.now(),

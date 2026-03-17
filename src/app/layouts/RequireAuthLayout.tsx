@@ -5,7 +5,7 @@ export default function RequireAuthLayout() {
   const location = useLocation();
 
   if (!isAuthenticated()) {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/login" replace state={{ from: location.pathname, authReason: 'sign-in-required' }} />;
   }
 
   return <Outlet />;
