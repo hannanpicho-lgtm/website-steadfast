@@ -70,7 +70,7 @@ import {
   updateAdminRewardsConfig,
 } from '../services/rewardsConfig';
 import { fetchAdminVipConfig, type VipConfig, updateAdminVipConfig } from '../services/vipConfig';
-import { projectId } from '/utils/supabase/info';
+import { projectId } from '../../../utils/supabase/info';
 import {
   AUTO_BACKUP_INTERVAL_MS,
   MAX_AUDIT_EVENTS,
@@ -4495,7 +4495,7 @@ export default function Admin() {
         const isRealData = platformUsersLoaded;
         const normalizedUsers: DisplayUser[] = platformUsersLoaded
           ? platformUsers.map((u, i) => ({ id: i + 1, username: u.username, email: '—', phone: '—', vipLevel: u.vipLevel, balance: u.balance, status: u.isFrozen ? 'Suspended' : 'Active', registered: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—', tasksCompleted: u.tasksCompleted, referredByAdminName: u.referredByAdminName || '—' }))
-          : mockUsers.map((u) => ({ ...u, referredByAdminName: '—' }));
+          : mockUsers.map((u) => ({ ...u, referredByAdminName: '—', vipLevel: Number(u.vipLevel.replace(/\D/g, '')) }));
         const filteredUsers = normalizedUsers.filter(user => {
           const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
                                user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -5220,18 +5220,18 @@ export default function Admin() {
                         <td colSpan={7} className="px-6 py-10 text-center text-gray-400">No deposit records available.</td>
                       </tr>
                     ) : deposits.map((deposit) => (
-                      <tr key={tx.id} className="hover:bg-[#2c3e50] transition-colors">
+                      <tr key={deposit.id} className="hover:bg-[#2c3e50] transition-colors">
                         <td className="px-6 py-4 text-sm text-gray-300">{deposit.id}</td>
-                        <td className="px-6 py-4 text-sm font-medium text-white">{tx.username}</td>
+                        <td className="px-6 py-4 text-sm font-medium text-white">{deposit.username}</td>
                         <td className="px-6 py-4 text-sm font-semibold text-[#00D9FF]">{formatCurrency(deposit.amount)}</td>
-                        <td className="px-6 py-4 text-sm text-gray-300">{tx.method}</td>
+                        <td className="px-6 py-4 text-sm text-gray-300">{deposit.method}</td>
                         <td className="px-6 py-4 text-sm">
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            tx.status === 'Completed' ? 'bg-green-500/20 text-green-300' :
-                            tx.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-300' :
+                            deposit.status === 'Completed' ? 'bg-green-500/20 text-green-300' :
+                            deposit.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-300' :
                             'bg-red-500/20 text-red-300'
                           }`}>
-                            {tx.status}
+                            {deposit.status}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-400">{formatDateTime(deposit.date)}</td>
