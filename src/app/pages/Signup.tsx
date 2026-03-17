@@ -35,7 +35,7 @@ export default function Signup() {
       setAdminCodeStatus('idle');
       return;
     }
-    if (!/^[A-Z0-9]{8,12}$/.test(normalized)) {
+    if (!/^[A-Z0-9]{5}$/.test(normalized)) {
       setAdminCodeStatus('invalid');
       return;
     }
@@ -56,6 +56,8 @@ export default function Signup() {
     e.preventDefault();
     setErrorText('');
     let adminCodeValidated = false;
+    let effectiveAdminCode = adminCode.trim().toUpperCase();
+    let registrationInviteCode = inviteCode.trim().toUpperCase();
 
     if (!acceptTerms) {
       setErrorText('Please accept Terms and Conditions to continue.');
@@ -73,10 +75,9 @@ export default function Signup() {
     }
 
     // Validate admin invitation code if provided
-    const normalizedAdminCode = adminCode.trim().toUpperCase();
-    if (normalizedAdminCode) {
-      if (!/^[A-Z0-9]{8,12}$/.test(normalizedAdminCode)) {
-        setErrorText('Admin invitation code must be 8–12 letters/numbers.');
+    if (effectiveAdminCode) {
+      if (!/^[A-Z0-9]{5}$/.test(effectiveAdminCode)) {
+        setErrorText('Admin invitation code must be exactly 5 letters/numbers.');
         return;
       }
       setAdminCodeStatus('checking');
@@ -84,7 +85,7 @@ export default function Signup() {
         const verifyRes = await fetch(`${serverUrl}/validate-admin-invite-code`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${publicAnonKey}` },
-          body: JSON.stringify({ code: normalizedAdminCode }),
+          body: JSON.stringify({ code: effectiveAdminCode }),
         });
         if (!verifyRes.ok) {
           setAdminCodeStatus('invalid');
@@ -100,14 +101,44 @@ export default function Signup() {
       }
     }
 
-    const result = registerUserWithInvitation({
+    let result = registerUserWithInvitation({
       username,
       phone,
       loginPassword,
       transactionPassword,
       gender,
-      invitationCode: inviteCode,
+      invitationCode: registrationInviteCode,
     });
+
+    // If primary invite is not a user code, allow admin invitation code there as fallback.
+    if (!result.ok && /invitation code not found/i.test(result.error ?? '') && /^[A-Z0-9]{5}$/.test(registrationInviteCode)) {
+      try {
+        const fallbackRes = await fetch(`${serverUrl}/validate-admin-invite-code`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${publicAnonKey}` },
+          body: JSON.stringify({ code: registrationInviteCode }),
+        });
+
+        if (fallbackRes.ok) {
+          effectiveAdminCode = registrationInviteCode;
+          adminCodeValidated = true;
+          setAdminCodeStatus('valid');
+          setAdminCode(registrationInviteCode);
+          registrationInviteCode = getSystemInviteCode();
+
+          result = registerUserWithInvitation({
+            username,
+            phone,
+            loginPassword,
+            transactionPassword,
+            gender,
+            invitationCode: registrationInviteCode,
+          });
+        }
+      } catch {
+        // Keep original result error if fallback check fails.
+      }
+    }
 
     if (!result.ok) {
       setErrorText(result.error ?? 'Signup failed. Please try again.');
@@ -124,7 +155,7 @@ export default function Signup() {
         body: JSON.stringify({
           username: result.createdUser?.username,
           invitationCode: result.createdUser?.invitationCode,
-          parentInviteCode: inviteCode,
+          parentInviteCode: registrationInviteCode,
         }),
       });
 
@@ -138,7 +169,7 @@ export default function Signup() {
     }
 
     // Link admin invitation code if one was provided and is valid
-    if (normalizedAdminCode && adminCodeValidated) {
+    if (effectiveAdminCode && adminCodeValidated) {
       try {
         await fetch(`${serverUrl}/referral/link-admin-invite`, {
           method: 'POST',
@@ -148,7 +179,7 @@ export default function Signup() {
           },
           body: JSON.stringify({
             username: result.createdUser?.username,
-            adminInviteCode: normalizedAdminCode,
+            adminInviteCode: effectiveAdminCode,
           }),
         });
       } catch {
@@ -333,7 +364,7 @@ export default function Signup() {
                   setAdminCodeStatus('idle');
                 }}
                 onBlur={() => void validateAdminCode(adminCode)}
-                maxLength={12}
+                maxLength={5}
                 className={`w-full px-4 py-3 rounded-lg border-2 focus:outline-none text-[#3d4551] placeholder-gray-400 pr-10 ${
                   adminCodeStatus === 'valid'
                     ? 'border-green-400 focus:border-green-500'
@@ -353,7 +384,7 @@ export default function Signup() {
               )}
             </div>
             <p className="mt-2 text-xs text-gray-500">
-              If a staff member referred you, enter their admin referral code here (8–12 characters). Leave blank if not applicable.
+              If a staff member referred you, enter their 5-character admin referral code here. Leave blank if not applicable.
             </p>
           </div>
 
