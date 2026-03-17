@@ -1,11 +1,63 @@
 ﻿import { Link } from 'react-router';
+import {
+  Briefcase,
+  CalendarDays,
+  HandCoins,
+  Landmark,
+  ScrollText,
+  ShieldCheck,
+  Target,
+  TrendingUp,
+} from 'lucide-react';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
+
+const serviceTiles = [
+  { label: 'Brand Strategy', icon: Briefcase },
+  { label: 'Campaign Planning', icon: CalendarDays },
+  { label: 'ROI Tracking', icon: TrendingUp },
+  { label: 'Media Buying', icon: Landmark },
+  { label: 'Task Review', icon: ScrollText },
+  { label: 'Risk Control', icon: ShieldCheck },
+  { label: 'Audience Growth', icon: Target },
+  { label: 'Revenue Lift', icon: HandCoins },
+];
+
+const expertiseItems = [
+  'Digital Advertising',
+  'SEO & Content Systems',
+  'Creative Performance Optimization',
+  'Marketplace Conversion Strategy',
+  'Retention and Lifecycle Funnels',
+];
+
+const workHighlights = [
+  {
+    title: 'Zoomin',
+    subtitle: 'Community pet-care campaign launch',
+    image:
+      'https://images.unsplash.com/photo-1592194996308-7b43878e84a6?auto=format&fit=crop&w=1200&q=80',
+  },
+  {
+    title: 'Casa Foods',
+    subtitle: 'Commerce retargeting and product lift',
+    image:
+      'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1200&q=80',
+  },
+  {
+    title: 'AlohaBoat',
+    subtitle: 'Luxury booking funnel optimization',
+    image:
+      'https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?auto=format&fit=crop&w=1200&q=80',
+  },
+];
+
+const clientNames = ['AgEagle', 'NYU Langone Health', 'Organicgirl', 'Newmans Own', 'UNDP', 'Forward Labs'];
 
 export default function Home() {
   return (
-    <div className="h-screen w-full flex flex-col overflow-hidden bg-[#1a1f2e]">
+    <div className="min-h-screen w-full bg-[#f5f7fb]">
       {/* Minimal Header â€” logo only */}
-      <header className="relative z-20 flex items-center px-6 py-3 bg-gradient-to-r from-[#1e2838] via-[#2c3e50] to-[#34495e] border-b border-[#5dade2]/20 shadow-lg shadow-[#5dade2]/5 flex-shrink-0">
+      <header className="relative z-20 flex items-center px-6 py-3 bg-gradient-to-r from-[#1e2838] via-[#2c3e50] to-[#34495e] border-b border-[#5dade2]/20 shadow-lg shadow-[#5dade2]/5">
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="absolute inset-0 bg-[#5dade2] blur-xl opacity-30"></div>
@@ -22,8 +74,8 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero Section â€” fills remaining viewport */}
-      <section className="relative flex-1 flex flex-col items-center justify-center bg-gradient-to-br from-[#2a3f5f] via-[#1a1f2e] to-[#3d2a4a] overflow-hidden">
+      {/* Hero Section */}
+      <section className="relative min-h-[78vh] flex flex-col items-center justify-center bg-gradient-to-br from-[#2a3f5f] via-[#1a1f2e] to-[#2d3a56] overflow-hidden">
         {/* Video Background */}
         <div className="absolute inset-0 w-full h-full overflow-hidden">
           <video
@@ -43,7 +95,7 @@ export default function Home() {
         {/* Glow orbs */}
         <div className="absolute inset-0 opacity-10 pointer-events-none">
           <div className="absolute top-20 right-20 w-96 h-96 bg-[#00D9FF] rounded-full blur-3xl"></div>
-          <div className="absolute bottom-20 left-20 w-96 h-96 bg-purple-500 rounded-full blur-3xl"></div>
+          <div className="absolute bottom-20 left-20 w-96 h-96 bg-[#5dade2] rounded-full blur-3xl"></div>
         </div>
 
         {/* Content */}
@@ -58,6 +110,88 @@ export default function Home() {
             GET STARTED
           </Link>
         </div>
+      </section>
+
+      {/* Home Information Section */}
+      <section className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+        <div className="bg-white rounded-xl shadow-sm border border-[#e7ecf5] p-5 sm:p-7 mb-7">
+          <p className="text-center text-xs sm:text-sm font-semibold text-[#005ea6] tracking-wide uppercase mb-2">
+            We are a digital marketing agency based in New York City
+          </p>
+          <p className="text-center text-[11px] sm:text-sm text-[#53627a] leading-relaxed">
+            High-value task operations and campaign optimization for brands that need stable daily growth and clear conversion outcomes.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-8">
+          {serviceTiles.map((tile) => {
+            const Icon = tile.icon;
+            return (
+              <div
+                key={tile.label}
+                className="bg-[#0b4f8a] text-white rounded-md px-3 py-3 sm:py-4 flex flex-col items-center justify-center gap-1 shadow-[0_8px_20px_rgba(11,79,138,0.24)]"
+              >
+                <Icon size={16} className="text-[#9fd7ff]" />
+                <span className="text-[10px] sm:text-xs text-center leading-tight font-semibold">{tile.label}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-6 mb-8">
+          <article className="bg-white rounded-xl border border-[#e7ecf5] p-5 shadow-sm">
+            <h2 className="text-base sm:text-lg font-bold text-[#0a3565] mb-3">Our Approach</h2>
+            <p className="text-sm text-[#4f5f77] leading-relaxed">
+              Agile execution and live digital analytics in every workflow. Our team designs repeatable task automation that keeps acquisition efficient, protects budgets, and scales validated campaigns across platforms.
+            </p>
+          </article>
+          <article className="bg-white rounded-xl border border-[#e7ecf5] p-5 shadow-sm">
+            <h2 className="text-base sm:text-lg font-bold text-[#0a3565] mb-3">Agency Expertise</h2>
+            <ul className="space-y-2">
+              {expertiseItems.map((item) => (
+                <li key={item} className="text-sm text-[#4f5f77] leading-relaxed">
+                  • {item}
+                </li>
+              ))}
+            </ul>
+          </article>
+        </div>
+
+        <div className="mb-8">
+          <h2 className="text-center text-base sm:text-lg font-bold text-[#0a3565] mb-4">Discover Our Work</h2>
+          <div className="space-y-3">
+            {workHighlights.map((item) => (
+              <article key={item.title} className="relative h-36 sm:h-44 rounded-lg overflow-hidden shadow-md">
+                <img src={item.image} alt={item.title} className="absolute inset-0 w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#001f3fbf] via-[#001f3f73] to-transparent"></div>
+                <div className="absolute left-4 bottom-4 text-white">
+                  <h3 className="text-lg font-bold leading-tight">{item.title}</h3>
+                  <p className="text-xs sm:text-sm text-white/80">{item.subtitle}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-[#e7ecf5] p-5 sm:p-6 shadow-sm mb-8">
+          <h2 className="text-center text-sm sm:text-base font-bold text-[#0a3565] mb-4 uppercase tracking-wide">
+            Some of Our Awesome Clients
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+            {clientNames.map((client) => (
+              <div
+                key={client}
+                className="h-16 sm:h-20 rounded-md border border-[#d7e2f0] bg-[#f8fbff] flex items-center justify-center text-center px-2"
+              >
+                <span className="text-xs sm:text-sm font-bold text-[#2b3f5a] leading-tight">{client}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <footer className="text-center text-xs sm:text-sm text-[#51627b] pb-8">
+          © 2026 Steadfast Digital, Inc. All rights reserved.
+        </footer>
       </section>
     </div>
   );
