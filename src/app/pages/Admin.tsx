@@ -716,7 +716,7 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    if (activeMenu !== 'user-management') return;
+    if (activeMenu !== 'user-management' && activeMenu !== 'premium-bundles') return;
     void loadPlatformUsers();
   }, [activeMenu, serverUrl]);
 
@@ -2786,6 +2786,19 @@ export default function Admin() {
     );
   };
 
+  const premiumBundleUsers = [...platformUsers]
+    .sort((a, b) => {
+      const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return bTime - aTime;
+    })
+    .map((user, index) => ({
+      id: `${user.username}-${user.createdAt ?? index}`,
+      username: user.username,
+      vipLevel: String(user.vipLevel),
+      balance: user.balance,
+    }));
+
   const renderContent = () => {
     switch (activeMenu) {
       case 'admin-users':
@@ -4794,7 +4807,7 @@ export default function Admin() {
         );
 
       case 'premium-bundles':
-        return <PremiumBundles mockUsers={mockUsers} />;
+        return <PremiumBundles mockUsers={premiumBundleUsers} />;
 
       case 'customer-support':
         return <CustomerSupport />;

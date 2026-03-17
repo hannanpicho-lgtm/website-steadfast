@@ -4,7 +4,7 @@ import { Lock, Calculator, AlertTriangle, Info, Eye, XCircle } from 'lucide-reac
 import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
 
 interface User {
-  id: number;
+  id: number | string;
   username: string;
   vipLevel: string;
   balance: number;
