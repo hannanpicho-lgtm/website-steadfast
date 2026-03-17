@@ -1,6 +1,7 @@
 import { UserCircle, Rocket, CreditCard, Snowflake, Loader2, Lock, AlertTriangle, DollarSign, ChevronLeft, ChevronRight, CheckCircle2, MessageCircle } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
@@ -160,15 +161,15 @@ export default function Starting() {
 
   const handleSubmitTask = async () => {
     if (!userData || !currentProduct || submitting) return;
-    
+
     if (userData.tasksCompleted >= userData.tasksLimit) {
-      alert('Task set complete. Please contact customer support to request a reset.');
+      toast.info('Task set complete. Please contact customer support to request a reset.');
       return;
     }
 
     try {
       setSubmitting(true);
-      
+
       const response = await fetch(`${serverUrl}/submit-task`, {
         method: 'POST',
         headers: {
@@ -181,12 +182,12 @@ export default function Starting() {
           productPrice: currentProduct.price,
         }),
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to submit task');
       }
-      
+
       const result = await response.json();
       
       // Update user data with new values
@@ -210,10 +211,10 @@ export default function Starting() {
       setTimeout(() => {
         setShowSuccess(false);
       }, 3000);
-      
+
     } catch (error) {
       console.error('Error submitting task:', error);
-      alert(error instanceof Error ? error.message : 'Failed to submit task');
+      toast.error(error instanceof Error ? error.message : 'Failed to submit task');
     } finally {
       setSubmitting(false);
     }

@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { useState } from 'react';
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router';
+import { toast } from 'sonner';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { ensureReferralStore, getSystemInviteCode, registerUserWithInvitation } from '../services/referralSystem';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
@@ -201,7 +202,7 @@ export default function Signup() {
     }
 
     const referralPct = 20;
-    alert(
+    toast.success(
       `Signup successful. Your invitation code is ${result.createdUser?.invitationCode}. Parent reward credited: ${referralPct}% (${result.parentReward?.toFixed(2)} USD).`
     );
     navigate('/login');

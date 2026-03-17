@@ -1,6 +1,7 @@
 import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle } from 'lucide-react';
 import { Link } from 'react-router';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import profileImage from '../../assets/3df251a778530e24e8d83eda03085a2dc309c248.png';
@@ -56,10 +57,10 @@ export default function Profile() {
     
     try {
       document.execCommand('copy');
-      alert('Referral code copied to clipboard!');
+      toast.success('Referral code copied to clipboard!');
     } catch (err) {
       console.error('Failed to copy:', err);
-      alert('Failed to copy referral code');
+      toast.error('Failed to copy referral code');
     }
     
     document.body.removeChild(textArea);
