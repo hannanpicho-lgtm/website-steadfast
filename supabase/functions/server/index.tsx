@@ -2126,7 +2126,7 @@ app.post('/make-server-a1c55d7e/admin/invitation-codes/assign-missing', async (c
       const existingCodeKey = `admin:invite:by-admin:${admin.id}`;
       const existingCode = await kv.get(existingCodeKey);
 
-      if (existingCode && typeof existingCode === 'string') {
+      if (existingCode && typeof existingCode === 'string' && sanitizeAdminInviteCode(existingCode)) {
         results.push({
           id: admin.id,
           email: admin.email ?? '',
@@ -2223,8 +2223,9 @@ app.get('/make-server-a1c55d7e/admin/invitation-codes/mine', async (c) => {
     const codeKey = `admin:invite:by-admin:${adminUser.id}`;
     let code = await kv.get(codeKey);
 
-    // Auto-create a 5-char code for legacy admins created before this feature.
-    if (!code || typeof code !== 'string') {
+    // Auto-create/repair a 5-char code for legacy admins created before this feature.
+    if (!code || typeof code !== 'string' || !sanitizeAdminInviteCode(code)) {
+      const legacyCode = typeof code === 'string' ? code : null;
       let generatedCode: string;
       let attempts = 0;
       do {
@@ -2245,6 +2246,9 @@ app.get('/make-server-a1c55d7e/admin/invitation-codes/mine', async (c) => {
 
       await kv.set(`admin:invite:code:${generatedCode}`, generatedRecord);
       await kv.set(codeKey, generatedCode);
+      if (legacyCode) {
+        await kv.del(`admin:invite:code:${legacyCode}`);
+      }
       code = generatedCode;
     }
 
