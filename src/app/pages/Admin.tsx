@@ -59,7 +59,8 @@ import {
   Copy
 } from 'lucide-react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
-import { buildAdminAuthHeaders, supabase } from '../services/supabaseAuth';
+import { buildAdminAuthHeaders, signOutAdminSession, supabase } from '../services/supabaseAuth';
+import { buildLoginRedirectState } from '../services/loginRedirect';
 import {
   defaultRewardsConfig,
   fetchAdminRewardsConfig,
@@ -391,6 +392,7 @@ export default function Admin() {
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
+  const adminAuthRedirectedRef = useRef(false);
   const importBackupInputRef = useRef<HTMLInputElement | null>(null);
 
 
@@ -408,6 +410,55 @@ export default function Admin() {
       toast.error(message);
       lastStorageErrorRef.current = message;
     }
+  };
+
+  const isAdminAuthErrorMessage = (message: string) => {
+    const normalized = message.trim().toLowerCase();
+
+    return normalized.includes('session expired')
+      || normalized.includes('access denied')
+      || normalized.includes('not authorized')
+      || normalized.includes('authorized admin account')
+      || normalized.includes('sign in again');
+  };
+
+  const handleAdminRequestError = (
+    error: unknown,
+    fallbackMessage: string,
+    options?: {
+      suppressToast?: boolean;
+      onMessage?: (message: string) => void;
+    },
+  ) => {
+    const message = error instanceof Error ? error.message : fallbackMessage;
+
+    options?.onMessage?.(message);
+
+    if (isAdminAuthErrorMessage(message)) {
+      if (!adminAuthRedirectedRef.current) {
+        adminAuthRedirectedRef.current = true;
+        toast.error(message);
+        void signOutAdminSession();
+        navigate('/login', {
+          replace: true,
+          state: buildLoginRedirectState('/admin', {
+            adminRequired: true,
+            authReason: message.toLowerCase().includes('access denied') || message.toLowerCase().includes('not authorized')
+              ? 'admin-access-required'
+              : 'session-expired',
+            authMessage: message,
+          }),
+        });
+      }
+
+      return message;
+    }
+
+    if (!options?.suppressToast) {
+      toast.error(message);
+    }
+
+    return message;
   };
 
   const handleStartVipInlineEdit = (vip: VipLevelConfig) => {
@@ -431,8 +482,7 @@ export default function Admin() {
       setVipConfigurations(tiers.length > 0 ? tiers : defaultVipConfigurations);
     } catch (error) {
       setVipConfigurations(defaultVipConfigurations);
-      const message = error instanceof Error ? error.message : 'Failed to load VIP configuration';
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to load VIP configuration');
     } finally {
       setVipConfigLoading(false);
     }
@@ -476,8 +526,7 @@ export default function Admin() {
       setEditingVipLevel(null);
       setVipDraft(null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update VIP level';
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to update VIP level');
     } finally {
       setSavingVipLevel(null);
     }
@@ -490,8 +539,7 @@ export default function Admin() {
       setRewardsConfig(config);
     } catch (error) {
       setRewardsConfig(defaultRewardsConfig);
-      const message = error instanceof Error ? error.message : 'Failed to load rewards configuration';
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to load rewards configuration');
     } finally {
       setRewardsConfigLoading(false);
     }
@@ -506,8 +554,7 @@ export default function Admin() {
       setModalType(null);
       setSelectedItem(null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update rewards configuration';
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to update rewards configuration');
     } finally {
       setRewardsConfigSaving(false);
     }
@@ -672,8 +719,7 @@ export default function Admin() {
       setTaskConfigurations(Array.isArray(payload?.tasks) ? payload.tasks : []);
     } catch (error) {
       setTaskConfigurations([]);
-      const message = error instanceof Error ? error.message : 'Failed to load tasks';
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to load tasks');
     } finally {
       setTasksLoading(false);
     }
@@ -729,8 +775,7 @@ export default function Admin() {
       setEditingTaskId(null);
       setTaskDraft(null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to update task';
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to update task');
     }
   };
 
@@ -760,8 +805,7 @@ export default function Admin() {
       }
       toast.success('Task deleted.');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete task';
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to delete task');
     }
   };
 
@@ -781,10 +825,10 @@ export default function Admin() {
       const users = Array.isArray(payload?.users) ? payload.users : [];
       setAdminUsers(users);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load admin users';
       setAdminUsers([]);
-      setAdminUsersError(message);
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to load admin users', {
+        onMessage: (message) => setAdminUsersError(message),
+      });
     } finally {
       setAdminUsersLoading(false);
     }
@@ -807,6 +851,7 @@ export default function Admin() {
       const code = typeof payload?.code === 'string' ? payload.code : null;
       setCurrentAdminInvitationCode(code);
     } catch (error) {
+      handleAdminRequestError(error, 'Failed to load invitation code', { suppressToast: true });
       setCurrentAdminInvitationCode(null);
     } finally {
       setCurrentAdminCodeLoading(false);
@@ -830,12 +875,12 @@ export default function Admin() {
       setReferralEvents(Array.isArray(payload?.events) ? payload.events : []);
       setReferralSummary(payload?.summary ?? null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load referral overview';
       setReferralRows([]);
       setReferralEvents([]);
       setReferralSummary(null);
-      setReferralsError(message);
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to load referral overview', {
+        onMessage: (message) => setReferralsError(message),
+      });
     } finally {
       setReferralsLoading(false);
     }
@@ -960,7 +1005,8 @@ export default function Admin() {
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload?.error ?? `Failed to load platform users (${res.status})`);
       setPlatformUsers(Array.isArray(payload?.users) ? payload.users : []);
-    } catch {
+    } catch (error) {
+      handleAdminRequestError(error, 'Failed to load platform users', { suppressToast: true });
       setPlatformUsers([]);
     } finally {
       setPlatformUsersLoaded(true);
@@ -995,8 +1041,7 @@ export default function Admin() {
     } catch (error) {
       setTransactions([]);
       setWithdrawalRequests([]);
-      const message = error instanceof Error ? error.message : 'Failed to load finance data';
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to load finance data');
     } finally {
       setFinanceLoaded(true);
       setFinanceLoading(false);
@@ -1117,8 +1162,7 @@ export default function Admin() {
       }
       form.reset();
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create admin user';
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to create admin user');
     }
   };
 
@@ -1169,8 +1213,7 @@ export default function Admin() {
       toast.success('Task created.');
       setModalType(null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to create task';
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to create task');
     }
   };
 
@@ -1203,8 +1246,7 @@ export default function Admin() {
       setModalType(null);
       setSelectedItem(null);
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to delete admin user';
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to delete admin user');
     }
   };
 
@@ -1291,8 +1333,7 @@ export default function Admin() {
       setApproveWithdrawalTxHash('');
       setRejectWithdrawalReason('');
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to process withdrawal request';
-      toast.error(message);
+      handleAdminRequestError(error, 'Failed to process withdrawal request');
     } finally {
       setProcessingWithdrawal(false);
     }
