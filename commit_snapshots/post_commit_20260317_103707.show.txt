@@ -1,0 +1,19 @@
+commit e4ca15180f9330736003a2c9121e30e7a16cde44
+Author: Administrator (automated commit) <admin@example.com>
+Date:   Tue Mar 17 10:39:43 2026 +0700
+
+    Integrate live VIP configuration persistence
+
+ commit_snapshots/pre_commit_20260317_103707.diff   | 905 +++++++++++++++++++++
+ .../pre_commit_20260317_103707.status.txt          |   7 +
+ src/app/pages/Admin.tsx                            |  84 +-
+ src/app/pages/Records.tsx                          |  23 +-
+ src/app/pages/Starting.tsx                         |  25 +-
+ src/app/pages/VipLevels.tsx                        | 125 ++-
+ src/app/services/vipConfig.ts                      |  55 ++
+ src/tests/api.integration.test.ts                  |  16 +
+ supabase/functions/server/index.tsx                | 221 ++++-
+ 9 files changed, 1322 insertions(+), 139 deletions(-)
+ create mode 100644 commit_snapshots/pre_commit_20260317_103707.diff
+ create mode 100644 commit_snapshots/pre_commit_20260317_103707.status.txt
+ create mode 100644 src/app/services/vipConfig.ts
