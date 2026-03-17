@@ -362,23 +362,20 @@ function sanitizeInviteCode(value: unknown): string | null {
 function sanitizeAdminInviteCode(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim().toUpperCase();
-  // Accept legacy 8-12 codes and new 5-char codes.
-  if (!/^[A-Z0-9]{5,12}$/.test(normalized)) return null;
+  // Admin invitation codes are exactly 5 alphanumeric characters.
+  if (!/^[A-Z0-9]{5}$/.test(normalized)) return null;
   return normalized;
 }
 
 function generateAdminInviteCode(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const length = 10;
+  const length = 5;
   const bytes = crypto.getRandomValues(new Uint8Array(length));
   return Array.from(bytes).map((b) => chars[b % chars.length]).join('');
 }
 
 function generateAdminShortCode(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const length = 5;
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
-  return Array.from(bytes).map((b) => chars[b % chars.length]).join('');
+  return generateAdminInviteCode();
 }
 
 function isSuperAdmin(user: any): boolean {
