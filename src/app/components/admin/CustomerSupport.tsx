@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { projectId } from '/utils/supabase/info';
+import { projectId } from '../../../../utils/supabase/info';
 import LiveChatAdmin from './LiveChatAdmin';
 import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
 import { buildPublicApiHeaders } from '../../services/publicApi';

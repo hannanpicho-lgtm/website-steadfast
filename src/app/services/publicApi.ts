@@ -1,4 +1,4 @@
-import { publicAnonKey } from '/utils/supabase/info';
+import { publicAnonKey } from '../../../utils/supabase/info';
 
 export function buildPublicApiHeaders(contentType = false): Record<string, string> {
   return {

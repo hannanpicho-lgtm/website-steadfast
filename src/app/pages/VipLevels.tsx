@@ -6,7 +6,7 @@ import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 import { getCurrentUsername } from '../services/referralSystem';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { projectId, publicAnonKey } from '../../../utils/supabase/info';
 
 function getVipGradient(color: string) {
   switch (color) {

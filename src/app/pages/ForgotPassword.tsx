@@ -2,7 +2,7 @@ import { Mail, ArrowLeft, CheckCircle, Loader2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { useState } from 'react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { projectId, publicAnonKey } from '../../../utils/supabase/info';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');

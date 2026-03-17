@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { projectId } from '/utils/supabase/info';
+import { projectId } from '../../../../utils/supabase/info';
 import { Lock, Calculator, AlertTriangle, Info, Eye, XCircle } from 'lucide-react';
 import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
 

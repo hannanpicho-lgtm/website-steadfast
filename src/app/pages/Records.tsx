@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { projectId, publicAnonKey } from '../../../utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 
