@@ -1,0 +1,16 @@
+commit 301f3df8a33aba5e5d64d077b04838d7c2fd55fd
+Author: Administrator (automated commit) <admin@example.com>
+Date:   Tue Mar 17 09:23:02 2026 +0700
+
+    Integrate live withdrawals and transaction history
+
+ commit_snapshots/pre_commit_20260317_091706.diff   | 1759 ++++++++++++++++++++
+ .../pre_commit_20260317_091706.status.txt          |    5 +
+ src/app/pages/Admin.tsx                            |  384 +++--
+ src/app/pages/Records.tsx                          |   89 +-
+ src/app/pages/Withdrawal.tsx                       |  199 ++-
+ src/tests/api.integration.test.ts                  |   39 +
+ supabase/functions/server/index.tsx                |  488 +++++-
+ 7 files changed, 2830 insertions(+), 133 deletions(-)
+ create mode 100644 commit_snapshots/pre_commit_20260317_091706.diff
+ create mode 100644 commit_snapshots/pre_commit_20260317_091706.status.txt
