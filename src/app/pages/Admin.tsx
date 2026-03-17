@@ -135,6 +135,13 @@ const vipLevels = [
   { level: 5, name: 'VIP 5', investment: 10000, dailyTasks: 30, commission: 0.025, color: 'diamond' },
 ];
 
+type VipLevelConfig = (typeof vipLevels)[number];
+type VipDraftState = {
+  investment: string;
+  dailyTasks: string;
+  commissionPercent: string;
+};
+
 // Mock products data
 const mockProducts = [
   { id: 1, name: 'Wireless Bluetooth Headphones', description: 'Premium noise-canceling headphones with 30-hour battery life', category: 'Electronics', merchant: 'Amazon', price: 89.99, commission: 0.015, imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400', status: 'Active', sku: 'WBH-001', stock: 250, createdDate: '2024-02-15', source: 'Manual' },
@@ -339,6 +346,9 @@ export default function Admin() {
   const [newAdminInvitationCode, setNewAdminInvitationCode] = useState<string | null>(null);
   const [currentAdminInvitationCode, setCurrentAdminInvitationCode] = useState<string | null>(null);
   const [currentAdminCodeLoading, setCurrentAdminCodeLoading] = useState(false);
+  const [vipConfigurations, setVipConfigurations] = useState<VipLevelConfig[]>(vipLevels);
+  const [editingVipLevel, setEditingVipLevel] = useState<number | null>(null);
+  const [vipDraft, setVipDraft] = useState<VipDraftState | null>(null);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
@@ -359,6 +369,60 @@ export default function Admin() {
       toast.error(message);
       lastStorageErrorRef.current = message;
     }
+  };
+
+  const handleStartVipInlineEdit = (vip: VipLevelConfig) => {
+    setEditingVipLevel(vip.level);
+    setVipDraft({
+      investment: String(vip.investment),
+      dailyTasks: String(vip.dailyTasks),
+      commissionPercent: (vip.commission * 100).toFixed(2),
+    });
+  };
+
+  const handleCancelVipInlineEdit = () => {
+    setEditingVipLevel(null);
+    setVipDraft(null);
+  };
+
+  const handleSaveVipInlineEdit = (level: number) => {
+    if (!vipDraft) return;
+
+    const investment = Number(vipDraft.investment);
+    const dailyTasks = Number(vipDraft.dailyTasks);
+    const commissionPercent = Number(vipDraft.commissionPercent);
+
+    if (!Number.isFinite(investment) || investment <= 0) {
+      toast.error('Investment must be greater than 0.');
+      return;
+    }
+
+    if (!Number.isFinite(dailyTasks) || dailyTasks <= 0 || !Number.isInteger(dailyTasks)) {
+      toast.error('Daily tasks must be a whole number greater than 0.');
+      return;
+    }
+
+    if (!Number.isFinite(commissionPercent) || commissionPercent <= 0) {
+      toast.error('Commission rate must be greater than 0.');
+      return;
+    }
+
+    setVipConfigurations((prev) =>
+      prev.map((vip) =>
+        vip.level === level
+          ? {
+              ...vip,
+              investment,
+              dailyTasks,
+              commission: commissionPercent / 100,
+            }
+          : vip,
+      ),
+    );
+
+    toast.success('VIP level updated.');
+    setEditingVipLevel(null);
+    setVipDraft(null);
   };
 
   const loadAdminUsers = async () => {
@@ -4232,8 +4296,13 @@ export default function Admin() {
 
             {/* VIP Levels Grid */}
             <div className="grid grid-cols-1 gap-4">
-              {vipLevels.map((vip) => (
+              {vipConfigurations.map((vip) => (
                 <div key={vip.level} className="bg-[#252b3d] rounded-lg p-6 border-l-4 border-purple-500">
+                  {editingVipLevel === vip.level && vipDraft ? (
+                    <div className="mb-4 rounded-lg border border-[#00D9FF]/30 bg-[#1a1f2e] p-3">
+                      <p className="text-xs text-[#00D9FF] font-semibold">Live edit mode</p>
+                    </div>
+                  ) : null}
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-4">
@@ -4249,21 +4318,56 @@ export default function Admin() {
                             <DollarSign size={16} className="text-gray-400" />
                             <p className="text-gray-400 text-xs">Investment Required</p>
                           </div>
-                          <p className="text-white font-bold text-xl">${vip.investment.toLocaleString()}</p>
+                          {editingVipLevel === vip.level && vipDraft ? (
+                            <input
+                              type="number"
+                              min={1}
+                              value={vipDraft.investment}
+                              onChange={(e) => setVipDraft((prev) => (prev ? { ...prev, investment: e.target.value } : prev))}
+                              className="w-full bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-white font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
+                            />
+                          ) : (
+                            <p className="text-white font-bold text-xl">${vip.investment.toLocaleString()}</p>
+                          )}
                         </div>
                         <div className="bg-[#1a1f2e] p-4 rounded-lg">
                           <div className="flex items-center gap-2 mb-2">
                             <Target size={16} className="text-gray-400" />
                             <p className="text-gray-400 text-xs">Daily Tasks</p>
                           </div>
-                          <p className="text-[#00D9FF] font-bold text-xl">{vip.dailyTasks}</p>
+                          {editingVipLevel === vip.level && vipDraft ? (
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={vipDraft.dailyTasks}
+                              onChange={(e) => setVipDraft((prev) => (prev ? { ...prev, dailyTasks: e.target.value } : prev))}
+                              className="w-full bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-[#00D9FF] font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
+                            />
+                          ) : (
+                            <p className="text-[#00D9FF] font-bold text-xl">{vip.dailyTasks}</p>
+                          )}
                         </div>
                         <div className="bg-[#1a1f2e] p-4 rounded-lg">
                           <div className="flex items-center gap-2 mb-2">
                             <Percent size={16} className="text-gray-400" />
                             <p className="text-gray-400 text-xs">Commission Rate</p>
                           </div>
-                          <p className="text-green-400 font-bold text-xl">{(vip.commission * 100).toFixed(1)}%</p>
+                          {editingVipLevel === vip.level && vipDraft ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={0.01}
+                                step={0.01}
+                                value={vipDraft.commissionPercent}
+                                onChange={(e) => setVipDraft((prev) => (prev ? { ...prev, commissionPercent: e.target.value } : prev))}
+                                className="w-full bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-green-400 font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
+                              />
+                              <span className="text-green-400 font-bold">%</span>
+                            </div>
+                          ) : (
+                            <p className="text-green-400 font-bold text-xl">{(vip.commission * 100).toFixed(1)}%</p>
+                          )}
                         </div>
                         <div className="bg-[#1a1f2e] p-4 rounded-lg">
                           <div className="flex items-center gap-2 mb-2">
@@ -4274,9 +4378,34 @@ export default function Admin() {
                         </div>
                       </div>
                     </div>
-                    <button className="ml-4 p-2 bg-[#1a1f2e] hover:bg-blue-500/20 rounded-lg transition-colors">
-                      <Edit size={18} className="text-blue-400" />
-                    </button>
+                    <div className="ml-4 flex flex-col gap-2">
+                      {editingVipLevel === vip.level ? (
+                        <>
+                          <button
+                            onClick={() => handleSaveVipInlineEdit(vip.level)}
+                            className="p-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg transition-colors"
+                            title="Save"
+                          >
+                            <Check size={18} className="text-green-400" />
+                          </button>
+                          <button
+                            onClick={handleCancelVipInlineEdit}
+                            className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors"
+                            title="Cancel"
+                          >
+                            <X size={18} className="text-red-400" />
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => handleStartVipInlineEdit(vip)}
+                          className="p-2 bg-[#1a1f2e] hover:bg-blue-500/20 rounded-lg transition-colors"
+                          title="Edit VIP level"
+                        >
+                          <Edit size={18} className="text-blue-400" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
