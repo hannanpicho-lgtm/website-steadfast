@@ -362,8 +362,8 @@ function sanitizeInviteCode(value: unknown): string | null {
 function sanitizeAdminInviteCode(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const normalized = value.trim().toUpperCase();
-  // 8–12 alphanumeric characters (different namespace from 5-char user codes)
-  if (!/^[A-Z0-9]{8,12}$/.test(normalized)) return null;
+  // Accept legacy 8-12 codes and new 5-char codes.
+  if (!/^[A-Z0-9]{5,12}$/.test(normalized)) return null;
   return normalized;
 }
 
@@ -2224,15 +2224,45 @@ app.get('/make-server-a1c55d7e/admin/invitation-codes/mine', async (c) => {
 
     // Get this admin's code from KV
     const codeKey = `admin:invite:by-admin:${adminUser.id}`;
-    const code = await kv.get(codeKey);
-    
+    let code = await kv.get(codeKey);
+
+    // Auto-create a 5-char code for legacy admins created before this feature.
     if (!code || typeof code !== 'string') {
-      return c.json({ code: null, error: 'No invitation code found for this admin' }, 404);
+      let generatedCode: string;
+      let attempts = 0;
+      do {
+        generatedCode = generateAdminShortCode();
+        const existing = await kv.get(`admin:invite:code:${generatedCode}`);
+        if (!existing) break;
+        attempts += 1;
+      } while (attempts < 20);
+
+      const generatedRecord = {
+        code: generatedCode,
+        subAdminId: adminUser.id,
+        subAdminEmail: adminUser.email ?? '',
+        subAdminName: getAdminRoleName(adminUser),
+        usageCount: 0,
+        createdAt: new Date().toISOString(),
+      };
+
+      await kv.set(`admin:invite:code:${generatedCode}`, generatedRecord);
+      await kv.set(codeKey, generatedCode);
+      code = generatedCode;
     }
 
     const codeRecord = await kv.get(`admin:invite:code:${code}`);
     if (!codeRecord) {
-      return c.json({ code: null, error: 'Invitation code record not found' }, 404);
+      const repairedRecord = {
+        code,
+        subAdminId: adminUser.id,
+        subAdminEmail: adminUser.email ?? '',
+        subAdminName: getAdminRoleName(adminUser),
+        usageCount: 0,
+        createdAt: new Date().toISOString(),
+      };
+      await kv.set(`admin:invite:code:${code}`, repairedRecord);
+      return c.json(repairedRecord);
     }
 
     return c.json({
