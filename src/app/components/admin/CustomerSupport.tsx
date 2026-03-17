@@ -402,7 +402,7 @@ export default function CustomerSupport() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Customer Support Management</h2>
+        <h2 className="text-2xl font-bold text-white">Customer Support Management</h2>
         <button
           onClick={refreshActiveTab}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -412,13 +412,13 @@ export default function CustomerSupport() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
+      <div className="flex gap-2 border-b border-gray-700">
         <button
           onClick={() => setActiveTab('tickets')}
           className={`px-6 py-3 font-semibold transition-colors relative ${
             activeTab === 'tickets'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+              ? 'text-[#00D9FF] border-b-2 border-[#00D9FF]'
+              : 'text-gray-400 hover:text-white'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -433,8 +433,8 @@ export default function CustomerSupport() {
           onClick={() => setActiveTab('chats')}
           className={`px-6 py-3 font-semibold transition-colors relative ${
             activeTab === 'chats'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+              ? 'text-[#00D9FF] border-b-2 border-[#00D9FF]'
+              : 'text-gray-400 hover:text-white'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -451,8 +451,8 @@ export default function CustomerSupport() {
           onClick={() => setActiveTab('links')}
           className={`px-6 py-3 font-semibold transition-colors relative ${
             activeTab === 'links'
-              ? 'text-blue-600 border-b-2 border-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+              ? 'text-[#00D9FF] border-b-2 border-[#00D9FF]'
+              : 'text-gray-400 hover:text-white'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -467,9 +467,9 @@ export default function CustomerSupport() {
         <div className="space-y-6">
           {/* Stats */}
           <div className="grid grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <p className="text-sm text-gray-600 mb-1">Total Tickets</p>
-              <p className="text-2xl font-bold text-gray-900">{ticketStats.total}</p>
+            <div className="bg-[#252b3d] p-4 rounded-lg border border-gray-700">
+              <p className="text-sm text-gray-300 mb-1">Total Tickets</p>
+              <p className="text-2xl font-bold text-white">{ticketStats.total}</p>
             </div>
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
               <p className="text-sm text-blue-600 mb-1">Open</p>
@@ -494,13 +494,13 @@ export default function CustomerSupport() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search by subject or username..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+                className="w-full pl-10 pr-4 py-2 border border-gray-600 bg-[#11182a] text-white placeholder:text-gray-400 rounded-lg focus:border-[#00D9FF] focus:outline-none"
               />
             </div>
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none"
+              className="px-4 py-2 border border-gray-600 bg-[#11182a] text-white rounded-lg focus:border-[#00D9FF] focus:outline-none"
             >
               <option value="all">All Status</option>
               <option value="open">Open</option>
