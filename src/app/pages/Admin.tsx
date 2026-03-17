@@ -4807,7 +4807,7 @@ export default function Admin() {
         );
 
       case 'premium-bundles':
-        return <PremiumBundles mockUsers={premiumBundleUsers} />;
+        return <PremiumBundles users={premiumBundleUsers} />;
 
       case 'customer-support':
         return <CustomerSupport />;

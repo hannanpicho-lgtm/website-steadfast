@@ -1378,6 +1378,60 @@ app.get("/make-server-a1c55d7e/premium/:username", async (c) => {
   }
 });
 
+// Get premium assignments across scoped users for admin views
+app.get("/make-server-a1c55d7e/admin/premium-assignments", async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:premium-assignments');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const adminUser = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(adminUser);
+
+    const allUsers = await kv.getByPrefix('user:');
+    const normalizedUsers = allUsers
+      .map((candidate) => {
+        const username = typeof candidate?.username === 'string' ? candidate.username : null;
+        if (!username) {
+          return null;
+        }
+        return normalizeUserRecord(candidate, username);
+      })
+      .filter((user): user is ReturnType<typeof normalizeUserRecord> => Boolean(user));
+
+    const scopedUsers = callerIsSuperAdmin
+      ? normalizedUsers
+      : normalizedUsers.filter((user) => user.referredByAdminId === adminUser?.id);
+
+    const assignments = scopedUsers.flatMap((user) => {
+      const queue = Array.isArray(user.premiumQueue) ? user.premiumQueue : [];
+      return queue.map((assignment, index) => ({
+        username: user.username,
+        vipLevel: user.vipLevel,
+        queuePosition: index + 1,
+        isActive: user.activePremium?.id === assignment?.id,
+        ...assignment,
+      }));
+    });
+
+    assignments.sort((left, right) => {
+      const leftTime = typeof left.assignedAt === 'string' ? new Date(left.assignedAt).getTime() : 0;
+      const rightTime = typeof right.assignedAt === 'string' ? new Date(right.assignedAt).getTime() : 0;
+      return rightTime - leftTime;
+    });
+
+    return c.json({ assignments });
+  } catch (error) {
+    console.error('Error fetching admin premium assignments:', error);
+    return c.json({ error: 'Failed to fetch premium assignments' }, 500);
+  }
+});
+
 // ==================== CS SYSTEM ENDPOINTS ====================
 
 const SUPPORT_LINKS_KEY = 'support:links';

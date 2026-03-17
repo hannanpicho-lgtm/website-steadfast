@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { projectId } from '/utils/supabase/info';
 import { Lock, Calculator, AlertTriangle, Info, Eye, XCircle } from 'lucide-react';
 import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
@@ -10,15 +10,37 @@ interface User {
   balance: number;
 }
 
-interface PremiumBundlesProps {
-  mockUsers: User[];
+interface PremiumAssignmentRecord {
+  id: string;
+  username: string;
+  vipLevel: number;
+  premiumProductValue: number;
+  totalBundleValue: number;
+  balanceAfterAssignment: number;
+  tasksCompleted: number;
+  totalTasks: number;
+  assignedAt: string;
+  status: string;
+  queuePosition: number;
+  isActive: boolean;
+  bundledProducts?: Array<{ id: number; name: string; price: number }>;
+  topUpRequired?: number;
 }
 
-export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
+interface PremiumBundlesProps {
+  users: User[];
+}
+
+export default function PremiumBundles({ users }: PremiumBundlesProps) {
   const [selectedUsername, setSelectedUsername] = useState('');
   const [premiumValue, setPremiumValue] = useState('');
   const [bundleCount, setBundleCount] = useState<1 | 2 | 3>(3);
   const [assigningPremium, setAssigningPremium] = useState(false);
+  const [assignments, setAssignments] = useState<PremiumAssignmentRecord[]>([]);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+  const [selectedAssignment, setSelectedAssignment] = useState<PremiumAssignmentRecord | null>(null);
+
+  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
   const productCatalog = [
     { id: 1, name: 'Premium Wireless Headphones', price: 299.99 },
@@ -27,7 +49,7 @@ export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
   ];
 
   // Calculate preview
-  const selectedUser = mockUsers.find(u => u.username === selectedUsername);
+  const selectedUser = useMemo(() => users.find((u) => u.username === selectedUsername), [users, selectedUsername]);
   const premiumVal = parseFloat(premiumValue) || 0;
   const sortedProducts = [...productCatalog].sort((a, b) => b.price - a.price);
   const bundledProducts = sortedProducts.slice(0, bundleCount);
@@ -36,6 +58,58 @@ export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
   const userBalance = selectedUser?.balance || 0;
   const balanceAfter = userBalance - totalBundleValue;
   const topUpRequired = balanceAfter < 0 ? Math.abs(balanceAfter) : 0;
+
+  const activeAssignments = useMemo(
+    () => assignments.filter((assignment) => assignment.status === 'active'),
+    [assignments],
+  );
+
+  const loadAssignments = async () => {
+    try {
+      setAssignmentsLoading(true);
+      const response = await fetch(`${serverUrl}/admin/premium-assignments`, {
+        headers: await buildAdminAuthHeaders(false),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to load premium assignments');
+      }
+
+      setAssignments(Array.isArray(payload?.assignments) ? payload.assignments : []);
+    } catch (error) {
+      console.error('Error loading premium assignments:', error);
+      setAssignments([]);
+    } finally {
+      setAssignmentsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadAssignments();
+  }, []);
+
+  const handleCancelAssignment = async (assignment: PremiumAssignmentRecord) => {
+    if (!window.confirm(`Cancel premium assignment for ${assignment.username}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${serverUrl}/admin/cancel-premium/${assignment.username}/${assignment.id}`, {
+        method: 'DELETE',
+        headers: await buildAdminAuthHeaders(),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to cancel premium assignment');
+      }
+      await loadAssignments();
+      alert('Premium assignment cancelled successfully.');
+    } catch (error) {
+      console.error('Error cancelling premium assignment:', error);
+      alert(error instanceof Error ? error.message : 'Failed to cancel premium assignment');
+    }
+  };
 
   const handleAssignPremium = async () => {
     if (!selectedUsername || !premiumValue || premiumVal <= 0) {
@@ -49,11 +123,7 @@ export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
 
     try {
       setAssigningPremium(true);
-      
-      const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
-      console.log('Assigning premium bundle to:', selectedUsername);
-      console.log('Server URL:', serverUrl);
-      
+
       const response = await fetch(`${serverUrl}/admin/assign-premium-bundle`, {
         method: 'POST',
         headers: await buildAdminAuthHeaders(),
@@ -65,11 +135,8 @@ export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
         }),
       });
 
-      console.log('Response status:', response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Error response:', errorText);
         let error;
         try {
           error = JSON.parse(errorText);
@@ -80,13 +147,13 @@ export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
       }
 
       const result = await response.json();
-      console.log('Premium bundle assigned successfully:', result);
       alert(`Premium bundle assigned successfully!\n\nQueue Position: ${result.queuePosition}\nBalance After: $${result.balanceAfter.toFixed(2)}\nTop-up Required: $${result.topUpRequired.toFixed(2)}`);
-      
+
       // Reset form
       setSelectedUsername('');
       setPremiumValue('');
       setBundleCount(3);
+      await loadAssignments();
     } catch (error) {
       console.error('Error assigning premium bundle:', error);
       alert(error instanceof Error ? error.message : 'Failed to assign premium bundle');
@@ -129,7 +196,7 @@ export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
                 className="w-full bg-[#1a1f2e] text-white border border-gray-600 rounded px-4 py-2 focus:outline-none focus:border-[#00D9FF]"
               >
                 <option value="">-- Select User --</option>
-                {mockUsers.map(user => (
+                {users.map(user => (
                   <option key={user.id} value={user.username}>
                     {user.username} - VIP{user.vipLevel.slice(-1)} - Balance: ${user.balance.toFixed(2)}
                   </option>
@@ -289,49 +356,110 @@ export default function PremiumBundles({ mockUsers }: PremiumBundlesProps) {
               </tr>
             </thead>
             <tbody>
-              {/* Mock data - will be replaced with real data from backend */}
-              <tr className="border-b border-gray-800 hover:bg-[#1a1f2e]">
-                <td className="py-3 px-4">
-                  <div className="text-white font-semibold">user002</div>
-                  <div className="text-gray-400 text-xs">VIP 2</div>
-                </td>
-                <td className="py-3 px-4 text-yellow-400 font-semibold">$1,200.00</td>
-                <td className="py-3 px-4 text-white">$2,448.98</td>
-                <td className="py-3 px-4">
-                  <span className="text-red-400 font-semibold">-$948.98</span>
-                </td>
-                <td className="py-3 px-4">
-                  <div className="flex items-center gap-2">
-                    <span className="text-white text-sm">2/4</span>
-                    <div className="w-20 h-2 bg-gray-700 rounded-full overflow-hidden">
-                      <div className="h-full bg-green-500" style={{ width: '50%' }}></div>
-                    </div>
-                  </div>
-                </td>
-                <td className="py-3 px-4">
-                  <span className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded text-xs">Position 1</span>
-                </td>
-                <td className="py-3 px-4 text-gray-400 text-sm">2024-03-10 09:30</td>
-                <td className="py-3 px-4">
-                  <div className="flex items-center justify-end gap-2">
-                    <button className="p-2 hover:bg-[#1a1f2e] rounded transition-colors" title="View Details">
-                      <Eye size={16} className="text-blue-400" />
-                    </button>
-                    <button className="p-2 hover:bg-[#1a1f2e] rounded transition-colors" title="Cancel Assignment">
-                      <XCircle size={16} className="text-red-400" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-              <tr className="border-b border-gray-800">
-                <td colSpan={8} className="py-8 text-center text-gray-300">
-                  No active premium assignments. Use the form above to assign a premium bundle.
-                </td>
-              </tr>
+              {assignmentsLoading ? (
+                <tr className="border-b border-gray-800">
+                  <td colSpan={8} className="py-8 text-center text-gray-300">
+                    Loading premium assignments...
+                  </td>
+                </tr>
+              ) : activeAssignments.length === 0 ? (
+                <tr className="border-b border-gray-800">
+                  <td colSpan={8} className="py-8 text-center text-gray-300">
+                    No active premium assignments. Use the form above to assign a premium bundle.
+                  </td>
+                </tr>
+              ) : (
+                activeAssignments.map((assignment) => {
+                  const progressPercent = assignment.totalTasks > 0
+                    ? Math.min(100, (assignment.tasksCompleted / assignment.totalTasks) * 100)
+                    : 0;
+
+                  return (
+                    <tr key={`${assignment.username}-${assignment.id}`} className="border-b border-gray-800 hover:bg-[#1a1f2e]">
+                      <td className="py-3 px-4">
+                        <div className="text-white font-semibold">{assignment.username}</div>
+                        <div className="text-gray-400 text-xs">VIP {assignment.vipLevel}</div>
+                      </td>
+                      <td className="py-3 px-4 text-yellow-400 font-semibold">${assignment.premiumProductValue.toFixed(2)}</td>
+                      <td className="py-3 px-4 text-white">${assignment.totalBundleValue.toFixed(2)}</td>
+                      <td className="py-3 px-4">
+                        <span className={`font-semibold ${assignment.balanceAfterAssignment < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                          {assignment.balanceAfterAssignment < 0 ? '-' : ''}${Math.abs(assignment.balanceAfterAssignment).toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white text-sm">{assignment.tasksCompleted}/{assignment.totalTasks}</span>
+                          <div className="w-20 h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div className="h-full bg-green-500" style={{ width: `${progressPercent}%` }}></div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded text-xs">Position {assignment.queuePosition}</span>
+                      </td>
+                      <td className="py-3 px-4 text-gray-400 text-sm">{new Date(assignment.assignedAt).toLocaleString()}</td>
+                      <td className="py-3 px-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            className="p-2 hover:bg-[#1a1f2e] rounded transition-colors"
+                            title="View Details"
+                            onClick={() => setSelectedAssignment(assignment)}
+                          >
+                            <Eye size={16} className="text-blue-400" />
+                          </button>
+                          <button
+                            className="p-2 hover:bg-[#1a1f2e] rounded transition-colors"
+                            title="Cancel Assignment"
+                            onClick={() => void handleCancelAssignment(assignment)}
+                          >
+                            <XCircle size={16} className="text-red-400" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {selectedAssignment ? (
+        <div className="bg-[#252b3d] rounded-lg p-6 border border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-xl font-bold text-white">Premium Assignment Details</h3>
+            <button
+              onClick={() => setSelectedAssignment(null)}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              <XCircle size={18} />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="bg-[#1a1f2e] rounded-lg p-4">
+              <p className="text-gray-400 mb-1">User</p>
+              <p className="text-white font-semibold">{selectedAssignment.username}</p>
+            </div>
+            <div className="bg-[#1a1f2e] rounded-lg p-4">
+              <p className="text-gray-400 mb-1">Top-up Required</p>
+              <p className="text-red-400 font-semibold">${(selectedAssignment.topUpRequired ?? 0).toFixed(2)}</p>
+            </div>
+            <div className="bg-[#1a1f2e] rounded-lg p-4 md:col-span-2">
+              <p className="text-gray-400 mb-2">Bundled Products</p>
+              <div className="space-y-2">
+                {(selectedAssignment.bundledProducts ?? []).map((product) => (
+                  <div key={product.id} className="flex items-center justify-between text-white">
+                    <span>{product.name}</span>
+                    <span className="text-[#00D9FF] font-semibold">${product.price.toFixed(2)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Info Box */}
       <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-6">
