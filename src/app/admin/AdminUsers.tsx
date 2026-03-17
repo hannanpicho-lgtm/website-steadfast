@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Plus, UserCog, ShieldCheck, LinkIcon, Info, X, Users, Check, Lock, XCircle, Shield, Eye, Edit, Trash2, RefreshCw, Key, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import InvitationCodes from '@/app/components/admin/InvitationCodes';
 import { Suspense } from 'react';
 import AdminPanelFallback from '../components/AdminPanelFallback';
-import { buildLoginRedirectState } from '../services/loginRedirect';
-import { signOutAdminSession } from '../services/supabaseAuth';
+import { handleAdminAuthError } from '../services/adminAuthError';
 
 interface AdminUsersProps {
   activeAdminTab: any;
@@ -60,39 +59,16 @@ export default function AdminUsers({
   serverUrl,
 }: AdminUsersProps) {
   const navigate = useNavigate();
-  const [authRedirected, setAuthRedirected] = useState(false);
+  const adminAuthRedirectedRef = useRef(false);
   const [referralRows_local] = useState(referralRows);
 
   const handleAdminError = (errorValue: unknown, fallbackMessage: string) => {
-    const message = errorValue instanceof Error ? errorValue.message : fallbackMessage;
-    const normalized = message.toLowerCase();
-    const isAuthError = normalized.includes('session expired')
-      || normalized.includes('access denied')
-      || normalized.includes('not authorized')
-      || normalized.includes('authorized admin account')
-      || normalized.includes('sign in again');
-
-    if (isAuthError) {
-      if (!authRedirected) {
-        setAuthRedirected(true);
-        toast.error(message);
-        void signOutAdminSession();
-        navigate('/login', {
-          replace: true,
-          state: buildLoginRedirectState('/admin', {
-            adminRequired: true,
-            authReason: normalized.includes('access denied') || normalized.includes('not authorized')
-              ? 'admin-access-required'
-              : 'session-expired',
-            authMessage: message,
-          }),
-        });
-      }
-
-      return;
-    }
-
-    toast.error(message);
+    handleAdminAuthError({
+      errorValue,
+      fallbackMessage,
+      navigate,
+      redirectedRef: adminAuthRedirectedRef,
+    });
   };
 
   return (

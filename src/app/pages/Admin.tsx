@@ -59,8 +59,8 @@ import {
   Copy
 } from 'lucide-react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
-import { buildAdminAuthHeaders, signOutAdminSession, supabase } from '../services/supabaseAuth';
-import { buildLoginRedirectState } from '../services/loginRedirect';
+import { buildAdminAuthHeaders, supabase } from '../services/supabaseAuth';
+import { handleAdminAuthError } from '../services/adminAuthError';
 import {
   defaultRewardsConfig,
   fetchAdminRewardsConfig,
@@ -412,16 +412,6 @@ export default function Admin() {
     }
   };
 
-  const isAdminAuthErrorMessage = (message: string) => {
-    const normalized = message.trim().toLowerCase();
-
-    return normalized.includes('session expired')
-      || normalized.includes('access denied')
-      || normalized.includes('not authorized')
-      || normalized.includes('authorized admin account')
-      || normalized.includes('sign in again');
-  };
-
   const handleAdminRequestError = (
     error: unknown,
     fallbackMessage: string,
@@ -429,37 +419,14 @@ export default function Admin() {
       suppressToast?: boolean;
       onMessage?: (message: string) => void;
     },
-  ) => {
-    const message = error instanceof Error ? error.message : fallbackMessage;
-
-    options?.onMessage?.(message);
-
-    if (isAdminAuthErrorMessage(message)) {
-      if (!adminAuthRedirectedRef.current) {
-        adminAuthRedirectedRef.current = true;
-        toast.error(message);
-        void signOutAdminSession();
-        navigate('/login', {
-          replace: true,
-          state: buildLoginRedirectState('/admin', {
-            adminRequired: true,
-            authReason: message.toLowerCase().includes('access denied') || message.toLowerCase().includes('not authorized')
-              ? 'admin-access-required'
-              : 'session-expired',
-            authMessage: message,
-          }),
-        });
-      }
-
-      return message;
-    }
-
-    if (!options?.suppressToast) {
-      toast.error(message);
-    }
-
-    return message;
-  };
+  ) => handleAdminAuthError({
+    errorValue: error,
+    fallbackMessage,
+    navigate,
+    redirectedRef: adminAuthRedirectedRef,
+    suppressToast: options?.suppressToast,
+    onMessage: options?.onMessage,
+  });
 
   const handleStartVipInlineEdit = (vip: VipLevelConfig) => {
     setEditingVipLevel(vip.level);

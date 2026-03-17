@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { projectId } from '@utils/supabase/info';
 import { Lock, Calculator, AlertTriangle, Info, Eye, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { buildAdminAuthHeaders, signOutAdminSession } from '../../services/supabaseAuth';
-import { buildLoginRedirectState } from '../../services/loginRedirect';
+import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
+import { handleAdminAuthError } from '../../services/adminAuthError';
 
 interface User {
   id: number | string;
@@ -43,42 +43,18 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
   const [assignments, setAssignments] = useState<PremiumAssignmentRecord[]>([]);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<PremiumAssignmentRecord | null>(null);
-  const [authRedirected, setAuthRedirected] = useState(false);
+  const adminAuthRedirectedRef = useRef(false);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
   const handleAdminError = (errorValue: unknown, fallbackMessage: string, suppressToast = false) => {
-    const message = errorValue instanceof Error ? errorValue.message : fallbackMessage;
-    const normalized = message.toLowerCase();
-    const isAuthError = normalized.includes('session expired')
-      || normalized.includes('access denied')
-      || normalized.includes('not authorized')
-      || normalized.includes('authorized admin account')
-      || normalized.includes('sign in again');
-
-    if (isAuthError) {
-      if (!authRedirected) {
-        setAuthRedirected(true);
-        toast.error(message);
-        void signOutAdminSession();
-        navigate('/login', {
-          replace: true,
-          state: buildLoginRedirectState('/admin', {
-            adminRequired: true,
-            authReason: normalized.includes('access denied') || normalized.includes('not authorized')
-              ? 'admin-access-required'
-              : 'session-expired',
-            authMessage: message,
-          }),
-        });
-      }
-
-      return;
-    }
-
-    if (!suppressToast) {
-      toast.error(message);
-    }
+    handleAdminAuthError({
+      errorValue,
+      fallbackMessage,
+      navigate,
+      redirectedRef: adminAuthRedirectedRef,
+      suppressToast,
+    });
   };
 
   const productCatalog = [

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Copy, RefreshCw, Key, Users, AlertTriangle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
-import { buildAdminAuthHeaders, signOutAdminSession } from '../../services/supabaseAuth';
-import { buildLoginRedirectState } from '../../services/loginRedirect';
+import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
+import { handleAdminAuthError } from '../../services/adminAuthError';
 import { projectId } from '@utils/supabase/info';
 
 type AdminCodeEntry = {
@@ -33,35 +33,12 @@ export default function InvitationCodes({ currentAdminId }: InvitationCodesProps
   const adminAuthRedirectedRef = useRef(false);
 
   const handleAdminError = (errorValue: unknown, fallbackMessage: string) => {
-    const message = errorValue instanceof Error ? errorValue.message : fallbackMessage;
-    const normalized = message.toLowerCase();
-    const isAuthError = normalized.includes('session expired')
-      || normalized.includes('access denied')
-      || normalized.includes('not authorized')
-      || normalized.includes('authorized admin account')
-      || normalized.includes('sign in again');
-
-    if (isAuthError) {
-      if (!adminAuthRedirectedRef.current) {
-        adminAuthRedirectedRef.current = true;
-        toast.error(message);
-        void signOutAdminSession();
-        navigate('/login', {
-          replace: true,
-          state: buildLoginRedirectState('/admin', {
-            adminRequired: true,
-            authReason: normalized.includes('access denied') || normalized.includes('not authorized')
-              ? 'admin-access-required'
-              : 'session-expired',
-            authMessage: message,
-          }),
-        });
-      }
-
-      return;
-    }
-
-    toast.error(message);
+    handleAdminAuthError({
+      errorValue,
+      fallbackMessage,
+      navigate,
+      redirectedRef: adminAuthRedirectedRef,
+    });
   };
 
   const load = useCallback(async () => {
@@ -74,9 +51,13 @@ export default function InvitationCodes({ currentAdminId }: InvitationCodesProps
       if (!res.ok) throw new Error(payload?.error ?? `Failed to load codes (${res.status})`);
       setEntries(Array.isArray(payload?.codes) ? payload.codes : []);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to load invitation codes';
-      setError(msg);
-      handleAdminError(err, 'Failed to load invitation codes');
+      handleAdminAuthError({
+        errorValue: err,
+        fallbackMessage: 'Failed to load invitation codes',
+        navigate,
+        redirectedRef: adminAuthRedirectedRef,
+        onMessage: (message) => setError(message),
+      });
     } finally {
       setLoading(false);
     }

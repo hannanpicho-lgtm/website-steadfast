@@ -3,8 +3,8 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import { projectId } from '@utils/supabase/info';
 import LiveChatAdmin from './LiveChatAdmin';
-import { buildAdminAuthHeaders, signOutAdminSession } from '../../services/supabaseAuth';
-import { buildLoginRedirectState } from '../../services/loginRedirect';
+import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
+import { handleAdminAuthError } from '../../services/adminAuthError';
 import { buildPublicApiHeaders } from '../../services/publicApi';
 import { 
   MessageSquare, 
@@ -84,44 +84,20 @@ export default function CustomerSupport() {
   const [supportEmail, setSupportEmail] = useState(defaultSupportLinks.supportEmail);
   const [savedSupportLinks, setSavedSupportLinks] = useState<SupportLinks>(defaultSupportLinks);
   const [isEditingLinks, setIsEditingLinks] = useState(false);
-  const [authRedirected, setAuthRedirected] = useState(false);
+  const adminAuthRedirectedRef = useRef(false);
   const ticketUpdatedAtRef = useRef<Record<string, string>>({});
   const ticketHighlightTimeoutsRef = useRef<Record<string, number>>({});
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
   const handleAdminError = (errorValue: unknown, fallbackMessage: string, suppressToast = false) => {
-    const message = errorValue instanceof Error ? errorValue.message : fallbackMessage;
-    const normalized = message.toLowerCase();
-    const isAuthError = normalized.includes('session expired')
-      || normalized.includes('access denied')
-      || normalized.includes('not authorized')
-      || normalized.includes('authorized admin account')
-      || normalized.includes('sign in again');
-
-    if (isAuthError) {
-      if (!authRedirected) {
-        setAuthRedirected(true);
-        toast.error(message);
-        void signOutAdminSession();
-        navigate('/login', {
-          replace: true,
-          state: buildLoginRedirectState('/admin', {
-            adminRequired: true,
-            authReason: normalized.includes('access denied') || normalized.includes('not authorized')
-              ? 'admin-access-required'
-              : 'session-expired',
-            authMessage: message,
-          }),
-        });
-      }
-
-      return;
-    }
-
-    if (!suppressToast) {
-      toast.error(message);
-    }
+    handleAdminAuthError({
+      errorValue,
+      fallbackMessage,
+      navigate,
+      redirectedRef: adminAuthRedirectedRef,
+      suppressToast,
+    });
   };
 
   useEffect(() => {
