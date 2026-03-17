@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { MessageCircle, X, Send, Phone, Minimize2 } from 'lucide-react';
 import { useLocation } from 'react-router';
+import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { getCurrentUsername } from '../services/referralSystem';
 
 interface Message {
   id: string;
@@ -9,20 +11,28 @@ interface Message {
   timestamp: Date;
 }
 
+interface SupportLinks {
+  whatsappNumber: string;
+  telegramUsername: string;
+  supportEmail: string;
+}
+
 export function FloatingLiveChat() {
   const location = useLocation();
+  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const currentUsername = getCurrentUsername();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [message, setMessage] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: 'Hello! Welcome to Steadfast Digital. How can we assist you today?',
-      sender: 'support',
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [showNotification, setShowNotification] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [supportLinks, setSupportLinks] = useState<SupportLinks>({
+    whatsappNumber: '1234567890',
+    telegramUsername: 'steadfastdigital',
+    supportEmail: 'support@steadfastdigital.com',
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -33,27 +43,122 @@ export function FloatingLiveChat() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (message.trim()) {
-      const newMessage: Message = {
-        id: Date.now().toString(),
-        text: message,
-        sender: 'user',
-        timestamp: new Date(),
-      };
-      setMessages([...messages, newMessage]);
-      setMessage('');
+  useEffect(() => {
+    const loadSupportLinks = async () => {
+      try {
+        const response = await fetch(`${serverUrl}/cs/support-links`, {
+          headers: { Authorization: `Bearer ${publicAnonKey}` },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          return;
+        }
+        setSupportLinks({
+          whatsappNumber: typeof payload?.whatsappNumber === 'string' ? payload.whatsappNumber : '1234567890',
+          telegramUsername: typeof payload?.telegramUsername === 'string' ? payload.telegramUsername : 'steadfastdigital',
+          supportEmail: typeof payload?.supportEmail === 'string' ? payload.supportEmail : 'support@steadfastdigital.com',
+        });
+      } catch {
+        // Keep defaults if support links cannot be loaded.
+      }
+    };
 
-      // Simulate support response
-      setTimeout(() => {
-        const supportResponse: Message = {
-          id: (Date.now() + 1).toString(),
-          text: 'Thank you for your message. Our support team will respond shortly. For immediate assistance, please contact us via WhatsApp or Telegram.',
-          sender: 'support',
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, supportResponse]);
-      }, 1500);
+    void loadSupportLinks();
+  }, [serverUrl]);
+
+  useEffect(() => {
+    if (!isOpen || isMinimized || !currentUsername) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadMessages = async () => {
+      try {
+        setLoadingMessages(true);
+        const response = await fetch(`${serverUrl}/cs/chat/${currentUsername}`, {
+          headers: { Authorization: `Bearer ${publicAnonKey}` },
+        });
+        const payload = await response.json().catch(() => ([]));
+        if (!response.ok || cancelled) {
+          return;
+        }
+
+        const nextMessages = Array.isArray(payload)
+          ? payload.map((entry: any) => ({
+              id: String(entry.id ?? `${entry.timestamp}-${entry.sender}`),
+              text: String(entry.message ?? ''),
+              sender: entry.isAdmin ? 'support' : 'user',
+              timestamp: new Date(entry.timestamp ?? Date.now()),
+            }))
+          : [];
+
+        setMessages(nextMessages);
+
+        await fetch(`${serverUrl}/cs/chat/mark-read`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${publicAnonKey}`,
+          },
+          body: JSON.stringify({ username: currentUsername, viewer: 'user' }),
+        });
+      } catch {
+        // Keep last known messages if polling fails.
+      } finally {
+        if (!cancelled) {
+          setLoadingMessages(false);
+        }
+      }
+    };
+
+    void loadMessages();
+    const intervalId = window.setInterval(() => {
+      void loadMessages();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [currentUsername, isMinimized, isOpen, serverUrl]);
+
+  const handleSendMessage = async () => {
+    if (!message.trim() || !currentUsername || sending) {
+      return;
+    }
+
+    try {
+      setSending(true);
+      const trimmedMessage = message.trim();
+      const response = await fetch(`${serverUrl}/cs/chat/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${publicAnonKey}`,
+        },
+        body: JSON.stringify({ username: currentUsername, message: trimmedMessage }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to send message');
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: String(payload?.message?.id ?? Date.now()),
+          text: trimmedMessage,
+          sender: 'user',
+          timestamp: new Date(payload?.message?.timestamp ?? Date.now()),
+        },
+      ]);
+      setMessage('');
+    } catch (error) {
+      console.error('Error sending live chat message:', error);
+    } finally {
+      setSending(false);
     }
   };
 
@@ -123,7 +228,7 @@ export function FloatingLiveChat() {
                   </div>
                   <div>
                     <h3 className="font-bold text-sm">Steadfast Support</h3>
-                    <p className="text-xs text-gray-300">Online - We reply instantly</p>
+                    <p className="text-xs text-gray-300">Live support messaging</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -146,8 +251,21 @@ export function FloatingLiveChat() {
                 <>
                   {/* Messages Area */}
                   <div className="h-[420px] overflow-y-auto p-4 bg-gray-50">
-                    <div className="space-y-4">
-                      {messages.map((msg) => (
+                    {loadingMessages && messages.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-sm text-gray-500">
+                        Loading conversation...
+                      </div>
+                    ) : !currentUsername ? (
+                      <div className="h-full flex items-center justify-center text-center text-sm text-gray-500 px-6">
+                        Log in to use live chat, or contact support using WhatsApp or Telegram below.
+                      </div>
+                    ) : messages.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-center text-sm text-gray-500 px-6">
+                        No messages yet. Start the conversation and support will reply here.
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {messages.map((msg) => (
                         <div
                           key={msg.id}
                           className={`flex ${
@@ -174,9 +292,10 @@ export function FloatingLiveChat() {
                             </p>
                           </div>
                         </div>
-                      ))}
-                      <div ref={messagesEndRef} />
-                    </div>
+                        ))}
+                        <div ref={messagesEndRef} />
+                      </div>
+                    )}
                   </div>
 
                   {/* Quick Actions */}
@@ -184,7 +303,7 @@ export function FloatingLiveChat() {
                     <p className="text-xs text-gray-600 mb-2">Quick Contact:</p>
                     <div className="flex gap-2">
                       <a
-                        href="https://wa.me/1234567890"
+                        href={`https://wa.me/${supportLinks.whatsappNumber}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex-1 bg-[#25D366] hover:bg-[#20bd5a] text-white py-2 px-3 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-2"
@@ -193,7 +312,7 @@ export function FloatingLiveChat() {
                         WhatsApp
                       </a>
                       <a
-                        href="https://t.me/yourusername"
+                        href={`https://t.me/${supportLinks.telegramUsername}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex-1 bg-[#0088cc] hover:bg-[#0077b5] text-white py-2 px-3 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center gap-2"
@@ -212,12 +331,13 @@ export function FloatingLiveChat() {
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
                         onKeyPress={handleKeyPress}
-                        placeholder="Type your message..."
+                        placeholder={currentUsername ? 'Type your message...' : 'Log in to send messages'}
+                        disabled={!currentUsername || sending}
                         className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:border-[#00D9FF] focus:ring-2 focus:ring-[#00D9FF]/20 text-sm"
                       />
                       <button
-                        onClick={handleSendMessage}
-                        disabled={!message.trim()}
+                        onClick={() => void handleSendMessage()}
+                        disabled={!message.trim() || !currentUsername || sending}
                         className="bg-[#00D9FF] hover:bg-[#00c5e6] disabled:bg-gray-300 disabled:cursor-not-allowed text-white p-3 rounded-xl transition-all duration-200 hover:scale-105 disabled:scale-100"
                       >
                         <Send size={20} />

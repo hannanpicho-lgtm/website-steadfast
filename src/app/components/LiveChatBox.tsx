@@ -1,4 +1,6 @@
 import { X, MessageCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { projectId, publicAnonKey } from '/utils/supabase/info';
 
 interface LiveChatBoxProps {
   isOpen: boolean;
@@ -7,16 +9,42 @@ interface LiveChatBoxProps {
 }
 
 export function LiveChatBox({ isOpen, onClose, message }: LiveChatBoxProps) {
+  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const [supportLinks, setSupportLinks] = useState({
+    whatsappNumber: '1234567890',
+    telegramUsername: 'steadfastdigital',
+  });
+
+  useEffect(() => {
+    const loadSupportLinks = async () => {
+      try {
+        const response = await fetch(`${serverUrl}/cs/support-links`, {
+          headers: { Authorization: `Bearer ${publicAnonKey}` },
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          return;
+        }
+        setSupportLinks({
+          whatsappNumber: typeof payload?.whatsappNumber === 'string' ? payload.whatsappNumber : '1234567890',
+          telegramUsername: typeof payload?.telegramUsername === 'string' ? payload.telegramUsername : 'steadfastdigital',
+        });
+      } catch {
+        // Keep defaults on failure.
+      }
+    };
+
+    void loadSupportLinks();
+  }, [serverUrl]);
+
   if (!isOpen) return null;
 
   const handleWhatsApp = () => {
-    // Replace with actual WhatsApp number
-    window.open('https://wa.me/1234567890', '_blank');
+    window.open(`https://wa.me/${supportLinks.whatsappNumber}`, '_blank');
   };
 
   const handleTelegram = () => {
-    // Replace with actual Telegram username
-    window.open('https://t.me/steadfastdigital', '_blank');
+    window.open(`https://t.me/${supportLinks.telegramUsername}`, '_blank');
   };
 
   return (
