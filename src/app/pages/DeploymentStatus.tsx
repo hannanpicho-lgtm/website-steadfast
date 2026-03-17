@@ -10,7 +10,7 @@ import {
   Users,
   Activity
 } from 'lucide-react';
-import { projectId, publicAnonKey } from '../../../utils/supabase/info';
+import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 interface HealthCheck {
   name: string;

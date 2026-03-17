@@ -1,6 +1,6 @@
 import { X, MessageCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { projectId, publicAnonKey } from '../../../utils/supabase/info';
+import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 interface LiveChatBoxProps {
   isOpen: boolean;

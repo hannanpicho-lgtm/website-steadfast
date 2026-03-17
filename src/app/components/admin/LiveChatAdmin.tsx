@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { projectId } from '../../../../utils/supabase/info';
+import { projectId } from '@utils/supabase/info';
 import { 
   MessageSquare, 
   Send, 

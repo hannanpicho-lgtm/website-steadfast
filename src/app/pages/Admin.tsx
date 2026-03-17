@@ -70,7 +70,7 @@ import {
   updateAdminRewardsConfig,
 } from '../services/rewardsConfig';
 import { fetchAdminVipConfig, type VipConfig, updateAdminVipConfig } from '../services/vipConfig';
-import { projectId } from '../../../utils/supabase/info';
+import { projectId } from '@utils/supabase/info';
 import {
   AUTO_BACKUP_INTERVAL_MS,
   MAX_AUDIT_EVENTS,

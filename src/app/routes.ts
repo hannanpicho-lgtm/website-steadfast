@@ -1,127 +1,116 @@
+import type { ComponentType } from "react";
 import { createBrowserRouter } from "react-router";
-import Home from "./pages/Home";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import ForgotPassword from "./pages/ForgotPassword";
-import Starting from "./pages/Starting";
-import Records from "./pages/Records";
-import VipLevels from "./pages/VipLevels";
-import Activity from "./pages/Activity";
-import Withdrawal from "./pages/Withdrawal";
-import Deposit from "./pages/Deposit";
-import TermsConditions from "./pages/TermsConditions";
-import Certificate from "./pages/Certificate";
-import FAQs from "./pages/FAQs";
-import About from "./pages/About";
-import Profile from "./pages/Profile";
-import ConnectWallet from "./pages/ConnectWallet";
-import Logout from "./pages/Logout";
-import Admin from "./pages/Admin";
-import Support from "./pages/Support";
-import DeploymentStatus from "./pages/DeploymentStatus";
-import NotFound from "./pages/NotFound";
-import RootLayout from "./layouts/RootLayout";
-import RequireAuthLayout from "./layouts/RequireAuthLayout";
-import RequireAdminLayout from "./layouts/RequireAdminLayout";
+
+type RouteModule = {
+  default: ComponentType;
+};
+
+const lazyRoute = (importer: () => Promise<RouteModule>) => async () => {
+  const module = await importer();
+
+  return {
+    Component: module.default,
+  };
+};
 
 export const router = createBrowserRouter([
   {
     path: "/",
-    Component: RootLayout,
+    lazy: lazyRoute(() => import("./layouts/RootLayout")),
     children: [
       {
         index: true,
-        Component: Home,
+        lazy: lazyRoute(() => import("./pages/Home")),
       },
       {
         path: "login",
-        Component: Login,
+        lazy: lazyRoute(() => import("./pages/Login")),
       },
       {
         path: "signup",
-        Component: Signup,
+        lazy: lazyRoute(() => import("./pages/Signup")),
       },
       {
         path: "forgot-password",
-        Component: ForgotPassword,
+        lazy: lazyRoute(() => import("./pages/ForgotPassword")),
       },
       {
-        Component: RequireAuthLayout,
+        lazy: lazyRoute(() => import("./layouts/RequireAuthLayout")),
         children: [
           {
             path: "starting",
-            Component: Starting,
+            lazy: lazyRoute(() => import("./pages/Starting")),
           },
           {
             path: "records",
-            Component: Records,
+            lazy: lazyRoute(() => import("./pages/Records")),
           },
           {
             path: "vip-levels",
-            Component: VipLevels,
+            lazy: lazyRoute(() => import("./pages/VipLevels")),
           },
           {
             path: "activity",
-            Component: Activity,
+            lazy: lazyRoute(() => import("./pages/Activity")),
           },
           {
             path: "withdrawal",
-            Component: Withdrawal,
+            lazy: lazyRoute(() => import("./pages/Withdrawal")),
           },
           {
             path: "deposit",
-            Component: Deposit,
+            lazy: lazyRoute(() => import("./pages/Deposit")),
           },
           {
             path: "profile",
-            Component: Profile,
+            lazy: lazyRoute(() => import("./pages/Profile")),
           },
           {
             path: "connect-wallet",
-            Component: ConnectWallet,
+            lazy: lazyRoute(() => import("./pages/ConnectWallet")),
           },
           {
             path: "logout",
-            Component: Logout,
+            lazy: lazyRoute(() => import("./pages/Logout")),
           },
           {
             path: "support",
-            Component: Support,
+            lazy: lazyRoute(() => import("./pages/Support")),
           },
         ],
       },
       {
-        Component: RequireAdminLayout,
+        lazy: lazyRoute(() => import("./layouts/RequireAdminLayout")),
         children: [
           {
             path: "admin",
-            Component: Admin,
+            lazy: lazyRoute(() => import("./pages/Admin")),
           },
         ],
       },
       {
         path: "terms-conditions",
-        Component: TermsConditions,
+        lazy: lazyRoute(() => import("./pages/TermsConditions")),
       },
       {
         path: "certificate",
-        Component: Certificate,
+        lazy: lazyRoute(() => import("./pages/Certificate")),
       },
       {
         path: "faqs",
-        Component: FAQs,
+        lazy: lazyRoute(() => import("./pages/FAQs")),
       },
       {
         path: "about",
-        Component: About,
+        lazy: lazyRoute(() => import("./pages/About")),
       },
       {
         path: "deployment-status",
-        Component: DeploymentStatus,
+        lazy: lazyRoute(() => import("./pages/DeploymentStatus")),
       },
       {
         path: "*",
-        Component: NotFound,
+        lazy: lazyRoute(() => import("./pages/NotFound")),
       },
     ],
   },

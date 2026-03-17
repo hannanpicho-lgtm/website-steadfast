@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Copy, RefreshCw, Key, Users, AlertTriangle, CheckCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
-import { projectId } from '../../../../utils/supabase/info';
+import { projectId } from '@utils/supabase/info';
 
 type AdminCodeEntry = {
   subAdminId: string;
