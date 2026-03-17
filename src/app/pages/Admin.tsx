@@ -142,6 +142,15 @@ type VipDraftState = {
   commissionPercent: string;
 };
 
+type TaskConfig = (typeof mockTasks)[number];
+type TaskDraftState = {
+  product: string;
+  merchant: string;
+  price: string;
+  commissionPercent: string;
+  status: string;
+};
+
 // Mock products data
 const mockProducts = [
   { id: 1, name: 'Wireless Bluetooth Headphones', description: 'Premium noise-canceling headphones with 30-hour battery life', category: 'Electronics', merchant: 'Amazon', price: 89.99, commission: 0.015, imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400', status: 'Active', sku: 'WBH-001', stock: 250, createdDate: '2024-02-15', source: 'Manual' },
@@ -349,6 +358,9 @@ export default function Admin() {
   const [vipConfigurations, setVipConfigurations] = useState<VipLevelConfig[]>(vipLevels);
   const [editingVipLevel, setEditingVipLevel] = useState<number | null>(null);
   const [vipDraft, setVipDraft] = useState<VipDraftState | null>(null);
+  const [taskConfigurations, setTaskConfigurations] = useState<TaskConfig[]>(mockTasks);
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const [taskDraft, setTaskDraft] = useState<TaskDraftState | null>(null);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
@@ -423,6 +435,81 @@ export default function Admin() {
     toast.success('VIP level updated.');
     setEditingVipLevel(null);
     setVipDraft(null);
+  };
+
+  const handleStartTaskInlineEdit = (task: TaskConfig) => {
+    setEditingTaskId(task.id);
+    setTaskDraft({
+      product: task.product,
+      merchant: task.merchant,
+      price: String(task.price),
+      commissionPercent: (task.commission * 100).toFixed(2),
+      status: task.status,
+    });
+  };
+
+  const handleCancelTaskInlineEdit = () => {
+    setEditingTaskId(null);
+    setTaskDraft(null);
+  };
+
+  const handleSaveTaskInlineEdit = (taskId: number) => {
+    if (!taskDraft) return;
+
+    const product = taskDraft.product.trim();
+    const merchant = taskDraft.merchant.trim();
+    const price = Number(taskDraft.price);
+    const commissionPercent = Number(taskDraft.commissionPercent);
+
+    if (!product || !merchant) {
+      toast.error('Product and merchant are required.');
+      return;
+    }
+
+    if (!Number.isFinite(price) || price <= 0) {
+      toast.error('Price must be greater than 0.');
+      return;
+    }
+
+    if (!Number.isFinite(commissionPercent) || commissionPercent <= 0) {
+      toast.error('Commission rate must be greater than 0.');
+      return;
+    }
+
+    setTaskConfigurations((prev) =>
+      prev.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              product,
+              merchant,
+              price,
+              commission: commissionPercent / 100,
+              status: taskDraft.status,
+            }
+          : task,
+      ),
+    );
+
+    toast.success('Task updated.');
+    setEditingTaskId(null);
+    setTaskDraft(null);
+  };
+
+  const handleDeleteTaskInline = (taskId: number) => {
+    const target = taskConfigurations.find((task) => task.id === taskId);
+    if (!target) return;
+
+    if (!confirm(`Delete task for ${target.product}?`)) {
+      return;
+    }
+
+    setTaskConfigurations((prev) => prev.filter((task) => task.id !== taskId));
+    if (editingTaskId === taskId) {
+      setEditingTaskId(null);
+      setTaskDraft(null);
+    }
+    toast.success('Task deleted.');
   };
 
   const loadAdminUsers = async () => {
@@ -4237,27 +4324,84 @@ export default function Admin() {
 
             {/* Tasks Grid */}
             <div className="grid grid-cols-1 gap-4">
-              {mockTasks.map((task) => (
+              {taskConfigurations.map((task) => (
                 <div key={task.id} className="bg-[#252b3d] rounded-lg p-6 hover:bg-[#2c3e50] transition-colors">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-bold text-white">{task.product}</h3>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          task.status === 'Active' ? 'bg-green-500/20 text-green-300' : 'bg-gray-500/20 text-gray-300'
-                        }`}>
-                          {task.status}
-                        </span>
+                        {editingTaskId === task.id && taskDraft ? (
+                          <input
+                            type="text"
+                            value={taskDraft.product}
+                            onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, product: e.target.value } : prev))}
+                            className="flex-1 bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-white font-semibold focus:border-[#00D9FF] focus:outline-none"
+                          />
+                        ) : (
+                          <h3 className="text-lg font-bold text-white">{task.product}</h3>
+                        )}
+                        {editingTaskId === task.id && taskDraft ? (
+                          <select
+                            value={taskDraft.status}
+                            onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, status: e.target.value } : prev))}
+                            className="px-3 py-1 rounded border border-gray-600 bg-[#11182a] text-xs font-semibold text-white focus:border-[#00D9FF] focus:outline-none"
+                          >
+                            <option value="Active">Active</option>
+                            <option value="Paused">Paused</option>
+                          </select>
+                        ) : (
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            task.status === 'Active' ? 'bg-green-500/20 text-green-300' : 'bg-gray-500/20 text-gray-300'
+                          }`}>
+                            {task.status}
+                          </span>
+                        )}
                       </div>
-                      <p className="text-gray-400 text-sm mb-4">Merchant: <span className="text-white font-semibold">{task.merchant}</span></p>
+                      <p className="text-gray-400 text-sm mb-4">
+                        Merchant:{' '}
+                        {editingTaskId === task.id && taskDraft ? (
+                          <input
+                            type="text"
+                            value={taskDraft.merchant}
+                            onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, merchant: e.target.value } : prev))}
+                            className="ml-1 bg-[#11182a] border border-gray-600 rounded px-2 py-1 text-white font-semibold focus:border-[#00D9FF] focus:outline-none"
+                          />
+                        ) : (
+                          <span className="text-white font-semibold">{task.merchant}</span>
+                        )}
+                      </p>
                       <div className="grid grid-cols-4 gap-4">
                         <div className="bg-[#1a1f2e] p-3 rounded-lg">
                           <p className="text-gray-400 text-xs">Product Price</p>
-                          <p className="text-white font-bold text-lg">${task.price}</p>
+                          {editingTaskId === task.id && taskDraft ? (
+                            <input
+                              type="number"
+                              min={0.01}
+                              step={0.01}
+                              value={taskDraft.price}
+                              onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, price: e.target.value } : prev))}
+                              className="w-full bg-[#11182a] border border-gray-600 rounded px-2 py-1 text-white font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
+                            />
+                          ) : (
+                            <p className="text-white font-bold text-lg">${task.price}</p>
+                          )}
                         </div>
                         <div className="bg-[#1a1f2e] p-3 rounded-lg">
                           <p className="text-gray-400 text-xs">Commission</p>
-                          <p className="text-[#00D9FF] font-bold text-lg">{(task.commission * 100).toFixed(1)}%</p>
+                          {editingTaskId === task.id && taskDraft ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={0.01}
+                                step={0.01}
+                                value={taskDraft.commissionPercent}
+                                onChange={(e) => setTaskDraft((prev) => (prev ? { ...prev, commissionPercent: e.target.value } : prev))}
+                                className="w-full bg-[#11182a] border border-gray-600 rounded px-2 py-1 text-[#00D9FF] font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
+                              />
+                              <span className="text-[#00D9FF] font-bold">%</span>
+                            </div>
+                          ) : (
+                            <p className="text-[#00D9FF] font-bold text-lg">{(task.commission * 100).toFixed(1)}%</p>
+                          )}
                         </div>
                         <div className="bg-[#1a1f2e] p-3 rounded-lg">
                           <p className="text-gray-400 text-xs">Assigned Users</p>
@@ -4270,12 +4414,41 @@ export default function Admin() {
                       </div>
                     </div>
                     <div className="flex flex-col gap-2 ml-4">
-                      <button className="p-2 bg-[#1a1f2e] hover:bg-blue-500/20 rounded-lg transition-colors">
-                        <Edit size={18} className="text-blue-400" />
-                      </button>
-                      <button className="p-2 bg-[#1a1f2e] hover:bg-red-500/20 rounded-lg transition-colors">
-                        <Trash2 size={18} className="text-red-400" />
-                      </button>
+                      {editingTaskId === task.id ? (
+                        <>
+                          <button
+                            onClick={() => handleSaveTaskInlineEdit(task.id)}
+                            className="p-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg transition-colors"
+                            title="Save"
+                          >
+                            <Check size={18} className="text-green-400" />
+                          </button>
+                          <button
+                            onClick={handleCancelTaskInlineEdit}
+                            className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors"
+                            title="Cancel"
+                          >
+                            <X size={18} className="text-red-400" />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleStartTaskInlineEdit(task)}
+                            className="p-2 bg-[#1a1f2e] hover:bg-blue-500/20 rounded-lg transition-colors"
+                            title="Edit Task"
+                          >
+                            <Edit size={18} className="text-blue-400" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTaskInline(task.id)}
+                            className="p-2 bg-[#1a1f2e] hover:bg-red-500/20 rounded-lg transition-colors"
+                            title="Delete Task"
+                          >
+                            <Trash2 size={18} className="text-red-400" />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -4959,7 +5132,7 @@ export default function Admin() {
                 </div>
                 <p className="text-2xl font-bold text-white">{mockUsers.reduce((sum, u) => sum + u.tasksCompleted, 0)}</p>
                 <p className="text-blue-400 text-xs mt-1">
-                  {mockTasks.reduce((sum, t) => sum + t.completedToday, 0)} today
+                  {taskConfigurations.reduce((sum, t) => sum + t.completedToday, 0)} today
                 </p>
               </div>
 
@@ -5022,8 +5195,8 @@ export default function Admin() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-gray-400 text-sm">Active Tasks</p>
-                    <p className="text-3xl font-bold text-white mt-2">{mockTasks.filter(t => t.status === 'Active').length}</p>
-                    <p className="text-yellow-400 text-xs mt-2">{mockTasks.reduce((sum, t) => sum + t.completedToday, 0)} completed today</p>
+                    <p className="text-3xl font-bold text-white mt-2">{taskConfigurations.filter(t => t.status === 'Active').length}</p>
+                    <p className="text-yellow-400 text-xs mt-2">{taskConfigurations.reduce((sum, t) => sum + t.completedToday, 0)} completed today</p>
                   </div>
                   <Activity className="text-purple-400" size={40} />
                 </div>
