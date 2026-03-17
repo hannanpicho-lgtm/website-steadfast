@@ -1,11 +1,12 @@
 import { UserCircle, Rocket, CreditCard, Snowflake, Loader2, Lock, AlertTriangle, DollarSign, ChevronLeft, ChevronRight, CheckCircle2, MessageCircle } from 'lucide-react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
+import { buildLoginRedirectState } from '../services/loginRedirect';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 
 interface UserData {
@@ -37,6 +38,7 @@ interface TaskCatalogItem {
 // Starting page - Product submission platform with commission tracking
 export default function Starting() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -74,11 +76,17 @@ export default function Starting() {
   // Fetch user data on mount
   useEffect(() => {
     if (!sessionUsername) {
-      navigate('/login');
+      navigate('/login', {
+        replace: true,
+        state: buildLoginRedirectState(location.pathname, {
+          authReason: 'session-expired',
+          authMessage: 'Your session ended. Please sign in again to continue using this page.',
+        }),
+      });
       return;
     }
     fetchUserData();
-  }, [navigate, sessionUsername]);
+  }, [location.pathname, navigate, sessionUsername]);
 
   const fetchUserByName = async (name: string) => {
     const response = await fetch(`${serverUrl}/user/${name}`, {

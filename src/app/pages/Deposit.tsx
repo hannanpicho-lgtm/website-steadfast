@@ -1,5 +1,5 @@
 import { ChevronLeft, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
@@ -7,6 +7,7 @@ import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
+import { buildLoginRedirectState } from '../services/loginRedirect';
 
 type UserData = {
   balance: number;
@@ -25,6 +26,7 @@ type Transaction = {
 
 export default function Deposit() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<'recent' | 'transaction'>('recent');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -36,7 +38,13 @@ export default function Deposit() {
 
   useEffect(() => {
     if (!username) {
-      navigate('/login');
+      navigate('/login', {
+        replace: true,
+        state: buildLoginRedirectState(location.pathname, {
+          authReason: 'session-expired',
+          authMessage: 'Your session ended. Please sign in again to view your deposit history.',
+        }),
+      });
       return;
     }
 
@@ -73,7 +81,7 @@ export default function Deposit() {
     };
 
     void load();
-  }, [navigate, username, serverUrl]);
+  }, [location.pathname, navigate, username, serverUrl]);
 
   const handleTopUp = () => {
     toast.info('To make a deposit, please contact support or your account manager.');

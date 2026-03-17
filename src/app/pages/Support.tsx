@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { Header } from '../components/Header';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { LiveChat } from '../components/LiveChat';
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
+import { buildLoginRedirectState } from '../services/loginRedirect';
 
 interface Ticket {
   id: string;
@@ -50,6 +51,7 @@ const defaultSupportLinks: SupportLinks = {
 };
 
 export default function Support() {
+  const location = useLocation();
   const navigate = useNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
@@ -115,12 +117,18 @@ export default function Support() {
 
   useEffect(() => {
     if (!sessionUsername) {
-      navigate('/login');
+      navigate('/login', {
+        replace: true,
+        state: buildLoginRedirectState(location.pathname, {
+          authReason: 'session-expired',
+          authMessage: 'Your session ended. Please sign in again to access support tickets.',
+        }),
+      });
       return;
     }
     fetchTickets();
     fetchSupportLinks();
-  }, [navigate, sessionUsername]);
+  }, [location.pathname, navigate, sessionUsername]);
 
   useEffect(() => {
     if (!sessionUsername) {

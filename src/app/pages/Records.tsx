@@ -1,11 +1,12 @@
 import { UserCircle, ChevronLeft, Package, Clock, CheckCircle, Loader2 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
+import { buildLoginRedirectState } from '../services/loginRedirect';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 
 interface UserData {
@@ -64,6 +65,7 @@ export default function Records() {
   const [vipConfigurations, setVipConfigurations] = useState<VipConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const sessionUsername = getCurrentUsername();
   const username = sessionUsername ?? 'ugreen';
@@ -71,11 +73,17 @@ export default function Records() {
 
   useEffect(() => {
     if (!sessionUsername) {
-      navigate('/login');
+      navigate('/login', {
+        replace: true,
+        state: buildLoginRedirectState(location.pathname, {
+          authReason: 'session-expired',
+          authMessage: 'Your session ended. Please sign in again to open your records.',
+        }),
+      });
       return;
     }
     fetchData();
-  }, [navigate, sessionUsername]);
+  }, [location.pathname, navigate, sessionUsername]);
 
   const fetchUser = async (name: string) => {
     const userResponse = await fetch(`${serverUrl}/user/${name}`, {

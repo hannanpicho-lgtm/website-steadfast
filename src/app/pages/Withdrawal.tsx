@@ -1,5 +1,5 @@
 import { ChevronLeft, ScrollText, ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
@@ -7,6 +7,7 @@ import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUserAccount, getCurrentUsername } from '../services/referralSystem';
+import { buildLoginRedirectState } from '../services/loginRedirect';
 
 type UserWalletData = {
   username: string;
@@ -26,6 +27,7 @@ type WithdrawalRecord = {
 
 export default function Withdrawal() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -42,12 +44,18 @@ export default function Withdrawal() {
 
   useEffect(() => {
     if (!username) {
-      navigate('/login');
+      navigate('/login', {
+        replace: true,
+        state: buildLoginRedirectState(location.pathname, {
+          authReason: 'session-expired',
+          authMessage: 'Your session ended. Please sign in again to manage withdrawals.',
+        }),
+      });
       return;
     }
 
     void loadWalletState(username);
-  }, [navigate, username]);
+  }, [location.pathname, navigate, username]);
 
   const loadWalletState = async (activeUsername: string) => {
     setLoading(true);
@@ -94,7 +102,13 @@ export default function Withdrawal() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username) {
-      navigate('/login');
+      navigate('/login', {
+        replace: true,
+        state: buildLoginRedirectState(location.pathname, {
+          authReason: 'session-expired',
+          authMessage: 'Your session ended before the withdrawal request could be submitted.',
+        }),
+      });
       return;
     }
 

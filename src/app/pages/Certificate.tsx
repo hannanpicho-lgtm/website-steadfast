@@ -1,11 +1,12 @@
 import { ChevronLeft, Award, Star, CheckCircle, Loader2, Calendar, TrendingUp } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { useState, useEffect } from 'react';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
+import { buildLoginRedirectState } from '../services/loginRedirect';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 
@@ -22,6 +23,7 @@ interface UserData {
 
 export default function Certificate() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [totalCommission, setTotalCommission] = useState(0);
@@ -34,11 +36,17 @@ export default function Certificate() {
 
   useEffect(() => {
     if (!sessionUsername) {
-      navigate('/login');
+      navigate('/login', {
+        replace: true,
+        state: buildLoginRedirectState(location.pathname, {
+          authReason: 'session-expired',
+          authMessage: 'Your session ended. Please sign in again to view your certificate.',
+        }),
+      });
       return;
     }
     void fetchData(sessionUsername);
-  }, [navigate, sessionUsername]);
+  }, [location.pathname, navigate, sessionUsername]);
 
   const fetchData = async (username: string) => {
     try {

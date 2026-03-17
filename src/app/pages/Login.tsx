@@ -5,15 +5,7 @@ import { useEffect } from 'react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { authenticateUser, ensureReferralStore, getAdminCredentials, getDemoCredentials } from '../services/referralSystem';
 import { signInAdmin } from '../services/supabaseAuth';
-
-type LoginAuthReason = 'sign-in-required' | 'admin-access-required' | 'session-expired';
-
-type LoginLocationState = {
-  from?: string;
-  adminRequired?: boolean;
-  authReason?: LoginAuthReason;
-  authMessage?: string;
-};
+import { type LoginLocationState } from '../services/loginRedirect';
 
 type LoginNoticeTone = 'info' | 'warning' | 'error';
 
