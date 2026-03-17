@@ -1,9 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
-import PremiumBundles from '../components/admin/PremiumBundles';
-import CustomerSupport from '../components/admin/CustomerSupport';
-import InvitationCodes from '../components/admin/InvitationCodes';
 import { 
   Home, 
   Users, 
@@ -92,6 +89,18 @@ import {
   type SalaryPayment,
   type SalaryRestorePoint,
 } from '../services/adminSalaryBackup';
+
+const PremiumBundles = lazy(() => import('../components/admin/PremiumBundles'));
+const CustomerSupport = lazy(() => import('../components/admin/CustomerSupport'));
+const InvitationCodes = lazy(() => import('../components/admin/InvitationCodes'));
+
+function AdminPanelFallback({ label }: { label: string }) {
+  return (
+    <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-8 text-center text-gray-400">
+      {label}
+    </div>
+  );
+}
 
 // Mock data for users
 const mockUsers = [
@@ -3693,7 +3702,9 @@ export default function Admin() {
                         )}
                       </div>
                     {isSuperAdmin ? (
-                        <InvitationCodes currentAdminId={currentAdminId ?? ''} />
+                        <Suspense fallback={<AdminPanelFallback label="Loading invitation codes..." />}>
+                          <InvitationCodes currentAdminId={currentAdminId ?? ''} />
+                        </Suspense>
                       ) : (
                         <div className="rounded-lg border border-[#00D9FF]/30 bg-[#1a1f2e] p-4">
                           {currentAdminCodeLoading ? (
@@ -5316,10 +5327,18 @@ export default function Admin() {
         );
 
       case 'premium-bundles':
-        return <PremiumBundles users={premiumBundleUsers} />;
+        return (
+          <Suspense fallback={<AdminPanelFallback label="Loading premium bundles..." />}>
+            <PremiumBundles users={premiumBundleUsers} />
+          </Suspense>
+        );
 
       case 'customer-support':
-        return <CustomerSupport />;
+        return (
+          <Suspense fallback={<AdminPanelFallback label="Loading customer support..." />}>
+            <CustomerSupport />
+          </Suspense>
+        );
 
       case 'settings':
         return (
