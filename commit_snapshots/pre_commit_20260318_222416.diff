@@ -1,0 +1,42 @@
+﻿diff --git a/src/app/pages/Admin.tsx b/src/app/pages/Admin.tsx
+index f485d9c7..1d78a04f 100644
+--- a/src/app/pages/Admin.tsx
++++ b/src/app/pages/Admin.tsx
+@@ -428,6 +428,15 @@ export default function Admin() {
+     onMessage: options?.onMessage,
+   });
+ 
++  const isNotFoundError = (error: unknown): boolean => {
++    if (!(error instanceof Error)) {
++      return false;
++    }
++
++    const message = error.message.trim().toLowerCase();
++    return message.includes('(404)') || message.startsWith('404 ');
++  };
++
+   const handleStartVipInlineEdit = (vip: VipLevelConfig) => {
+     setEditingVipLevel(vip.level);
+     setVipDraft({
+@@ -449,7 +458,9 @@ export default function Admin() {
+       setVipConfigurations(tiers.length > 0 ? tiers : defaultVipConfigurations);
+     } catch (error) {
+       setVipConfigurations(defaultVipConfigurations);
+-      handleAdminRequestError(error, 'Failed to load VIP configuration');
++      handleAdminRequestError(error, 'Failed to load VIP configuration', {
++        suppressToast: isNotFoundError(error),
++      });
+     } finally {
+       setVipConfigLoading(false);
+     }
+@@ -506,7 +517,9 @@ export default function Admin() {
+       setRewardsConfig(config);
+     } catch (error) {
+       setRewardsConfig(defaultRewardsConfig);
+-      handleAdminRequestError(error, 'Failed to load rewards configuration');
++      handleAdminRequestError(error, 'Failed to load rewards configuration', {
++        suppressToast: isNotFoundError(error),
++      });
+     } finally {
+       setRewardsConfigLoading(false);
+     }
