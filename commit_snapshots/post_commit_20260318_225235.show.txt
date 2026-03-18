@@ -1,0 +1,275 @@
+﻿commit 72231dea68d9aabbb48c1e9bb8a4df3880545732
+Author: Administrator (automated commit) <admin@example.com>
+Date:   Wed Mar 18 22:52:28 2026 +0700
+
+    feat: restore authenticated home quick links
+---
+ commit_snapshots/pre_commit_20260318_225215.diff   | 86 ++++++++++++++++++++++
+ .../pre_commit_20260318_225215.status.txt          |  5 ++
+ src/app/components/BottomNavigation.tsx            | 11 +--
+ src/app/components/Header.tsx                      |  5 +-
+ src/app/pages/UserHome.tsx                         | 66 +++++++++++++++++
+ src/app/routes.ts                                  |  4 +
+ 6 files changed, 171 insertions(+), 6 deletions(-)
+
+diff --git a/commit_snapshots/pre_commit_20260318_225215.diff b/commit_snapshots/pre_commit_20260318_225215.diff
+new file mode 100644
+index 00000000..9b3017d1
+--- /dev/null
++++ b/commit_snapshots/pre_commit_20260318_225215.diff
+@@ -0,0 +1,86 @@
++´╗┐diff --git a/src/app/components/BottomNavigation.tsx b/src/app/components/BottomNavigation.tsx
++index 764b4e5c..64312996 100644
++--- a/src/app/components/BottomNavigation.tsx
+++++ b/src/app/components/BottomNavigation.tsx
++@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router';
++ 
++ export function BottomNavigation() {
++   const location = useLocation();
+++  const homePath = '/home';
++   
++   const isActive = (path: string) => location.pathname === path;
++ 
++@@ -10,27 +11,27 @@ export function BottomNavigation() {
++     <nav className="fixed bottom-0 left-0 right-0 bg-[#0066b3] text-white flex items-center justify-around py-4 shadow-lg z-50 border-t border-[#0088d9]">
++       {/* Home Button */}
++       <Link 
++-        to="/" 
+++        to={homePath} 
++         className={`flex flex-col items-center gap-1 transition-all duration-300 group ${
++-          isActive('/') ? 'scale-110' : 'hover:scale-110'
+++          isActive(homePath) ? 'scale-110' : 'hover:scale-110'
++         }`}
++       >
++         <div className={`p-2 rounded-xl transition-all duration-300 ${
++-          isActive('/') 
+++          isActive(homePath) 
++             ? 'bg-white/20 shadow-lg' 
++             : 'group-hover:bg-white/10 group-hover:shadow-md'
++         }`}>
++           <Home 
++             size={24} 
++             className={`transition-all duration-300 ${
++-              isActive('/') 
+++              isActive(homePath) 
++                 ? 'text-[#00D9FF] drop-shadow-[0_0_8px_rgba(0,217,255,0.8)]' 
++                 : 'group-hover:text-[#00D9FF] group-hover:drop-shadow-[0_0_8px_rgba(0,217,255,0.6)]'
++             }`}
++           />
++         </div>
++         <span className={`text-xs font-semibold transition-all duration-300 ${
++-          isActive('/') 
+++          isActive(homePath) 
++             ? 'text-[#00D9FF] drop-shadow-[0_0_4px_rgba(0,217,255,0.8)]' 
++             : 'group-hover:text-[#00D9FF]'
++         }`}>
++diff --git a/src/app/components/Header.tsx b/src/app/components/Header.tsx
++index 0b45a979..49c014e2 100644
++--- a/src/app/components/Header.tsx
+++++ b/src/app/components/Header.tsx
++@@ -1,17 +1,20 @@
++ import { ExternalLink, UserCircle, LogOut } from 'lucide-react';
++ import { Link } from 'react-router';
++ import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
+++import { getCurrentUsername } from '../services/referralSystem';
++ 
++ interface HeaderProps {
++   onContactClick?: () => void;
++ }
++ 
++ export function Header({ onContactClick }: HeaderProps) {
+++  const homePath = getCurrentUsername() ? '/home' : '/';
+++
++   return (
++     <header className="bg-gradient-to-r from-[#1e2838] via-[#2c3e50] to-[#34495e] text-white py-4 px-6 border-b border-[#5dade2]/20 shadow-lg shadow-[#5dade2]/5">
++       <div className="max-w-7xl mx-auto flex items-center justify-between">
++         {/* Left Side - Logo */}
++-        <Link to="/" className="flex items-center gap-3 group">
+++        <Link to={homePath} className="flex items-center gap-3 group">
++           {/* Enhanced Logo */}
++           <div className="relative">
++             {/* Glow effect */}
++diff --git a/src/app/routes.ts b/src/app/routes.ts
++index ebcd0698..ed33586a 100644
++--- a/src/app/routes.ts
+++++ b/src/app/routes.ts
++@@ -39,6 +39,10 @@ export const router = createBrowserRouter([
++       {
++         lazy: lazyRoute(() => import("./layouts/RequireAuthLayout")),
++         children: [
+++          {
+++            path: "home",
+++            lazy: lazyRoute(() => import("./pages/UserHome")),
+++          },
++           {
++             path: "starting",
++             lazy: lazyRoute(() => import("./pages/Starting")),
+diff --git a/commit_snapshots/pre_commit_20260318_225215.status.txt b/commit_snapshots/pre_commit_20260318_225215.status.txt
+new file mode 100644
+index 00000000..9d3e3082
+--- /dev/null
++++ b/commit_snapshots/pre_commit_20260318_225215.status.txt
+@@ -0,0 +1,5 @@
++´╗┐ M src/app/components/BottomNavigation.tsx
++ M src/app/components/Header.tsx
++ M src/app/routes.ts
++?? commit_snapshots/pre_commit_20260318_225215.status.txt
++?? src/app/pages/UserHome.tsx
+diff --git a/src/app/components/BottomNavigation.tsx b/src/app/components/BottomNavigation.tsx
+index 764b4e5c..64312996 100644
+--- a/src/app/components/BottomNavigation.tsx
++++ b/src/app/components/BottomNavigation.tsx
+@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router';
+ 
+ export function BottomNavigation() {
+   const location = useLocation();
++  const homePath = '/home';
+   
+   const isActive = (path: string) => location.pathname === path;
+ 
+@@ -10,27 +11,27 @@ export function BottomNavigation() {
+     <nav className="fixed bottom-0 left-0 right-0 bg-[#0066b3] text-white flex items-center justify-around py-4 shadow-lg z-50 border-t border-[#0088d9]">
+       {/* Home Button */}
+       <Link 
+-        to="/" 
++        to={homePath} 
+         className={`flex flex-col items-center gap-1 transition-all duration-300 group ${
+-          isActive('/') ? 'scale-110' : 'hover:scale-110'
++          isActive(homePath) ? 'scale-110' : 'hover:scale-110'
+         }`}
+       >
+         <div className={`p-2 rounded-xl transition-all duration-300 ${
+-          isActive('/') 
++          isActive(homePath) 
+             ? 'bg-white/20 shadow-lg' 
+             : 'group-hover:bg-white/10 group-hover:shadow-md'
+         }`}>
+           <Home 
+             size={24} 
+             className={`transition-all duration-300 ${
+-              isActive('/') 
++              isActive(homePath) 
+                 ? 'text-[#00D9FF] drop-shadow-[0_0_8px_rgba(0,217,255,0.8)]' 
+                 : 'group-hover:text-[#00D9FF] group-hover:drop-shadow-[0_0_8px_rgba(0,217,255,0.6)]'
+             }`}
+           />
+         </div>
+         <span className={`text-xs font-semibold transition-all duration-300 ${
+-          isActive('/') 
++          isActive(homePath) 
+             ? 'text-[#00D9FF] drop-shadow-[0_0_4px_rgba(0,217,255,0.8)]' 
+             : 'group-hover:text-[#00D9FF]'
+         }`}>
+diff --git a/src/app/components/Header.tsx b/src/app/components/Header.tsx
+index 0b45a979..49c014e2 100644
+--- a/src/app/components/Header.tsx
++++ b/src/app/components/Header.tsx
+@@ -1,17 +1,20 @@
+ import { ExternalLink, UserCircle, LogOut } from 'lucide-react';
+ import { Link } from 'react-router';
+ import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
++import { getCurrentUsername } from '../services/referralSystem';
+ 
+ interface HeaderProps {
+   onContactClick?: () => void;
+ }
+ 
+ export function Header({ onContactClick }: HeaderProps) {
++  const homePath = getCurrentUsername() ? '/home' : '/';
++
+   return (
+     <header className="bg-gradient-to-r from-[#1e2838] via-[#2c3e50] to-[#34495e] text-white py-4 px-6 border-b border-[#5dade2]/20 shadow-lg shadow-[#5dade2]/5">
+       <div className="max-w-7xl mx-auto flex items-center justify-between">
+         {/* Left Side - Logo */}
+-        <Link to="/" className="flex items-center gap-3 group">
++        <Link to={homePath} className="flex items-center gap-3 group">
+           {/* Enhanced Logo */}
+           <div className="relative">
+             {/* Glow effect */}
+diff --git a/src/app/pages/UserHome.tsx b/src/app/pages/UserHome.tsx
+new file mode 100644
+index 00000000..b06d9cbb
+--- /dev/null
++++ b/src/app/pages/UserHome.tsx
+@@ -0,0 +1,66 @@
++import { useState } from 'react';
++import { Link } from 'react-router';
++import { Award, Calendar, Gift, HelpCircle, Info, ScrollText, Wallet, ArrowDownToLine } from 'lucide-react';
++import { BottomNavigation } from '../components/BottomNavigation';
++import { FloatingLiveChat } from '../components/FloatingLiveChat';
++import { Header } from '../components/Header';
++import { LiveChatBox } from '../components/LiveChatBox';
++
++type QuickLinkItem = {
++  to: string;
++  title: string;
++  icon: typeof Gift;
++};
++
++const quickLinks: QuickLinkItem[] = [
++  { to: '/vip-levels', title: 'VIP', icon: Gift },
++  { to: '/activity', title: 'Activity', icon: Calendar },
++  { to: '/withdrawal', title: 'Withdrawal', icon: ArrowDownToLine },
++  { to: '/deposit', title: 'Deposit', icon: Wallet },
++  { to: '/terms-conditions', title: 'T & C', icon: ScrollText },
++  { to: '/certificate', title: 'Certificate', icon: Award },
++  { to: '/faqs', title: 'FAQs', icon: HelpCircle },
++  { to: '/about', title: 'About', icon: Info },
++];
++
++function QuickLinkCard({ item }: { item: QuickLinkItem }) {
++  const Icon = item.icon;
++
++  return (
++    <Link
++      to={item.to}
++      className="rounded-2xl bg-[#1ec9ee] min-h-[150px] sm:min-h-[170px] flex flex-col items-center justify-center gap-4 text-[#162033] shadow-[0_12px_30px_rgba(30,201,238,0.18)] border border-white/10 transition-transform duration-200 hover:-translate-y-1"
++    >
++      <Icon size={36} strokeWidth={2.2} />
++      <span className="text-[clamp(1rem,2vw,1.55rem)] font-semibold tracking-tight text-center px-2">{item.title}</span>
++    </Link>
++  );
++}
++
++export default function UserHome() {
++  const [isChatOpen, setIsChatOpen] = useState(false);
++
++  return (
++    <div className="min-h-screen bg-[#1f2638] pb-28">
++      <Header onContactClick={() => setIsChatOpen(true)} />
++
++      <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
++        <section className="rounded-3xl bg-[#2a3146] border border-white/5 p-4 sm:p-6 shadow-[0_18px_48px_rgba(5,12,24,0.28)]">
++          <div className="mb-5 sm:mb-6 text-center">
++            <p className="text-[#9fb4d1] text-sm sm:text-base">Quick access to the user information section</p>
++          </div>
++
++          <div className="grid grid-cols-2 gap-4 sm:gap-5">
++            {quickLinks.map((item) => (
++              <QuickLinkCard key={item.title} item={item} />
++            ))}
++          </div>
++        </section>
++      </main>
++
++      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
++      <BottomNavigation />
++      <FloatingLiveChat />
++    </div>
++  );
++}
+diff --git a/src/app/routes.ts b/src/app/routes.ts
+index ebcd0698..ed33586a 100644
+--- a/src/app/routes.ts
++++ b/src/app/routes.ts
+@@ -39,6 +39,10 @@ export const router = createBrowserRouter([
+       {
+         lazy: lazyRoute(() => import("./layouts/RequireAuthLayout")),
+         children: [
++          {
++            path: "home",
++            lazy: lazyRoute(() => import("./pages/UserHome")),
++          },
+           {
+             path: "starting",
+             lazy: lazyRoute(() => import("./pages/Starting")),
