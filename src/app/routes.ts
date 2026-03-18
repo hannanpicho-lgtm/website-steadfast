@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import { createBrowserRouter } from "react-router";
+import RouteErrorBoundary from "./components/RouteErrorBoundary";
 
 type RouteModule = {
   default: ComponentType;
@@ -16,6 +17,7 @@ const lazyRoute = (importer: () => Promise<RouteModule>) => async () => {
 export const router = createBrowserRouter([
   {
     path: "/",
+    ErrorBoundary: RouteErrorBoundary,
     lazy: lazyRoute(() => import("./layouts/RootLayout")),
     children: [
       {
