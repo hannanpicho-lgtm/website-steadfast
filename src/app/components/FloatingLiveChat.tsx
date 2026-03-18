@@ -190,18 +190,18 @@ export function FloatingLiveChat() {
           {!isOpen && (
             <button
               onClick={toggleChat}
-              className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-[#00D9FF] to-[#00b8d4] text-white rounded-full p-4 shadow-2xl hover:shadow-[#00D9FF]/50 transition-all duration-300 hover:scale-110 group"
+              className="fixed right-4 bottom-[calc(5.8rem+env(safe-area-inset-bottom))] sm:right-6 sm:bottom-6 z-50 bg-gradient-to-r from-[#00D9FF] to-[#00b8d4] text-white rounded-full p-3 sm:p-4 shadow-2xl hover:shadow-[#00D9FF]/50 transition-all duration-300 hover:scale-110 group"
               style={{
                 boxShadow: '0 8px 32px rgba(0, 217, 255, 0.4)',
               }}
             >
-              <MessageCircle size={28} className="animate-pulse" />
+              <MessageCircle size={24} className="animate-pulse sm:h-7 sm:w-7" />
               {showNotification && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold animate-bounce">
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center font-bold animate-bounce">
                   1
                 </span>
               )}
-              <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+              <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap opacity-0 sm:group-hover:opacity-100 transition-opacity duration-300 pointer-events-none hidden sm:block">
                 Need Help? Chat with us!
               </span>
             </button>
@@ -210,8 +210,8 @@ export function FloatingLiveChat() {
           {/* Chat Window */}
           {isOpen && (
             <div
-              className={`fixed bottom-6 right-6 z-50 bg-white rounded-2xl shadow-2xl transition-all duration-300 ${
-                isMinimized ? 'w-80 h-16' : 'w-96 h-[600px]'
+              className={`fixed right-4 bottom-[calc(5.8rem+env(safe-area-inset-bottom))] sm:right-6 sm:bottom-6 z-50 bg-white rounded-2xl shadow-2xl transition-all duration-300 ${
+                isMinimized ? 'w-[calc(100vw-2rem)] max-w-80 h-16' : 'w-[calc(100vw-2rem)] max-w-96 h-[min(68vh,600px)]'
               }`}
               style={{
                 boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
@@ -250,7 +250,7 @@ export function FloatingLiveChat() {
               {!isMinimized && (
                 <>
                   {/* Messages Area */}
-                  <div className="h-[420px] overflow-y-auto p-4 bg-gray-50">
+                  <div className="h-[calc(100%-11rem)] overflow-y-auto p-4 bg-gray-50">
                     {loadingMessages && messages.length === 0 ? (
                       <div className="h-full flex items-center justify-center text-sm text-gray-500">
                         Loading conversation...

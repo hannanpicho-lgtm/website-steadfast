@@ -8,11 +8,11 @@ export function BottomNavigation() {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-[#0066b3] text-white flex items-center justify-around py-4 shadow-lg z-50 border-t border-[#0088d9]">
+    <nav className="fixed bottom-0 left-0 right-0 bg-[#0066b3] text-white flex items-end justify-around px-3 pt-3 pb-[calc(0.9rem+env(safe-area-inset-bottom))] sm:py-4 shadow-lg z-50 border-t border-[#0088d9]">
       {/* Home Button */}
       <Link 
         to={homePath} 
-        className={`flex flex-col items-center gap-1 transition-all duration-300 group ${
+        className={`flex min-w-0 flex-col items-center gap-1 transition-all duration-300 group ${
           isActive(homePath) ? 'scale-110' : 'hover:scale-110'
         }`}
       >
@@ -22,7 +22,7 @@ export function BottomNavigation() {
             : 'group-hover:bg-white/10 group-hover:shadow-md'
         }`}>
           <Home 
-            size={24} 
+            size={22} 
             className={`transition-all duration-300 ${
               isActive(homePath) 
                 ? 'text-[#00D9FF] drop-shadow-[0_0_8px_rgba(0,217,255,0.8)]' 
@@ -30,7 +30,7 @@ export function BottomNavigation() {
             }`}
           />
         </div>
-        <span className={`text-xs font-semibold transition-all duration-300 ${
+        <span className={`text-[11px] sm:text-xs font-semibold transition-all duration-300 ${
           isActive(homePath) 
             ? 'text-[#00D9FF] drop-shadow-[0_0_4px_rgba(0,217,255,0.8)]' 
             : 'group-hover:text-[#00D9FF]'
@@ -42,16 +42,16 @@ export function BottomNavigation() {
       {/* Starting Button - Center with Special Effect */}
       <Link 
         to="/starting" 
-        className="flex flex-col items-center gap-1 relative -mt-8 group"
+        className="flex min-w-0 flex-col items-center gap-1 relative -mt-6 sm:-mt-8 group"
       >
-        <div className={`bg-gradient-to-br from-[#00D9FF] to-[#00a8cc] rounded-full p-5 shadow-2xl transition-all duration-300 ${
+        <div className={`bg-gradient-to-br from-[#00D9FF] to-[#00a8cc] rounded-full p-4 sm:p-5 shadow-2xl transition-all duration-300 ${
           isActive('/starting') 
             ? 'animate-pulse-glow scale-110' 
             : 'group-hover:scale-110 group-hover:shadow-[0_0_30px_rgba(0,217,255,0.6)]'
         }`}>
           <svg 
-            width="28" 
-            height="28" 
+            width="24" 
+            height="24" 
             viewBox="0 0 24 24" 
             fill="white" 
             className="drop-shadow-lg transition-transform duration-300 group-hover:rotate-12"
@@ -59,7 +59,7 @@ export function BottomNavigation() {
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
           </svg>
         </div>
-        <span className={`text-xs font-bold mt-2 transition-all duration-300 ${
+        <span className={`text-[11px] sm:text-xs font-bold mt-2 transition-all duration-300 ${
           isActive('/starting') 
             ? 'text-[#00D9FF] drop-shadow-[0_0_6px_rgba(0,217,255,0.8)] scale-110' 
             : 'group-hover:text-[#00D9FF] group-hover:scale-105'
@@ -80,7 +80,7 @@ export function BottomNavigation() {
       {/* Records Button */}
       <Link 
         to="/records" 
-        className={`flex flex-col items-center gap-1 transition-all duration-300 group ${
+        className={`flex min-w-0 flex-col items-center gap-1 transition-all duration-300 group ${
           isActive('/records') ? 'scale-110' : 'hover:scale-110'
         }`}
       >
@@ -90,7 +90,7 @@ export function BottomNavigation() {
             : 'group-hover:bg-white/10 group-hover:shadow-md'
         }`}>
           <FileCheck 
-            size={24} 
+            size={22} 
             className={`transition-all duration-300 ${
               isActive('/records') 
                 ? 'text-[#00D9FF] drop-shadow-[0_0_8px_rgba(0,217,255,0.8)]' 
@@ -98,7 +98,7 @@ export function BottomNavigation() {
             }`}
           />
         </div>
-        <span className={`text-xs font-semibold transition-all duration-300 ${
+        <span className={`text-[11px] sm:text-xs font-semibold transition-all duration-300 ${
           isActive('/records') 
             ? 'text-[#00D9FF] drop-shadow-[0_0_4px_rgba(0,217,255,0.8)]' 
             : 'group-hover:text-[#00D9FF]'
