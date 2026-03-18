@@ -40,6 +40,10 @@ export const router = createBrowserRouter([
         lazy: lazyRoute(() => import("./layouts/RequireAuthLayout")),
         children: [
           {
+            path: "home",
+            lazy: lazyRoute(() => import("./pages/UserHome")),
+          },
+          {
             path: "starting",
             lazy: lazyRoute(() => import("./pages/Starting")),
           },

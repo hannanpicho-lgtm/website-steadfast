@@ -1,17 +1,20 @@
 import { ExternalLink, UserCircle, LogOut } from 'lucide-react';
 import { Link } from 'react-router';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
+import { getCurrentUsername } from '../services/referralSystem';
 
 interface HeaderProps {
   onContactClick?: () => void;
 }
 
 export function Header({ onContactClick }: HeaderProps) {
+  const homePath = getCurrentUsername() ? '/home' : '/';
+
   return (
     <header className="bg-gradient-to-r from-[#1e2838] via-[#2c3e50] to-[#34495e] text-white py-4 px-6 border-b border-[#5dade2]/20 shadow-lg shadow-[#5dade2]/5">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Left Side - Logo */}
-        <Link to="/" className="flex items-center gap-3 group">
+        <Link to={homePath} className="flex items-center gap-3 group">
           {/* Enhanced Logo */}
           <div className="relative">
             {/* Glow effect */}

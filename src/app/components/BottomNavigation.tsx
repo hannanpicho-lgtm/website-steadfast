@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router';
 
 export function BottomNavigation() {
   const location = useLocation();
+  const homePath = '/home';
   
   const isActive = (path: string) => location.pathname === path;
 
@@ -10,27 +11,27 @@ export function BottomNavigation() {
     <nav className="fixed bottom-0 left-0 right-0 bg-[#0066b3] text-white flex items-center justify-around py-4 shadow-lg z-50 border-t border-[#0088d9]">
       {/* Home Button */}
       <Link 
-        to="/" 
+        to={homePath} 
         className={`flex flex-col items-center gap-1 transition-all duration-300 group ${
-          isActive('/') ? 'scale-110' : 'hover:scale-110'
+          isActive(homePath) ? 'scale-110' : 'hover:scale-110'
         }`}
       >
         <div className={`p-2 rounded-xl transition-all duration-300 ${
-          isActive('/') 
+          isActive(homePath) 
             ? 'bg-white/20 shadow-lg' 
             : 'group-hover:bg-white/10 group-hover:shadow-md'
         }`}>
           <Home 
             size={24} 
             className={`transition-all duration-300 ${
-              isActive('/') 
+              isActive(homePath) 
                 ? 'text-[#00D9FF] drop-shadow-[0_0_8px_rgba(0,217,255,0.8)]' 
                 : 'group-hover:text-[#00D9FF] group-hover:drop-shadow-[0_0_8px_rgba(0,217,255,0.6)]'
             }`}
           />
         </div>
         <span className={`text-xs font-semibold transition-all duration-300 ${
-          isActive('/') 
+          isActive(homePath) 
             ? 'text-[#00D9FF] drop-shadow-[0_0_4px_rgba(0,217,255,0.8)]' 
             : 'group-hover:text-[#00D9FF]'
         }`}>
