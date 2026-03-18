@@ -254,10 +254,22 @@ type PlatformUser = {
   vipLevel: number;
   balance: number;
   tasksCompleted: number;
+  tasksLimit: number;
+  taskSetCount: number;
+  tasksPerSet: number;
+  tasksCompletedInSet: number;
+  completedTaskSets: number;
+  pendingTaskReset: boolean;
+  holdAmount: number;
   isFrozen: boolean;
   referredByAdminId: string | null;
   referredByAdminName: string;
   createdAt: string | null;
+};
+
+type UserTaskControlDraft = {
+  taskSetCount: string;
+  tasksPerSet: string;
 };
 
 type TransactionRecord = {
@@ -335,6 +347,8 @@ export default function Admin() {
   const [searchTerm, setSearchTerm] = useState('');
   const [modalType, setModalType] = useState<ModalType>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [userTaskControlDraft, setUserTaskControlDraft] = useState<UserTaskControlDraft | null>(null);
+  const [userTaskControlSaving, setUserTaskControlSaving] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   const [activeAdminTab, setActiveAdminTab] = useState('admins');
   const [activeRewardTab, setActiveRewardTab] = useState<RewardTab>('workday');
@@ -435,6 +449,106 @@ export default function Admin() {
 
     const message = error.message.trim().toLowerCase();
     return message.includes('(404)') || message.startsWith('404 ');
+  };
+
+  useEffect(() => {
+    if (modalType !== 'edit-user' || !selectedItem) {
+      setUserTaskControlDraft(null);
+      return;
+    }
+
+    setUserTaskControlDraft({
+      taskSetCount: String(selectedItem.taskSetCount ?? 1),
+      tasksPerSet: String(selectedItem.tasksPerSet ?? 1),
+    });
+  }, [modalType, selectedItem]);
+
+  const mergePlatformUser = (nextUser: PlatformUser) => {
+    setPlatformUsers((current) => current.map((user) => (
+      user.username === nextUser.username ? { ...user, ...nextUser } : user
+    )));
+    setSelectedItem((current: any) => (
+      current?.username === nextUser.username
+        ? {
+            ...current,
+            ...nextUser,
+            status: nextUser.isFrozen ? 'Suspended' : 'Active',
+            registered: nextUser.createdAt ? new Date(nextUser.createdAt).toLocaleDateString() : '—',
+          }
+        : current
+    ));
+  };
+
+  const updatePlatformUserTaskControls = async (
+    username: string,
+    payload: Record<string, unknown>,
+    successMessage: string,
+  ) => {
+    setUserTaskControlSaving(true);
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/platform-users/${encodeURIComponent(username)}/task-controls`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(result?.error ?? `Failed to update user task controls (${response.status})`);
+      }
+
+      if (result?.user) {
+        mergePlatformUser(result.user as PlatformUser);
+      } else {
+        await loadPlatformUsers();
+      }
+
+      toast.success(successMessage);
+      return result;
+    } catch (error) {
+      handleAdminRequestError(error, 'Failed to update user task controls');
+      return null;
+    } finally {
+      setUserTaskControlSaving(false);
+    }
+  };
+
+  const handleSaveUserTaskControls = async () => {
+    if (!selectedItem?.username || !userTaskControlDraft) {
+      return;
+    }
+
+    const taskSetCount = Math.max(1, Number.parseInt(userTaskControlDraft.taskSetCount, 10) || 1);
+    const tasksPerSet = Math.max(1, Number.parseInt(userTaskControlDraft.tasksPerSet, 10) || 1);
+    const result = await updatePlatformUserTaskControls(
+      selectedItem.username,
+      { taskSetCount, tasksPerSet },
+      'User task controls updated',
+    );
+
+    if (result?.user) {
+      setUserTaskControlDraft({
+        taskSetCount: String(result.user.taskSetCount ?? taskSetCount),
+        tasksPerSet: String(result.user.tasksPerSet ?? tasksPerSet),
+      });
+    }
+  };
+
+  const handleResetUserTaskSet = async (user: PlatformUser) => {
+    await updatePlatformUserTaskControls(user.username, { resetCurrentSet: true }, `Task set reset for ${user.username}`);
+  };
+
+  const handleRestorePlatformUser = async (user: PlatformUser) => {
+    await updatePlatformUserTaskControls(user.username, { restoreNaturalState: true }, `Account restored for ${user.username}`);
+  };
+
+  const handleTogglePlatformUserSuspension = async (user: PlatformUser) => {
+    if (user.isFrozen) {
+      await handleRestorePlatformUser(user);
+      return;
+    }
+
+    await updatePlatformUserTaskControls(user.username, { suspendAccount: true }, `Account suspended for ${user.username}`);
   };
 
   const handleStartVipInlineEdit = (vip: VipLevelConfig) => {
@@ -1863,18 +1977,137 @@ export default function Admin() {
                     <p className="text-white font-bold text-xl mt-1">{selectedItem.tasksCompleted}</p>
                   </div>
                   <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Total Earnings</p>
-                    <p className="text-green-400 font-bold text-xl mt-1">${(typeof selectedItem.totalEarnings === 'number' ? selectedItem.totalEarnings : selectedItem.balance ?? 0).toFixed(2)}</p>
+                    <p className="text-gray-400 text-sm">Task Progress</p>
+                    <p className="text-green-400 font-bold text-xl mt-1">{selectedItem.tasksCompletedInSet ?? 0}/{selectedItem.tasksPerSet ?? 0}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                    <p className="text-gray-400 text-sm">Completed Sets</p>
+                    <p className="text-white font-bold text-xl mt-1">{selectedItem.completedTaskSets ?? 0}/{selectedItem.taskSetCount ?? 0}</p>
+                  </div>
+                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                    <p className="text-gray-400 text-sm">Held Amount</p>
+                    <p className="text-green-400 font-bold text-xl mt-1">${(selectedItem.holdAmount ?? 0).toFixed(2)}</p>
                   </div>
                 </div>
                 <div className="bg-[#1a1f2e] p-4 rounded-lg">
                   <p className="text-gray-400 text-sm">Registered Date</p>
                   <p className="text-white font-semibold mt-1">{selectedItem.registered}</p>
                 </div>
+                <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                  <p className="text-gray-400 text-sm">Reset Required</p>
+                  <p className="text-white font-semibold mt-1">{selectedItem.pendingTaskReset ? 'Yes' : 'No'}</p>
+                </div>
               </div>
               <button onClick={() => setModalType(null)} className="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg mt-6 transition-colors">
                 Close
               </button>
+            </div>
+          )}
+
+          {modalType === 'edit-user' && selectedItem && userTaskControlDraft && (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-white">Edit User Task Controls</h3>
+                <button onClick={() => setModalType(null)} className="text-gray-400 hover:text-white">
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                  <p className="text-gray-400 text-sm">Username</p>
+                  <p className="text-white font-semibold mt-1">{selectedItem.username}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="bg-[#1a1f2e] p-4 rounded-lg block">
+                    <p className="text-gray-400 text-sm">Task Sets</p>
+                    <input
+                      type="number"
+                      min={1}
+                      value={userTaskControlDraft.taskSetCount}
+                      onChange={(event) => setUserTaskControlDraft((current) => current ? { ...current, taskSetCount: event.target.value } : current)}
+                      className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white mt-2 focus:border-[#00D9FF] focus:outline-none"
+                    />
+                  </label>
+                  <label className="bg-[#1a1f2e] p-4 rounded-lg block">
+                    <p className="text-gray-400 text-sm">Tasks Per Set</p>
+                    <input
+                      type="number"
+                      min={1}
+                      value={userTaskControlDraft.tasksPerSet}
+                      onChange={(event) => setUserTaskControlDraft((current) => current ? { ...current, tasksPerSet: event.target.value } : current)}
+                      className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white mt-2 focus:border-[#00D9FF] focus:outline-none"
+                    />
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                    <p className="text-gray-400 text-sm">Current Set Progress</p>
+                    <p className="text-white font-semibold mt-1">{selectedItem.tasksCompletedInSet ?? 0}/{selectedItem.tasksPerSet ?? 0}</p>
+                  </div>
+                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                    <p className="text-gray-400 text-sm">Completed Sets</p>
+                    <p className="text-white font-semibold mt-1">{selectedItem.completedTaskSets ?? 0}/{selectedItem.taskSetCount ?? 0}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                    <p className="text-gray-400 text-sm">Reset Required</p>
+                    <p className={`font-semibold mt-1 ${selectedItem.pendingTaskReset ? 'text-yellow-300' : 'text-white'}`}>
+                      {selectedItem.pendingTaskReset ? 'Yes, admin reset required' : 'No'}
+                    </p>
+                  </div>
+                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                    <p className="text-gray-400 text-sm">Held Amount</p>
+                    <p className="text-white font-semibold mt-1">${(selectedItem.holdAmount ?? 0).toFixed(2)}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void handleResetUserTaskSet(selectedItem)}
+                    disabled={userTaskControlSaving || !selectedItem.pendingTaskReset}
+                    className="bg-yellow-500 hover:bg-yellow-600 text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Reset Completed Set
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRestorePlatformUser(selectedItem)}
+                    disabled={userTaskControlSaving || (!selectedItem.isFrozen && (selectedItem.holdAmount ?? 0) <= 0)}
+                    className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Restore Natural State
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleTogglePlatformUserSuspension(selectedItem)}
+                    disabled={userTaskControlSaving}
+                    className="bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {selectedItem.isFrozen ? 'Restore Account' : 'Suspend Account'}
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => void handleSaveUserTaskControls()}
+                  disabled={userTaskControlSaving}
+                  className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save Task Controls
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalType(null)}
+                  disabled={userTaskControlSaving}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           )}
 
@@ -3543,6 +3776,9 @@ export default function Admin() {
               setSelectedItem={setSelectedItem}
               setModalType={setModalType}
               handleExport={handleExport}
+              onToggleSuspension={handleTogglePlatformUserSuspension}
+              onResetTaskSet={handleResetUserTaskSet}
+              onRestoreNaturalState={handleRestorePlatformUser}
             />
           </Suspense>
         );

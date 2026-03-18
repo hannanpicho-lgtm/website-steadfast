@@ -1020,6 +1020,13 @@ function defaultUserRecord(username: string) {
     luckyBonus: 0,
     tasksCompleted: 0,
     tasksLimit: 10,
+    taskSetCount: defaultRewardsConfig.productSystem.maxSetsPerDay,
+    tasksPerSet: defaultRewardsConfig.productSystem.productsPerSet,
+    tasksCompletedInSet: 0,
+    completedTaskSets: 0,
+    pendingTaskReset: false,
+    taskSetCountOverride: null as number | null,
+    tasksPerSetOverride: null as number | null,
     lastReset: new Date().toISOString().split('T')[0],
     isFrozen: false,
     activePremium: null,
@@ -1046,6 +1053,25 @@ function normalizeUserRecord(userData: any, username: string) {
   normalized.luckyBonus = Number.isFinite(Number(normalized.luckyBonus)) ? Number(normalized.luckyBonus) : 0;
   normalized.tasksCompleted = Number.isFinite(Number(normalized.tasksCompleted)) ? Number(normalized.tasksCompleted) : 0;
   normalized.tasksLimit = Number.isFinite(Number(normalized.tasksLimit)) ? Number(normalized.tasksLimit) : 40;
+  normalized.taskSetCountOverride = Number.isFinite(Number(normalized.taskSetCountOverride))
+    ? Math.max(1, Math.round(Number(normalized.taskSetCountOverride)))
+    : null;
+  normalized.tasksPerSetOverride = Number.isFinite(Number(normalized.tasksPerSetOverride))
+    ? Math.max(1, Math.round(Number(normalized.tasksPerSetOverride)))
+    : null;
+  normalized.taskSetCount = Number.isFinite(Number(normalized.taskSetCount))
+    ? Math.max(1, Math.round(Number(normalized.taskSetCount)))
+    : defaultRewardsConfig.productSystem.maxSetsPerDay;
+  normalized.tasksPerSet = Number.isFinite(Number(normalized.tasksPerSet))
+    ? Math.max(1, Math.round(Number(normalized.tasksPerSet)))
+    : defaultRewardsConfig.productSystem.productsPerSet;
+  normalized.tasksCompletedInSet = Number.isFinite(Number(normalized.tasksCompletedInSet))
+    ? Math.max(0, Math.round(Number(normalized.tasksCompletedInSet)))
+    : 0;
+  normalized.completedTaskSets = Number.isFinite(Number(normalized.completedTaskSets))
+    ? Math.max(0, Math.round(Number(normalized.completedTaskSets)))
+    : 0;
+  normalized.pendingTaskReset = Boolean(normalized.pendingTaskReset);
   normalized.referralEarnings = Number.isFinite(Number(normalized.referralEarnings)) ? Number(normalized.referralEarnings) : 0;
   normalized.children = Array.isArray(normalized.children) ? normalized.children : [];
   normalized.referredByAdminId = typeof normalized.referredByAdminId === 'string' && normalized.referredByAdminId
@@ -1061,9 +1087,68 @@ function normalizeUserRecord(userData: any, username: string) {
 async function syncUserWithVipConfig(userData: any, username: string) {
   const normalized = normalizeUserRecord(userData, username);
   const vipConfig = await getVipConfigForLevel(Number(normalized.vipLevel ?? 1));
+  const rewardsConfig = await getRewardsConfigRecord();
+  const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
   normalized.vipLevel = vipConfig.level;
-  normalized.tasksLimit = vipConfig.dailyTasks;
+  normalized.taskSetCount = normalized.taskSetCountOverride ?? productSystem.maxSetsPerDay;
+  normalized.tasksPerSet = normalized.tasksPerSetOverride ?? productSystem.productsPerSet;
+  normalized.tasksLimit = normalized.taskSetCount * normalized.tasksPerSet;
+  normalized.completedTaskSets = Math.min(
+    Math.max(0, normalized.completedTaskSets),
+    normalized.taskSetCount,
+  );
+  normalized.tasksCompleted = Math.min(
+    Math.max(0, normalized.tasksCompleted),
+    normalized.tasksLimit,
+  );
+
+  if (normalized.completedTaskSets >= normalized.taskSetCount) {
+    normalized.tasksCompletedInSet = 0;
+    normalized.pendingTaskReset = false;
+  } else {
+    normalized.tasksCompletedInSet = Math.min(
+      Math.max(0, normalized.tasksCompletedInSet),
+      normalized.tasksPerSet,
+    );
+  }
+
   return normalized;
+}
+
+function buildUserTaskProgress(userData: any) {
+  return {
+    taskSetCount: Number(userData?.taskSetCount ?? 1),
+    tasksPerSet: Number(userData?.tasksPerSet ?? 1),
+    tasksCompleted: Number(userData?.tasksCompleted ?? 0),
+    tasksCompletedInSet: Number(userData?.tasksCompletedInSet ?? 0),
+    completedTaskSets: Number(userData?.completedTaskSets ?? 0),
+    tasksLimit: Number(userData?.tasksLimit ?? 0),
+    pendingTaskReset: Boolean(userData?.pendingTaskReset),
+  };
+}
+
+function restoreUserToNaturalState(userData: any) {
+  const restored = { ...userData };
+  const currentBalance = roundMoney(Number(restored.balance ?? 0));
+  const preFreezeBalance = Number.isFinite(Number(restored?.activePremium?.balanceBeforeAssignment))
+    ? roundMoney(Number(restored.activePremium.balanceBeforeAssignment))
+    : currentBalance;
+
+  restored.balance = Math.max(currentBalance, preFreezeBalance);
+  restored.holdAmount = 0;
+  restored.isFrozen = false;
+
+  if (restored.activePremium && typeof restored.activePremium === 'object') {
+    restored.activePremium = {
+      ...restored.activePremium,
+      status: 'cancelled',
+      cancelledAt: new Date().toISOString(),
+    };
+  }
+
+  restored.activePremium = null;
+  restored.premiumQueue = [];
+  return restored;
 }
 
 async function syncUsersForVipLevel(level: number) {
@@ -1532,6 +1617,9 @@ app.get("/make-server-a1c55d7e/user/:username", async (c) => {
     const today = new Date().toISOString().split('T')[0];
     if (normalizedUserData.lastReset !== today) {
       normalizedUserData.tasksCompleted = 0;
+      normalizedUserData.tasksCompletedInSet = 0;
+      normalizedUserData.completedTaskSets = 0;
+      normalizedUserData.pendingTaskReset = false;
       normalizedUserData.todayCommission = 0;
       normalizedUserData.lastReset = today;
       await kv.set(userKey, normalizedUserData);
@@ -1643,6 +1731,17 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
     
     const normalizedUserData = await syncUserWithVipConfig(userData, username);
 
+    if (normalizedUserData.pendingTaskReset) {
+      await kv.set(userKey, normalizedUserData);
+      return c.json({
+        error: 'Current task set is complete. An admin must reset the next set before you can continue.',
+        code: 'task_set_reset_required',
+        disableSubmit: true,
+        taskProgress: buildUserTaskProgress(normalizedUserData),
+        user: normalizedUserData,
+      }, 409);
+    }
+
     if (userHasPendingPremiumRequirement(normalizedUserData)) {
       await kv.set(userKey, normalizedUserData);
       return c.json({
@@ -1720,8 +1819,16 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
     
     // Update user data
     normalizedUserData.tasksCompleted += 1;
+    normalizedUserData.tasksCompletedInSet += 1;
     normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
     normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);  // Only commission is added to balance
+
+    if (
+      normalizedUserData.tasksCompletedInSet >= normalizedUserData.tasksPerSet
+      && normalizedUserData.tasksCompleted < normalizedUserData.tasksLimit
+    ) {
+      normalizedUserData.pendingTaskReset = true;
+    }
     
     // Random lucky bonus (1% chance)
     if (Math.random() < 0.01) {
@@ -1782,6 +1889,7 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
       luckyBonus: normalizedUserData.luckyBonus,
       parentReferralCommission: referralPayout.rewarded ? referralPayout.parentReward : 0,
       parentReferralUsername: referralPayout.rewarded ? referralPayout.parentUsername : null,
+      taskProgress: buildUserTaskProgress(normalizedUserData),
       task: selectedTask,
     });
   } catch (error) {
@@ -3797,6 +3905,13 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
       vipLevel: u.vipLevel,
       balance: u.balance,
       tasksCompleted: u.tasksCompleted,
+      tasksLimit: u.tasksLimit,
+      taskSetCount: u.taskSetCount,
+      tasksPerSet: u.tasksPerSet,
+      tasksCompletedInSet: u.tasksCompletedInSet,
+      completedTaskSets: u.completedTaskSets,
+      pendingTaskReset: u.pendingTaskReset,
+      holdAmount: u.holdAmount,
       isFrozen: u.isFrozen,
       referredByAdminId: u.referredByAdminId ?? null,
       referredByAdminName: u.referredByAdminId
@@ -3809,6 +3924,82 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
   } catch (err) {
     console.error('admin/platform-users error:', err);
     return c.json({ error: 'Failed to fetch platform users' }, 500);
+  }
+});
+
+app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-platform-users:task-controls');
+    if (limited) return limited;
+
+    const username = sanitizeUsername(c.req.param('username'));
+    if (!username) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const userKey = `user:${username}`;
+    const existingUser = await kv.get(userKey);
+    if (!existingUser) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const normalizedUser = await syncUserWithVipConfig(existingUser, username);
+    if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const body = await c.req.json();
+    const nextTaskSetCount = Number.isFinite(Number(body?.taskSetCount))
+      ? Math.max(1, Math.round(Number(body.taskSetCount)))
+      : normalizedUser.taskSetCount;
+    const nextTasksPerSet = Number.isFinite(Number(body?.tasksPerSet))
+      ? Math.max(1, Math.round(Number(body.tasksPerSet)))
+      : normalizedUser.tasksPerSet;
+    const shouldResetCurrentSet = body?.resetCurrentSet === true;
+    const shouldRestoreNaturalState = body?.restoreNaturalState === true;
+    const shouldSuspendAccount = body?.suspendAccount === true;
+
+    normalizedUser.taskSetCountOverride = nextTaskSetCount;
+    normalizedUser.tasksPerSetOverride = nextTasksPerSet;
+    normalizedUser.taskSetCount = nextTaskSetCount;
+    normalizedUser.tasksPerSet = nextTasksPerSet;
+    normalizedUser.tasksLimit = nextTaskSetCount * nextTasksPerSet;
+    normalizedUser.tasksCompleted = Math.min(normalizedUser.tasksCompleted, normalizedUser.tasksLimit);
+
+    if (shouldResetCurrentSet) {
+      if (!normalizedUser.pendingTaskReset && normalizedUser.tasksCompletedInSet < normalizedUser.tasksPerSet) {
+        return c.json({ error: 'Current task set is not yet complete.' }, 400);
+      }
+      normalizedUser.completedTaskSets = Math.min(normalizedUser.completedTaskSets + 1, normalizedUser.taskSetCount);
+      normalizedUser.tasksCompletedInSet = 0;
+      normalizedUser.pendingTaskReset = false;
+    }
+
+    if (shouldSuspendAccount) {
+      normalizedUser.isFrozen = true;
+    }
+
+    if (shouldRestoreNaturalState) {
+      const restored = restoreUserToNaturalState(normalizedUser);
+      Object.assign(normalizedUser, restored);
+      normalizedUser.pendingTaskReset = false;
+    }
+
+    await kv.set(userKey, normalizedUser);
+
+    return c.json({
+      success: true,
+      user: normalizedUser,
+      taskProgress: buildUserTaskProgress(normalizedUser),
+    });
+  } catch (err) {
+    console.error('admin/platform-users/task-controls error:', err);
+    return c.json({ error: 'Failed to update user task controls' }, 500);
   }
 });
 

@@ -18,6 +18,9 @@ interface UserManagementProps {
   setSelectedItem: (item: any) => void;
   setModalType: any;
   handleExport: () => void;
+  onToggleSuspension: (user: any) => void | Promise<void>;
+  onResetTaskSet: (user: any) => void | Promise<void>;
+  onRestoreNaturalState: (user: any) => void | Promise<void>;
 }
 
 export default function UserManagement({
@@ -36,11 +39,32 @@ export default function UserManagement({
   setSelectedItem,
   setModalType,
   handleExport,
+  onToggleSuspension,
+  onResetTaskSet,
+  onRestoreNaturalState,
 }: UserManagementProps) {
-  type DisplayUser = { id: number; username: string; email: string; phone: string; vipLevel: number; balance: number; status: string; registered: string; tasksCompleted: number; referredByAdminName: string; };
+  type DisplayUser = {
+    id: number;
+    username: string;
+    email: string;
+    phone: string;
+    vipLevel: number;
+    balance: number;
+    status: string;
+    registered: string;
+    tasksCompleted: number;
+    referredByAdminName: string;
+    taskSetCount?: number;
+    tasksPerSet?: number;
+    tasksCompletedInSet?: number;
+    completedTaskSets?: number;
+    pendingTaskReset?: boolean;
+    holdAmount?: number;
+    isFrozen?: boolean;
+  };
   const isRealData = platformUsersLoaded;
   const normalizedUsers: DisplayUser[] = platformUsersLoaded
-    ? platformUsers.map((u, i) => ({ id: i + 1, username: u.username, email: '—', phone: '—', vipLevel: u.vipLevel, balance: u.balance, status: u.isFrozen ? 'Suspended' : 'Active', registered: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—', tasksCompleted: u.tasksCompleted, referredByAdminName: u.referredByAdminName || '—' }))
+    ? platformUsers.map((u, i) => ({ id: i + 1, username: u.username, email: '—', phone: '—', vipLevel: u.vipLevel, balance: u.balance, status: u.isFrozen ? 'Suspended' : 'Active', registered: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—', tasksCompleted: u.tasksCompleted, referredByAdminName: u.referredByAdminName || '—', taskSetCount: u.taskSetCount, tasksPerSet: u.tasksPerSet, tasksCompletedInSet: u.tasksCompletedInSet, completedTaskSets: u.completedTaskSets, pendingTaskReset: u.pendingTaskReset, holdAmount: u.holdAmount, isFrozen: u.isFrozen }))
     : mockUsers.map((u) => ({ ...u, referredByAdminName: '—', vipLevel: Number(u.vipLevel.replace(/\D/g, '')) }));
   const filteredUsers = normalizedUsers.filter(user => {
     const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -181,29 +205,36 @@ export default function UserManagement({
                       </button>
                       {user.status === 'Suspended' ? (
                         <button 
-                          onClick={() => { 
-                            if (confirm(`Enable account for ${user.username}?`)) {
-                              toast.success(`Account enabled for ${user.username}`);
-                            }
-                          }}
+                          onClick={() => { if (confirm(`Restore account for ${user.username}?`)) { void onRestoreNaturalState(user); } }}
                           className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
-                          title="Enable Account"
+                          title="Restore Account"
                         >
                           <Check size={16} className="text-gray-400 hover:text-green-400" />
                         </button>
                       ) : (
                         <button 
-                          onClick={() => { 
-                            if (confirm(`Disable account for ${user.username}?`)) {
-                              toast.warning(`Account disabled for ${user.username}`);
-                            }
-                          }}
+                          onClick={() => { if (confirm(`Suspend account for ${user.username}?`)) { void onToggleSuspension(user); } }}
                           className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
-                          title="Disable Account"
+                          title="Suspend Account"
                         >
                           <X size={16} className="text-gray-400 hover:text-orange-400" />
                         </button>
                       )}
+                      <button 
+                        onClick={() => {
+                          if (!user.pendingTaskReset) {
+                            toast.info('This user has not finished the current task set yet.');
+                            return;
+                          }
+                          if (confirm(`Reset completed task set for ${user.username}?`)) {
+                            void onResetTaskSet(user);
+                          }
+                        }}
+                        className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
+                        title="Reset Completed Task Set"
+                      >
+                        <RefreshCw size={16} className={`text-gray-400 ${user.pendingTaskReset ? 'hover:text-yellow-400' : ''}`} />
+                      </button>
                       <button 
                         onClick={() => { setSelectedItem(user); setModalType('delete-user'); }}
                         className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 

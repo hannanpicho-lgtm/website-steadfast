@@ -20,6 +20,11 @@ interface UserData {
   luckyBonus: number;
   tasksCompleted: number;
   tasksLimit: number;
+  taskSetCount?: number;
+  tasksPerSet?: number;
+  tasksCompletedInSet?: number;
+  completedTaskSets?: number;
+  pendingTaskReset?: boolean;
   isFrozen?: boolean;
   activePremium?: any;
   premiumQueue?: any[];
@@ -101,6 +106,7 @@ export default function Starting() {
   const premiumTriggerTaskNumber = Number(taskRuleConfig?.premiumTriggerTaskNumber ?? rewardsConfig.productSystem.premiumTriggerTaskNumber ?? 10);
   const premiumTopUpRequired = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
   const premiumSubmissionBlocked = Boolean(userData?.activePremium) && premiumTopUpRequired > 0;
+  const taskSetResetRequired = Boolean(userData?.pendingTaskReset);
   const nextSubmissionNumber = Number(userData?.tasksCompleted ?? 0) + 1;
   const premiumTriggerIncoming = !premiumSubmissionBlocked
     && Boolean(taskRuleConfig?.premiumEnabled ?? rewardsConfig.productSystem.premiumEnabled)
@@ -206,6 +212,11 @@ export default function Starting() {
       return;
     }
 
+    if (taskSetResetRequired) {
+      toast.info('Current task set is complete. Please contact support or wait for admin reset before continuing.');
+      return;
+    }
+
     if (userData.tasksCompleted >= userData.tasksLimit) {
       toast.info('Task set complete. Please contact customer support to request a reset.');
       return;
@@ -229,7 +240,7 @@ export default function Starting() {
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}));
-        if (response.status === 409 && errorPayload?.code === 'premium_task_encountered' && errorPayload?.user) {
+        if (response.status === 409 && (errorPayload?.code === 'premium_task_encountered' || errorPayload?.code === 'task_set_reset_required') && errorPayload?.user) {
           setUserData(errorPayload.user);
         }
         throw new Error(errorPayload?.error || 'Failed to submit task');
@@ -244,6 +255,15 @@ export default function Starting() {
         balance: result.balance,
         todayCommission: result.todayCommission,
         luckyBonus: result.luckyBonus,
+        isFrozen: result.user?.isFrozen ?? userData.isFrozen,
+        holdAmount: result.user?.holdAmount ?? userData.holdAmount,
+        activePremium: result.user?.activePremium ?? userData.activePremium,
+        premiumQueue: result.user?.premiumQueue ?? userData.premiumQueue,
+        taskSetCount: result.taskProgress?.taskSetCount ?? userData.taskSetCount,
+        tasksPerSet: result.taskProgress?.tasksPerSet ?? userData.tasksPerSet,
+        tasksCompletedInSet: result.taskProgress?.tasksCompletedInSet ?? userData.tasksCompletedInSet,
+        completedTaskSets: result.taskProgress?.completedTaskSets ?? userData.completedTaskSets,
+        pendingTaskReset: result.taskProgress?.pendingTaskReset ?? userData.pendingTaskReset,
       });
       
       // Show success message
@@ -529,6 +549,9 @@ export default function Starting() {
             <p className="text-yellow-400 text-xs text-center">
               💡 Premium rule: task #{premiumTriggerTaskNumber} triggers premium check ({taskRuleConfig?.premiumValueMode ?? rewardsConfig.productSystem.premiumValueMode}).
             </p>
+            <p className="text-white/80 text-xs text-center mt-2">
+              Set progress: {userData?.tasksCompletedInSet ?? 0}/{userData?.tasksPerSet ?? 0} in current set, completed sets {userData?.completedTaskSets ?? 0}/{userData?.taskSetCount ?? 0}.
+            </p>
             {premiumTriggerIncoming && (
               <p className="text-red-400 text-xs text-center mt-2 font-semibold">
                 Premium trigger incoming on this submission.
@@ -539,7 +562,28 @@ export default function Starting() {
 
         {/* Starting Button */}
         {/* Reset Required Banner — shown when the full task set is complete */}
-        {userData && userData.tasksCompleted >= userData.tasksLimit ? (
+        {taskSetResetRequired ? (
+          <div className="bg-gradient-to-br from-yellow-700 to-amber-600 border-2 border-yellow-300 rounded-lg p-6 mb-6 shadow-xl">
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <AlertTriangle className="text-yellow-200" size={32} />
+              <h2 className="text-xl font-bold text-white text-center">TASK SET RESET REQUIRED</h2>
+              <AlertTriangle className="text-yellow-200" size={32} />
+            </div>
+            <p className="text-yellow-100 font-semibold text-center mb-2">
+              Current set complete: {userData?.tasksCompletedInSet ?? 0} / {userData?.tasksPerSet ?? 0} tasks
+            </p>
+            <p className="text-white/90 text-sm text-center mb-5">
+              Your current task set is complete. An admin must reset the next set before you can continue with unfinished work.
+            </p>
+            <button
+              onClick={() => setIsChatOpen(true)}
+              className="w-full flex items-center justify-center gap-2 bg-white text-[#7a4a00] font-bold py-3 rounded-lg hover:bg-yellow-50 transition-colors text-lg"
+            >
+              <MessageCircle size={22} />
+              Contact Support for Set Reset
+            </button>
+          </div>
+        ) : userData && userData.tasksCompleted >= userData.tasksLimit ? (
           <div className="bg-gradient-to-br from-[#003d99] to-[#0055cc] border-2 border-[#00D9FF] rounded-lg p-6 mb-6 shadow-xl">
             <div className="flex items-center justify-center gap-3 mb-3">
               <CheckCircle2 className="text-[#00D9FF]" size={32} />
@@ -573,13 +617,15 @@ export default function Starting() {
             <button
               className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
               onClick={handleSubmitTask}
-              disabled={submitting || !currentProduct || premiumSubmissionBlocked}
+              disabled={submitting || !currentProduct || premiumSubmissionBlocked || taskSetResetRequired}
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
                   <Loader2 className="animate-spin" size={24} />
                   Submitting...
                 </span>
+              ) : taskSetResetRequired ? (
+                'Waiting For Admin Reset'
               ) : premiumSubmissionBlocked ? (
                 'Top-up Required Before Submit'
               ) : (
