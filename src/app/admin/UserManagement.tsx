@@ -147,6 +147,7 @@ export default function UserManagement({
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Registered</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Referred By</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Set Status</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -176,6 +177,19 @@ export default function UserManagement({
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-400">{user.registered}</td>
                   <td className="px-6 py-4 text-sm text-gray-400">{user.referredByAdminName}</td>
+                  <td className="px-6 py-4 text-sm text-gray-300">
+                    {typeof user.tasksPerSet === 'number' && typeof user.taskSetCount === 'number' ? (
+                      <div className="space-y-1">
+                        <p className="text-xs text-gray-300">{user.tasksCompletedInSet ?? 0}/{user.tasksPerSet} in set</p>
+                        <p className="text-xs text-gray-400">Sets {user.completedTaskSets ?? 0}/{user.taskSetCount}</p>
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${user.pendingTaskReset ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'}`}>
+                          {user.pendingTaskReset ? 'Reset Needed' : 'Ready'}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-gray-500">—</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4 text-sm">
                     <div className="flex items-center gap-2">
                       <button 
