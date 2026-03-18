@@ -475,6 +475,17 @@ const defaultRewardsConfig = {
     minTimePerProduct: 30,
     autoApproveCommission: true,
     requireProductConfirmation: true,
+    premiumEnabled: true,
+    premiumTriggerTaskNumber: 10,
+    premiumBaseValue: 300,
+    premiumValueMode: 'multiplier',
+    vipPremiumAdjustments: [
+      { vipLevel: 1, multiplier: 1.1, minValue: 220, maxValue: 420 },
+      { vipLevel: 2, multiplier: 1.2, minValue: 300, maxValue: 620 },
+      { vipLevel: 3, multiplier: 1.35, minValue: 500, maxValue: 1300 },
+      { vipLevel: 4, multiplier: 1.5, minValue: 900, maxValue: 2600 },
+      { vipLevel: 5, multiplier: 1.8, minValue: 1800, maxValue: 5200 },
+    ],
   },
 };
 
@@ -591,13 +602,119 @@ function normalizeAccumulatedRewardRecord(record: any, index: number) {
 }
 
 function normalizeProductSystemConfig(record: any) {
+  const source = typeof record === 'object' && record ? record : {};
+  const rawAdjustments = Array.isArray(source.vipPremiumAdjustments) ? source.vipPremiumAdjustments : [];
+  const defaultAdjustments = Array.isArray(defaultRewardsConfig.productSystem.vipPremiumAdjustments)
+    ? defaultRewardsConfig.productSystem.vipPremiumAdjustments
+    : [];
+
+  const vipPremiumAdjustments = (rawAdjustments.length > 0 ? rawAdjustments : defaultAdjustments)
+    .map((entry: any, index: number) => {
+      const fallback = defaultAdjustments[index] ?? defaultAdjustments[defaultAdjustments.length - 1] ?? {
+        vipLevel: index + 1,
+        multiplier: 1,
+        minValue: 0,
+        maxValue: 0,
+      };
+      const vipLevel = Number.isFinite(Number(entry?.vipLevel))
+        ? Math.max(1, Math.round(Number(entry.vipLevel)))
+        : Number(fallback.vipLevel);
+      const multiplier = Number.isFinite(Number(entry?.multiplier))
+        ? Math.max(0.1, Number(entry.multiplier))
+        : Number(fallback.multiplier);
+      const minValue = Number.isFinite(Number(entry?.minValue))
+        ? Math.max(0, roundMoney(Number(entry.minValue)))
+        : roundMoney(Number(fallback.minValue));
+      const maxCandidate = Number.isFinite(Number(entry?.maxValue))
+        ? roundMoney(Number(entry.maxValue))
+        : roundMoney(Number(fallback.maxValue));
+      const maxValue = Math.max(minValue, maxCandidate);
+
+      return {
+        vipLevel,
+        multiplier,
+        minValue,
+        maxValue,
+      };
+    })
+    .sort((left, right) => left.vipLevel - right.vipLevel);
+
+  const premiumValueModeRaw = typeof source.premiumValueMode === 'string' ? source.premiumValueMode.toLowerCase() : 'multiplier';
+  const premiumValueMode = premiumValueModeRaw === 'range' ? 'range' : 'multiplier';
+
   return {
-    productsPerSet: Math.max(1, Math.round(Number(record?.productsPerSet ?? 10))),
-    maxSetsPerDay: Math.max(1, Math.round(Number(record?.maxSetsPerDay ?? 5))),
-    minTimePerProduct: Math.max(1, Math.round(Number(record?.minTimePerProduct ?? 30))),
-    autoApproveCommission: normalizeBoolean(record?.autoApproveCommission, true),
-    requireProductConfirmation: normalizeBoolean(record?.requireProductConfirmation, true),
+    productsPerSet: Math.max(1, Math.round(Number(source?.productsPerSet ?? 10))),
+    maxSetsPerDay: Math.max(1, Math.round(Number(source?.maxSetsPerDay ?? 5))),
+    minTimePerProduct: Math.max(1, Math.round(Number(source?.minTimePerProduct ?? 30))),
+    autoApproveCommission: normalizeBoolean(source?.autoApproveCommission, true),
+    requireProductConfirmation: normalizeBoolean(source?.requireProductConfirmation, true),
+    premiumEnabled: normalizeBoolean(source?.premiumEnabled, true),
+    premiumTriggerTaskNumber: Math.max(1, Math.round(Number(source?.premiumTriggerTaskNumber ?? 10))),
+    premiumBaseValue: Math.max(0, roundMoney(Number(source?.premiumBaseValue ?? 300))),
+    premiumValueMode,
+    vipPremiumAdjustments,
   };
+}
+
+function resolveVipPremiumAdjustment(
+  vipLevel: number,
+  productSystem: ReturnType<typeof normalizeProductSystemConfig>,
+) {
+  const direct = productSystem.vipPremiumAdjustments.find((entry) => entry.vipLevel === vipLevel);
+  if (direct) {
+    return direct;
+  }
+
+  const below = [...productSystem.vipPremiumAdjustments]
+    .reverse()
+    .find((entry) => entry.vipLevel <= vipLevel);
+  if (below) {
+    return below;
+  }
+
+  return productSystem.vipPremiumAdjustments[0] ?? {
+    vipLevel,
+    multiplier: 1,
+    minValue: productSystem.premiumBaseValue,
+    maxValue: productSystem.premiumBaseValue,
+  };
+}
+
+function computePremiumValueForVip(
+  vipLevel: number,
+  productSystem: ReturnType<typeof normalizeProductSystemConfig>,
+): number {
+  const adjustment = resolveVipPremiumAdjustment(vipLevel, productSystem);
+
+  if (productSystem.premiumValueMode === 'range') {
+    if (adjustment.maxValue > adjustment.minValue) {
+      const seeded = Math.abs(Math.sin(vipLevel * 999 + productSystem.premiumTriggerTaskNumber));
+      const rangeValue = adjustment.minValue + (adjustment.maxValue - adjustment.minValue) * seeded;
+      return roundMoney(rangeValue);
+    }
+    return roundMoney(adjustment.minValue);
+  }
+
+  return roundMoney(Math.max(0, productSystem.premiumBaseValue * adjustment.multiplier));
+}
+
+function buildPremiumRequirementResponse(activePremium: any) {
+  const requiredAmount = roundMoney(Number(activePremium?.topUpRequired ?? activePremium?.negativeAmount ?? 0));
+  return {
+    id: activePremium?.id ?? null,
+    requiredAmount,
+    requiredAmountDisplay: `-${requiredAmount.toFixed(2)}`,
+    triggerTaskNumber: Number.isFinite(Number(activePremium?.triggerTaskNumber)) ? Number(activePremium.triggerTaskNumber) : null,
+    vipLevel: Number.isFinite(Number(activePremium?.vipLevel)) ? Number(activePremium.vipLevel) : null,
+    premiumValue: Number.isFinite(Number(activePremium?.premiumProductValue)) ? Number(activePremium.premiumProductValue) : 0,
+    mode: typeof activePremium?.valueMode === 'string' ? activePremium.valueMode : 'multiplier',
+    status: typeof activePremium?.status === 'string' ? activePremium.status : 'awaiting_funds',
+  };
+}
+
+function userHasPendingPremiumRequirement(userData: any): boolean {
+  const requiredAmount = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
+  return Boolean(userData?.activePremium) && requiredAmount > 0;
 }
 
 function normalizeRewardsConfigRecord(record: any) {
@@ -1526,9 +1643,72 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
     
     const normalizedUserData = await syncUserWithVipConfig(userData, username);
 
+    if (userHasPendingPremiumRequirement(normalizedUserData)) {
+      await kv.set(userKey, normalizedUserData);
+      return c.json({
+        error: 'Premium task requirement pending. Please top up your account before submitting the next task.',
+        code: 'premium_task_encountered',
+        disableSubmit: true,
+        premiumRequirement: buildPremiumRequirementResponse(normalizedUserData.activePremium),
+        user: normalizedUserData,
+      }, 409);
+    }
+
     // Check if user has reached daily task limit
     if (normalizedUserData.tasksCompleted >= normalizedUserData.tasksLimit) {
       return c.json({ error: 'Daily task limit reached' }, 400);
+    }
+
+    const rewardsConfig = await getRewardsConfigRecord();
+    const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
+    const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
+    const shouldTriggerPremium = productSystem.premiumEnabled
+      && nextSubmissionNumber === productSystem.premiumTriggerTaskNumber;
+
+    if (shouldTriggerPremium) {
+      const premiumValue = computePremiumValueForVip(Number(normalizedUserData.vipLevel ?? 1), productSystem);
+      const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
+      const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - premiumValue);
+      const topUpRequired = Math.max(0, roundMoney(-balanceAfterAssignment));
+      const activePremium = {
+        id: `premium-rule-${Date.now()}`,
+        premiumProductValue: premiumValue,
+        premiumProductName: `Rule Premium (Task #${nextSubmissionNumber})`,
+        bundledProducts: [],
+        totalBundleValue: premiumValue,
+        balanceBeforeAssignment,
+        balanceAfterAssignment,
+        negativeAmount: topUpRequired,
+        topUpRequired,
+        triggerTaskNumber: nextSubmissionNumber,
+        vipLevel: Number(normalizedUserData.vipLevel ?? 1),
+        valueMode: productSystem.premiumValueMode,
+        tasksCompleted: 0,
+        totalTasks: 1,
+        assignedAt: new Date().toISOString(),
+        assignedBy: 'system-rule-engine',
+        status: topUpRequired > 0 ? 'awaiting_funds' : 'active',
+        commissionEarned: 0,
+      };
+
+      normalizedUserData.isFrozen = true;
+      normalizedUserData.activePremium = activePremium;
+      normalizedUserData.premiumQueue = Array.isArray(normalizedUserData.premiumQueue)
+        ? [activePremium, ...normalizedUserData.premiumQueue]
+        : [activePremium];
+      normalizedUserData.balance = balanceAfterAssignment;
+      normalizedUserData.holdAmount = roundMoney(Math.max(Number(normalizedUserData.holdAmount ?? 0), topUpRequired));
+
+      await kv.set(userKey, normalizedUserData);
+      await kv.set(`premium:${username}:${activePremium.id}`, activePremium);
+
+      return c.json({
+        error: 'Premium task encountered. Top-up is required before continuing task submission.',
+        code: 'premium_task_encountered',
+        disableSubmit: true,
+        premiumRequirement: buildPremiumRequirementResponse(activePremium),
+        user: normalizedUserData,
+      }, 409);
     }
     
     const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
@@ -1644,7 +1824,16 @@ app.get('/make-server-a1c55d7e/tasks/catalog', async (c) => {
   try {
     const includePaused = c.req.query('includePaused') === 'true';
     const tasks = await listTaskCatalogRecords(includePaused);
-    return c.json({ tasks });
+    const rewardsConfig = await getRewardsConfigRecord();
+    const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
+    return c.json({
+      tasks,
+      ruleConfig: {
+        premiumEnabled: productSystem.premiumEnabled,
+        premiumTriggerTaskNumber: productSystem.premiumTriggerTaskNumber,
+        premiumValueMode: productSystem.premiumValueMode,
+      },
+    });
   } catch (error) {
     console.error('Error fetching task catalog:', error);
     return c.json({ error: 'Failed to fetch task catalog' }, 500);

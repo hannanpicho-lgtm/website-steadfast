@@ -9,6 +9,7 @@ import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
+import { fetchPublicRewardsConfig, type RewardsConfig, defaultRewardsConfig } from '../services/rewardsConfig';
 
 interface UserData {
   username: string;
@@ -35,6 +36,15 @@ interface TaskCatalogItem {
   rating: number;
   productUrl: string;
 }
+
+type TaskCatalogResponse = {
+  tasks?: TaskCatalogItem[];
+  ruleConfig?: {
+    premiumEnabled?: boolean;
+    premiumTriggerTaskNumber?: number;
+    premiumValueMode?: 'multiplier' | 'range';
+  };
+};
 
 function getPrimaryLabel(value: string | null | undefined, fallback = 'Product'): string {
   if (typeof value !== 'string') {
@@ -64,6 +74,8 @@ export default function Starting() {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [taskCatalog, setTaskCatalog] = useState<TaskCatalogItem[]>([]);
   const [vipConfigurations, setVipConfigurations] = useState<VipConfig[]>([]);
+  const [rewardsConfig, setRewardsConfig] = useState<RewardsConfig>(defaultRewardsConfig);
+  const [taskRuleConfig, setTaskRuleConfig] = useState<TaskCatalogResponse['ruleConfig'] | null>(null);
   
   const sessionUsername = getCurrentUsername();
   const username = sessionUsername ?? 'ugreen';
@@ -86,6 +98,13 @@ export default function Starting() {
     ? (vipConfigurations.find((tier) => tier.level === userData.vipLevel)?.commission ?? 0.005) * 100
     : 0.5;
   const estimatedCommission = currentProduct ? currentProduct.price * (commissionRate / 100) : 0;
+  const premiumTriggerTaskNumber = Number(taskRuleConfig?.premiumTriggerTaskNumber ?? rewardsConfig.productSystem.premiumTriggerTaskNumber ?? 10);
+  const premiumTopUpRequired = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
+  const premiumSubmissionBlocked = Boolean(userData?.activePremium) && premiumTopUpRequired > 0;
+  const nextSubmissionNumber = Number(userData?.tasksCompleted ?? 0) + 1;
+  const premiumTriggerIncoming = !premiumSubmissionBlocked
+    && Boolean(taskRuleConfig?.premiumEnabled ?? rewardsConfig.productSystem.premiumEnabled)
+    && nextSubmissionNumber === premiumTriggerTaskNumber;
 
   // Fetch user data on mount
   useEffect(() => {
@@ -120,10 +139,11 @@ export default function Starting() {
     try {
       setLoading(true);
       let data;
-      let tasksPayload: { tasks?: TaskCatalogItem[] } | null = null;
+      let tasksPayload: TaskCatalogResponse | null = null;
       let vipPayload: VipConfig[] = [];
+      let rewardsPayload: RewardsConfig = defaultRewardsConfig;
       try {
-        const [user, tasks, vipConfig] = await Promise.all([
+        const [user, tasks, vipConfig, rewards] = await Promise.all([
           fetchUserByName(username),
           fetch(`${serverUrl}/tasks/catalog`, {
             headers: {
@@ -137,13 +157,15 @@ export default function Starting() {
             return payload;
           }),
           fetchPublicVipConfig(),
+          fetchPublicRewardsConfig(),
         ]);
         data = user;
         tasksPayload = tasks;
         vipPayload = vipConfig;
+        rewardsPayload = rewards;
       } catch {
         // Fallback keeps dashboard usable for newly registered local users.
-        const [user, tasks, vipConfig] = await Promise.all([
+        const [user, tasks, vipConfig, rewards] = await Promise.all([
           fetchUserByName('ugreen'),
           fetch(`${serverUrl}/tasks/catalog`, {
             headers: {
@@ -157,14 +179,18 @@ export default function Starting() {
             return payload;
           }),
           fetchPublicVipConfig(),
+          fetchPublicRewardsConfig(),
         ]);
         data = user;
         tasksPayload = tasks;
         vipPayload = vipConfig;
+        rewardsPayload = rewards;
       }
       setUserData(data);
       setTaskCatalog(Array.isArray(tasksPayload?.tasks) ? tasksPayload.tasks : []);
+      setTaskRuleConfig(tasksPayload?.ruleConfig ?? null);
       setVipConfigurations(vipPayload);
+      setRewardsConfig(rewardsPayload);
     } catch (error) {
       console.error('Error fetching user data:', error);
     } finally {
@@ -174,6 +200,11 @@ export default function Starting() {
 
   const handleSubmitTask = async () => {
     if (!userData || !currentProduct || submitting) return;
+
+    if (premiumSubmissionBlocked) {
+      toast.error(`Premium task requirement pending: -$${premiumTopUpRequired.toFixed(2)} must be topped up before submitting.`);
+      return;
+    }
 
     if (userData.tasksCompleted >= userData.tasksLimit) {
       toast.info('Task set complete. Please contact customer support to request a reset.');
@@ -197,8 +228,11 @@ export default function Starting() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to submit task');
+        const errorPayload = await response.json().catch(() => ({}));
+        if (response.status === 409 && errorPayload?.code === 'premium_task_encountered' && errorPayload?.user) {
+          setUserData(errorPayload.user);
+        }
+        throw new Error(errorPayload?.error || 'Failed to submit task');
       }
 
       const result = await response.json();
@@ -493,8 +527,13 @@ export default function Starting() {
           {/* Info Box */}
           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
             <p className="text-yellow-400 text-xs text-center">
-              💡 5% chance for premium products with 10x commission bonus!
+              💡 Premium rule: task #{premiumTriggerTaskNumber} triggers premium check ({taskRuleConfig?.premiumValueMode ?? rewardsConfig.productSystem.premiumValueMode}).
             </p>
+            {premiumTriggerIncoming && (
+              <p className="text-red-400 text-xs text-center mt-2 font-semibold">
+                Premium trigger incoming on this submission.
+              </p>
+            )}
           </div>
         </div>
 
@@ -522,20 +561,32 @@ export default function Starting() {
             </button>
           </div>
         ) : (
-          <button
-            className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
-            onClick={handleSubmitTask}
-            disabled={submitting || !currentProduct}
-          >
-            {submitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="animate-spin" size={24} />
-                Submitting...
-              </span>
-            ) : (
-              `Starting (${userData?.tasksCompleted || 0} / ${userData?.tasksLimit || 40})`
+          <>
+            {premiumSubmissionBlocked && (
+              <div className="bg-red-500/20 border border-red-400/60 rounded-lg p-4 mb-4">
+                <p className="text-red-300 text-sm font-semibold text-center">Premium requirement</p>
+                <p className="text-red-200 text-xs text-center mt-1">Required amount (negative):</p>
+                <p className="text-red-300 text-3xl font-extrabold text-center mt-1">-${premiumTopUpRequired.toFixed(2)}</p>
+                <p className="text-red-100 text-xs text-center mt-2">Task submission is locked until this amount is covered.</p>
+              </div>
             )}
-          </button>
+            <button
+              className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
+              onClick={handleSubmitTask}
+              disabled={submitting || !currentProduct || premiumSubmissionBlocked}
+            >
+              {submitting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="animate-spin" size={24} />
+                  Submitting...
+                </span>
+              ) : premiumSubmissionBlocked ? (
+                'Top-up Required Before Submit'
+              ) : (
+                `Starting (${userData?.tasksCompleted || 0} / ${userData?.tasksLimit || 40})`
+              )}
+            </button>
+          </>
         )}
 
         {/* Success Notification */}

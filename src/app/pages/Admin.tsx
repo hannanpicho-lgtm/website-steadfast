@@ -642,6 +642,24 @@ export default function Admin() {
     const minTimePerProduct = Number(formData.get('minTimePerProduct'));
     const autoApproveCommission = String(formData.get('commissionApproval') ?? 'auto') === 'auto';
     const requireProductConfirmation = formData.get('requireProductConfirmation') === 'on';
+    const premiumEnabled = formData.get('premiumEnabled') === 'on';
+    const premiumTriggerTaskNumber = Number(formData.get('premiumTriggerTaskNumber'));
+    const premiumBaseValue = Number(formData.get('premiumBaseValue'));
+    const premiumValueMode = String(formData.get('premiumValueMode') ?? 'multiplier') === 'range' ? 'range' : 'multiplier';
+
+    const vipPremiumAdjustments = vipConfigurations.map((tier) => {
+      const vipLevel = tier.level;
+      const multiplierValue = Number(formData.get(`premiumMultiplier_${vipLevel}`));
+      const minValue = Number(formData.get(`premiumMin_${vipLevel}`));
+      const maxValue = Number(formData.get(`premiumMax_${vipLevel}`));
+
+      return {
+        vipLevel,
+        multiplier: multiplierValue,
+        minValue,
+        maxValue,
+      };
+    });
 
     if (!Number.isInteger(productsPerSet) || productsPerSet <= 0) {
       toast.error('Products per set must be a whole number greater than 0.');
@@ -655,6 +673,31 @@ export default function Admin() {
       toast.error('Min time per product must be a whole number greater than 0.');
       return;
     }
+    if (!Number.isInteger(premiumTriggerTaskNumber) || premiumTriggerTaskNumber <= 0) {
+      toast.error('Premium trigger task number must be a whole number greater than 0.');
+      return;
+    }
+    if (!Number.isFinite(premiumBaseValue) || premiumBaseValue < 0) {
+      toast.error('Premium base value must be 0 or greater.');
+      return;
+    }
+
+    const invalidMultiplier = vipPremiumAdjustments.find((entry) => !Number.isFinite(entry.multiplier) || entry.multiplier <= 0);
+    if (invalidMultiplier) {
+      toast.error(`VIP ${invalidMultiplier.vipLevel} multiplier must be greater than 0.`);
+      return;
+    }
+
+    const invalidRange = vipPremiumAdjustments.find((entry) => (
+      !Number.isFinite(entry.minValue)
+      || !Number.isFinite(entry.maxValue)
+      || entry.minValue < 0
+      || entry.maxValue < entry.minValue
+    ));
+    if (invalidRange) {
+      toast.error(`VIP ${invalidRange.vipLevel} premium range is invalid.`);
+      return;
+    }
 
     await persistRewardsConfig({
       productSystem: {
@@ -663,6 +706,11 @@ export default function Admin() {
         minTimePerProduct,
         autoApproveCommission,
         requireProductConfirmation,
+        premiumEnabled,
+        premiumTriggerTaskNumber,
+        premiumBaseValue,
+        premiumValueMode,
+        vipPremiumAdjustments,
       },
     }, 'Product system configuration updated.');
   };
@@ -2513,6 +2561,99 @@ export default function Admin() {
                       <span className="text-white font-medium">Require product submission confirmation</span>
                     </label>
                     <p className="text-gray-500 text-xs mt-1 ml-7">Users must confirm each product submission</p>
+                  </div>
+
+                  <div className="col-span-2 border-t border-gray-700 pt-4 mt-2">
+                    <h4 className="text-white font-semibold mb-3">Premium Task Rule Engine</h4>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Enable Premium Trigger</label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        name="premiumEnabled"
+                        type="checkbox"
+                        defaultChecked={rewardsConfig.productSystem.premiumEnabled ?? true}
+                        className="w-5 h-5 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]"
+                      />
+                      <span className="text-white text-sm">Premium rules active</span>
+                    </label>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Trigger At Submission #</label>
+                    <input
+                      name="premiumTriggerTaskNumber"
+                      type="number"
+                      min={1}
+                      defaultValue={rewardsConfig.productSystem.premiumTriggerTaskNumber ?? 10}
+                      className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+                    />
+                    <p className="text-gray-500 text-xs mt-1">Example: 10 means the 10th submission triggers premium check</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Premium Base Value</label>
+                    <input
+                      name="premiumBaseValue"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      defaultValue={rewardsConfig.productSystem.premiumBaseValue ?? 300}
+                      className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Premium Value Mode</label>
+                    <select
+                      name="premiumValueMode"
+                      defaultValue={rewardsConfig.productSystem.premiumValueMode ?? 'multiplier'}
+                      className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+                    >
+                      <option value="multiplier">Multiplier</option>
+                      <option value="range">Range</option>
+                    </select>
+                    <p className="text-gray-500 text-xs mt-1">Range mode uses min/max per VIP tier. Multiplier mode uses base value x multiplier.</p>
+                  </div>
+
+                  <div className="col-span-2">
+                    <div className="rounded-lg border border-gray-700 overflow-hidden">
+                      <div className="grid grid-cols-4 gap-2 bg-[#1a1f2e] px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                        <span>VIP</span>
+                        <span>Multiplier</span>
+                        <span>Range Min</span>
+                        <span>Range Max</span>
+                      </div>
+                      {vipConfigurations.map((tier) => {
+                        const existing = rewardsConfig.productSystem.vipPremiumAdjustments?.find((entry) => entry.vipLevel === tier.level);
+                        return (
+                          <div key={tier.level} className="grid grid-cols-4 gap-2 px-3 py-3 border-t border-gray-700 bg-[#252b3d]">
+                            <span className="text-white text-sm font-semibold self-center">VIP {tier.level}</span>
+                            <input
+                              name={`premiumMultiplier_${tier.level}`}
+                              type="number"
+                              min={0.1}
+                              step="0.01"
+                              defaultValue={existing?.multiplier ?? 1}
+                              className="w-full px-2 py-1.5 text-sm bg-[#1a1f2e] border border-gray-600 rounded text-white focus:border-[#00D9FF] focus:outline-none"
+                            />
+                            <input
+                              name={`premiumMin_${tier.level}`}
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              defaultValue={existing?.minValue ?? 0}
+                              className="w-full px-2 py-1.5 text-sm bg-[#1a1f2e] border border-gray-600 rounded text-white focus:border-[#00D9FF] focus:outline-none"
+                            />
+                            <input
+                              name={`premiumMax_${tier.level}`}
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              defaultValue={existing?.maxValue ?? 0}
+                              className="w-full px-2 py-1.5 text-sm bg-[#1a1f2e] border border-gray-600 rounded text-white focus:border-[#00D9FF] focus:outline-none"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">

@@ -32,6 +32,16 @@ export type ProductSystemConfig = {
   minTimePerProduct: number;
   autoApproveCommission: boolean;
   requireProductConfirmation: boolean;
+  premiumEnabled: boolean;
+  premiumTriggerTaskNumber: number;
+  premiumBaseValue: number;
+  premiumValueMode: 'multiplier' | 'range';
+  vipPremiumAdjustments: Array<{
+    vipLevel: number;
+    multiplier: number;
+    minValue: number;
+    maxValue: number;
+  }>;
 };
 
 export type RewardsConfig = {
@@ -70,6 +80,17 @@ export const defaultRewardsConfig: RewardsConfig = {
     minTimePerProduct: 30,
     autoApproveCommission: true,
     requireProductConfirmation: true,
+    premiumEnabled: true,
+    premiumTriggerTaskNumber: 10,
+    premiumBaseValue: 300,
+    premiumValueMode: 'multiplier',
+    vipPremiumAdjustments: [
+      { vipLevel: 1, multiplier: 1.1, minValue: 220, maxValue: 420 },
+      { vipLevel: 2, multiplier: 1.2, minValue: 300, maxValue: 620 },
+      { vipLevel: 3, multiplier: 1.35, minValue: 500, maxValue: 1300 },
+      { vipLevel: 4, multiplier: 1.5, minValue: 900, maxValue: 2600 },
+      { vipLevel: 5, multiplier: 1.8, minValue: 1800, maxValue: 5200 },
+    ],
   },
 };
 
