@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { projectId } from '@utils/supabase/info';
+import { handleAdminAuthError } from '../../services/adminAuthError';
 import { 
   MessageSquare, 
   Send, 
@@ -12,6 +14,7 @@ import {
   X
 } from 'lucide-react';
 import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
+import React from 'react';
 
 interface ChatMessage {
   id: string;
@@ -31,6 +34,8 @@ interface ChatSummary {
 }
 
 export default function LiveChatAdmin() {
+  const navigate = useNavigate();
+  const adminAuthRedirectedRef = useRef(false);
   const [chatSummaries, setChatSummaries] = useState<ChatSummary[]>([]);
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -78,13 +83,20 @@ export default function LiveChatAdmin() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch chats');
+        const payload = await response.json().catch(() => ({}));
+        throw new Error((payload as { error?: string }).error || 'Failed to fetch chats');
       }
 
       const data = await response.json();
       setChatSummaries(data);
     } catch (error) {
-      console.error('Error fetching chats:', error);
+      handleAdminAuthError({
+        errorValue: error,
+        fallbackMessage: 'Failed to load chats',
+        navigate,
+        redirectedRef: adminAuthRedirectedRef,
+        suppressToast: true,
+      });
     } finally {
       setLoading(false);
     }
@@ -97,13 +109,20 @@ export default function LiveChatAdmin() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch messages');
+        const payload = await response.json().catch(() => ({}));
+        throw new Error((payload as { error?: string }).error || 'Failed to fetch messages');
       }
 
       const data = await response.json();
       setMessages(data);
     } catch (error) {
-      console.error('Error fetching messages:', error);
+      handleAdminAuthError({
+        errorValue: error,
+        fallbackMessage: 'Failed to load messages',
+        navigate,
+        redirectedRef: adminAuthRedirectedRef,
+        suppressToast: true,
+      });
     }
   };
 
@@ -118,11 +137,20 @@ export default function LiveChatAdmin() {
         }),
       });
 
-      if (response.ok) {
-        await fetchChats();
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error((payload as { error?: string }).error || 'Failed to mark messages as read');
       }
+
+      await fetchChats();
     } catch (error) {
-      console.error('Error marking chat messages as read:', error);
+      handleAdminAuthError({
+        errorValue: error,
+        fallbackMessage: 'Failed to mark messages as read',
+        navigate,
+        redirectedRef: adminAuthRedirectedRef,
+        suppressToast: true,
+      });
     }
   };
 
@@ -151,8 +179,12 @@ export default function LiveChatAdmin() {
       await fetchMessages(selectedChat);
       await fetchChats();
     } catch (error) {
-      console.error('Error sending message:', error);
-      toast.error('Failed to send message.');
+      handleAdminAuthError({
+        errorValue: error,
+        fallbackMessage: 'Failed to send message.',
+        navigate,
+        redirectedRef: adminAuthRedirectedRef,
+      });
     } finally {
       setSending(false);
     }
