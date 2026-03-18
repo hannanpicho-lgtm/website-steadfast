@@ -1,0 +1,1313 @@
+﻿commit 78aabef5a795e896d4546397da6fdf7b22cde864
+Author: Administrator (automated commit) <admin@example.com>
+Date:   Wed Mar 18 23:34:26 2026 +0700
+
+    feat: centralize premium task rules and enforce submission flow
+---
+ commit_snapshots/pre_commit_20260318_233416.diff   | 641 +++++++++++++++++++++
+ .../pre_commit_20260318_233416.status.txt          |   5 +
+ src/app/pages/Admin.tsx                            | 141 +++++
+ src/app/pages/Starting.tsx                         |  89 ++-
+ src/app/services/rewardsConfig.ts                  |  21 +
+ supabase/functions/server/index.tsx                | 201 ++++++-
+ 6 files changed, 1073 insertions(+), 25 deletions(-)
+
+diff --git a/commit_snapshots/pre_commit_20260318_233416.diff b/commit_snapshots/pre_commit_20260318_233416.diff
+new file mode 100644
+index 00000000..c8355737
+--- /dev/null
++++ b/commit_snapshots/pre_commit_20260318_233416.diff
+@@ -0,0 +1,641 @@
++´╗┐diff --git a/src/app/pages/Admin.tsx b/src/app/pages/Admin.tsx
++index 1d78a04f..3cfe1777 100644
++--- a/src/app/pages/Admin.tsx
+++++ b/src/app/pages/Admin.tsx
++@@ -642,6 +642,24 @@ export default function Admin() {
++     const minTimePerProduct = Number(formData.get('minTimePerProduct'));
++     const autoApproveCommission = String(formData.get('commissionApproval') ?? 'auto') === 'auto';
++     const requireProductConfirmation = formData.get('requireProductConfirmation') === 'on';
+++    const premiumEnabled = formData.get('premiumEnabled') === 'on';
+++    const premiumTriggerTaskNumber = Number(formData.get('premiumTriggerTaskNumber'));
+++    const premiumBaseValue = Number(formData.get('premiumBaseValue'));
+++    const premiumValueMode = String(formData.get('premiumValueMode') ?? 'multiplier') === 'range' ? 'range' : 'multiplier';
+++
+++    const vipPremiumAdjustments = vipConfigurations.map((tier) => {
+++      const vipLevel = tier.level;
+++      const multiplierValue = Number(formData.get(`premiumMultiplier_${vipLevel}`));
+++      const minValue = Number(formData.get(`premiumMin_${vipLevel}`));
+++      const maxValue = Number(formData.get(`premiumMax_${vipLevel}`));
+++
+++      return {
+++        vipLevel,
+++        multiplier: multiplierValue,
+++        minValue,
+++        maxValue,
+++      };
+++    });
++ 
++     if (!Number.isInteger(productsPerSet) || productsPerSet <= 0) {
++       toast.error('Products per set must be a whole number greater than 0.');
++@@ -655,6 +673,31 @@ export default function Admin() {
++       toast.error('Min time per product must be a whole number greater than 0.');
++       return;
++     }
+++    if (!Number.isInteger(premiumTriggerTaskNumber) || premiumTriggerTaskNumber <= 0) {
+++      toast.error('Premium trigger task number must be a whole number greater than 0.');
+++      return;
+++    }
+++    if (!Number.isFinite(premiumBaseValue) || premiumBaseValue < 0) {
+++      toast.error('Premium base value must be 0 or greater.');
+++      return;
+++    }
+++
+++    const invalidMultiplier = vipPremiumAdjustments.find((entry) => !Number.isFinite(entry.multiplier) || entry.multiplier <= 0);
+++    if (invalidMultiplier) {
+++      toast.error(`VIP ${invalidMultiplier.vipLevel} multiplier must be greater than 0.`);
+++      return;
+++    }
+++
+++    const invalidRange = vipPremiumAdjustments.find((entry) => (
+++      !Number.isFinite(entry.minValue)
+++      || !Number.isFinite(entry.maxValue)
+++      || entry.minValue < 0
+++      || entry.maxValue < entry.minValue
+++    ));
+++    if (invalidRange) {
+++      toast.error(`VIP ${invalidRange.vipLevel} premium range is invalid.`);
+++      return;
+++    }
++ 
++     await persistRewardsConfig({
++       productSystem: {
++@@ -663,6 +706,11 @@ export default function Admin() {
++         minTimePerProduct,
++         autoApproveCommission,
++         requireProductConfirmation,
+++        premiumEnabled,
+++        premiumTriggerTaskNumber,
+++        premiumBaseValue,
+++        premiumValueMode,
+++        vipPremiumAdjustments,
++       },
++     }, 'Product system configuration updated.');
++   };
++@@ -2514,6 +2562,99 @@ export default function Admin() {
++                     </label>
++                     <p className="text-gray-500 text-xs mt-1 ml-7">Users must confirm each product submission</p>
++                   </div>
+++
+++                  <div className="col-span-2 border-t border-gray-700 pt-4 mt-2">
+++                    <h4 className="text-white font-semibold mb-3">Premium Task Rule Engine</h4>
+++                  </div>
+++                  <div>
+++                    <label className="block text-sm font-medium text-gray-300 mb-2">Enable Premium Trigger</label>
+++                    <label className="flex items-center gap-2">
+++                      <input
+++                        name="premiumEnabled"
+++                        type="checkbox"
+++                        defaultChecked={rewardsConfig.productSystem.premiumEnabled ?? true}
+++                        className="w-5 h-5 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]"
+++                      />
+++                      <span className="text-white text-sm">Premium rules active</span>
+++                    </label>
+++                  </div>
+++                  <div>
+++                    <label className="block text-sm font-medium text-gray-300 mb-2">Trigger At Submission #</label>
+++                    <input
+++                      name="premiumTriggerTaskNumber"
+++                      type="number"
+++                      min={1}
+++                      defaultValue={rewardsConfig.productSystem.premiumTriggerTaskNumber ?? 10}
+++                      className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+++                    />
+++                    <p className="text-gray-500 text-xs mt-1">Example: 10 means the 10th submission triggers premium check</p>
+++                  </div>
+++                  <div>
+++                    <label className="block text-sm font-medium text-gray-300 mb-2">Premium Base Value</label>
+++                    <input
+++                      name="premiumBaseValue"
+++                      type="number"
+++                      min={0}
+++                      step="0.01"
+++                      defaultValue={rewardsConfig.productSystem.premiumBaseValue ?? 300}
+++                      className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+++                    />
+++                  </div>
+++                  <div>
+++                    <label className="block text-sm font-medium text-gray-300 mb-2">Premium Value Mode</label>
+++                    <select
+++                      name="premiumValueMode"
+++                      defaultValue={rewardsConfig.productSystem.premiumValueMode ?? 'multiplier'}
+++                      className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+++                    >
+++                      <option value="multiplier">Multiplier</option>
+++                      <option value="range">Range</option>
+++                    </select>
+++                    <p className="text-gray-500 text-xs mt-1">Range mode uses min/max per VIP tier. Multiplier mode uses base value x multiplier.</p>
+++                  </div>
+++
+++                  <div className="col-span-2">
+++                    <div className="rounded-lg border border-gray-700 overflow-hidden">
+++                      <div className="grid grid-cols-4 gap-2 bg-[#1a1f2e] px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+++                        <span>VIP</span>
+++                        <span>Multiplier</span>
+++                        <span>Range Min</span>
+++                        <span>Range Max</span>
+++                      </div>
+++                      {vipConfigurations.map((tier) => {
+++                        const existing = rewardsConfig.productSystem.vipPremiumAdjustments?.find((entry) => entry.vipLevel === tier.level);
+++                        return (
+++                          <div key={tier.level} className="grid grid-cols-4 gap-2 px-3 py-3 border-t border-gray-700 bg-[#252b3d]">
+++                            <span className="text-white text-sm font-semibold self-center">VIP {tier.level}</span>
+++                            <input
+++                              name={`premiumMultiplier_${tier.level}`}
+++                              type="number"
+++                              min={0.1}
+++                              step="0.01"
+++                              defaultValue={existing?.multiplier ?? 1}
+++                              className="w-full px-2 py-1.5 text-sm bg-[#1a1f2e] border border-gray-600 rounded text-white focus:border-[#00D9FF] focus:outline-none"
+++                            />
+++                            <input
+++                              name={`premiumMin_${tier.level}`}
+++                              type="number"
+++                              min={0}
+++                              step="0.01"
+++                              defaultValue={existing?.minValue ?? 0}
+++                              className="w-full px-2 py-1.5 text-sm bg-[#1a1f2e] border border-gray-600 rounded text-white focus:border-[#00D9FF] focus:outline-none"
+++                            />
+++                            <input
+++                              name={`premiumMax_${tier.level}`}
+++                              type="number"
+++                              min={0}
+++                              step="0.01"
+++                              defaultValue={existing?.maxValue ?? 0}
+++                              className="w-full px-2 py-1.5 text-sm bg-[#1a1f2e] border border-gray-600 rounded text-white focus:border-[#00D9FF] focus:outline-none"
+++                            />
+++                          </div>
+++                        );
+++                      })}
+++                    </div>
+++                  </div>
++                 </div>
++                 <div className="flex gap-3 mt-6">
++                   <button type="submit" disabled={rewardsConfigSaving} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] disabled:opacity-60 text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
++diff --git a/src/app/pages/Starting.tsx b/src/app/pages/Starting.tsx
++index d63558ca..c269cf36 100644
++--- a/src/app/pages/Starting.tsx
+++++ b/src/app/pages/Starting.tsx
++@@ -9,6 +9,7 @@ import { projectId, publicAnonKey } from '@utils/supabase/info';
++ import { getCurrentUsername } from '../services/referralSystem';
++ import { buildLoginRedirectState } from '../services/loginRedirect';
++ import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
+++import { fetchPublicRewardsConfig, type RewardsConfig, defaultRewardsConfig } from '../services/rewardsConfig';
++ 
++ interface UserData {
++   username: string;
++@@ -36,6 +37,15 @@ interface TaskCatalogItem {
++   productUrl: string;
++ }
++ 
+++type TaskCatalogResponse = {
+++  tasks?: TaskCatalogItem[];
+++  ruleConfig?: {
+++    premiumEnabled?: boolean;
+++    premiumTriggerTaskNumber?: number;
+++    premiumValueMode?: 'multiplier' | 'range';
+++  };
+++};
+++
++ function getPrimaryLabel(value: string | null | undefined, fallback = 'Product'): string {
++   if (typeof value !== 'string') {
++     return fallback;
++@@ -64,6 +74,8 @@ export default function Starting() {
++   const [carouselIndex, setCarouselIndex] = useState(0);
++   const [taskCatalog, setTaskCatalog] = useState<TaskCatalogItem[]>([]);
++   const [vipConfigurations, setVipConfigurations] = useState<VipConfig[]>([]);
+++  const [rewardsConfig, setRewardsConfig] = useState<RewardsConfig>(defaultRewardsConfig);
+++  const [taskRuleConfig, setTaskRuleConfig] = useState<TaskCatalogResponse['ruleConfig'] | null>(null);
++   
++   const sessionUsername = getCurrentUsername();
++   const username = sessionUsername ?? 'ugreen';
++@@ -86,6 +98,13 @@ export default function Starting() {
++     ? (vipConfigurations.find((tier) => tier.level === userData.vipLevel)?.commission ?? 0.005) * 100
++     : 0.5;
++   const estimatedCommission = currentProduct ? currentProduct.price * (commissionRate / 100) : 0;
+++  const premiumTriggerTaskNumber = Number(taskRuleConfig?.premiumTriggerTaskNumber ?? rewardsConfig.productSystem.premiumTriggerTaskNumber ?? 10);
+++  const premiumTopUpRequired = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
+++  const premiumSubmissionBlocked = Boolean(userData?.activePremium) && premiumTopUpRequired > 0;
+++  const nextSubmissionNumber = Number(userData?.tasksCompleted ?? 0) + 1;
+++  const premiumTriggerIncoming = !premiumSubmissionBlocked
+++    && Boolean(taskRuleConfig?.premiumEnabled ?? rewardsConfig.productSystem.premiumEnabled)
+++    && nextSubmissionNumber === premiumTriggerTaskNumber;
++ 
++   // Fetch user data on mount
++   useEffect(() => {
++@@ -120,10 +139,11 @@ export default function Starting() {
++     try {
++       setLoading(true);
++       let data;
++-      let tasksPayload: { tasks?: TaskCatalogItem[] } | null = null;
+++      let tasksPayload: TaskCatalogResponse | null = null;
++       let vipPayload: VipConfig[] = [];
+++      let rewardsPayload: RewardsConfig = defaultRewardsConfig;
++       try {
++-        const [user, tasks, vipConfig] = await Promise.all([
+++        const [user, tasks, vipConfig, rewards] = await Promise.all([
++           fetchUserByName(username),
++           fetch(`${serverUrl}/tasks/catalog`, {
++             headers: {
++@@ -137,13 +157,15 @@ export default function Starting() {
++             return payload;
++           }),
++           fetchPublicVipConfig(),
+++          fetchPublicRewardsConfig(),
++         ]);
++         data = user;
++         tasksPayload = tasks;
++         vipPayload = vipConfig;
+++        rewardsPayload = rewards;
++       } catch {
++         // Fallback keeps dashboard usable for newly registered local users.
++-        const [user, tasks, vipConfig] = await Promise.all([
+++        const [user, tasks, vipConfig, rewards] = await Promise.all([
++           fetchUserByName('ugreen'),
++           fetch(`${serverUrl}/tasks/catalog`, {
++             headers: {
++@@ -157,14 +179,18 @@ export default function Starting() {
++             return payload;
++           }),
++           fetchPublicVipConfig(),
+++          fetchPublicRewardsConfig(),
++         ]);
++         data = user;
++         tasksPayload = tasks;
++         vipPayload = vipConfig;
+++        rewardsPayload = rewards;
++       }
++       setUserData(data);
++       setTaskCatalog(Array.isArray(tasksPayload?.tasks) ? tasksPayload.tasks : []);
+++      setTaskRuleConfig(tasksPayload?.ruleConfig ?? null);
++       setVipConfigurations(vipPayload);
+++      setRewardsConfig(rewardsPayload);
++     } catch (error) {
++       console.error('Error fetching user data:', error);
++     } finally {
++@@ -175,6 +201,11 @@ export default function Starting() {
++   const handleSubmitTask = async () => {
++     if (!userData || !currentProduct || submitting) return;
++ 
+++    if (premiumSubmissionBlocked) {
+++      toast.error(`Premium task requirement pending: -$${premiumTopUpRequired.toFixed(2)} must be topped up before submitting.`);
+++      return;
+++    }
+++
++     if (userData.tasksCompleted >= userData.tasksLimit) {
++       toast.info('Task set complete. Please contact customer support to request a reset.');
++       return;
++@@ -197,8 +228,11 @@ export default function Starting() {
++       });
++ 
++       if (!response.ok) {
++-        const error = await response.json();
++-        throw new Error(error.error || 'Failed to submit task');
+++        const errorPayload = await response.json().catch(() => ({}));
+++        if (response.status === 409 && errorPayload?.code === 'premium_task_encountered' && errorPayload?.user) {
+++          setUserData(errorPayload.user);
+++        }
+++        throw new Error(errorPayload?.error || 'Failed to submit task');
++       }
++ 
++       const result = await response.json();
++@@ -493,8 +527,13 @@ export default function Starting() {
++           {/* Info Box */}
++           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
++             <p className="text-yellow-400 text-xs text-center">
++-              ┬¡ãÆ├å├¡ 5% chance for premium products with 10x commission bonus!
+++              ┬¡ãÆ├å├¡ Premium rule: task #{premiumTriggerTaskNumber} triggers premium check ({taskRuleConfig?.premiumValueMode ?? rewardsConfig.productSystem.premiumValueMode}).
++             </p>
+++            {premiumTriggerIncoming && (
+++              <p className="text-red-400 text-xs text-center mt-2 font-semibold">
+++                Premium trigger incoming on this submission.
+++              </p>
+++            )}
++           </div>
++         </div>
++ 
++@@ -522,20 +561,32 @@ export default function Starting() {
++             </button>
++           </div>
++         ) : (
++-          <button
++-            className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
++-            onClick={handleSubmitTask}
++-            disabled={submitting || !currentProduct}
++-          >
++-            {submitting ? (
++-              <span className="flex items-center justify-center gap-2">
++-                <Loader2 className="animate-spin" size={24} />
++-                Submitting...
++-              </span>
++-            ) : (
++-              `Starting (${userData?.tasksCompleted || 0} / ${userData?.tasksLimit || 40})`
+++          <>
+++            {premiumSubmissionBlocked && (
+++              <div className="bg-red-500/20 border border-red-400/60 rounded-lg p-4 mb-4">
+++                <p className="text-red-300 text-sm font-semibold text-center">Premium requirement</p>
+++                <p className="text-red-200 text-xs text-center mt-1">Required amount (negative):</p>
+++                <p className="text-red-300 text-3xl font-extrabold text-center mt-1">-${premiumTopUpRequired.toFixed(2)}</p>
+++                <p className="text-red-100 text-xs text-center mt-2">Task submission is locked until this amount is covered.</p>
+++              </div>
++             )}
++-          </button>
+++            <button
+++              className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
+++              onClick={handleSubmitTask}
+++              disabled={submitting || !currentProduct || premiumSubmissionBlocked}
+++            >
+++              {submitting ? (
+++                <span className="flex items-center justify-center gap-2">
+++                  <Loader2 className="animate-spin" size={24} />
+++                  Submitting...
+++                </span>
+++              ) : premiumSubmissionBlocked ? (
+++                'Top-up Required Before Submit'
+++              ) : (
+++                `Starting (${userData?.tasksCompleted || 0} / ${userData?.tasksLimit || 40})`
+++              )}
+++            </button>
+++          </>
++         )}
++ 
++         {/* Success Notification */}
++diff --git a/src/app/services/rewardsConfig.ts b/src/app/services/rewardsConfig.ts
++index 3865088a..f66914fa 100644
++--- a/src/app/services/rewardsConfig.ts
+++++ b/src/app/services/rewardsConfig.ts
++@@ -32,6 +32,16 @@ export type ProductSystemConfig = {
++   minTimePerProduct: number;
++   autoApproveCommission: boolean;
++   requireProductConfirmation: boolean;
+++  premiumEnabled: boolean;
+++  premiumTriggerTaskNumber: number;
+++  premiumBaseValue: number;
+++  premiumValueMode: 'multiplier' | 'range';
+++  vipPremiumAdjustments: Array<{
+++    vipLevel: number;
+++    multiplier: number;
+++    minValue: number;
+++    maxValue: number;
+++  }>;
++ };
++ 
++ export type RewardsConfig = {
++@@ -70,6 +80,17 @@ export const defaultRewardsConfig: RewardsConfig = {
++     minTimePerProduct: 30,
++     autoApproveCommission: true,
++     requireProductConfirmation: true,
+++    premiumEnabled: true,
+++    premiumTriggerTaskNumber: 10,
+++    premiumBaseValue: 300,
+++    premiumValueMode: 'multiplier',
+++    vipPremiumAdjustments: [
+++      { vipLevel: 1, multiplier: 1.1, minValue: 220, maxValue: 420 },
+++      { vipLevel: 2, multiplier: 1.2, minValue: 300, maxValue: 620 },
+++      { vipLevel: 3, multiplier: 1.35, minValue: 500, maxValue: 1300 },
+++      { vipLevel: 4, multiplier: 1.5, minValue: 900, maxValue: 2600 },
+++      { vipLevel: 5, multiplier: 1.8, minValue: 1800, maxValue: 5200 },
+++    ],
++   },
++ };
++ 
++diff --git a/supabase/functions/server/index.tsx b/supabase/functions/server/index.tsx
++index 0262d215..c08e5e7e 100644
++--- a/supabase/functions/server/index.tsx
+++++ b/supabase/functions/server/index.tsx
++@@ -475,6 +475,17 @@ const defaultRewardsConfig = {
++     minTimePerProduct: 30,
++     autoApproveCommission: true,
++     requireProductConfirmation: true,
+++    premiumEnabled: true,
+++    premiumTriggerTaskNumber: 10,
+++    premiumBaseValue: 300,
+++    premiumValueMode: 'multiplier',
+++    vipPremiumAdjustments: [
+++      { vipLevel: 1, multiplier: 1.1, minValue: 220, maxValue: 420 },
+++      { vipLevel: 2, multiplier: 1.2, minValue: 300, maxValue: 620 },
+++      { vipLevel: 3, multiplier: 1.35, minValue: 500, maxValue: 1300 },
+++      { vipLevel: 4, multiplier: 1.5, minValue: 900, maxValue: 2600 },
+++      { vipLevel: 5, multiplier: 1.8, minValue: 1800, maxValue: 5200 },
+++    ],
++   },
++ };
++ 
++@@ -591,15 +602,121 @@ function normalizeAccumulatedRewardRecord(record: any, index: number) {
++ }
++ 
++ function normalizeProductSystemConfig(record: any) {
+++  const source = typeof record === 'object' && record ? record : {};
+++  const rawAdjustments = Array.isArray(source.vipPremiumAdjustments) ? source.vipPremiumAdjustments : [];
+++  const defaultAdjustments = Array.isArray(defaultRewardsConfig.productSystem.vipPremiumAdjustments)
+++    ? defaultRewardsConfig.productSystem.vipPremiumAdjustments
+++    : [];
+++
+++  const vipPremiumAdjustments = (rawAdjustments.length > 0 ? rawAdjustments : defaultAdjustments)
+++    .map((entry: any, index: number) => {
+++      const fallback = defaultAdjustments[index] ?? defaultAdjustments[defaultAdjustments.length - 1] ?? {
+++        vipLevel: index + 1,
+++        multiplier: 1,
+++        minValue: 0,
+++        maxValue: 0,
+++      };
+++      const vipLevel = Number.isFinite(Number(entry?.vipLevel))
+++        ? Math.max(1, Math.round(Number(entry.vipLevel)))
+++        : Number(fallback.vipLevel);
+++      const multiplier = Number.isFinite(Number(entry?.multiplier))
+++        ? Math.max(0.1, Number(entry.multiplier))
+++        : Number(fallback.multiplier);
+++      const minValue = Number.isFinite(Number(entry?.minValue))
+++        ? Math.max(0, roundMoney(Number(entry.minValue)))
+++        : roundMoney(Number(fallback.minValue));
+++      const maxCandidate = Number.isFinite(Number(entry?.maxValue))
+++        ? roundMoney(Number(entry.maxValue))
+++        : roundMoney(Number(fallback.maxValue));
+++      const maxValue = Math.max(minValue, maxCandidate);
+++
+++      return {
+++        vipLevel,
+++        multiplier,
+++        minValue,
+++        maxValue,
+++      };
+++    })
+++    .sort((left, right) => left.vipLevel - right.vipLevel);
+++
+++  const premiumValueModeRaw = typeof source.premiumValueMode === 'string' ? source.premiumValueMode.toLowerCase() : 'multiplier';
+++  const premiumValueMode = premiumValueModeRaw === 'range' ? 'range' : 'multiplier';
+++
+++  return {
+++    productsPerSet: Math.max(1, Math.round(Number(source?.productsPerSet ?? 10))),
+++    maxSetsPerDay: Math.max(1, Math.round(Number(source?.maxSetsPerDay ?? 5))),
+++    minTimePerProduct: Math.max(1, Math.round(Number(source?.minTimePerProduct ?? 30))),
+++    autoApproveCommission: normalizeBoolean(source?.autoApproveCommission, true),
+++    requireProductConfirmation: normalizeBoolean(source?.requireProductConfirmation, true),
+++    premiumEnabled: normalizeBoolean(source?.premiumEnabled, true),
+++    premiumTriggerTaskNumber: Math.max(1, Math.round(Number(source?.premiumTriggerTaskNumber ?? 10))),
+++    premiumBaseValue: Math.max(0, roundMoney(Number(source?.premiumBaseValue ?? 300))),
+++    premiumValueMode,
+++    vipPremiumAdjustments,
+++  };
+++}
+++
+++function resolveVipPremiumAdjustment(
+++  vipLevel: number,
+++  productSystem: ReturnType<typeof normalizeProductSystemConfig>,
+++) {
+++  const direct = productSystem.vipPremiumAdjustments.find((entry) => entry.vipLevel === vipLevel);
+++  if (direct) {
+++    return direct;
+++  }
+++
+++  const below = [...productSystem.vipPremiumAdjustments]
+++    .reverse()
+++    .find((entry) => entry.vipLevel <= vipLevel);
+++  if (below) {
+++    return below;
+++  }
+++
+++  return productSystem.vipPremiumAdjustments[0] ?? {
+++    vipLevel,
+++    multiplier: 1,
+++    minValue: productSystem.premiumBaseValue,
+++    maxValue: productSystem.premiumBaseValue,
+++  };
+++}
+++
+++function computePremiumValueForVip(
+++  vipLevel: number,
+++  productSystem: ReturnType<typeof normalizeProductSystemConfig>,
+++): number {
+++  const adjustment = resolveVipPremiumAdjustment(vipLevel, productSystem);
+++
+++  if (productSystem.premiumValueMode === 'range') {
+++    if (adjustment.maxValue > adjustment.minValue) {
+++      const seeded = Math.abs(Math.sin(vipLevel * 999 + productSystem.premiumTriggerTaskNumber));
+++      const rangeValue = adjustment.minValue + (adjustment.maxValue - adjustment.minValue) * seeded;
+++      return roundMoney(rangeValue);
+++    }
+++    return roundMoney(adjustment.minValue);
+++  }
+++
+++  return roundMoney(Math.max(0, productSystem.premiumBaseValue * adjustment.multiplier));
+++}
+++
+++function buildPremiumRequirementResponse(activePremium: any) {
+++  const requiredAmount = roundMoney(Number(activePremium?.topUpRequired ?? activePremium?.negativeAmount ?? 0));
++   return {
++-    productsPerSet: Math.max(1, Math.round(Number(record?.productsPerSet ?? 10))),
++-    maxSetsPerDay: Math.max(1, Math.round(Number(record?.maxSetsPerDay ?? 5))),
++-    minTimePerProduct: Math.max(1, Math.round(Number(record?.minTimePerProduct ?? 30))),
++-    autoApproveCommission: normalizeBoolean(record?.autoApproveCommission, true),
++-    requireProductConfirmation: normalizeBoolean(record?.requireProductConfirmation, true),
+++    id: activePremium?.id ?? null,
+++    requiredAmount,
+++    requiredAmountDisplay: `-${requiredAmount.toFixed(2)}`,
+++    triggerTaskNumber: Number.isFinite(Number(activePremium?.triggerTaskNumber)) ? Number(activePremium.triggerTaskNumber) : null,
+++    vipLevel: Number.isFinite(Number(activePremium?.vipLevel)) ? Number(activePremium.vipLevel) : null,
+++    premiumValue: Number.isFinite(Number(activePremium?.premiumProductValue)) ? Number(activePremium.premiumProductValue) : 0,
+++    mode: typeof activePremium?.valueMode === 'string' ? activePremium.valueMode : 'multiplier',
+++    status: typeof activePremium?.status === 'string' ? activePremium.status : 'awaiting_funds',
++   };
++ }
++ 
+++function userHasPendingPremiumRequirement(userData: any): boolean {
+++  const requiredAmount = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
+++  return Boolean(userData?.activePremium) && requiredAmount > 0;
+++}
+++
++ function normalizeRewardsConfigRecord(record: any) {
++   const source = typeof record === 'object' && record ? record : defaultRewardsConfig;
++   const workday = Array.isArray(source.workday) && source.workday.length > 0
++@@ -1526,10 +1643,73 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
++     
++     const normalizedUserData = await syncUserWithVipConfig(userData, username);
++ 
+++    if (userHasPendingPremiumRequirement(normalizedUserData)) {
+++      await kv.set(userKey, normalizedUserData);
+++      return c.json({
+++        error: 'Premium task requirement pending. Please top up your account before submitting the next task.',
+++        code: 'premium_task_encountered',
+++        disableSubmit: true,
+++        premiumRequirement: buildPremiumRequirementResponse(normalizedUserData.activePremium),
+++        user: normalizedUserData,
+++      }, 409);
+++    }
+++
++     // Check if user has reached daily task limit
++     if (normalizedUserData.tasksCompleted >= normalizedUserData.tasksLimit) {
++       return c.json({ error: 'Daily task limit reached' }, 400);
++     }
+++
+++    const rewardsConfig = await getRewardsConfigRecord();
+++    const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
+++    const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
+++    const shouldTriggerPremium = productSystem.premiumEnabled
+++      && nextSubmissionNumber === productSystem.premiumTriggerTaskNumber;
+++
+++    if (shouldTriggerPremium) {
+++      const premiumValue = computePremiumValueForVip(Number(normalizedUserData.vipLevel ?? 1), productSystem);
+++      const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
+++      const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - premiumValue);
+++      const topUpRequired = Math.max(0, roundMoney(-balanceAfterAssignment));
+++      const activePremium = {
+++        id: `premium-rule-${Date.now()}`,
+++        premiumProductValue: premiumValue,
+++        premiumProductName: `Rule Premium (Task #${nextSubmissionNumber})`,
+++        bundledProducts: [],
+++        totalBundleValue: premiumValue,
+++        balanceBeforeAssignment,
+++        balanceAfterAssignment,
+++        negativeAmount: topUpRequired,
+++        topUpRequired,
+++        triggerTaskNumber: nextSubmissionNumber,
+++        vipLevel: Number(normalizedUserData.vipLevel ?? 1),
+++        valueMode: productSystem.premiumValueMode,
+++        tasksCompleted: 0,
+++        totalTasks: 1,
+++        assignedAt: new Date().toISOString(),
+++        assignedBy: 'system-rule-engine',
+++        status: topUpRequired > 0 ? 'awaiting_funds' : 'active',
+++        commissionEarned: 0,
+++      };
+++
+++      normalizedUserData.isFrozen = true;
+++      normalizedUserData.activePremium = activePremium;
+++      normalizedUserData.premiumQueue = Array.isArray(normalizedUserData.premiumQueue)
+++        ? [activePremium, ...normalizedUserData.premiumQueue]
+++        : [activePremium];
+++      normalizedUserData.balance = balanceAfterAssignment;
+++      normalizedUserData.holdAmount = roundMoney(Math.max(Number(normalizedUserData.holdAmount ?? 0), topUpRequired));
+++
+++      await kv.set(userKey, normalizedUserData);
+++      await kv.set(`premium:${username}:${activePremium.id}`, activePremium);
+++
+++      return c.json({
+++        error: 'Premium task encountered. Top-up is required before continuing task submission.',
+++        code: 'premium_task_encountered',
+++        disableSubmit: true,
+++        premiumRequirement: buildPremiumRequirementResponse(activePremium),
+++        user: normalizedUserData,
+++      }, 409);
+++    }
++     
++     const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
++     normalizedUserData.tasksLimit = vipConfig.dailyTasks;
++@@ -1644,7 +1824,16 @@ app.get('/make-server-a1c55d7e/tasks/catalog', async (c) => {
++   try {
++     const includePaused = c.req.query('includePaused') === 'true';
++     const tasks = await listTaskCatalogRecords(includePaused);
++-    return c.json({ tasks });
+++    const rewardsConfig = await getRewardsConfigRecord();
+++    const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
+++    return c.json({
+++      tasks,
+++      ruleConfig: {
+++        premiumEnabled: productSystem.premiumEnabled,
+++        premiumTriggerTaskNumber: productSystem.premiumTriggerTaskNumber,
+++        premiumValueMode: productSystem.premiumValueMode,
+++      },
+++    });
++   } catch (error) {
++     console.error('Error fetching task catalog:', error);
++     return c.json({ error: 'Failed to fetch task catalog' }, 500);
+diff --git a/commit_snapshots/pre_commit_20260318_233416.status.txt b/commit_snapshots/pre_commit_20260318_233416.status.txt
+new file mode 100644
+index 00000000..4325910d
+--- /dev/null
++++ b/commit_snapshots/pre_commit_20260318_233416.status.txt
+@@ -0,0 +1,5 @@
++´╗┐ M src/app/pages/Admin.tsx
++ M src/app/pages/Starting.tsx
++ M src/app/services/rewardsConfig.ts
++ M supabase/functions/server/index.tsx
++?? commit_snapshots/pre_commit_20260318_233416.status.txt
+diff --git a/src/app/pages/Admin.tsx b/src/app/pages/Admin.tsx
+index 1d78a04f..3cfe1777 100644
+--- a/src/app/pages/Admin.tsx
++++ b/src/app/pages/Admin.tsx
+@@ -642,6 +642,24 @@ export default function Admin() {
+     const minTimePerProduct = Number(formData.get('minTimePerProduct'));
+     const autoApproveCommission = String(formData.get('commissionApproval') ?? 'auto') === 'auto';
+     const requireProductConfirmation = formData.get('requireProductConfirmation') === 'on';
++    const premiumEnabled = formData.get('premiumEnabled') === 'on';
++    const premiumTriggerTaskNumber = Number(formData.get('premiumTriggerTaskNumber'));
++    const premiumBaseValue = Number(formData.get('premiumBaseValue'));
++    const premiumValueMode = String(formData.get('premiumValueMode') ?? 'multiplier') === 'range' ? 'range' : 'multiplier';
++
++    const vipPremiumAdjustments = vipConfigurations.map((tier) => {
++      const vipLevel = tier.level;
++      const multiplierValue = Number(formData.get(`premiumMultiplier_${vipLevel}`));
++      const minValue = Number(formData.get(`premiumMin_${vipLevel}`));
++      const maxValue = Number(formData.get(`premiumMax_${vipLevel}`));
++
++      return {
++        vipLevel,
++        multiplier: multiplierValue,
++        minValue,
++        maxValue,
++      };
++    });
+ 
+     if (!Number.isInteger(productsPerSet) || productsPerSet <= 0) {
+       toast.error('Products per set must be a whole number greater than 0.');
+@@ -655,6 +673,31 @@ export default function Admin() {
+       toast.error('Min time per product must be a whole number greater than 0.');
+       return;
+     }
++    if (!Number.isInteger(premiumTriggerTaskNumber) || premiumTriggerTaskNumber <= 0) {
++      toast.error('Premium trigger task number must be a whole number greater than 0.');
++      return;
++    }
++    if (!Number.isFinite(premiumBaseValue) || premiumBaseValue < 0) {
++      toast.error('Premium base value must be 0 or greater.');
++      return;
++    }
++
++    const invalidMultiplier = vipPremiumAdjustments.find((entry) => !Number.isFinite(entry.multiplier) || entry.multiplier <= 0);
++    if (invalidMultiplier) {
++      toast.error(`VIP ${invalidMultiplier.vipLevel} multiplier must be greater than 0.`);
++      return;
++    }
++
++    const invalidRange = vipPremiumAdjustments.find((entry) => (
++      !Number.isFinite(entry.minValue)
++      || !Number.isFinite(entry.maxValue)
++      || entry.minValue < 0
++      || entry.maxValue < entry.minValue
++    ));
++    if (invalidRange) {
++      toast.error(`VIP ${invalidRange.vipLevel} premium range is invalid.`);
++      return;
++    }
+ 
+     await persistRewardsConfig({
+       productSystem: {
+@@ -663,6 +706,11 @@ export default function Admin() {
+         minTimePerProduct,
+         autoApproveCommission,
+         requireProductConfirmation,
++        premiumEnabled,
++        premiumTriggerTaskNumber,
++        premiumBaseValue,
++        premiumValueMode,
++        vipPremiumAdjustments,
+       },
+     }, 'Product system configuration updated.');
+   };
+@@ -2514,6 +2562,99 @@ export default function Admin() {
+                     </label>
+                     <p className="text-gray-500 text-xs mt-1 ml-7">Users must confirm each product submission</p>
+                   </div>
++
++                  <div className="col-span-2 border-t border-gray-700 pt-4 mt-2">
++                    <h4 className="text-white font-semibold mb-3">Premium Task Rule Engine</h4>
++                  </div>
++                  <div>
++                    <label className="block text-sm font-medium text-gray-300 mb-2">Enable Premium Trigger</label>
++                    <label className="flex items-center gap-2">
++                      <input
++                        name="premiumEnabled"
++                        type="checkbox"
++                        defaultChecked={rewardsConfig.productSystem.premiumEnabled ?? true}
++                        className="w-5 h-5 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]"
++                      />
++                      <span className="text-white text-sm">Premium rules active</span>
++                    </label>
++                  </div>
++                  <div>
++                    <label className="block text-sm font-medium text-gray-300 mb-2">Trigger At Submission #</label>
++                    <input
++                      name="premiumTriggerTaskNumber"
++                      type="number"
++                      min={1}
++                      defaultValue={rewardsConfig.productSystem.premiumTriggerTaskNumber ?? 10}
++                      className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
++                    />
++                    <p className="text-gray-500 text-xs mt-1">Example: 10 means the 10th submission triggers premium check</p>
++                  </div>
++                  <div>
++                    <label className="block text-sm font-medium text-gray-300 mb-2">Premium Base Value</label>
++                    <input
++                      name="premiumBaseValue"
++                      type="number"
++                      min={0}
++                      step="0.01"
++                      defaultValue={rewardsConfig.productSystem.premiumBaseValue ?? 300}
++                      className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
++                    />
++                  </div>
++                  <div>
++                    <label className="block text-sm font-medium text-gray-300 mb-2">Premium Value Mode</label>
++                    <select
++                      name="premiumValueMode"
++                      defaultValue={rewardsConfig.productSystem.premiumValueMode ?? 'multiplier'}
++                      className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
++                    >
++                      <option value="multiplier">Multiplier</option>
++                      <option value="range">Range</option>
++                    </select>
++                    <p className="text-gray-500 text-xs mt-1">Range mode uses min/max per VIP tier. Multiplier mode uses base value x multiplier.</p>
++                  </div>
++
++                  <div className="col-span-2">
++                    <div className="rounded-lg border border-gray-700 overflow-hidden">
++                      <div className="grid grid-cols-4 gap-2 bg-[#1a1f2e] px-3 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">
++                        <span>VIP</span>
++                        <span>Multiplier</span>
++                        <span>Range Min</span>
++                        <span>Range Max</span>
++                      </div>
++                      {vipConfigurations.map((tier) => {
++                        const existing = rewardsConfig.productSystem.vipPremiumAdjustments?.find((entry) => entry.vipLevel === tier.level);
++                        return (
++                          <div key={tier.level} className="grid grid-cols-4 gap-2 px-3 py-3 border-t border-gray-700 bg-[#252b3d]">
++                            <span className="text-white text-sm font-semibold self-center">VIP {tier.level}</span>
++                            <input
++                              name={`premiumMultiplier_${tier.level}`}
++                              type="number"
++                              min={0.1}
++                              step="0.01"
++                              defaultValue={existing?.multiplier ?? 1}
++                              className="w-full px-2 py-1.5 text-sm bg-[#1a1f2e] border border-gray-600 rounded text-white focus:border-[#00D9FF] focus:outline-none"
++                            />
++                            <input
++                              name={`premiumMin_${tier.level}`}
++                              type="number"
++                              min={0}
++                              step="0.01"
++                              defaultValue={existing?.minValue ?? 0}
++                              className="w-full px-2 py-1.5 text-sm bg-[#1a1f2e] border border-gray-600 rounded text-white focus:border-[#00D9FF] focus:outline-none"
++                            />
++                            <input
++                              name={`premiumMax_${tier.level}`}
++                              type="number"
++                              min={0}
++                              step="0.01"
++                              defaultValue={existing?.maxValue ?? 0}
++                              className="w-full px-2 py-1.5 text-sm bg-[#1a1f2e] border border-gray-600 rounded text-white focus:border-[#00D9FF] focus:outline-none"
++                            />
++                          </div>
++                        );
++                      })}
++                    </div>
++                  </div>
+                 </div>
+                 <div className="flex gap-3 mt-6">
+                   <button type="submit" disabled={rewardsConfigSaving} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] disabled:opacity-60 text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
+diff --git a/src/app/pages/Starting.tsx b/src/app/pages/Starting.tsx
+index d63558ca..c269cf36 100644
+--- a/src/app/pages/Starting.tsx
++++ b/src/app/pages/Starting.tsx
+@@ -9,6 +9,7 @@ import { projectId, publicAnonKey } from '@utils/supabase/info';
+ import { getCurrentUsername } from '../services/referralSystem';
+ import { buildLoginRedirectState } from '../services/loginRedirect';
+ import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
++import { fetchPublicRewardsConfig, type RewardsConfig, defaultRewardsConfig } from '../services/rewardsConfig';
+ 
+ interface UserData {
+   username: string;
+@@ -36,6 +37,15 @@ interface TaskCatalogItem {
+   productUrl: string;
+ }
+ 
++type TaskCatalogResponse = {
++  tasks?: TaskCatalogItem[];
++  ruleConfig?: {
++    premiumEnabled?: boolean;
++    premiumTriggerTaskNumber?: number;
++    premiumValueMode?: 'multiplier' | 'range';
++  };
++};
++
+ function getPrimaryLabel(value: string | null | undefined, fallback = 'Product'): string {
+   if (typeof value !== 'string') {
+     return fallback;
+@@ -64,6 +74,8 @@ export default function Starting() {
+   const [carouselIndex, setCarouselIndex] = useState(0);
+   const [taskCatalog, setTaskCatalog] = useState<TaskCatalogItem[]>([]);
+   const [vipConfigurations, setVipConfigurations] = useState<VipConfig[]>([]);
++  const [rewardsConfig, setRewardsConfig] = useState<RewardsConfig>(defaultRewardsConfig);
++  const [taskRuleConfig, setTaskRuleConfig] = useState<TaskCatalogResponse['ruleConfig'] | null>(null);
+   
+   const sessionUsername = getCurrentUsername();
+   const username = sessionUsername ?? 'ugreen';
+@@ -86,6 +98,13 @@ export default function Starting() {
+     ? (vipConfigurations.find((tier) => tier.level === userData.vipLevel)?.commission ?? 0.005) * 100
+     : 0.5;
+   const estimatedCommission = currentProduct ? currentProduct.price * (commissionRate / 100) : 0;
++  const premiumTriggerTaskNumber = Number(taskRuleConfig?.premiumTriggerTaskNumber ?? rewardsConfig.productSystem.premiumTriggerTaskNumber ?? 10);
++  const premiumTopUpRequired = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
++  const premiumSubmissionBlocked = Boolean(userData?.activePremium) && premiumTopUpRequired > 0;
++  const nextSubmissionNumber = Number(userData?.tasksCompleted ?? 0) + 1;
++  const premiumTriggerIncoming = !premiumSubmissionBlocked
++    && Boolean(taskRuleConfig?.premiumEnabled ?? rewardsConfig.productSystem.premiumEnabled)
++    && nextSubmissionNumber === premiumTriggerTaskNumber;
+ 
+   // Fetch user data on mount
+   useEffect(() => {
+@@ -120,10 +139,11 @@ export default function Starting() {
+     try {
+       setLoading(true);
+       let data;
+-      let tasksPayload: { tasks?: TaskCatalogItem[] } | null = null;
++      let tasksPayload: TaskCatalogResponse | null = null;
+       let vipPayload: VipConfig[] = [];
++      let rewardsPayload: RewardsConfig = defaultRewardsConfig;
+       try {
+-        const [user, tasks, vipConfig] = await Promise.all([
++        const [user, tasks, vipConfig, rewards] = await Promise.all([
+           fetchUserByName(username),
+           fetch(`${serverUrl}/tasks/catalog`, {
+             headers: {
+@@ -137,13 +157,15 @@ export default function Starting() {
+             return payload;
+           }),
+           fetchPublicVipConfig(),
++          fetchPublicRewardsConfig(),
+         ]);
+         data = user;
+         tasksPayload = tasks;
+         vipPayload = vipConfig;
++        rewardsPayload = rewards;
+       } catch {
+         // Fallback keeps dashboard usable for newly registered local users.
+-        const [user, tasks, vipConfig] = await Promise.all([
++        const [user, tasks, vipConfig, rewards] = await Promise.all([
+           fetchUserByName('ugreen'),
+           fetch(`${serverUrl}/tasks/catalog`, {
+             headers: {
+@@ -157,14 +179,18 @@ export default function Starting() {
+             return payload;
+           }),
+           fetchPublicVipConfig(),
++          fetchPublicRewardsConfig(),
+         ]);
+         data = user;
+         tasksPayload = tasks;
+         vipPayload = vipConfig;
++        rewardsPayload = rewards;
+       }
+       setUserData(data);
+       setTaskCatalog(Array.isArray(tasksPayload?.tasks) ? tasksPayload.tasks : []);
++      setTaskRuleConfig(tasksPayload?.ruleConfig ?? null);
+       setVipConfigurations(vipPayload);
++      setRewardsConfig(rewardsPayload);
+     } catch (error) {
+       console.error('Error fetching user data:', error);
+     } finally {
+@@ -175,6 +201,11 @@ export default function Starting() {
+   const handleSubmitTask = async () => {
+     if (!userData || !currentProduct || submitting) return;
+ 
++    if (premiumSubmissionBlocked) {
++      toast.error(`Premium task requirement pending: -$${premiumTopUpRequired.toFixed(2)} must be topped up before submitting.`);
++      return;
++    }
++
+     if (userData.tasksCompleted >= userData.tasksLimit) {
+       toast.info('Task set complete. Please contact customer support to request a reset.');
+       return;
+@@ -197,8 +228,11 @@ export default function Starting() {
+       });
+ 
+       if (!response.ok) {
+-        const error = await response.json();
+-        throw new Error(error.error || 'Failed to submit task');
++        const errorPayload = await response.json().catch(() => ({}));
++        if (response.status === 409 && errorPayload?.code === 'premium_task_encountered' && errorPayload?.user) {
++          setUserData(errorPayload.user);
++        }
++        throw new Error(errorPayload?.error || 'Failed to submit task');
+       }
+ 
+       const result = await response.json();
+@@ -493,8 +527,13 @@ export default function Starting() {
+           {/* Info Box */}
+           <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
+             <p className="text-yellow-400 text-xs text-center">
+-              ­ƒÆí 5% chance for premium products with 10x commission bonus!
++              ­ƒÆí Premium rule: task #{premiumTriggerTaskNumber} triggers premium check ({taskRuleConfig?.premiumValueMode ?? rewardsConfig.productSystem.premiumValueMode}).
+             </p>
++            {premiumTriggerIncoming && (
++              <p className="text-red-400 text-xs text-center mt-2 font-semibold">
++                Premium trigger incoming on this submission.
++              </p>
++            )}
+           </div>
+         </div>
+ 
+@@ -522,20 +561,32 @@ export default function Starting() {
+             </button>
+           </div>
+         ) : (
+-          <button
+-            className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
+-            onClick={handleSubmitTask}
+-            disabled={submitting || !currentProduct}
+-          >
+-            {submitting ? (
+-              <span className="flex items-center justify-center gap-2">
+-                <Loader2 className="animate-spin" size={24} />
+-                Submitting...
+-              </span>
+-            ) : (
+-              `Starting (${userData?.tasksCompleted || 0} / ${userData?.tasksLimit || 40})`
++          <>
++            {premiumSubmissionBlocked && (
++              <div className="bg-red-500/20 border border-red-400/60 rounded-lg p-4 mb-4">
++                <p className="text-red-300 text-sm font-semibold text-center">Premium requirement</p>
++                <p className="text-red-200 text-xs text-center mt-1">Required amount (negative):</p>
++                <p className="text-red-300 text-3xl font-extrabold text-center mt-1">-${premiumTopUpRequired.toFixed(2)}</p>
++                <p className="text-red-100 text-xs text-center mt-2">Task submission is locked until this amount is covered.</p>
++              </div>
+             )}
+-          </button>
++            <button
++              className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
++              onClick={handleSubmitTask}
++              disabled={submitting || !currentProduct || premiumSubmissionBlocked}
++            >
++              {submitting ? (
++                <span className="flex items-center justify-center gap-2">
++                  <Loader2 className="animate-spin" size={24} />
++                  Submitting...
++                </span>
++              ) : premiumSubmissionBlocked ? (
++                'Top-up Required Before Submit'
++              ) : (
++                `Starting (${userData?.tasksCompleted || 0} / ${userData?.tasksLimit || 40})`
++              )}
++            </button>
++          </>
+         )}
+ 
+         {/* Success Notification */}
+diff --git a/src/app/services/rewardsConfig.ts b/src/app/services/rewardsConfig.ts
+index 3865088a..f66914fa 100644
+--- a/src/app/services/rewardsConfig.ts
++++ b/src/app/services/rewardsConfig.ts
+@@ -32,6 +32,16 @@ export type ProductSystemConfig = {
+   minTimePerProduct: number;
+   autoApproveCommission: boolean;
+   requireProductConfirmation: boolean;
++  premiumEnabled: boolean;
++  premiumTriggerTaskNumber: number;
++  premiumBaseValue: number;
++  premiumValueMode: 'multiplier' | 'range';
++  vipPremiumAdjustments: Array<{
++    vipLevel: number;
++    multiplier: number;
++    minValue: number;
++    maxValue: number;
++  }>;
+ };
+ 
+ export type RewardsConfig = {
+@@ -70,6 +80,17 @@ export const defaultRewardsConfig: RewardsConfig = {
+     minTimePerProduct: 30,
+     autoApproveCommission: true,
+     requireProductConfirmation: true,
++    premiumEnabled: true,
++    premiumTriggerTaskNumber: 10,
++    premiumBaseValue: 300,
++    premiumValueMode: 'multiplier',
++    vipPremiumAdjustments: [
++      { vipLevel: 1, multiplier: 1.1, minValue: 220, maxValue: 420 },
++      { vipLevel: 2, multiplier: 1.2, minValue: 300, maxValue: 620 },
++      { vipLevel: 3, multiplier: 1.35, minValue: 500, maxValue: 1300 },
++      { vipLevel: 4, multiplier: 1.5, minValue: 900, maxValue: 2600 },
++      { vipLevel: 5, multiplier: 1.8, minValue: 1800, maxValue: 5200 },
++    ],
+   },
+ };
+ 
+diff --git a/supabase/functions/server/index.tsx b/supabase/functions/server/index.tsx
+index 0262d215..c08e5e7e 100644
+--- a/supabase/functions/server/index.tsx
++++ b/supabase/functions/server/index.tsx
+@@ -475,6 +475,17 @@ const defaultRewardsConfig = {
+     minTimePerProduct: 30,
+     autoApproveCommission: true,
+     requireProductConfirmation: true,
++    premiumEnabled: true,
++    premiumTriggerTaskNumber: 10,
++    premiumBaseValue: 300,
++    premiumValueMode: 'multiplier',
++    vipPremiumAdjustments: [
++      { vipLevel: 1, multiplier: 1.1, minValue: 220, maxValue: 420 },
++      { vipLevel: 2, multiplier: 1.2, minValue: 300, maxValue: 620 },
++      { vipLevel: 3, multiplier: 1.35, minValue: 500, maxValue: 1300 },
++      { vipLevel: 4, multiplier: 1.5, minValue: 900, maxValue: 2600 },
++      { vipLevel: 5, multiplier: 1.8, minValue: 1800, maxValue: 5200 },
++    ],
+   },
+ };
+ 
+@@ -591,15 +602,121 @@ function normalizeAccumulatedRewardRecord(record: any, index: number) {
+ }
+ 
+ function normalizeProductSystemConfig(record: any) {
++  const source = typeof record === 'object' && record ? record : {};
++  const rawAdjustments = Array.isArray(source.vipPremiumAdjustments) ? source.vipPremiumAdjustments : [];
++  const defaultAdjustments = Array.isArray(defaultRewardsConfig.productSystem.vipPremiumAdjustments)
++    ? defaultRewardsConfig.productSystem.vipPremiumAdjustments
++    : [];
++
++  const vipPremiumAdjustments = (rawAdjustments.length > 0 ? rawAdjustments : defaultAdjustments)
++    .map((entry: any, index: number) => {
++      const fallback = defaultAdjustments[index] ?? defaultAdjustments[defaultAdjustments.length - 1] ?? {
++        vipLevel: index + 1,
++        multiplier: 1,
++        minValue: 0,
++        maxValue: 0,
++      };
++      const vipLevel = Number.isFinite(Number(entry?.vipLevel))
++        ? Math.max(1, Math.round(Number(entry.vipLevel)))
++        : Number(fallback.vipLevel);
++      const multiplier = Number.isFinite(Number(entry?.multiplier))
++        ? Math.max(0.1, Number(entry.multiplier))
++        : Number(fallback.multiplier);
++      const minValue = Number.isFinite(Number(entry?.minValue))
++        ? Math.max(0, roundMoney(Number(entry.minValue)))
++        : roundMoney(Number(fallback.minValue));
++      const maxCandidate = Number.isFinite(Number(entry?.maxValue))
++        ? roundMoney(Number(entry.maxValue))
++        : roundMoney(Number(fallback.maxValue));
++      const maxValue = Math.max(minValue, maxCandidate);
++
++      return {
++        vipLevel,
++        multiplier,
++        minValue,
++        maxValue,
++      };
++    })
++    .sort((left, right) => left.vipLevel - right.vipLevel);
++
++  const premiumValueModeRaw = typeof source.premiumValueMode === 'string' ? source.premiumValueMode.toLowerCase() : 'multiplier';
++  const premiumValueMode = premiumValueModeRaw === 'range' ? 'range' : 'multiplier';
++
++  return {
++    productsPerSet: Math.max(1, Math.round(Number(source?.productsPerSet ?? 10))),
++    maxSetsPerDay: Math.max(1, Math.round(Number(source?.maxSetsPerDay ?? 5))),
++    minTimePerProduct: Math.max(1, Math.round(Number(source?.minTimePerProduct ?? 30))),
++    autoApproveCommission: normalizeBoolean(source?.autoApproveCommission, true),
++    requireProductConfirmation: normalizeBoolean(source?.requireProductConfirmation, true),
++    premiumEnabled: normalizeBoolean(source?.premiumEnabled, true),
++    premiumTriggerTaskNumber: Math.max(1, Math.round(Number(source?.premiumTriggerTaskNumber ?? 10))),
++    premiumBaseValue: Math.max(0, roundMoney(Number(source?.premiumBaseValue ?? 300))),
++    premiumValueMode,
++    vipPremiumAdjustments,
++  };
++}
++
++function resolveVipPremiumAdjustment(
++  vipLevel: number,
++  productSystem: ReturnType<typeof normalizeProductSystemConfig>,
++) {
++  const direct = productSystem.vipPremiumAdjustments.find((entry) => entry.vipLevel === vipLevel);
++  if (direct) {
++    return direct;
++  }
++
++  const below = [...productSystem.vipPremiumAdjustments]
++    .reverse()
++    .find((entry) => entry.vipLevel <= vipLevel);
++  if (below) {
++    return below;
++  }
++
++  return productSystem.vipPremiumAdjustments[0] ?? {
++    vipLevel,
++    multiplier: 1,
++    minValue: productSystem.premiumBaseValue,
++    maxValue: productSystem.premiumBaseValue,
++  };
++}
++
++function computePremiumValueForVip(
++  vipLevel: number,
++  productSystem: ReturnType<typeof normalizeProductSystemConfig>,
++): number {
++  const adjustment = resolveVipPremiumAdjustment(vipLevel, productSystem);
++
++  if (productSystem.premiumValueMode === 'range') {
++    if (adjustment.maxValue > adjustment.minValue) {
++      const seeded = Math.abs(Math.sin(vipLevel * 999 + productSystem.premiumTriggerTaskNumber));
++      const rangeValue = adjustment.minValue + (adjustment.maxValue - adjustment.minValue) * seeded;
++      return roundMoney(rangeValue);
++    }
++    return roundMoney(adjustment.minValue);
++  }
++
++  return roundMoney(Math.max(0, productSystem.premiumBaseValue * adjustment.multiplier));
++}
++
++function buildPremiumRequirementResponse(activePremium: any) {
++  const requiredAmount = roundMoney(Number(activePremium?.topUpRequired ?? activePremium?.negativeAmount ?? 0));
+   return {
+-    productsPerSet: Math.max(1, Math.round(Number(record?.productsPerSet ?? 10))),
+-    maxSetsPerDay: Math.max(1, Math.round(Number(record?.maxSetsPerDay ?? 5))),
+-    minTimePerProduct: Math.max(1, Math.round(Number(record?.minTimePerProduct ?? 30))),
+-    autoApproveCommission: normalizeBoolean(record?.autoApproveCommission, true),
+-    requireProductConfirmation: normalizeBoolean(record?.requireProductConfirmation, true),
++    id: activePremium?.id ?? null,
++    requiredAmount,
++    requiredAmountDisplay: `-${requiredAmount.toFixed(2)}`,
++    triggerTaskNumber: Number.isFinite(Number(activePremium?.triggerTaskNumber)) ? Number(activePremium.triggerTaskNumber) : null,
++    vipLevel: Number.isFinite(Number(activePremium?.vipLevel)) ? Number(activePremium.vipLevel) : null,
++    premiumValue: Number.isFinite(Number(activePremium?.premiumProductValue)) ? Number(activePremium.premiumProductValue) : 0,
++    mode: typeof activePremium?.valueMode === 'string' ? activePremium.valueMode : 'multiplier',
++    status: typeof activePremium?.status === 'string' ? activePremium.status : 'awaiting_funds',
+   };
+ }
+ 
++function userHasPendingPremiumRequirement(userData: any): boolean {
++  const requiredAmount = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
++  return Boolean(userData?.activePremium) && requiredAmount > 0;
++}
++
+ function normalizeRewardsConfigRecord(record: any) {
+   const source = typeof record === 'object' && record ? record : defaultRewardsConfig;
+   const workday = Array.isArray(source.workday) && source.workday.length > 0
+@@ -1526,10 +1643,73 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
+     
+     const normalizedUserData = await syncUserWithVipConfig(userData, username);
+ 
++    if (userHasPendingPremiumRequirement(normalizedUserData)) {
++      await kv.set(userKey, normalizedUserData);
++      return c.json({
++        error: 'Premium task requirement pending. Please top up your account before submitting the next task.',
++        code: 'premium_task_encountered',
++        disableSubmit: true,
++        premiumRequirement: buildPremiumRequirementResponse(normalizedUserData.activePremium),
++        user: normalizedUserData,
++      }, 409);
++    }
++
+     // Check if user has reached daily task limit
+     if (normalizedUserData.tasksCompleted >= normalizedUserData.tasksLimit) {
+       return c.json({ error: 'Daily task limit reached' }, 400);
+     }
++
++    const rewardsConfig = await getRewardsConfigRecord();
++    const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
++    const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
++    const shouldTriggerPremium = productSystem.premiumEnabled
++      && nextSubmissionNumber === productSystem.premiumTriggerTaskNumber;
++
++    if (shouldTriggerPremium) {
++      const premiumValue = computePremiumValueForVip(Number(normalizedUserData.vipLevel ?? 1), productSystem);
++      const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
++      const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - premiumValue);
++      const topUpRequired = Math.max(0, roundMoney(-balanceAfterAssignment));
++      const activePremium = {
++        id: `premium-rule-${Date.now()}`,
++        premiumProductValue: premiumValue,
++        premiumProductName: `Rule Premium (Task #${nextSubmissionNumber})`,
++        bundledProducts: [],
++        totalBundleValue: premiumValue,
++        balanceBeforeAssignment,
++        balanceAfterAssignment,
++        negativeAmount: topUpRequired,
++        topUpRequired,
++        triggerTaskNumber: nextSubmissionNumber,
++        vipLevel: Number(normalizedUserData.vipLevel ?? 1),
++        valueMode: productSystem.premiumValueMode,
++        tasksCompleted: 0,
++        totalTasks: 1,
++        assignedAt: new Date().toISOString(),
++        assignedBy: 'system-rule-engine',
++        status: topUpRequired > 0 ? 'awaiting_funds' : 'active',
++        commissionEarned: 0,
++      };
++
++      normalizedUserData.isFrozen = true;
++      normalizedUserData.activePremium = activePremium;
++      normalizedUserData.premiumQueue = Array.isArray(normalizedUserData.premiumQueue)
++        ? [activePremium, ...normalizedUserData.premiumQueue]
++        : [activePremium];
++      normalizedUserData.balance = balanceAfterAssignment;
++      normalizedUserData.holdAmount = roundMoney(Math.max(Number(normalizedUserData.holdAmount ?? 0), topUpRequired));
++
++      await kv.set(userKey, normalizedUserData);
++      await kv.set(`premium:${username}:${activePremium.id}`, activePremium);
++
++      return c.json({
++        error: 'Premium task encountered. Top-up is required before continuing task submission.',
++        code: 'premium_task_encountered',
++        disableSubmit: true,
++        premiumRequirement: buildPremiumRequirementResponse(activePremium),
++        user: normalizedUserData,
++      }, 409);
++    }
+     
+     const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
+     normalizedUserData.tasksLimit = vipConfig.dailyTasks;
+@@ -1644,7 +1824,16 @@ app.get('/make-server-a1c55d7e/tasks/catalog', async (c) => {
+   try {
+     const includePaused = c.req.query('includePaused') === 'true';
+     const tasks = await listTaskCatalogRecords(includePaused);
+-    return c.json({ tasks });
++    const rewardsConfig = await getRewardsConfigRecord();
++    const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
++    return c.json({
++      tasks,
++      ruleConfig: {
++        premiumEnabled: productSystem.premiumEnabled,
++        premiumTriggerTaskNumber: productSystem.premiumTriggerTaskNumber,
++        premiumValueMode: productSystem.premiumValueMode,
++      },
++    });
+   } catch (error) {
+     console.error('Error fetching task catalog:', error);
+     return c.json({ error: 'Failed to fetch task catalog' }, 500);
