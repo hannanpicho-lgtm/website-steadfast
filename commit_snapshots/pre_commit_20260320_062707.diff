@@ -1,0 +1,351 @@
+﻿diff --git a/src/app/admin/AdminSettings.tsx b/src/app/admin/AdminSettings.tsx
+index 2034e2c5..43c0066e 100644
+--- a/src/app/admin/AdminSettings.tsx
++++ b/src/app/admin/AdminSettings.tsx
+@@ -1,5 +1,12 @@
+-import React, { useState } from 'react';
++import React, { useEffect, useState } from 'react';
+ import { toast } from 'sonner';
++import {
++  fetchAdminPlatformSettingsFromServer,
++  LEGACY_ADMIN_PLATFORM_SETTINGS_KEY,
++  parseLegacyAdminPlatformSettings,
++  saveAdminPlatformSettingsToServer,
++  type AdminPlatformSettings,
++} from '../services/adminPlatformSettings';
+ 
+ interface AdminSettingsProps {
+   isSuperAdmin: boolean;
+@@ -13,9 +20,73 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
+   const [withdrawalFee, setWithdrawalFee] = useState('2.0');
+   const [minDeposit, setMinDeposit] = useState('10');
+   const [taskRefreshHours, setTaskRefreshHours] = useState('24');
+-  const [autoAssignTasks, setAutoAssignTasks] = useState('Enabled');
++  const [autoAssignTasks, setAutoAssignTasks] = useState<'Enabled' | 'Disabled'>('Enabled');
++  const [isHydrating, setIsHydrating] = useState(true);
+   const [saving, setSaving] = useState(false);
+ 
++  const applySettings = (settings: AdminPlatformSettings) => {
++    setMaintenanceMode(settings.maintenanceMode);
++    setAllowNewRegistration(settings.allowNewRegistration);
++    setMinWithdrawal(String(settings.minWithdrawal));
++    setMaxWithdrawal(String(settings.maxWithdrawal));
++    setWithdrawalFee(String(settings.withdrawalFee));
++    setMinDeposit(String(settings.minDeposit));
++    setTaskRefreshHours(String(settings.taskRefreshHours));
++    setAutoAssignTasks(settings.autoAssignTasks);
++  };
++
++  useEffect(() => {
++    let cancelled = false;
++
++    const hydrateSettings = async () => {
++      try {
++        const serverSettings = await fetchAdminPlatformSettingsFromServer();
++        if (cancelled) {
++          return;
++        }
++
++        if (serverSettings) {
++          applySettings(serverSettings);
++          localStorage.removeItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY);
++          return;
++        }
++
++        const legacySettings = parseLegacyAdminPlatformSettings(localStorage.getItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY));
++        if (!legacySettings) {
++          return;
++        }
++
++        if (isSuperAdmin) {
++          const migrated = await saveAdminPlatformSettingsToServer(legacySettings);
++          if (cancelled) {
++            return;
++          }
++          applySettings(migrated);
++          localStorage.removeItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY);
++          toast.success('Legacy platform settings migrated to server storage.');
++          return;
++        }
++
++        applySettings(legacySettings);
++      } catch {
++        const legacySettings = parseLegacyAdminPlatformSettings(localStorage.getItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY));
++        if (legacySettings && !cancelled) {
++          applySettings(legacySettings);
++        }
++      } finally {
++        if (!cancelled) {
++          setIsHydrating(false);
++        }
++      }
++    };
++
++    void hydrateSettings();
++
++    return () => {
++      cancelled = true;
++    };
++  }, [isSuperAdmin]);
++
+   const handleSaveSettings = async () => {
+     if (!isSuperAdmin) {
+       toast.error('Only super admins can save platform settings.');
+@@ -36,8 +107,7 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
+ 
+     setSaving(true);
+     try {
+-      // Persist to localStorage as the settings endpoint is not yet server-side
+-      const settings = {
++      const settings: AdminPlatformSettings = {
+         maintenanceMode,
+         allowNewRegistration,
+         minWithdrawal: minW,
+@@ -48,7 +118,8 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
+         autoAssignTasks,
+         savedAt: new Date().toISOString(),
+       };
+-      localStorage.setItem('steadfast_admin_platform_settings', JSON.stringify(settings));
++      await saveAdminPlatformSettingsToServer(settings);
++      localStorage.removeItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY);
+       toast.success('Platform settings saved successfully.');
+     } catch {
+       toast.error('Failed to save settings. Please try again.');
+@@ -175,7 +246,7 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
+               <label className="block text-sm font-medium text-gray-300 mb-2">Auto-Assign Tasks</label>
+               <select
+                 value={autoAssignTasks}
+-                onChange={(e) => setAutoAssignTasks(e.target.value)}
++                onChange={(e) => setAutoAssignTasks(e.target.value === 'Disabled' ? 'Disabled' : 'Enabled')}
+                 className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+               >
+                 <option>Enabled</option>
+@@ -187,10 +258,10 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
+ 
+         <button
+           onClick={() => void handleSaveSettings()}
+-          disabled={saving}
++          disabled={saving || isHydrating}
+           className="w-full bg-[#00D9FF] hover:bg-[#00c5e6] disabled:opacity-60 disabled:cursor-not-allowed text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors"
+         >
+-          {saving ? 'Saving…' : 'Save All Settings'}
++          {saving ? 'Saving…' : isHydrating ? 'Loading Settings…' : 'Save All Settings'}
+         </button>
+       </div>
+     </div>
+diff --git a/src/tests/api.integration.test.ts b/src/tests/api.integration.test.ts
+index 9de3367d..cebb85f0 100644
+--- a/src/tests/api.integration.test.ts
++++ b/src/tests/api.integration.test.ts
+@@ -713,6 +713,31 @@ describe('Admin route authentication', () => {
+     });
+     expect(status).toBe(401);
+   });
++
++  it('GET /admin/platform-settings → 401 with anon token only', async () => {
++    const { status } = await request('/admin/platform-settings');
++    expect(status).toBe(401);
++  });
++
++  it('PUT /admin/platform-settings → 401 with anon token only', async () => {
++    const { status } = await request('/admin/platform-settings', {
++      method: 'PUT',
++      body: JSON.stringify({
++        settings: {
++          maintenanceMode: false,
++          allowNewRegistration: true,
++          minWithdrawal: 50,
++          maxWithdrawal: 10000,
++          withdrawalFee: 2,
++          minDeposit: 10,
++          taskRefreshHours: 24,
++          autoAssignTasks: 'Enabled',
++          savedAt: new Date().toISOString(),
++        },
++      }),
++    });
++    expect(status).toBe(401);
++  });
+ });
+ 
+ describe('Admin route success path', () => {
+@@ -848,4 +873,62 @@ describe('Admin route success path', () => {
+     expect(getResult.status).toBe(200);
+     expect(Array.isArray(getResult.body.events)).toBe(true);
+   });
++
++  it('GET /admin/platform-settings works with valid admin JWT', async () => {
++    if (!ADMIN_TEST_JWT) {
++      if (REQUIRE_ADMIN_SUCCESS) {
++        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
++      }
++      const { status } = await request('/admin/platform-settings');
++      expect(status).toBe(401);
++      return;
++    }
++
++    const { status, body } = await request('/admin/platform-settings', {
++      headers: adminHeaders(),
++    });
++    expect(status).toBe(200);
++    expect(body.settings).toBeTruthy();
++    expect(typeof body.settings.maintenanceMode).toBe('boolean');
++  });
++
++  it('PUT /admin/platform-settings is role-gated and accepts super-admin writes', async () => {
++    if (!ADMIN_TEST_JWT) {
++      if (REQUIRE_ADMIN_SUCCESS) {
++        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
++      }
++      const { status } = await request('/admin/platform-settings');
++      expect(status).toBe(401);
++      return;
++    }
++
++    const payload = {
++      settings: {
++        maintenanceMode: false,
++        allowNewRegistration: true,
++        minWithdrawal: 55,
++        maxWithdrawal: 12000,
++        withdrawalFee: 2.5,
++        minDeposit: 15,
++        taskRefreshHours: 24,
++        autoAssignTasks: 'Enabled',
++        savedAt: new Date().toISOString(),
++      },
++    };
++
++    const putResult = await request('/admin/platform-settings', {
++      method: 'PUT',
++      headers: adminHeaders(),
++      body: JSON.stringify(payload),
++    });
++
++    if (putResult.status === 403) {
++      expect(putResult.body.error).toContain('super-admin');
++      return;
++    }
++
++    expect(putResult.status).toBe(200);
++    expect(putResult.body.success).toBe(true);
++    expect(putResult.body.settings.autoAssignTasks).toBe('Enabled');
++  });
+ });
+diff --git a/supabase/functions/server/index.tsx b/supabase/functions/server/index.tsx
+index 8a20ea4e..e17b5d5d 100644
+--- a/supabase/functions/server/index.tsx
++++ b/supabase/functions/server/index.tsx
+@@ -429,6 +429,7 @@ const VIP_CONFIG_KEY_PREFIX = 'vip-config:';
+ const REWARDS_CONFIG_KEY = 'rewards-config:primary';
+ const ADMIN_SALARY_PROJECT_KEY = 'admin-salary:project:primary';
+ const ADMIN_SALARY_AUDIT_LOG_KEY = 'admin-salary:audit-log:primary';
++const ADMIN_PLATFORM_SETTINGS_KEY = 'admin-platform-settings:primary';
+ const ADMIN_SALARY_MAX_RESTORE_POINTS = 10;
+ const ADMIN_SALARY_MAX_AUDIT_EVENTS = 50;
+ 
+@@ -838,6 +839,53 @@ function sanitizeAdminSalaryAuditLog(values: unknown): any[] {
+     .slice(0, ADMIN_SALARY_MAX_AUDIT_EVENTS);
+ }
+ 
++function sanitizeAdminPlatformSettings(value: unknown) {
++  const defaults = {
++    maintenanceMode: false,
++    allowNewRegistration: true,
++    minWithdrawal: 50,
++    maxWithdrawal: 10_000,
++    withdrawalFee: 2,
++    minDeposit: 10,
++    taskRefreshHours: 24,
++    autoAssignTasks: 'Enabled',
++    savedAt: new Date().toISOString(),
++  };
++
++  if (!value || typeof value !== 'object') {
++    return defaults;
++  }
++
++  const source = value as Record<string, unknown>;
++  const minWithdrawal = Number(source.minWithdrawal);
++  const maxWithdrawal = Number(source.maxWithdrawal);
++  const withdrawalFee = Number(source.withdrawalFee);
++  const minDeposit = Number(source.minDeposit);
++  const taskRefreshHours = Number(source.taskRefreshHours);
++
++  const boundedMinWithdrawal = Number.isFinite(minWithdrawal)
++    ? Math.min(1_000_000, Math.max(1, roundMoney(minWithdrawal)))
++    : defaults.minWithdrawal;
++  const boundedMaxWithdrawalRaw = Number.isFinite(maxWithdrawal)
++    ? Math.min(1_000_000, Math.max(1, roundMoney(maxWithdrawal)))
++    : defaults.maxWithdrawal;
++  const boundedMaxWithdrawal = boundedMaxWithdrawalRaw <= boundedMinWithdrawal
++    ? Math.min(1_000_000, boundedMinWithdrawal + 1)
++    : boundedMaxWithdrawalRaw;
++
++  return {
++    maintenanceMode: source.maintenanceMode === true,
++    allowNewRegistration: source.allowNewRegistration !== false,
++    minWithdrawal: boundedMinWithdrawal,
++    maxWithdrawal: boundedMaxWithdrawal,
++    withdrawalFee: Number.isFinite(withdrawalFee) ? Math.min(50, Math.max(0, roundMoney(withdrawalFee))) : defaults.withdrawalFee,
++    minDeposit: Number.isFinite(minDeposit) ? Math.min(1_000_000, Math.max(1, roundMoney(minDeposit))) : defaults.minDeposit,
++    taskRefreshHours: Number.isFinite(taskRefreshHours) ? Math.min(168, Math.max(1, Math.round(taskRefreshHours))) : defaults.taskRefreshHours,
++    autoAssignTasks: source.autoAssignTasks === 'Disabled' ? 'Disabled' : 'Enabled',
++    savedAt: typeof source.savedAt === 'string' && source.savedAt ? source.savedAt : new Date().toISOString(),
++  };
++}
++
+ function sanitizeTaskStatus(value: unknown): 'Active' | 'Paused' {
+   if (typeof value !== 'string') {
+     return 'Active';
+@@ -3255,6 +3303,50 @@ app.put('/make-server-a1c55d7e/admin/salary/audit-log', async (c) => {
+   }
+ });
+ 
++app.get('/make-server-a1c55d7e/admin/platform-settings', async (c) => {
++  try {
++    const unauthorized = await requireAdmin(c);
++    if (unauthorized) {
++      return unauthorized;
++    }
++    const rateLimited = enforceAdminRateLimit(c, 'admin:platform-settings-read');
++    if (rateLimited) {
++      return rateLimited;
++    }
++
++    const settings = sanitizeAdminPlatformSettings(await kv.get(ADMIN_PLATFORM_SETTINGS_KEY));
++    return c.json({ settings });
++  } catch (error) {
++    console.error('Error fetching admin platform settings:', error);
++    return c.json({ error: 'Failed to fetch platform settings' }, 500);
++  }
++});
++
++app.put('/make-server-a1c55d7e/admin/platform-settings', async (c) => {
++  try {
++    const unauthorized = await requireAdmin(c);
++    if (unauthorized) {
++      return unauthorized;
++    }
++    if (!isSuperAdmin(c.get('adminUser'))) {
++      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
++    }
++
++    const rateLimited = enforceAdminRateLimit(c, 'admin:platform-settings-write');
++    if (rateLimited) {
++      return rateLimited;
++    }
++
++    const body = await c.req.json();
++    const settings = sanitizeAdminPlatformSettings((body as any)?.settings ?? body);
++    await kv.set(ADMIN_PLATFORM_SETTINGS_KEY, settings);
++    return c.json({ success: true, settings });
++  } catch (error) {
++    console.error('Error saving admin platform settings:', error);
++    return c.json({ error: 'Failed to save platform settings' }, 500);
++  }
++});
++
+ app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
+   try {
+     const unauthorized = await requireAdmin(c);

@@ -1,5 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import {
+  fetchAdminPlatformSettingsFromServer,
+  LEGACY_ADMIN_PLATFORM_SETTINGS_KEY,
+  parseLegacyAdminPlatformSettings,
+  saveAdminPlatformSettingsToServer,
+  type AdminPlatformSettings,
+} from '../services/adminPlatformSettings';
 
 interface AdminSettingsProps {
   isSuperAdmin: boolean;
@@ -13,8 +20,72 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
   const [withdrawalFee, setWithdrawalFee] = useState('2.0');
   const [minDeposit, setMinDeposit] = useState('10');
   const [taskRefreshHours, setTaskRefreshHours] = useState('24');
-  const [autoAssignTasks, setAutoAssignTasks] = useState('Enabled');
+  const [autoAssignTasks, setAutoAssignTasks] = useState<'Enabled' | 'Disabled'>('Enabled');
+  const [isHydrating, setIsHydrating] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const applySettings = (settings: AdminPlatformSettings) => {
+    setMaintenanceMode(settings.maintenanceMode);
+    setAllowNewRegistration(settings.allowNewRegistration);
+    setMinWithdrawal(String(settings.minWithdrawal));
+    setMaxWithdrawal(String(settings.maxWithdrawal));
+    setWithdrawalFee(String(settings.withdrawalFee));
+    setMinDeposit(String(settings.minDeposit));
+    setTaskRefreshHours(String(settings.taskRefreshHours));
+    setAutoAssignTasks(settings.autoAssignTasks);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateSettings = async () => {
+      try {
+        const serverSettings = await fetchAdminPlatformSettingsFromServer();
+        if (cancelled) {
+          return;
+        }
+
+        if (serverSettings) {
+          applySettings(serverSettings);
+          localStorage.removeItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY);
+          return;
+        }
+
+        const legacySettings = parseLegacyAdminPlatformSettings(localStorage.getItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY));
+        if (!legacySettings) {
+          return;
+        }
+
+        if (isSuperAdmin) {
+          const migrated = await saveAdminPlatformSettingsToServer(legacySettings);
+          if (cancelled) {
+            return;
+          }
+          applySettings(migrated);
+          localStorage.removeItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY);
+          toast.success('Legacy platform settings migrated to server storage.');
+          return;
+        }
+
+        applySettings(legacySettings);
+      } catch {
+        const legacySettings = parseLegacyAdminPlatformSettings(localStorage.getItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY));
+        if (legacySettings && !cancelled) {
+          applySettings(legacySettings);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsHydrating(false);
+        }
+      }
+    };
+
+    void hydrateSettings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSuperAdmin]);
 
   const handleSaveSettings = async () => {
     if (!isSuperAdmin) {
@@ -36,8 +107,7 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
 
     setSaving(true);
     try {
-      // Persist to localStorage as the settings endpoint is not yet server-side
-      const settings = {
+      const settings: AdminPlatformSettings = {
         maintenanceMode,
         allowNewRegistration,
         minWithdrawal: minW,
@@ -48,7 +118,8 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
         autoAssignTasks,
         savedAt: new Date().toISOString(),
       };
-      localStorage.setItem('steadfast_admin_platform_settings', JSON.stringify(settings));
+      await saveAdminPlatformSettingsToServer(settings);
+      localStorage.removeItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY);
       toast.success('Platform settings saved successfully.');
     } catch {
       toast.error('Failed to save settings. Please try again.');
@@ -175,7 +246,7 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
               <label className="block text-sm font-medium text-gray-300 mb-2">Auto-Assign Tasks</label>
               <select
                 value={autoAssignTasks}
-                onChange={(e) => setAutoAssignTasks(e.target.value)}
+                onChange={(e) => setAutoAssignTasks(e.target.value === 'Disabled' ? 'Disabled' : 'Enabled')}
                 className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
               >
                 <option>Enabled</option>
@@ -187,10 +258,10 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
 
         <button
           onClick={() => void handleSaveSettings()}
-          disabled={saving}
+          disabled={saving || isHydrating}
           className="w-full bg-[#00D9FF] hover:bg-[#00c5e6] disabled:opacity-60 disabled:cursor-not-allowed text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors"
         >
-          {saving ? 'Saving…' : 'Save All Settings'}
+          {saving ? 'Saving…' : isHydrating ? 'Loading Settings…' : 'Save All Settings'}
         </button>
       </div>
     </div>

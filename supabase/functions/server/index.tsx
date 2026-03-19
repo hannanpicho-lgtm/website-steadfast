@@ -429,6 +429,7 @@ const VIP_CONFIG_KEY_PREFIX = 'vip-config:';
 const REWARDS_CONFIG_KEY = 'rewards-config:primary';
 const ADMIN_SALARY_PROJECT_KEY = 'admin-salary:project:primary';
 const ADMIN_SALARY_AUDIT_LOG_KEY = 'admin-salary:audit-log:primary';
+const ADMIN_PLATFORM_SETTINGS_KEY = 'admin-platform-settings:primary';
 const ADMIN_SALARY_MAX_RESTORE_POINTS = 10;
 const ADMIN_SALARY_MAX_AUDIT_EVENTS = 50;
 
@@ -836,6 +837,53 @@ function sanitizeAdminSalaryAuditLog(values: unknown): any[] {
     .map((value) => sanitizeAdminSalaryAuditEvent(value))
     .filter((event): event is Record<string, unknown> => event !== null)
     .slice(0, ADMIN_SALARY_MAX_AUDIT_EVENTS);
+}
+
+function sanitizeAdminPlatformSettings(value: unknown) {
+  const defaults = {
+    maintenanceMode: false,
+    allowNewRegistration: true,
+    minWithdrawal: 50,
+    maxWithdrawal: 10_000,
+    withdrawalFee: 2,
+    minDeposit: 10,
+    taskRefreshHours: 24,
+    autoAssignTasks: 'Enabled',
+    savedAt: new Date().toISOString(),
+  };
+
+  if (!value || typeof value !== 'object') {
+    return defaults;
+  }
+
+  const source = value as Record<string, unknown>;
+  const minWithdrawal = Number(source.minWithdrawal);
+  const maxWithdrawal = Number(source.maxWithdrawal);
+  const withdrawalFee = Number(source.withdrawalFee);
+  const minDeposit = Number(source.minDeposit);
+  const taskRefreshHours = Number(source.taskRefreshHours);
+
+  const boundedMinWithdrawal = Number.isFinite(minWithdrawal)
+    ? Math.min(1_000_000, Math.max(1, roundMoney(minWithdrawal)))
+    : defaults.minWithdrawal;
+  const boundedMaxWithdrawalRaw = Number.isFinite(maxWithdrawal)
+    ? Math.min(1_000_000, Math.max(1, roundMoney(maxWithdrawal)))
+    : defaults.maxWithdrawal;
+  const boundedMaxWithdrawal = boundedMaxWithdrawalRaw <= boundedMinWithdrawal
+    ? Math.min(1_000_000, boundedMinWithdrawal + 1)
+    : boundedMaxWithdrawalRaw;
+
+  return {
+    maintenanceMode: source.maintenanceMode === true,
+    allowNewRegistration: source.allowNewRegistration !== false,
+    minWithdrawal: boundedMinWithdrawal,
+    maxWithdrawal: boundedMaxWithdrawal,
+    withdrawalFee: Number.isFinite(withdrawalFee) ? Math.min(50, Math.max(0, roundMoney(withdrawalFee))) : defaults.withdrawalFee,
+    minDeposit: Number.isFinite(minDeposit) ? Math.min(1_000_000, Math.max(1, roundMoney(minDeposit))) : defaults.minDeposit,
+    taskRefreshHours: Number.isFinite(taskRefreshHours) ? Math.min(168, Math.max(1, Math.round(taskRefreshHours))) : defaults.taskRefreshHours,
+    autoAssignTasks: source.autoAssignTasks === 'Disabled' ? 'Disabled' : 'Enabled',
+    savedAt: typeof source.savedAt === 'string' && source.savedAt ? source.savedAt : new Date().toISOString(),
+  };
 }
 
 function sanitizeTaskStatus(value: unknown): 'Active' | 'Paused' {
@@ -3252,6 +3300,50 @@ app.put('/make-server-a1c55d7e/admin/salary/audit-log', async (c) => {
   } catch (error) {
     console.error('Error saving admin salary audit log:', error);
     return c.json({ error: 'Failed to save salary audit log' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/platform-settings', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:platform-settings-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const settings = sanitizeAdminPlatformSettings(await kv.get(ADMIN_PLATFORM_SETTINGS_KEY));
+    return c.json({ settings });
+  } catch (error) {
+    console.error('Error fetching admin platform settings:', error);
+    return c.json({ error: 'Failed to fetch platform settings' }, 500);
+  }
+});
+
+app.put('/make-server-a1c55d7e/admin/platform-settings', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    if (!isSuperAdmin(c.get('adminUser'))) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:platform-settings-write');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const body = await c.req.json();
+    const settings = sanitizeAdminPlatformSettings((body as any)?.settings ?? body);
+    await kv.set(ADMIN_PLATFORM_SETTINGS_KEY, settings);
+    return c.json({ success: true, settings });
+  } catch (error) {
+    console.error('Error saving admin platform settings:', error);
+    return c.json({ error: 'Failed to save platform settings' }, 500);
   }
 });
 

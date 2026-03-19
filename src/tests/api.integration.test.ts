@@ -713,6 +713,31 @@ describe('Admin route authentication', () => {
     });
     expect(status).toBe(401);
   });
+
+  it('GET /admin/platform-settings → 401 with anon token only', async () => {
+    const { status } = await request('/admin/platform-settings');
+    expect(status).toBe(401);
+  });
+
+  it('PUT /admin/platform-settings → 401 with anon token only', async () => {
+    const { status } = await request('/admin/platform-settings', {
+      method: 'PUT',
+      body: JSON.stringify({
+        settings: {
+          maintenanceMode: false,
+          allowNewRegistration: true,
+          minWithdrawal: 50,
+          maxWithdrawal: 10000,
+          withdrawalFee: 2,
+          minDeposit: 10,
+          taskRefreshHours: 24,
+          autoAssignTasks: 'Enabled',
+          savedAt: new Date().toISOString(),
+        },
+      }),
+    });
+    expect(status).toBe(401);
+  });
 });
 
 describe('Admin route success path', () => {
@@ -847,5 +872,63 @@ describe('Admin route success path', () => {
     });
     expect(getResult.status).toBe(200);
     expect(Array.isArray(getResult.body.events)).toBe(true);
+  });
+
+  it('GET /admin/platform-settings works with valid admin JWT', async () => {
+    if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
+      const { status } = await request('/admin/platform-settings');
+      expect(status).toBe(401);
+      return;
+    }
+
+    const { status, body } = await request('/admin/platform-settings', {
+      headers: adminHeaders(),
+    });
+    expect(status).toBe(200);
+    expect(body.settings).toBeTruthy();
+    expect(typeof body.settings.maintenanceMode).toBe('boolean');
+  });
+
+  it('PUT /admin/platform-settings is role-gated and accepts super-admin writes', async () => {
+    if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
+      const { status } = await request('/admin/platform-settings');
+      expect(status).toBe(401);
+      return;
+    }
+
+    const payload = {
+      settings: {
+        maintenanceMode: false,
+        allowNewRegistration: true,
+        minWithdrawal: 55,
+        maxWithdrawal: 12000,
+        withdrawalFee: 2.5,
+        minDeposit: 15,
+        taskRefreshHours: 24,
+        autoAssignTasks: 'Enabled',
+        savedAt: new Date().toISOString(),
+      },
+    };
+
+    const putResult = await request('/admin/platform-settings', {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify(payload),
+    });
+
+    if (putResult.status === 403) {
+      expect(putResult.body.error).toContain('super-admin');
+      return;
+    }
+
+    expect(putResult.status).toBe(200);
+    expect(putResult.body.success).toBe(true);
+    expect(putResult.body.settings.autoAssignTasks).toBe('Enabled');
   });
 });
