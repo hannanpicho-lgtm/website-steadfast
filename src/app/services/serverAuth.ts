@@ -18,9 +18,10 @@ const MUST_CHANGE_PASSWORD_KEY = 'steadfast_force_password_change_v1';
 // ── Token storage ────────────────────────────────────────────────────────────
 
 export function storeSessionToken(token: string, username: string, mustChangePassword = false): void {
-  localStorage.setItem(SESSION_TOKEN_KEY, token);
+  sessionStorage.setItem(SESSION_TOKEN_KEY, token);
   // Legacy key cleanup: username is now derived from the signed session token payload.
   localStorage.removeItem('steadfast_current_user_v1');
+  localStorage.removeItem(SESSION_TOKEN_KEY); // migrate any pre-existing localStorage token out
   if (mustChangePassword) {
     sessionStorage.setItem(MUST_CHANGE_PASSWORD_KEY, '1');
   } else {
@@ -29,13 +30,14 @@ export function storeSessionToken(token: string, username: string, mustChangePas
 }
 
 export function clearSessionToken(): void {
-  localStorage.removeItem(SESSION_TOKEN_KEY);
+  sessionStorage.removeItem(SESSION_TOKEN_KEY);
+  localStorage.removeItem(SESSION_TOKEN_KEY); // clean up any legacy localStorage token
   localStorage.removeItem('steadfast_current_user_v1');
   sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
 }
 
 export function getStoredSessionToken(): string | null {
-  return localStorage.getItem(SESSION_TOKEN_KEY);
+  return sessionStorage.getItem(SESSION_TOKEN_KEY);
 }
 
 export function isPasswordChangeRequired(): boolean {
@@ -91,7 +93,7 @@ export type ServerSignupResult =
 
 /**
  * Authenticates against the server.
- * On success, stores the session token + username in localStorage and returns ok: true.
+ * On success, stores the session token in sessionStorage and returns ok: true.
  */
 export async function serverLogin(
   username: string,
