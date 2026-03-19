@@ -1,3 +1,5 @@
+import { clearSessionToken, getSessionUsername } from './serverAuth';
+
 const STORAGE_KEY = 'steadfast_referral_accounts_v1';
 const CURRENT_USER_KEY = 'steadfast_current_user_v1';
 
@@ -296,7 +298,7 @@ export function registerUserWithInvitation(payload: RegisterPayload): RegisterRe
 
 export function getCurrentUserAccount(): ReferralAccount | null {
   ensureReferralStore();
-  const username = localStorage.getItem(CURRENT_USER_KEY);
+  const username = getCurrentUsername();
   if (!username) {
     return null;
   }
@@ -310,7 +312,15 @@ export function getInvitationCodeForCurrentUser(fallback = 'N/A'): string {
 }
 
 export function getCurrentUsername(): string | null {
-  return localStorage.getItem(CURRENT_USER_KEY);
+  const tokenUsername = getSessionUsername();
+  if (tokenUsername) {
+    localStorage.removeItem(CURRENT_USER_KEY);
+    return tokenUsername;
+  }
+
+  // Legacy cleanup: do not authorize from persistent local username cache.
+  localStorage.removeItem(CURRENT_USER_KEY);
+  return null;
 }
 
 export function isAuthenticated(): boolean {
@@ -324,9 +334,7 @@ export function isCurrentUserAdmin(): boolean {
 }
 
 export function logoutCurrentUser(): void {
-  localStorage.removeItem(CURRENT_USER_KEY);
-  // Also clear the server-issued session token so the session is fully invalidated
-  localStorage.removeItem('steadfast_user_session_token_v1');
+  clearSessionToken();
 }
 
 export function authenticateUser(username: string, loginPassword: string): LoginResult {

@@ -13,25 +13,25 @@ import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 const SESSION_TOKEN_KEY = 'steadfast_user_session_token_v1';
-const CURRENT_USER_KEY = 'steadfast_current_user_v1';
 const MUST_CHANGE_PASSWORD_KEY = 'steadfast_force_password_change_v1';
 
 // ── Token storage ────────────────────────────────────────────────────────────
 
 export function storeSessionToken(token: string, username: string, mustChangePassword = false): void {
   localStorage.setItem(SESSION_TOKEN_KEY, token);
-  localStorage.setItem(CURRENT_USER_KEY, username);
+  // Legacy key cleanup: username is now derived from the signed session token payload.
+  localStorage.removeItem('steadfast_current_user_v1');
   if (mustChangePassword) {
-    localStorage.setItem(MUST_CHANGE_PASSWORD_KEY, '1');
+    sessionStorage.setItem(MUST_CHANGE_PASSWORD_KEY, '1');
   } else {
-    localStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
+    sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
   }
 }
 
 export function clearSessionToken(): void {
   localStorage.removeItem(SESSION_TOKEN_KEY);
-  localStorage.removeItem(CURRENT_USER_KEY);
-  localStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
+  localStorage.removeItem('steadfast_current_user_v1');
+  sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
 }
 
 export function getStoredSessionToken(): string | null {
@@ -39,7 +39,34 @@ export function getStoredSessionToken(): string | null {
 }
 
 export function isPasswordChangeRequired(): boolean {
-  return localStorage.getItem(MUST_CHANGE_PASSWORD_KEY) === '1';
+  return sessionStorage.getItem(MUST_CHANGE_PASSWORD_KEY) === '1';
+}
+
+function parseTokenPayload(token: string): Record<string, unknown> | null {
+  const [payloadPart] = token.split('.');
+  if (!payloadPart) {
+    return null;
+  }
+
+  try {
+    const normalized = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    const decoded = atob(padded);
+    return JSON.parse(decoded) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+export function getSessionUsername(): string | null {
+  const token = getStoredSessionToken();
+  if (!token) {
+    return null;
+  }
+
+  const payload = parseTokenPayload(token);
+  const username = typeof payload?.u === 'string' ? payload.u.trim() : '';
+  return username || null;
 }
 
 // ── Server login ─────────────────────────────────────────────────────────────
@@ -131,8 +158,7 @@ export async function serverSignup(payload: ServerSignupPayload): Promise<Server
 
 /**
  * Verifies a stored session token with the server.
- * If valid, re-populates CURRENT_USER_KEY in localStorage so the app
- * considers the user authenticated even after a cache clear.
+ * If valid, updates session-scoped auth markers.
  *
  * Returns the username if valid, null otherwise.
  */
@@ -162,11 +188,11 @@ export async function verifyAndRestoreSession(): Promise<string | null> {
       return null;
     }
 
-    localStorage.setItem(CURRENT_USER_KEY, username);
+    localStorage.removeItem('steadfast_current_user_v1');
     if (Boolean(data.mustChangePassword)) {
-      localStorage.setItem(MUST_CHANGE_PASSWORD_KEY, '1');
+      sessionStorage.setItem(MUST_CHANGE_PASSWORD_KEY, '1');
     } else {
-      localStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
+      sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
     }
     return username;
   } catch {
@@ -204,7 +230,7 @@ export async function changeUserCredentials(params: {
       return { ok: false, error: String(data.error ?? 'Failed to update credentials.') };
     }
 
-    localStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
+    sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
     return { ok: true };
   } catch {
     return { ok: false, error: 'Server unreachable.' };
