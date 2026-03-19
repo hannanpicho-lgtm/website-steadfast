@@ -37,6 +37,7 @@ export default function ConnectWallet() {
   const [selectedType, setSelectedType] = useState<WalletType>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [walletApiAvailable, setWalletApiAvailable] = useState(true);
 
   const username = getCurrentUsername();
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
@@ -114,6 +115,12 @@ export default function ConnectWallet() {
           body: JSON.stringify(legacyProfile),
         });
 
+        if (response.status === 404) {
+          setWalletApiAvailable(false);
+          hydrateFromProfile(legacyProfile);
+          return true;
+        }
+
         if (!response.ok) {
           return false;
         }
@@ -140,7 +147,23 @@ export default function ConnectWallet() {
           headers: { Authorization: `Bearer ${publicAnonKey}` },
         });
 
+        if (response.status === 404) {
+          setWalletApiAvailable(false);
+          if (storageKey) {
+            const legacyRaw = localStorage.getItem(storageKey);
+            if (legacyRaw) {
+              try {
+                hydrateFromProfile(JSON.parse(legacyRaw) as WalletProfile);
+              } catch {
+                // Ignore malformed legacy profile
+              }
+            }
+          }
+          return;
+        }
+
         if (response.ok) {
+          setWalletApiAvailable(true);
           const payload = await response.json().catch(() => ({} as { walletProfile?: WalletProfile | null }));
           if (payload.walletProfile) {
             hydrateFromProfile(payload.walletProfile);
@@ -153,7 +176,17 @@ export default function ConnectWallet() {
 
         await migrateLegacyWallet();
       } catch {
-        toast.error('Failed to load wallet details. Please try again.');
+        setWalletApiAvailable(false);
+        if (storageKey) {
+          const legacyRaw = localStorage.getItem(storageKey);
+          if (legacyRaw) {
+            try {
+              hydrateFromProfile(JSON.parse(legacyRaw) as WalletProfile);
+            } catch {
+              // Ignore malformed legacy profile
+            }
+          }
+        }
       } finally {
         setLoading(false);
       }
@@ -167,6 +200,19 @@ export default function ConnectWallet() {
       return;
     }
 
+    if (!walletApiAvailable) {
+      try {
+        if (storageKey) {
+          localStorage.setItem(storageKey, JSON.stringify(profile));
+        }
+        toast.success(successMessage);
+        setTimeout(() => navigate('/profile'), 1200);
+      } catch {
+        toast.error('Failed to save wallet details. Please try again.');
+      }
+      return;
+    }
+
     setSubmitting(true);
     try {
       const response = await fetch(`${serverUrl}/wallet/${username}`, {
@@ -177,6 +223,16 @@ export default function ConnectWallet() {
         },
         body: JSON.stringify(profile),
       });
+
+      if (response.status === 404) {
+        setWalletApiAvailable(false);
+        if (storageKey) {
+          localStorage.setItem(storageKey, JSON.stringify(profile));
+        }
+        toast.success(successMessage);
+        setTimeout(() => navigate('/profile'), 1200);
+        return;
+      }
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
