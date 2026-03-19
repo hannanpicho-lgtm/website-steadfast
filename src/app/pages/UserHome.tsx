@@ -75,28 +75,31 @@ export default function UserHome() {
         </section>
 
         {/* Welcome Section */}
-        <section className="mt-8 sm:mt-12 bg-gradient-to-br from-[#1a1f2e] to-[#2d3a56] py-12 sm:py-16 rounded-3xl border border-white/5">
-          <div className="px-4 sm:px-6">
-            <div className="grid md:grid-cols-2 gap-8 items-center">
+        <section className="mt-6 sm:mt-8 bg-gradient-to-br from-[#1a1f2e] to-[#2d3a56] py-7 sm:py-9 rounded-2xl border border-white/5">
+          <div className="px-4 sm:px-5">
+            <div className="grid md:grid-cols-[0.95fr_1.05fr] gap-4 sm:gap-6 items-center">
               <div className="text-white">
-                <h2 className="text-3xl sm:text-4xl font-bold mb-6 text-[#00D9FF]">Welcome to Steadfast Digital</h2>
-                <p className="text-base sm:text-lg text-gray-300 mb-4 leading-relaxed">
-                  We are a performance-driven agency dedicated to serving the digital marketing needs of start-ups and emerging brands.
+                <h2 className="text-2xl sm:text-3xl font-bold mb-3 text-[#00D9FF]">Welcome to Steadfast Digital</h2>
+                <p className="text-sm sm:text-base text-gray-300 mb-2 leading-relaxed">
+                  We help startups and growth brands scale faster with channel-specific execution and measurable performance.
                 </p>
-                <p className="text-base sm:text-lg text-gray-300 mb-4 leading-relaxed">
-                  We aim to amplify your digital presence by identifying and engaging your target audience at minimal acquisition costs.
-                </p>
-                <p className="text-base sm:text-lg text-gray-300 leading-relaxed">
-                  Most of our clientele, spanning e-commerce and service sectors, choose us for our data-driven approach and proven track record of paid media success.
+                <p className="text-sm sm:text-base text-gray-300 leading-relaxed">
+                  Lower acquisition cost, stronger targeting, and cleaner reporting in one focused media system.
                 </p>
               </div>
-              <div className="hidden md:block">
-                <div className="relative w-full h-64 bg-[#00D9FF]/10 rounded-lg border-2 border-[#00D9FF]/30 flex items-center justify-center">
-                  <div className="text-center text-[#00D9FF]">
-                    <svg className="w-24 h-24 mx-auto mb-2 opacity-30" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
-                    </svg>
-                  </div>
+              <div className="block">
+                <div className="relative w-full h-44 sm:h-56 md:h-64 rounded-xl border border-[#00D9FF]/40 overflow-hidden shadow-[0_14px_34px_rgba(0,217,255,0.22)]">
+                  <video
+                    src="/banner-cdc94d47.mp4"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    className="absolute inset-0 h-full w-full object-cover brightness-[1.28] saturate-[1.2] contrast-[1.08] scale-[1.03]"
+                    aria-label="Steadfast Digital background video"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-tr from-[#0f172a66] via-[#0f172a22] to-transparent" />
                 </div>
               </div>
             </div>
@@ -104,21 +107,31 @@ export default function UserHome() {
         </section>
 
         {/* Strategic Insights Section */}
-        <section className="mt-8 bg-gradient-to-br from-[#2d3a56] to-[#1a1f2e] py-12 sm:py-16 rounded-3xl border border-white/5">
-          <div className="px-4 sm:px-6">
-            <div className="grid md:grid-cols-2 gap-8 items-center">
-              <div className="hidden md:block">
-                <div className="relative w-full h-64 bg-gradient-to-br from-cyan-400/20 to-blue-600/20 rounded-lg border border-[#00D9FF]/30 flex items-center justify-center overflow-hidden">
-                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48ZmlsdGVyIGlkPSJncmlkIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC41IiBudW1PY3RhdmVzPSI0IiByZXN1bHQ9Im5vaXNlIi8+PGZlQ29sb3JNYXRyaXggaW49Im5vaXNlIiB0eXBlPSJzYXR1cmF0ZSIgdmFsdWVzPSIwLjMiLz48L2ZpbHRlcj48L2RlZnM+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiMwMDQ0YWEiIGZpbHRlcj0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-40"></div>
+        <section className="mt-6 bg-gradient-to-br from-[#2d3a56] to-[#1a1f2e] py-7 sm:py-9 rounded-2xl border border-white/5">
+          <div className="px-4 sm:px-5">
+            <div className="grid md:grid-cols-[1.05fr_0.95fr] gap-4 sm:gap-6 items-center">
+              <div>
+                <div className="relative w-full h-40 sm:h-52 md:h-56 rounded-xl border border-[#00D9FF]/35 overflow-hidden shadow-[0_12px_30px_rgba(0,217,255,0.18)]">
+                  <video
+                    src="/banner-cdc94d47.mp4"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    className="absolute inset-0 h-full w-full object-cover brightness-[1.22] saturate-[1.18] contrast-[1.05]"
+                    aria-label="Strategic insights background video"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#0f172a40] to-transparent" />
                 </div>
               </div>
               <div className="text-white">
-                <h2 className="text-3xl sm:text-4xl font-bold mb-6 text-[#00D9FF]">Strategic Insights</h2>
-                <p className="text-base sm:text-lg text-gray-300 mb-6 leading-relaxed">
-                  In today's dynamic landscape, mastering channels like Google, Meta and TikTok feels like navigating a complex ecosystem.
+                <h2 className="text-2xl sm:text-3xl font-bold mb-3 text-[#00D9FF]">Strategic Insights</h2>
+                <p className="text-sm sm:text-base text-gray-300 mb-2 leading-relaxed">
+                  We run Google, Meta, and TikTok with one coordinated strategy instead of isolated channel tactics.
                 </p>
-                <p className="text-base sm:text-lg text-gray-300 leading-relaxed">
-                  Algorithms evolve, audiences fragment and success demands both channel expertise and a holistic approach. That's where we come in.
+                <p className="text-sm sm:text-base text-gray-300 leading-relaxed">
+                  As platforms shift, we optimize spend quickly and keep campaigns performance-first.
                 </p>
               </div>
             </div>
@@ -126,56 +139,39 @@ export default function UserHome() {
         </section>
 
         {/* Areas of Focus Section */}
-        <section className="mt-8 bg-gradient-to-br from-[#1a1f2e] to-[#2d3a56] py-12 sm:py-16 rounded-3xl border border-white/5">
-          <div className="px-4 sm:px-6">
-            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12 text-[#00D9FF]">Areas of Focus</h2>
-            <div className="grid md:grid-cols-3 gap-6">
-              {/* Search Engine Marketing */}
-              <div className="bg-[#00D9FF] text-[#1a1f2e] rounded-lg p-6">
-                <h3 className="text-xl font-bold mb-4">Search Engine Marketing</h3>
-                <p className="text-sm leading-relaxed">
-                  Google Ads & Bing Ads: Designed for precision targeting, data-driven tests, and maximizing ROAS.
-                </p>
+        <section className="mt-6 bg-gradient-to-br from-[#1a1f2e] to-[#2d3a56] py-7 sm:py-9 rounded-2xl border border-white/5">
+          <div className="px-4 sm:px-5">
+            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-5 sm:mb-6 text-[#00D9FF]">Areas of Focus</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="bg-[#00D9FF] text-[#1a1f2e] rounded-lg p-4">
+                <h3 className="text-base font-bold mb-1.5">Search</h3>
+                <p className="text-xs leading-relaxed">Google and Bing campaigns tuned for efficient ROAS.</p>
               </div>
-              {/* Paid Social */}
-              <div className="bg-[#252b3d] text-white rounded-lg p-6 border border-[#00D9FF]/30">
-                <h3 className="text-xl font-bold mb-4 text-[#00D9FF]">Paid Social</h3>
-                <p className="text-sm leading-relaxed text-gray-300">
-                  Facebook, Instagram, Pinterest, TikTok, and LinkedIn Ads. Reach the right audience at the right time in the right place.
-                </p>
+              <div className="bg-[#252b3d] text-white rounded-lg p-4 border border-[#00D9FF]/30">
+                <h3 className="text-base font-bold mb-1.5 text-[#00D9FF]">Paid Social</h3>
+                <p className="text-xs leading-relaxed text-gray-300">Meta, TikTok, and LinkedIn ads built for conversion lift.</p>
               </div>
-              {/* Paid Content */}
-              <div className="bg-[#252b3d] text-white rounded-lg p-6 border border-[#00D9FF]/30">
-                <h3 className="text-xl font-bold mb-4 text-[#00D9FF]">Paid Content</h3>
-                <p className="text-sm leading-relaxed text-gray-300">
-                  Taboola & Outbrain: Amplify your content to drive awareness and attention.
-                </p>
+              <div className="bg-[#252b3d] text-white rounded-lg p-4 border border-[#00D9FF]/30">
+                <h3 className="text-base font-bold mb-1.5 text-[#00D9FF]">Paid Content</h3>
+                <p className="text-xs leading-relaxed text-gray-300">Native placements that widen reach and qualified traffic.</p>
               </div>
-            </div>
-            <div className="grid md:grid-cols-2 gap-6 mt-6">
-              {/* Affiliate Marketing */}
-              <div className="bg-[#252b3d] text-white rounded-lg p-6 border border-[#00D9FF]/30">
-                <h3 className="text-xl font-bold mb-4 text-[#00D9FF]">Affiliate Marketing</h3>
-                <p className="text-sm leading-relaxed text-gray-300">
-                  Get featured across sites and platforms your customers care about.
-                </p>
+              <div className="bg-[#252b3d] text-white rounded-lg p-4 border border-[#00D9FF]/30">
+                <h3 className="text-base font-bold mb-1.5 text-[#00D9FF]">Affiliate</h3>
+                <p className="text-xs leading-relaxed text-gray-300">Partnership channels aligned to your core audience.</p>
               </div>
-              {/* Digital Strategy & Insights */}
-              <div className="bg-[#252b3d] text-white rounded-lg p-6 border border-[#00D9FF]/30">
-                <h3 className="text-xl font-bold mb-4 text-[#00D9FF]">Digital Strategy & Insights</h3>
-                <p className="text-sm leading-relaxed text-gray-300">
-                  Data that ties it all together for the optimal performance for your media mix.
-                </p>
+              <div className="bg-[#252b3d] text-white rounded-lg p-4 border border-[#00D9FF]/30">
+                <h3 className="text-base font-bold mb-1.5 text-[#00D9FF]">Strategy</h3>
+                <p className="text-xs leading-relaxed text-gray-300">Unified performance data to guide budget and growth.</p>
               </div>
             </div>
           </div>
         </section>
 
         {/* Our Clients Section */}
-        <section className="mt-8 bg-gradient-to-br from-[#2d3a56] to-[#1a1f2e] py-12 sm:py-16 rounded-3xl border border-white/5">
-          <div className="px-4 sm:px-6">
-            <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12 text-[#00D9FF]">Our Clients</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+        <section className="mt-6 bg-gradient-to-br from-[#2d3a56] to-[#1a1f2e] py-7 sm:py-9 rounded-2xl border border-white/5">
+          <div className="px-4 sm:px-5">
+            <h2 className="text-2xl sm:text-3xl font-bold text-center mb-5 sm:mb-6 text-[#00D9FF]">Our Clients</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
               {[
                 { name: 'GIADZY', color: 'text-red-600' },
                 { name: 'Owlet', color: 'text-teal-400' },
@@ -183,9 +179,9 @@ export default function UserHome() {
               ].map((client) => (
                 <div
                   key={client.name}
-                  className="bg-white rounded-lg p-8 flex items-center justify-center min-h-32 border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                  className="bg-white rounded-lg p-4 sm:p-5 flex items-center justify-center min-h-[86px] sm:min-h-[98px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
                 >
-                  <span className={`text-2xl font-bold ${client.color}`}>{client.name}</span>
+                  <span className={`text-xl sm:text-2xl font-bold ${client.color}`}>{client.name}</span>
                 </div>
               ))}
             </div>
