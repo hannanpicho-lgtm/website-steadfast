@@ -29,10 +29,10 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
   return (
     <Link
       to={item.to}
-      className="rounded-xl bg-[#1ec9ee] min-h-[96px] sm:min-h-[122px] flex flex-col items-center justify-center gap-2 sm:gap-3 px-2 text-[#162033] shadow-[0_10px_24px_rgba(30,201,238,0.16)] border border-white/10 transition-transform duration-200 hover:-translate-y-0.5"
+      className="rounded-lg bg-[#1ec9ee] min-h-[78px] sm:min-h-[94px] flex flex-col items-center justify-center gap-1.5 sm:gap-2 px-2 text-[#162033] shadow-[0_8px_18px_rgba(30,201,238,0.14)] border border-white/10 transition-transform duration-200 hover:-translate-y-0.5"
     >
-      <Icon size={26} strokeWidth={2.15} className="sm:h-7 sm:w-7" />
-      <span className="text-[0.95rem] sm:text-[1.22rem] font-semibold tracking-tight text-center leading-tight px-1 break-words">{item.title}</span>
+      <Icon size={21} strokeWidth={2.15} className="sm:h-6 sm:w-6" />
+      <span className="text-[0.86rem] sm:text-[1.02rem] font-semibold tracking-tight text-center leading-tight px-1 break-words">{item.title}</span>
     </Link>
   );
 }
@@ -44,13 +44,30 @@ export default function UserHome() {
     <div className="min-h-screen bg-[#1f2638] pb-[calc(9rem+env(safe-area-inset-bottom))] sm:pb-32">
       <Header onContactClick={() => setIsChatOpen(true)} />
 
-      <main className="max-w-5xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6">
-        <section className="rounded-2xl bg-[#2a3146] border border-white/5 p-3 sm:p-4 shadow-[0_14px_36px_rgba(5,12,24,0.24)]">
-          <div className="mb-3 sm:mb-4 text-center">
+      <main className="max-w-5xl mx-auto px-3 sm:px-6 pt-3 sm:pt-5">
+        <section className="relative h-[150px] sm:h-[188px] rounded-2xl overflow-hidden border border-white/10 shadow-[0_16px_40px_rgba(0,0,0,0.3)] mb-4 sm:mb-5">
+          <video
+            src="/banner-cdc94d47.mp4"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            className="absolute inset-0 h-full w-full object-cover"
+            aria-label="Steadfast Digital banner video"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0f172acc] via-[#0f172a99] to-transparent" />
+          <div className="relative z-10 h-full flex items-end p-3 sm:p-4">
+            <p className="text-[#d7f6ff] text-sm sm:text-base font-medium">Steadfast Digital</p>
+          </div>
+        </section>
+
+        <section className="rounded-xl bg-[#2a3146] border border-white/5 p-2.5 sm:p-3 shadow-[0_10px_28px_rgba(5,12,24,0.22)]">
+          <div className="mb-2 sm:mb-3 text-center">
             <p className="text-[#9fb4d1] text-xs sm:text-sm">Quick access to the user information section</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5">
+          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
             {quickLinks.map((item) => (
               <QuickLinkCard key={item.title} item={item} />
             ))}
