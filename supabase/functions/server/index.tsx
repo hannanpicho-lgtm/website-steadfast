@@ -1849,9 +1849,18 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
     const inviteCodeAsReferral = sanitizeInviteCode(normalizedInputCode);
     const inviteCodeAsAdmin = sanitizeAdminInviteCode(normalizedInputCode);
 
-    let parentInviteCode = inviteCodeAsReferral;
+    let parentInviteCode: string | null = null;
     let effectiveAdminInviteCode = explicitAdminInviteCode;
 
+    if (inviteCodeAsReferral) {
+      const referralOwner = await kv.get(`referral:invite:${inviteCodeAsReferral}`);
+      if (referralOwner && typeof referralOwner === 'string') {
+        parentInviteCode = inviteCodeAsReferral;
+      }
+    }
+
+    // If invite code is not a valid referral owner but is a valid admin code,
+    // treat it as admin invite and use the system root as referral parent.
     if (!parentInviteCode && inviteCodeAsAdmin) {
       parentInviteCode = ROOT_REFERRAL_INVITE_CODE;
       effectiveAdminInviteCode = inviteCodeAsAdmin;
