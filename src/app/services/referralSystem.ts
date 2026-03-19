@@ -226,6 +226,8 @@ export function getAdminCredentials(): { username: string; password: string; inv
   };
 }
 
+// Legacy referral-account helpers retained for backward compatibility while
+// auth/session authority stays token-based in serverAuth.
 export function registerUserWithInvitation(payload: RegisterPayload): RegisterResult {
   ensureReferralStore();
   const store = readStore();

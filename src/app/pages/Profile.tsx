@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import profileImage from '../../assets/3df251a778530e24e8d83eda03085a2dc309c248.png';
-import { getCurrentUserAccount, getCurrentUsername, logoutCurrentUser } from '../services/referralSystem';
+import { getCurrentUsername, logoutCurrentUser } from '../services/referralSystem';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { changeUserCredentials, isPasswordChangeRequired } from '../services/serverAuth';
 
@@ -26,7 +26,6 @@ export default function Profile() {
   const [newTransactionPassword, setNewTransactionPassword] = useState('');
   const [updatingCredentials, setUpdatingCredentials] = useState(false);
 
-  const currentUser = getCurrentUserAccount();
   const username = getCurrentUsername();
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
@@ -150,7 +149,7 @@ export default function Profile() {
         <div className="bg-gradient-to-r from-[#0066cc] to-[#0088ee] rounded-lg p-6 text-white mb-6 shadow-md">
           <div className="mb-4">
             <p className="text-sm opacity-90 mb-1">Hello,</p>
-            <h2 className="text-2xl font-bold">{username ?? currentUser?.username ?? 'User'}</h2>
+            <h2 className="text-2xl font-bold">{username ?? 'User'}</h2>
           </div>
 
           <div className="grid grid-cols-3 gap-4 mb-4">
@@ -255,7 +254,7 @@ export default function Profile() {
               <div className="px-4 pb-4 border-t border-gray-100">
                 <div className="py-2">
                   <p className="text-sm text-gray-600 mb-1">Username</p>
-                  <p className="font-semibold">{currentUser?.username ?? 'ugreen'}</p>
+                  <p className="font-semibold">{username ?? 'ugreen'}</p>
                 </div>
                 <div className="py-2">
                   <p className="text-sm text-gray-600 mb-1">Email</p>

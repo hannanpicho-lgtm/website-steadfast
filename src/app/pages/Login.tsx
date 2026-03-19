@@ -1,9 +1,8 @@
 import { AlertTriangle, Eye, EyeOff, Lock, ShieldAlert } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router';
 import { useState } from 'react';
-import { useEffect } from 'react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
-import { ensureReferralStore, getAdminCredentials, getDemoCredentials } from '../services/referralSystem';
+import { getAdminCredentials, getDemoCredentials } from '../services/referralSystem';
 import { signInAdmin } from '../services/supabaseAuth';
 import { serverLogin } from '../services/serverAuth';
 import { type LoginLocationState } from '../services/loginRedirect';
@@ -148,10 +147,6 @@ export default function Login() {
   const routeNotice = buildRouteNotice(loginState);
   const isAdminAttempt = adminRequired || username.trim().includes('@');
   const errorNotice = errorText ? buildLoginErrorNotice(errorText, isAdminAttempt) : null;
-
-  useEffect(() => {
-    ensureReferralStore();
-  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
