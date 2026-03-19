@@ -388,12 +388,6 @@ function generateUserInviteCode(): string {
   return code;
 }
 
-function generateSecureCredential(length = 12): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
-  const bytes = crypto.getRandomValues(new Uint8Array(length));
-  return Array.from(bytes).map((b) => chars[b % chars.length]).join('');
-}
-
 async function resolveCanonicalUsername(username: string): Promise<string | null> {
   const normalized = username.trim().toLowerCase();
   if (!normalized) return null;
@@ -4430,7 +4424,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
 });
 
 // Admin-reset user credentials (login + transaction) without email dependency.
-// Generates secure values, returns them once in response, stores only hashes.
+// Admin provides new values; server stores only hashes and forces next password change.
 app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials', async (c) => {
   try {
     const unauthorized = await requireAdmin(c);
@@ -4462,8 +4456,14 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials
       return c.json({ error: 'Forbidden' }, 403);
     }
 
-    const nextLoginPassword = generateSecureCredential(12);
-    const nextTransactionPassword = generateSecureCredential(12);
+    const body = await c.req.json();
+    const nextLoginPassword = typeof body?.loginPassword === 'string' ? body.loginPassword.trim() : '';
+    const nextTransactionPassword = typeof body?.transactionPassword === 'string' ? body.transactionPassword.trim() : '';
+
+    if (nextLoginPassword.length < 6 || nextTransactionPassword.length < 6) {
+      return c.json({ error: 'loginPassword and transactionPassword must each be at least 6 characters.' }, 400);
+    }
+
     normalizedUser.password = await hashPassword(nextLoginPassword);
     normalizedUser.transactionPassword = await hashPassword(nextTransactionPassword);
     normalizedUser.mustChangePassword = true;
@@ -4474,10 +4474,8 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials
     return c.json({
       ok: true,
       username: canonicalUsername,
-      loginPassword: nextLoginPassword,
-      transactionPassword: nextTransactionPassword,
       mustChangePassword: true,
-      generatedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
   } catch (err) {
     console.error('admin/platform-users/reset-credentials error:', err);
