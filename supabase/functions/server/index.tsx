@@ -427,6 +427,10 @@ const WITHDRAWAL_KEY_PREFIX = 'withdrawal:';
 const TASK_CATALOG_KEY_PREFIX = 'task-catalog:';
 const VIP_CONFIG_KEY_PREFIX = 'vip-config:';
 const REWARDS_CONFIG_KEY = 'rewards-config:primary';
+const ADMIN_SALARY_PROJECT_KEY = 'admin-salary:project:primary';
+const ADMIN_SALARY_AUDIT_LOG_KEY = 'admin-salary:audit-log:primary';
+const ADMIN_SALARY_MAX_RESTORE_POINTS = 10;
+const ADMIN_SALARY_MAX_AUDIT_EVENTS = 50;
 
 const defaultTaskCatalog = [
   {
@@ -699,6 +703,139 @@ function sanitizeTaskId(value: unknown): string | null {
     return null;
   }
   return trimmed;
+}
+
+function sanitizeAdminSalaryRewardTab(value: unknown): string {
+  const valid = new Set(['workday', 'reset', 'accumulated', 'product-system', 'salary-payments']);
+  return typeof value === 'string' && valid.has(value) ? value : 'workday';
+}
+
+function sanitizeAdminSalaryBulkOption(value: unknown): 'all' | 'auto' | 'manual' {
+  return value === 'auto' || value === 'manual' ? value : 'all';
+}
+
+function sanitizeAdminSalaryPayment(value: unknown): any | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  if (
+    !Number.isFinite(Number(candidate.id)) ||
+    typeof candidate.username !== 'string' ||
+    !Number.isFinite(Number(candidate.daysWorked)) ||
+    !Number.isFinite(Number(candidate.salaryDue)) ||
+    typeof candidate.dueDate !== 'string'
+  ) {
+    return null;
+  }
+
+  const status = candidate.status === 'Paid' ? 'Paid' : 'Pending';
+  const paymentMode = candidate.paymentMode === 'Manual' ? 'Manual' : 'Automatic';
+
+  return {
+    id: Number(candidate.id),
+    username: candidate.username.trim(),
+    daysWorked: Math.max(0, Math.round(Number(candidate.daysWorked))),
+    salaryDue: Math.max(0, roundMoney(Number(candidate.salaryDue))),
+    status,
+    dueDate: String(candidate.dueDate),
+    paidDate: typeof candidate.paidDate === 'string' ? candidate.paidDate : undefined,
+    paymentMode,
+  };
+}
+
+function sanitizeAdminSalaryRestorePoint(value: unknown): any | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  const payments = Array.isArray(candidate.payments)
+    ? candidate.payments
+        .map((payment) => sanitizeAdminSalaryPayment(payment))
+        .filter((payment): payment is Record<string, unknown> => payment !== null)
+    : [];
+
+  if (payments.length === 0) {
+    return null;
+  }
+
+  return {
+    id: Number.isFinite(Number(candidate.id)) ? Number(candidate.id) : Date.now(),
+    createdAt: typeof candidate.createdAt === 'string' ? candidate.createdAt : new Date().toISOString(),
+    label: typeof candidate.label === 'string' && candidate.label.trim() ? candidate.label.trim() : 'Imported backup',
+    payments,
+  };
+}
+
+function sanitizeAdminSalaryProject(value: unknown): any | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const source = value as Record<string, unknown>;
+  const payments = Array.isArray(source.payments)
+    ? source.payments
+        .map((payment) => sanitizeAdminSalaryPayment(payment))
+        .filter((payment): payment is Record<string, unknown> => payment !== null)
+    : [];
+  const points = Array.isArray(source.points)
+    ? source.points
+        .map((point) => sanitizeAdminSalaryRestorePoint(point))
+        .filter((point): point is Record<string, unknown> => point !== null)
+        .slice(0, ADMIN_SALARY_MAX_RESTORE_POINTS)
+    : [];
+
+  if (payments.length === 0) {
+    return null;
+  }
+
+  const uiState = typeof source.uiState === 'object' && source.uiState ? source.uiState as Record<string, unknown> : {};
+
+  return {
+    version: 1,
+    savedAt: typeof source.savedAt === 'string' ? source.savedAt : new Date().toISOString(),
+    checksum: typeof source.checksum === 'string' ? source.checksum : '',
+    uiState: {
+      activeRewardTab: sanitizeAdminSalaryRewardTab(uiState.activeRewardTab),
+      selectedBulkOption: sanitizeAdminSalaryBulkOption(uiState.selectedBulkOption),
+      autoBackupEnabled: typeof uiState.autoBackupEnabled === 'boolean' ? uiState.autoBackupEnabled : true,
+      autoBackupIntervalMinutes: Math.min(60, Math.max(1, Math.round(Number(uiState.autoBackupIntervalMinutes ?? 1)))),
+      backupRetentionDays: Math.min(365, Math.max(1, Math.round(Number(uiState.backupRetentionDays ?? 30)))),
+    },
+    payments,
+    points,
+  };
+}
+
+function sanitizeAdminSalaryAuditEvent(value: unknown): any | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const source = value as Record<string, unknown>;
+  if (!Number.isFinite(Number(source.id)) || typeof source.action !== 'string') {
+    return null;
+  }
+
+  return {
+    id: Number(source.id),
+    at: typeof source.at === 'string' ? source.at : new Date().toISOString(),
+    action: source.action,
+    detail: typeof source.detail === 'string' ? source.detail : '',
+  };
+}
+
+function sanitizeAdminSalaryAuditLog(values: unknown): any[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value) => sanitizeAdminSalaryAuditEvent(value))
+    .filter((event): event is Record<string, unknown> => event !== null)
+    .slice(0, ADMIN_SALARY_MAX_AUDIT_EVENTS);
 }
 
 function sanitizeTaskStatus(value: unknown): 'Active' | 'Paused' {
@@ -3031,6 +3168,90 @@ app.get('/make-server-a1c55d7e/admin/rewards-config', async (c) => {
   } catch (error) {
     console.error('Error fetching admin rewards config:', error);
     return c.json({ error: 'Failed to fetch rewards config' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/salary/project', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:salary-project-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const project = await kv.get(ADMIN_SALARY_PROJECT_KEY);
+    return c.json({ project: sanitizeAdminSalaryProject(project) });
+  } catch (error) {
+    console.error('Error fetching admin salary project:', error);
+    return c.json({ error: 'Failed to fetch salary project' }, 500);
+  }
+});
+
+app.put('/make-server-a1c55d7e/admin/salary/project', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:salary-project-write');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const body = await c.req.json();
+    const normalized = sanitizeAdminSalaryProject((body as any)?.project ?? body);
+    if (!normalized) {
+      return c.json({ error: 'Invalid salary project payload' }, 400);
+    }
+
+    await kv.set(ADMIN_SALARY_PROJECT_KEY, normalized);
+    return c.json({ success: true, project: normalized });
+  } catch (error) {
+    console.error('Error saving admin salary project:', error);
+    return c.json({ error: 'Failed to save salary project' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/salary/audit-log', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:salary-audit-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const events = sanitizeAdminSalaryAuditLog(await kv.get(ADMIN_SALARY_AUDIT_LOG_KEY));
+    return c.json({ events });
+  } catch (error) {
+    console.error('Error fetching admin salary audit log:', error);
+    return c.json({ error: 'Failed to fetch salary audit log' }, 500);
+  }
+});
+
+app.put('/make-server-a1c55d7e/admin/salary/audit-log', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+    const rateLimited = enforceAdminRateLimit(c, 'admin:salary-audit-write');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const body = await c.req.json();
+    const events = sanitizeAdminSalaryAuditLog((body as any)?.events ?? body);
+    await kv.set(ADMIN_SALARY_AUDIT_LOG_KEY, events);
+    return c.json({ success: true, events });
+  } catch (error) {
+    console.error('Error saving admin salary audit log:', error);
+    return c.json({ error: 'Failed to save salary audit log' }, 500);
   }
 });
 

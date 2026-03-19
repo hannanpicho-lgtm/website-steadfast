@@ -524,3 +524,152 @@ export function loadSalaryAuditLog(): SalaryAuditEvent[] {
 export function saveSalaryAuditLog(events: SalaryAuditEvent[]): StorageSaveResult {
   return writeLocalStorageItem(SALARY_AUDIT_LOG_KEY, events.slice(0, MAX_AUDIT_EVENTS));
 }
+
+export async function fetchAdminSalaryProjectState(params: {
+  serverUrl: string;
+  headers: Record<string, string>;
+  defaultPayments: SalaryPayment[];
+}): Promise<{
+  payments: SalaryPayment[];
+  points: SalaryRestorePoint[];
+  activeRewardTab: RewardTab;
+  selectedBulkOption: 'all' | 'auto' | 'manual';
+  autoBackupEnabled: boolean;
+  autoBackupIntervalMinutes: number;
+  backupRetentionDays: number;
+} | null> {
+  try {
+    const response = await fetch(`${params.serverUrl}/admin/salary/project`, {
+      method: 'GET',
+      headers: params.headers,
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json().catch(() => ({} as { project?: Partial<SalaryProjectAutosave> | null }));
+    const project = payload.project;
+    if (!project || typeof project !== 'object') {
+      return null;
+    }
+
+    return {
+      payments: sanitizePayments((project as SalaryProjectAutosave).payments, params.defaultPayments),
+      points: sanitizeRestorePoints((project as SalaryProjectAutosave).points),
+      activeRewardTab: sanitizeRewardTab((project as SalaryProjectAutosave).uiState?.activeRewardTab),
+      selectedBulkOption: sanitizeBulkOption((project as SalaryProjectAutosave).uiState?.selectedBulkOption),
+      autoBackupEnabled: sanitizeAutoBackupEnabled((project as SalaryProjectAutosave).uiState?.autoBackupEnabled),
+      autoBackupIntervalMinutes: sanitizeAutoBackupIntervalMinutes((project as SalaryProjectAutosave).uiState?.autoBackupIntervalMinutes),
+      backupRetentionDays: sanitizeBackupRetentionDays((project as SalaryProjectAutosave).uiState?.backupRetentionDays),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function saveAdminSalaryProjectState(params: {
+  serverUrl: string;
+  headers: Record<string, string>;
+  payload: {
+    activeRewardTab: RewardTab;
+    selectedBulkOption: 'all' | 'auto' | 'manual';
+    autoBackupEnabled: boolean;
+    autoBackupIntervalMinutes: number;
+    backupRetentionDays: number;
+    payments: SalaryPayment[];
+    points: SalaryRestorePoint[];
+  };
+}): Promise<StorageSaveResult> {
+  try {
+    const dataWithoutChecksum = {
+      version: 1 as const,
+      savedAt: new Date().toISOString(),
+      uiState: {
+        activeRewardTab: params.payload.activeRewardTab,
+        selectedBulkOption: params.payload.selectedBulkOption,
+        autoBackupEnabled: params.payload.autoBackupEnabled,
+        autoBackupIntervalMinutes: sanitizeAutoBackupIntervalMinutes(params.payload.autoBackupIntervalMinutes),
+        backupRetentionDays: sanitizeBackupRetentionDays(params.payload.backupRetentionDays),
+      },
+      payments: params.payload.payments,
+      points: params.payload.points,
+    };
+
+    const response = await fetch(`${params.serverUrl}/admin/salary/project`, {
+      method: 'PUT',
+      headers: {
+        ...params.headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        project: {
+          ...dataWithoutChecksum,
+          checksum: computeChecksum(dataWithoutChecksum),
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => ({} as { error?: string }));
+      return { ok: false, message: errorPayload.error ?? 'Unable to save salary backup state to server.' };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof Error && error.message) {
+      return { ok: false, message: `Unable to save salary backup state to server. ${error.message}` };
+    }
+    return { ok: false, message: 'Unable to save salary backup state to server.' };
+  }
+}
+
+export async function fetchAdminSalaryAuditLogFromServer(params: {
+  serverUrl: string;
+  headers: Record<string, string>;
+}): Promise<SalaryAuditEvent[] | null> {
+  try {
+    const response = await fetch(`${params.serverUrl}/admin/salary/audit-log`, {
+      method: 'GET',
+      headers: params.headers,
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json().catch(() => ({} as { events?: unknown }));
+    return sanitizeAuditEvents(payload.events);
+  } catch {
+    return null;
+  }
+}
+
+export async function saveAdminSalaryAuditLogToServer(params: {
+  serverUrl: string;
+  headers: Record<string, string>;
+  events: SalaryAuditEvent[];
+}): Promise<StorageSaveResult> {
+  try {
+    const response = await fetch(`${params.serverUrl}/admin/salary/audit-log`, {
+      method: 'PUT',
+      headers: {
+        ...params.headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ events: params.events.slice(0, MAX_AUDIT_EVENTS) }),
+    });
+
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => ({} as { error?: string }));
+      return { ok: false, message: errorPayload.error ?? 'Unable to save salary audit log to server.' };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    if (error instanceof Error && error.message) {
+      return { ok: false, message: `Unable to save salary audit log to server. ${error.message}` };
+    }
+    return { ok: false, message: 'Unable to save salary audit log to server.' };
+  }
+}

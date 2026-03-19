@@ -78,12 +78,14 @@ import {
   createAutoBackupPoint as buildAutoBackupPoint,
   createRecoveryPoint,
   createSalaryRestorePoint as createSalaryRestorePointRecord,
+  fetchAdminSalaryAuditLogFromServer,
+  fetchAdminSalaryProjectState,
   loadSalaryAuditLog,
   loadSalaryProjectAutosave,
   parseBackupImport,
   pruneExpiredRestorePoints,
-  saveSalaryAuditLog,
-  saveSalaryProjectAutosave,
+  saveAdminSalaryAuditLogToServer,
+  saveAdminSalaryProjectState,
   type StorageSaveResult,
   type RewardTab,
   type SalaryAuditEvent,
@@ -1532,6 +1534,39 @@ export default function Admin() {
     salaryPaymentsRef.current = restored.payments;
     lastAutoBackupSignatureRef.current = JSON.stringify(restored.payments);
     setIsSalaryStateHydrated(true);
+
+    void (async () => {
+      try {
+        const headers = await buildAdminAuthHeaders();
+        const remoteProject = await fetchAdminSalaryProjectState({
+          serverUrl,
+          headers,
+          defaultPayments: initialSalaryPayments,
+        });
+
+        if (remoteProject) {
+          setSalaryPayments(remoteProject.payments);
+          setSalaryRestorePoints(remoteProject.points);
+          setActiveRewardTab(remoteProject.activeRewardTab);
+          setSelectedBulkOption(remoteProject.selectedBulkOption);
+          setAutoBackupEnabled(remoteProject.autoBackupEnabled);
+          setAutoBackupIntervalMinutes(remoteProject.autoBackupIntervalMinutes);
+          setBackupRetentionDays(remoteProject.backupRetentionDays);
+          salaryPaymentsRef.current = remoteProject.payments;
+          lastAutoBackupSignatureRef.current = JSON.stringify(remoteProject.payments);
+        }
+
+        const remoteAuditLog = await fetchAdminSalaryAuditLogFromServer({ serverUrl, headers });
+        if (remoteAuditLog) {
+          setSalaryAuditLog(remoteAuditLog);
+        }
+      } catch (error) {
+        handleAdminRequestError(error, 'Failed to sync salary state from server', {
+          suppressToast: true,
+          onMessage: setStorageWarning,
+        });
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -1543,16 +1578,34 @@ export default function Admin() {
       return;
     }
 
-    const saveResult = saveSalaryProjectAutosave({
-      activeRewardTab,
-      selectedBulkOption,
-      autoBackupEnabled,
-      autoBackupIntervalMinutes,
-      backupRetentionDays,
-      payments: salaryPayments,
-      points: pruneExpiredRestorePoints(salaryRestorePoints, backupRetentionDays),
-    });
-    handleStorageSaveResult(saveResult);
+    void (async () => {
+      try {
+        const headers = await buildAdminAuthHeaders();
+        const saveResult = await saveAdminSalaryProjectState({
+          serverUrl,
+          headers,
+          payload: {
+            activeRewardTab,
+            selectedBulkOption,
+            autoBackupEnabled,
+            autoBackupIntervalMinutes,
+            backupRetentionDays,
+            payments: salaryPayments,
+            points: pruneExpiredRestorePoints(salaryRestorePoints, backupRetentionDays),
+          },
+        });
+        handleStorageSaveResult(saveResult);
+        if (saveResult.ok) {
+          localStorage.removeItem('steadfast_admin_salary_project_v1');
+        }
+      } catch (error) {
+        handleAdminRequestError(error, 'Failed to sync salary project state', {
+          suppressToast: true,
+          onMessage: setStorageWarning,
+        });
+      }
+    })();
+
     setAutoSavedAt(new Date().toISOString());
   }, [
     isSalaryStateHydrated,
@@ -1579,8 +1632,25 @@ export default function Admin() {
       return;
     }
 
-    const saveResult = saveSalaryAuditLog(salaryAuditLog);
-    handleStorageSaveResult(saveResult);
+    void (async () => {
+      try {
+        const headers = await buildAdminAuthHeaders();
+        const saveResult = await saveAdminSalaryAuditLogToServer({
+          serverUrl,
+          headers,
+          events: salaryAuditLog,
+        });
+        handleStorageSaveResult(saveResult);
+        if (saveResult.ok) {
+          localStorage.removeItem('steadfast_admin_salary_audit_log_v1');
+        }
+      } catch (error) {
+        handleAdminRequestError(error, 'Failed to sync salary audit log', {
+          suppressToast: true,
+          onMessage: setStorageWarning,
+        });
+      }
+    })();
   }, [isSalaryStateHydrated, salaryAuditLog]);
 
   const appendSalaryAudit = (event: SalaryAuditEvent) => {
