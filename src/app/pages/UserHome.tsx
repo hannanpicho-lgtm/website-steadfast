@@ -77,30 +77,21 @@ export default function UserHome() {
         {/* Welcome Section */}
         <section className="mt-6 sm:mt-8 bg-gradient-to-br from-[#1a1f2e] to-[#2d3a56] py-7 sm:py-9 rounded-2xl border border-white/5">
           <div className="px-4 sm:px-5">
-            <div className="grid md:grid-cols-[0.95fr_1.05fr] gap-4 sm:gap-6 items-center">
-              <div className="text-white">
-                <h2 className="text-2xl sm:text-3xl font-bold mb-3 text-[#00D9FF]">Welcome to Steadfast Digital</h2>
-                <p className="text-sm sm:text-base text-gray-300 mb-2 leading-relaxed">
-                  We help startups and growth brands scale faster with channel-specific execution and measurable performance.
-                </p>
-                <p className="text-sm sm:text-base text-gray-300 leading-relaxed">
-                  Lower acquisition cost, stronger targeting, and cleaner reporting in one focused media system.
-                </p>
-              </div>
-              <div className="block">
-                <div className="relative w-full h-44 sm:h-56 md:h-64 rounded-xl border border-[#00D9FF]/40 overflow-hidden shadow-[0_14px_34px_rgba(0,217,255,0.22)]">
-                  <video
-                    src="/banner-cdc94d47.mp4"
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    preload="metadata"
-                    className="absolute inset-0 h-full w-full object-cover brightness-[1.28] saturate-[1.2] contrast-[1.08] scale-[1.03]"
-                    aria-label="Steadfast Digital background video"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-tr from-[#0f172a66] via-[#0f172a22] to-transparent" />
-                </div>
+            <div className="relative w-full h-52 sm:h-64 md:h-72 rounded-xl border border-[#00D9FF]/45 overflow-hidden shadow-[0_16px_38px_rgba(0,217,255,0.24)]">
+              <video
+                src="/banner-cdc94d47.mp4"
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                className="absolute inset-0 h-full w-full object-cover brightness-[1.34] saturate-[1.24] contrast-[1.1] scale-[1.03]"
+                aria-label="Steadfast Digital background video"
+              />
+              <div className="absolute inset-0 bg-gradient-to-tr from-[#0f172a59] via-[#0f172a1f] to-transparent" />
+              <div className="absolute left-3 sm:left-5 bottom-3 sm:bottom-5 text-white max-w-[92%]">
+                <h2 className="text-2xl sm:text-3xl font-bold text-[#00D9FF] mb-1">Welcome to Steadfast Digital</h2>
+                <p className="text-xs sm:text-sm text-gray-200 leading-relaxed">Performance-led growth for startups and brands across paid media.</p>
               </div>
             </div>
           </div>
@@ -127,11 +118,8 @@ export default function UserHome() {
               </div>
               <div className="text-white">
                 <h2 className="text-2xl sm:text-3xl font-bold mb-3 text-[#00D9FF]">Strategic Insights</h2>
-                <p className="text-sm sm:text-base text-gray-300 mb-2 leading-relaxed">
-                  We run Google, Meta, and TikTok with one coordinated strategy instead of isolated channel tactics.
-                </p>
                 <p className="text-sm sm:text-base text-gray-300 leading-relaxed">
-                  As platforms shift, we optimize spend quickly and keep campaigns performance-first.
+                  One integrated strategy across Google, Meta, and TikTok keeps spend efficient as platforms evolve.
                 </p>
               </div>
             </div>
@@ -143,25 +131,25 @@ export default function UserHome() {
           <div className="px-4 sm:px-5">
             <h2 className="text-2xl sm:text-3xl font-bold text-center mb-5 sm:mb-6 text-[#00D9FF]">Areas of Focus</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
-              <div className="bg-[#00D9FF] text-[#1a1f2e] rounded-lg p-4">
-                <h3 className="text-base font-bold mb-1.5">Search</h3>
-                <p className="text-xs leading-relaxed">Google and Bing campaigns tuned for efficient ROAS.</p>
+              <div className="bg-[#00D9FF] text-[#1a1f2e] rounded-lg p-3 min-h-[84px]">
+                <h3 className="text-[0.95rem] font-bold mb-1">Search</h3>
+                <p className="text-[11px] leading-relaxed">Google and Bing built for efficient ROAS.</p>
               </div>
-              <div className="bg-[#252b3d] text-white rounded-lg p-4 border border-[#00D9FF]/30">
-                <h3 className="text-base font-bold mb-1.5 text-[#00D9FF]">Paid Social</h3>
-                <p className="text-xs leading-relaxed text-gray-300">Meta, TikTok, and LinkedIn ads built for conversion lift.</p>
+              <div className="bg-[#252b3d] text-white rounded-lg p-3 min-h-[84px] border border-[#00D9FF]/30">
+                <h3 className="text-[0.95rem] font-bold mb-1 text-[#00D9FF]">Paid Social</h3>
+                <p className="text-[11px] leading-relaxed text-gray-300">Meta, TikTok, and LinkedIn for conversion lift.</p>
               </div>
-              <div className="bg-[#252b3d] text-white rounded-lg p-4 border border-[#00D9FF]/30">
-                <h3 className="text-base font-bold mb-1.5 text-[#00D9FF]">Paid Content</h3>
-                <p className="text-xs leading-relaxed text-gray-300">Native placements that widen reach and qualified traffic.</p>
+              <div className="bg-[#252b3d] text-white rounded-lg p-3 min-h-[84px] border border-[#00D9FF]/30">
+                <h3 className="text-[0.95rem] font-bold mb-1 text-[#00D9FF]">Paid Content</h3>
+                <p className="text-[11px] leading-relaxed text-gray-300">Native placements that expand qualified reach.</p>
               </div>
-              <div className="bg-[#252b3d] text-white rounded-lg p-4 border border-[#00D9FF]/30">
-                <h3 className="text-base font-bold mb-1.5 text-[#00D9FF]">Affiliate</h3>
-                <p className="text-xs leading-relaxed text-gray-300">Partnership channels aligned to your core audience.</p>
+              <div className="bg-[#252b3d] text-white rounded-lg p-3 min-h-[84px] border border-[#00D9FF]/30">
+                <h3 className="text-[0.95rem] font-bold mb-1 text-[#00D9FF]">Affiliate</h3>
+                <p className="text-[11px] leading-relaxed text-gray-300">Partnership channels aligned to core buyers.</p>
               </div>
-              <div className="bg-[#252b3d] text-white rounded-lg p-4 border border-[#00D9FF]/30">
-                <h3 className="text-base font-bold mb-1.5 text-[#00D9FF]">Strategy</h3>
-                <p className="text-xs leading-relaxed text-gray-300">Unified performance data to guide budget and growth.</p>
+              <div className="bg-[#252b3d] text-white rounded-lg p-3 min-h-[84px] border border-[#00D9FF]/30">
+                <h3 className="text-[0.95rem] font-bold mb-1 text-[#00D9FF]">Strategy</h3>
+                <p className="text-[11px] leading-relaxed text-gray-300">Unified data guiding budget and growth pace.</p>
               </div>
             </div>
           </div>
