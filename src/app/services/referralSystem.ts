@@ -325,6 +325,8 @@ export function isCurrentUserAdmin(): boolean {
 
 export function logoutCurrentUser(): void {
   localStorage.removeItem(CURRENT_USER_KEY);
+  // Also clear the server-issued session token so the session is fully invalidated
+  localStorage.removeItem('steadfast_user_session_token_v1');
 }
 
 export function authenticateUser(username: string, loginPassword: string): LoginResult {

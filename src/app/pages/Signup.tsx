@@ -170,6 +170,8 @@ export default function Signup() {
           username: result.createdUser?.username,
           invitationCode: result.createdUser?.invitationCode,
           parentInviteCode: registrationInviteCode,
+          loginPassword,
+          transactionPassword,
         }),
       });
 

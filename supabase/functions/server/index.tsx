@@ -1633,6 +1633,7 @@ app.get("/make-server-a1c55d7e/user/:username", async (c) => {
 });
 
 // Link referral identity for a user (username -> invitation code and parent invite code)
+// Also accepts optional loginPassword / transactionPassword to store server-side hashed credentials.
 app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:referral-link');
@@ -1642,6 +1643,8 @@ app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
     const username = sanitizeUsername(body.username);
     const invitationCode = sanitizeInviteCode(body.invitationCode);
     const parentInviteCode = sanitizeInviteCode(body.parentInviteCode);
+    const rawLoginPassword = typeof body.loginPassword === 'string' ? body.loginPassword : null;
+    const rawTransactionPassword = typeof body.transactionPassword === 'string' ? body.transactionPassword : null;
 
     if (!username || !invitationCode || !parentInviteCode) {
       return c.json({ error: 'username, invitationCode and parentInviteCode are required' }, 400);
@@ -1663,8 +1666,16 @@ app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
     const userData = await getOrCreateUserRecord(username);
     userData.invitationCode = invitationCode;
     userData.invitedByCode = parentInviteCode;
-    await kv.set(`user:${username}`, userData);
 
+    // Store hashed credentials if provided so server-side login works cross-domain
+    if (rawLoginPassword && rawLoginPassword.length >= 6) {
+      userData.password = await hashPassword(rawLoginPassword);
+    }
+    if (rawTransactionPassword && rawTransactionPassword.length >= 6) {
+      userData.transactionPassword = await hashPassword(rawTransactionPassword);
+    }
+
+    await kv.set(`user:${username}`, userData);
     await kv.set(`referral:invite:${invitationCode}`, username);
 
     const parentData = await getOrCreateUserRecord(parentUsername);
@@ -1684,6 +1695,138 @@ app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
   } catch (error) {
     console.error('Error linking referral user:', error);
     return c.json({ error: 'Failed to link referral user' }, 500);
+  }
+});
+
+// ==================== USER AUTH ENDPOINTS ====================
+
+// Login rate limit: max 10 attempts per IP per minute to prevent brute-force
+const LOGIN_RATE_LIMIT_MAX = 10;
+
+// POST /auth/login — verifies username + loginPassword against server-stored hashed credentials.
+// Returns a signed session token the client can persist in localStorage.
+app.post('/make-server-a1c55d7e/auth/login', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:login', LOGIN_RATE_LIMIT_MAX);
+    if (rateLimited) return rateLimited;
+
+    const body = await c.req.json();
+    const username = sanitizeUsername(body.username);
+    const loginPassword = typeof body.loginPassword === 'string' ? body.loginPassword : '';
+
+    if (!username || !loginPassword) {
+      return c.json({ error: 'username and loginPassword are required' }, 400);
+    }
+
+    const userKey = `user:${username}`;
+    const userData = await kv.get(userKey);
+
+    if (!userData) {
+      // Use generic message to avoid username enumeration
+      return c.json({ error: 'Invalid username or password.' }, 401);
+    }
+
+    const storedPassword = (userData as any).password;
+    if (!storedPassword) {
+      // Account exists in KV but has no server-side password yet (pre-migration user).
+      // Allow login only from local storage fallback; server cannot verify.
+      return c.json({ error: 'Account credentials not set up for server login. Please re-register.' }, 401);
+    }
+
+    const valid = await verifyPassword(loginPassword, storedPassword);
+    if (!valid) {
+      return c.json({ error: 'Invalid username or password.' }, 401);
+    }
+
+    // Build a signed session token: base64url(payload) + "." + base64url(hmac)
+    // Payload: { u: username, e: expiresAt (unix ms) }
+    const jwtSecret = Deno.env.get('USER_JWT_SECRET') ?? 'steadfast-user-session-secret-change-me';
+    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
+    const payloadJson = JSON.stringify({ u: username, e: expiresAt });
+    const payloadB64 = btoa(payloadJson).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(jwtSecret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    );
+    const sigBuffer = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payloadB64));
+    const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sigBuffer)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+    const token = `${payloadB64}.${sigB64}`;
+
+    return c.json({ ok: true, username, token });
+  } catch (error) {
+    console.error('Error during user login:', error);
+    return c.json({ error: 'Login failed. Please try again.' }, 500);
+  }
+});
+
+// POST /auth/verify-token — verifies a previously issued session token.
+// Used on startup to restore session without re-entering credentials.
+app.post('/make-server-a1c55d7e/auth/verify-token', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:verify-token');
+    if (rateLimited) return rateLimited;
+
+    const body = await c.req.json();
+    const token = typeof body.token === 'string' ? body.token.trim() : '';
+
+    if (!token) {
+      return c.json({ error: 'token is required' }, 400);
+    }
+
+    const dotIndex = token.lastIndexOf('.');
+    if (dotIndex < 1) {
+      return c.json({ error: 'Invalid token format' }, 401);
+    }
+
+    const payloadB64 = token.slice(0, dotIndex);
+    const sigB64 = token.slice(dotIndex + 1);
+
+    // Re-compute expected signature
+    const jwtSecret = Deno.env.get('USER_JWT_SECRET') ?? 'steadfast-user-session-secret-change-me';
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(jwtSecret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    );
+    const expectedSigBuffer = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payloadB64));
+    const expectedSigB64 = btoa(String.fromCharCode(...new Uint8Array(expectedSigBuffer)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+    if (sigB64 !== expectedSigB64) {
+      return c.json({ error: 'Invalid or tampered token' }, 401);
+    }
+
+    // Decode payload
+    let payload: { u: string; e: number };
+    try {
+      const padded = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+      const json = atob(padded + '=='.slice((padded.length + 3) & 3));
+      payload = JSON.parse(json);
+    } catch {
+      return c.json({ error: 'Malformed token payload' }, 401);
+    }
+
+    if (!payload.u || typeof payload.e !== 'number' || Date.now() > payload.e) {
+      return c.json({ error: 'Token expired' }, 401);
+    }
+
+    const username = sanitizeUsername(payload.u);
+    if (!username) {
+      return c.json({ error: 'Invalid token username' }, 401);
+    }
+
+    return c.json({ ok: true, username });
+  } catch (error) {
+    console.error('Error verifying token:', error);
+    return c.json({ error: 'Token verification failed' }, 500);
   }
 });
 
