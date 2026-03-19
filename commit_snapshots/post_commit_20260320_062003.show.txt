@@ -1,0 +1,6 @@
+﻿750ce607 Phase 4 hardening: remove admin local bootstrap and add salary endpoint integration coverage
+ commit_snapshots/pre_commit_20260320_061923.diff   | 205 +++++++++++++++++++++
+ .../pre_commit_20260320_061923.status.txt          |   3 +
+ src/app/pages/Admin.tsx                            |  16 +-
+ src/tests/api.integration.test.ts                  | 155 ++++++++++++++++
+ 4 files changed, 365 insertions(+), 14 deletions(-)
