@@ -3,16 +3,18 @@
 Phase: 1
 Status: Planned
 Objective: Switch authentication and session state to backend-only authority with zero regression.
+Baseline stable commit (current): c6043acb40d8322e6d614e3b8d347d66074f0342
+Current rollback anchor (pre-implementation): c6043acb40d8322e6d614e3b8d347d66074f0342
 
 ## 1. Ownership and Control
 
-- Phase Owner:
-- Backend Owner:
-- Frontend Owner:
-- QA Owner:
-- Release Owner:
-- Approver:
-- Change Ticket:
+- Phase Owner: UNASSIGNED (must be assigned before cutover)
+- Backend Owner: UNASSIGNED (must be assigned before cutover)
+- Frontend Owner: UNASSIGNED (must be assigned before cutover)
+- QA Owner: UNASSIGNED (must be assigned before cutover)
+- Release Owner: UNASSIGNED (must be assigned before cutover)
+- Approver: UNASSIGNED (must be assigned before cutover)
+- Change Ticket: P4-PHASE1-AUTH-SESSION (create/update before execution)
 
 ## 2. Fixed Scope
 
@@ -35,6 +37,9 @@ Cutover rule:
 
 Feature flag:
 - p4_phase1_auth_backend_only
+
+Current feature flag state:
+- OFF (planned)
 
 ## 4. Keys and Data Targets
 
@@ -147,10 +152,10 @@ Rollback steps:
 
 ## 12. Evidence Record
 
-- Backup path:
-- Backup timestamp:
-- Cutover commit SHA:
-- Rollback commit SHA:
+- Backup path: C:\Users\Administrator\Documents\Website-SteadfastBackups\Website-Steadfast_backup_20260320-050015
+- Backup timestamp: 20260320-050015
+- Cutover commit SHA: TBD (set on release candidate)
+- Rollback commit SHA: c6043acb40d8322e6d614e3b8d347d66074f0342
 - Cloudflare deployment ID:
 - Deployed source SHA:
 - Validation result summary:
@@ -164,3 +169,38 @@ Rollback steps:
 - Release Owner: Pass or Fail
 - Final Approver: Pass or Fail
 - Signoff timestamp:
+
+## 14. Exact Validation Sequence (Phase 1)
+
+Run in this order and record output references.
+
+Pre-deploy technical checks:
+1. `npm run build`
+2. `npm run test:integration`
+3. `npm run verify:deploy:p4`
+
+Post-deploy integrity checks:
+1. `npm run verify:deploy:p4`
+2. `npx wrangler pages deployment list --project-name website-steadfast`
+
+API auth checks:
+1. `POST /auth/login` with valid user
+2. `POST /auth/verify-token` with returned token
+3. `POST /auth/login` invalid credential rejection check
+4. `POST /admin/platform-users/:username/reset-credentials` unauthorized check (expect 401 without admin jwt)
+
+Browser user session checks (production domains):
+1. Unauthenticated `/profile` redirects to `/login`
+2. User login success
+3. Refresh persistence on protected route
+4. Full browser restart persistence
+
+Browser admin session checks (production domains):
+1. Unauthenticated `/admin` redirects to `/login` with admin-required context
+2. Valid admin login success
+3. Refresh persistence on `/admin`
+4. Full browser restart persistence for admin session
+
+Security storage checks:
+1. Confirm no plaintext credentials in localStorage
+2. Confirm route authorization does not rely on localStorage-only identity
