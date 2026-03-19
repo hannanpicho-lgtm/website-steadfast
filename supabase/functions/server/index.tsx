@@ -538,6 +538,149 @@ function sanitizeWalletAddress(value: unknown): string | null {
   return trimmed;
 }
 
+function sanitizeWalletText(value: unknown, maxLength = 128): string {
+  if (typeof value !== 'string') {
+    return '';
+  }
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > maxLength || /[\u0000-\u001F]/.test(trimmed)) {
+    return '';
+  }
+  return trimmed;
+}
+
+type BankingWalletProfile = {
+  type: 'banking';
+  accountName: string;
+  accountNumber: string;
+  bankName: string;
+  swiftCode: string;
+  routingNumber: string;
+  country: string;
+  updatedAt: string;
+};
+
+type CryptoWalletProfile = {
+  type: 'crypto';
+  walletType: string;
+  walletAddress: string;
+  network: string;
+  updatedAt: string;
+};
+
+type WalletProfile = BankingWalletProfile | CryptoWalletProfile;
+
+function normalizeWalletType(value: unknown): 'banking' | 'crypto' | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'banking' || normalized === 'crypto') {
+    return normalized;
+  }
+  return null;
+}
+
+function normalizeStoredWalletProfile(value: unknown): WalletProfile | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const source = value as Record<string, unknown>;
+  const type = normalizeWalletType(source.type);
+  const updatedAt = typeof source.updatedAt === 'string' && source.updatedAt
+    ? source.updatedAt
+    : new Date().toISOString();
+
+  if (type === 'banking') {
+    const accountName = sanitizeWalletText(source.accountName);
+    const accountNumber = sanitizeWalletText(source.accountNumber, 64);
+    const bankName = sanitizeWalletText(source.bankName);
+    const country = sanitizeWalletText(source.country, 8);
+    if (!accountName || !accountNumber || !bankName || !country) {
+      return null;
+    }
+    return {
+      type: 'banking',
+      accountName,
+      accountNumber,
+      bankName,
+      swiftCode: sanitizeWalletText(source.swiftCode, 32),
+      routingNumber: sanitizeWalletText(source.routingNumber, 32),
+      country,
+      updatedAt,
+    };
+  }
+
+  if (type === 'crypto') {
+    const walletAddress = sanitizeWalletAddress(source.walletAddress);
+    if (!walletAddress) {
+      return null;
+    }
+    return {
+      type: 'crypto',
+      walletType: sanitizeFinanceMethod(source.walletType, 'bitcoin'),
+      walletAddress,
+      network: sanitizeFinanceMethod(source.network, 'mainnet'),
+      updatedAt,
+    };
+  }
+
+  return null;
+}
+
+function parseWalletProfileInput(body: unknown): { ok: true; walletProfile: WalletProfile } | { ok: false; error: string } {
+  if (!body || typeof body !== 'object') {
+    return { ok: false, error: 'Request body is required' };
+  }
+
+  const source = body as Record<string, unknown>;
+  const type = normalizeWalletType(source.type);
+  if (!type) {
+    return { ok: false, error: 'type must be banking or crypto' };
+  }
+
+  if (type === 'banking') {
+    const accountName = sanitizeWalletText(source.accountName);
+    const accountNumber = sanitizeWalletText(source.accountNumber, 64);
+    const bankName = sanitizeWalletText(source.bankName);
+    const country = sanitizeWalletText(source.country, 8);
+    if (!accountName || !accountNumber || !bankName || !country) {
+      return { ok: false, error: 'accountName, accountNumber, bankName, and country are required' };
+    }
+
+    return {
+      ok: true,
+      walletProfile: {
+        type: 'banking',
+        accountName,
+        accountNumber,
+        bankName,
+        swiftCode: sanitizeWalletText(source.swiftCode, 32),
+        routingNumber: sanitizeWalletText(source.routingNumber, 32),
+        country,
+        updatedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  const walletAddress = sanitizeWalletAddress(source.walletAddress);
+  if (!walletAddress) {
+    return { ok: false, error: 'walletAddress is required' };
+  }
+
+  return {
+    ok: true,
+    walletProfile: {
+      type: 'crypto',
+      walletType: sanitizeFinanceMethod(source.walletType, 'bitcoin'),
+      walletAddress,
+      network: sanitizeFinanceMethod(source.network, 'mainnet'),
+      updatedAt: new Date().toISOString(),
+    },
+  };
+}
+
 function sanitizeFinanceMethod(value: unknown, fallback: string): string {
   if (typeof value !== 'string') {
     return fallback;
@@ -1072,6 +1215,7 @@ function defaultUserRecord(username: string) {
     referralEarnings: 0,
     children: [],
     referredByAdminId: null as string | null,
+    walletProfile: null as WalletProfile | null,
     createdAt: new Date().toISOString(),
   };
 }
@@ -1113,6 +1257,7 @@ function normalizeUserRecord(userData: any, username: string) {
   normalized.referredByAdminId = typeof normalized.referredByAdminId === 'string' && normalized.referredByAdminId
     ? normalized.referredByAdminId
     : null;
+  normalized.walletProfile = normalizeStoredWalletProfile(normalized.walletProfile);
   normalized.createdAt = typeof normalized.createdAt === 'string' && normalized.createdAt
     ? normalized.createdAt
     : new Date().toISOString();
@@ -1661,6 +1806,62 @@ app.get("/make-server-a1c55d7e/user/:username", async (c) => {
   } catch (error) {
     console.error('Error fetching user data:', error);
     return c.json({ error: 'Failed to fetch user data' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/wallet/:username', async (c) => {
+  try {
+    const requestedUsername = sanitizeUsername(c.req.param('username'));
+    if (!requestedUsername) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    const canonicalUsername = (await resolveCanonicalUsername(requestedUsername)) ?? requestedUsername;
+    const userData = await getOrCreateUserRecord(canonicalUsername);
+    await assignUsernameLookup(canonicalUsername);
+
+    return c.json({
+      username: canonicalUsername,
+      walletProfile: normalizeStoredWalletProfile((userData as any).walletProfile),
+    });
+  } catch (error) {
+    console.error('Error fetching wallet profile:', error);
+    return c.json({ error: 'Failed to fetch wallet profile' }, 500);
+  }
+});
+
+app.put('/make-server-a1c55d7e/wallet/:username', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:wallet-profile', 20);
+    if (rateLimited) return rateLimited;
+
+    const requestedUsername = sanitizeUsername(c.req.param('username'));
+    if (!requestedUsername) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    const body = await c.req.json();
+    const parsed = parseWalletProfileInput(body);
+    if (!parsed.ok) {
+      return c.json({ error: parsed.error }, 400);
+    }
+
+    const canonicalUsername = (await resolveCanonicalUsername(requestedUsername)) ?? requestedUsername;
+    const userData = await getOrCreateUserRecord(canonicalUsername);
+    const normalizedUserData = await syncUserWithVipConfig(userData, canonicalUsername);
+    normalizedUserData.walletProfile = parsed.walletProfile;
+
+    await kv.set(`user:${canonicalUsername}`, normalizedUserData);
+    await assignUsernameLookup(canonicalUsername);
+
+    return c.json({
+      success: true,
+      username: canonicalUsername,
+      walletProfile: parsed.walletProfile,
+    });
+  } catch (error) {
+    console.error('Error saving wallet profile:', error);
+    return c.json({ error: 'Failed to save wallet profile' }, 500);
   }
 });
 

@@ -1,21 +1,46 @@
 import { ChevronLeft, Building2, Bitcoin, Check, Copy, CreditCard, Landmark } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { getCurrentUsername } from '../services/referralSystem';
+import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { buildLoginRedirectState } from '../services/loginRedirect';
 
 type WalletType = 'banking' | 'crypto' | null;
 
+type BankingWalletProfile = {
+  type: 'banking';
+  accountName: string;
+  accountNumber: string;
+  bankName: string;
+  swiftCode: string;
+  routingNumber: string;
+  country: string;
+};
+
+type CryptoWalletProfile = {
+  type: 'crypto';
+  walletType: string;
+  walletAddress: string;
+  network: string;
+};
+
+type WalletProfile = BankingWalletProfile | CryptoWalletProfile;
+
 export default function ConnectWallet() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<WalletType>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  const username = getCurrentUsername() ?? 'guest';
-  const storageKey = `steadfast_wallet_${username}`;
+  const username = getCurrentUsername();
+  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const storageKey = username ? `steadfast_wallet_${username}` : null;
 
   // Banking form state
   const [bankingForm, setBankingForm] = useState({
@@ -34,61 +59,155 @@ export default function ConnectWallet() {
     network: 'mainnet',
   });
 
-  // Pre-fill from localStorage on mount
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (!saved) return;
-      const parsed = JSON.parse(saved) as { type: string } & Record<string, string>;
-      if (parsed.type === 'banking') {
-        setSelectedType('banking');
-        setBankingForm({
-          accountName: parsed.accountName ?? '',
-          accountNumber: parsed.accountNumber ?? '',
-          bankName: parsed.bankName ?? '',
-          swiftCode: parsed.swiftCode ?? '',
-          routingNumber: parsed.routingNumber ?? '',
-          country: parsed.country ?? '',
-        });
-      } else if (parsed.type === 'crypto') {
-        setSelectedType('crypto');
-        setCryptoForm({
-          walletType: parsed.walletType ?? 'bitcoin',
-          walletAddress: parsed.walletAddress ?? '',
-          network: parsed.network ?? 'mainnet',
-        });
-      }
-    } catch {
-      // ignore malformed storage
-    }
-  }, [storageKey]);
-
-  const handleBankingSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      localStorage.setItem(storageKey, JSON.stringify({ type: 'banking', ...bankingForm }));
-      toast.success('Banking account connected successfully!');
-    } catch {
-      toast.error('Failed to save wallet. Please try again.');
+    if (!username) {
+      navigate('/login', {
+        replace: true,
+        state: buildLoginRedirectState(location.pathname, {
+          authReason: 'session-expired',
+          authMessage: 'Your session ended. Please sign in again to manage wallet details.',
+        }),
+      });
       return;
     }
-    setTimeout(() => navigate('/profile'), 1200);
+
+    const hydrateFromProfile = (profile: WalletProfile) => {
+      if (profile.type === 'banking') {
+        setSelectedType('banking');
+        setBankingForm({
+          accountName: profile.accountName,
+          accountNumber: profile.accountNumber,
+          bankName: profile.bankName,
+          swiftCode: profile.swiftCode,
+          routingNumber: profile.routingNumber,
+          country: profile.country,
+        });
+        return;
+      }
+
+      setSelectedType('crypto');
+      setCryptoForm({
+        walletType: profile.walletType,
+        walletAddress: profile.walletAddress,
+        network: profile.network,
+      });
+    };
+
+    const migrateLegacyWallet = async () => {
+      if (!storageKey) {
+        return false;
+      }
+
+      const saved = localStorage.getItem(storageKey);
+      if (!saved) {
+        return false;
+      }
+
+      try {
+        const legacyProfile = JSON.parse(saved) as WalletProfile;
+        const response = await fetch(`${serverUrl}/wallet/${username}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${publicAnonKey}`,
+          },
+          body: JSON.stringify(legacyProfile),
+        });
+
+        if (!response.ok) {
+          return false;
+        }
+
+        const payload = await response.json().catch(() => ({} as { walletProfile?: WalletProfile }));
+        const migratedProfile = payload.walletProfile;
+        if (!migratedProfile) {
+          return false;
+        }
+
+        hydrateFromProfile(migratedProfile);
+        localStorage.removeItem(storageKey);
+        toast.success('Wallet details migrated securely to your account.');
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    const loadWalletProfile = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`${serverUrl}/wallet/${username}`, {
+          headers: { Authorization: `Bearer ${publicAnonKey}` },
+        });
+
+        if (response.ok) {
+          const payload = await response.json().catch(() => ({} as { walletProfile?: WalletProfile | null }));
+          if (payload.walletProfile) {
+            hydrateFromProfile(payload.walletProfile);
+            if (storageKey) {
+              localStorage.removeItem(storageKey);
+            }
+            return;
+          }
+        }
+
+        await migrateLegacyWallet();
+      } catch {
+        toast.error('Failed to load wallet details. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadWalletProfile();
+  }, [location.pathname, navigate, serverUrl, storageKey, username]);
+
+  const saveWalletProfile = async (profile: WalletProfile, successMessage: string) => {
+    if (!username) {
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const response = await fetch(`${serverUrl}/wallet/${username}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${publicAnonKey}`,
+        },
+        body: JSON.stringify(profile),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(String((payload as Record<string, unknown>).error ?? 'Failed to save wallet details'));
+      }
+
+      if (storageKey) {
+        localStorage.removeItem(storageKey);
+      }
+      toast.success(successMessage);
+      setTimeout(() => navigate('/profile'), 1200);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save wallet details. Please try again.';
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleCryptoSubmit = (e: React.FormEvent) => {
+  const handleBankingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await saveWalletProfile({ type: 'banking', ...bankingForm }, 'Banking account connected successfully!');
+  };
+
+  const handleCryptoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cryptoForm.walletAddress.trim()) {
       toast.error('Please enter your wallet address.');
       return;
     }
-    try {
-      localStorage.setItem(storageKey, JSON.stringify({ type: 'crypto', ...cryptoForm }));
-      toast.success('Crypto wallet connected successfully!');
-    } catch {
-      toast.error('Failed to save wallet. Please try again.');
-      return;
-    }
-    setTimeout(() => navigate('/profile'), 1200);
+    await saveWalletProfile({ type: 'crypto', ...cryptoForm }, 'Crypto wallet connected successfully!');
   };
 
   return (
@@ -98,6 +217,10 @@ export default function ConnectWallet() {
 
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-6 py-6">
+        {loading ? (
+          <div className="rounded-xl bg-white p-6 text-sm text-gray-600 shadow-sm">Loading wallet details...</div>
+        ) : null}
+
         {/* Back Button and Title */}
         <div className="flex items-center gap-4 mb-6">
           <button 
@@ -288,10 +411,11 @@ export default function ConnectWallet() {
               {/* Submit Button */}
               <button
                 type="submit"
+                disabled={submitting}
                 className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 rounded-lg transition-all duration-300 hover:shadow-lg flex items-center justify-center gap-2"
               >
                 <CreditCard size={20} />
-                Connect Banking Account
+                {submitting ? 'Saving...' : 'Connect Banking Account'}
               </button>
             </form>
           </div>
@@ -393,10 +517,11 @@ export default function ConnectWallet() {
               {/* Submit Button */}
               <button
                 type="submit"
+                disabled={submitting}
                 className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-bold py-4 rounded-lg transition-all duration-300 hover:shadow-lg flex items-center justify-center gap-2"
               >
                 <Bitcoin size={20} />
-                Connect Crypto Wallet
+                {submitting ? 'Saving...' : 'Connect Crypto Wallet'}
               </button>
             </form>
           </div>

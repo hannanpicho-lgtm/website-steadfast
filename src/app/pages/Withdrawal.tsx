@@ -15,6 +15,14 @@ type UserWalletData = {
   holdAmount: number;
 };
 
+type WalletProfileResponse = {
+  walletProfile?: {
+    type: 'banking' | 'crypto';
+    walletAddress?: string;
+    accountNumber?: string;
+  } | null;
+};
+
 type WithdrawalRecord = {
   id: string;
   amount: number;
@@ -64,14 +72,16 @@ export default function Withdrawal() {
         Authorization: `Bearer ${publicAnonKey}`,
       };
 
-      const [userResponse, withdrawalsResponse] = await Promise.all([
+      const [userResponse, withdrawalsResponse, walletResponse] = await Promise.all([
         fetch(`${serverUrl}/user/${activeUsername}`, { headers }),
         fetch(`${serverUrl}/withdrawals/${activeUsername}`, { headers }),
+        fetch(`${serverUrl}/wallet/${activeUsername}`, { headers }),
       ]);
 
-      const [userPayload, withdrawalsPayload] = await Promise.all([
+      const [userPayload, withdrawalsPayload, walletPayload] = await Promise.all([
         userResponse.json().catch(() => ({})),
         withdrawalsResponse.json().catch(() => ([])),
+        walletResponse.json().catch(() => ({} as WalletProfileResponse)),
       ]);
 
       if (!userResponse.ok) {
@@ -87,6 +97,15 @@ export default function Withdrawal() {
         holdAmount: Number(userPayload.holdAmount ?? 0),
       });
       setWithdrawals(Array.isArray(withdrawalsPayload) ? withdrawalsPayload : []);
+
+      if (walletResponse.ok && !walletAddress) {
+        const profile = (walletPayload as WalletProfileResponse).walletProfile;
+        if (profile?.type === 'crypto' && profile.walletAddress) {
+          setWalletAddress(profile.walletAddress);
+        } else if (profile?.type === 'banking' && profile.accountNumber) {
+          setWalletAddress(profile.accountNumber);
+        }
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to load withdrawal data';
       toast.error(message);
