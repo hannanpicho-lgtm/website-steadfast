@@ -1,0 +1,205 @@
+﻿diff --git a/src/app/pages/Admin.tsx b/src/app/pages/Admin.tsx
+index ed0cb792..23cb043f 100644
+--- a/src/app/pages/Admin.tsx
++++ b/src/app/pages/Admin.tsx
+@@ -80,8 +80,6 @@ import {
+   createSalaryRestorePoint as createSalaryRestorePointRecord,
+   fetchAdminSalaryAuditLogFromServer,
+   fetchAdminSalaryProjectState,
+-  loadSalaryAuditLog,
+-  loadSalaryProjectAutosave,
+   parseBackupImport,
+   pruneExpiredRestorePoints,
+   saveAdminSalaryAuditLogToServer,
+@@ -1521,18 +1519,8 @@ export default function Admin() {
+   };
+ 
+   useEffect(() => {
+-    const restored = loadSalaryProjectAutosave(initialSalaryPayments);
+-
+-    setSalaryPayments(restored.payments);
+-    setSalaryRestorePoints(restored.points);
+-    setActiveRewardTab(restored.activeRewardTab);
+-    setSelectedBulkOption(restored.selectedBulkOption);
+-    setAutoBackupEnabled(restored.autoBackupEnabled);
+-    setAutoBackupIntervalMinutes(restored.autoBackupIntervalMinutes);
+-    setBackupRetentionDays(restored.backupRetentionDays);
+-    setSalaryAuditLog(loadSalaryAuditLog());
+-    salaryPaymentsRef.current = restored.payments;
+-    lastAutoBackupSignatureRef.current = JSON.stringify(restored.payments);
++    salaryPaymentsRef.current = initialSalaryPayments;
++    lastAutoBackupSignatureRef.current = JSON.stringify(initialSalaryPayments);
+     setIsSalaryStateHydrated(true);
+ 
+     void (async () => {
+diff --git a/src/tests/api.integration.test.ts b/src/tests/api.integration.test.ts
+index 9e765d06..9de3367d 100644
+--- a/src/tests/api.integration.test.ts
++++ b/src/tests/api.integration.test.ts
+@@ -657,6 +657,62 @@ describe('Admin route authentication', () => {
+     });
+     expect(status).toBe(401);
+   });
++
++  it('GET /admin/salary/project → 401 with anon token only', async () => {
++    const { status } = await request('/admin/salary/project');
++    expect(status).toBe(401);
++  });
++
++  it('GET /admin/salary/audit-log → 401 with anon token only', async () => {
++    const { status } = await request('/admin/salary/audit-log');
++    expect(status).toBe(401);
++  });
++
++  it('PUT /admin/salary/project → 401 with anon token only', async () => {
++    const { status } = await request('/admin/salary/project', {
++      method: 'PUT',
++      body: JSON.stringify({
++        project: {
++          version: 1,
++          savedAt: new Date().toISOString(),
++          checksum: 'test',
++          uiState: {
++            activeRewardTab: 'salary-payments',
++            selectedBulkOption: 'all',
++            autoBackupEnabled: true,
++            autoBackupIntervalMinutes: 1,
++            backupRetentionDays: 30,
++          },
++          payments: [{
++            id: 1,
++            username: TEST_USER,
++            daysWorked: 1,
++            salaryDue: 204,
++            status: 'Pending',
++            dueDate: new Date().toISOString().slice(0, 10),
++            paymentMode: 'Automatic',
++          }],
++          points: [],
++        },
++      }),
++    });
++    expect(status).toBe(401);
++  });
++
++  it('PUT /admin/salary/audit-log → 401 with anon token only', async () => {
++    const { status } = await request('/admin/salary/audit-log', {
++      method: 'PUT',
++      body: JSON.stringify({
++        events: [{
++          id: Date.now(),
++          at: new Date().toISOString(),
++          action: 'manual-backup',
++          detail: 'integration test event',
++        }],
++      }),
++    });
++    expect(status).toBe(401);
++  });
+ });
+ 
+ describe('Admin route success path', () => {
+@@ -693,4 +749,103 @@ describe('Admin route success path', () => {
+     expect(status).toBe(200);
+     expect(Array.isArray(body)).toBe(true);
+   });
++
++  it('GET/PUT /admin/salary/project works with valid admin JWT', async () => {
++    if (!ADMIN_TEST_JWT) {
++      if (REQUIRE_ADMIN_SUCCESS) {
++        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
++      }
++      const { status } = await request('/admin/salary/project');
++      expect(status).toBe(401);
++      return;
++    }
++
++    const paymentDueDate = new Date().toISOString().slice(0, 10);
++    const projectPayload = {
++      project: {
++        version: 1,
++        savedAt: new Date().toISOString(),
++        checksum: 'integration-test',
++        uiState: {
++          activeRewardTab: 'salary-payments',
++          selectedBulkOption: 'auto',
++          autoBackupEnabled: true,
++          autoBackupIntervalMinutes: 2,
++          backupRetentionDays: 30,
++        },
++        payments: [{
++          id: 999001,
++          username: TEST_USER,
++          daysWorked: 7,
++          salaryDue: 1428,
++          status: 'Pending',
++          dueDate: paymentDueDate,
++          paymentMode: 'Automatic',
++        }],
++        points: [{
++          id: 999101,
++          createdAt: new Date().toISOString(),
++          label: 'Integration checkpoint',
++          payments: [{
++            id: 999001,
++            username: TEST_USER,
++            daysWorked: 7,
++            salaryDue: 1428,
++            status: 'Pending',
++            dueDate: paymentDueDate,
++            paymentMode: 'Automatic',
++          }],
++        }],
++      },
++    };
++
++    const putResult = await request('/admin/salary/project', {
++      method: 'PUT',
++      headers: adminHeaders(),
++      body: JSON.stringify(projectPayload),
++    });
++    expect(putResult.status).toBe(200);
++    expect(putResult.body.success).toBe(true);
++
++    const getResult = await request('/admin/salary/project', {
++      headers: adminHeaders(),
++    });
++    expect(getResult.status).toBe(200);
++    expect(getResult.body.project).toBeTruthy();
++    expect(Array.isArray(getResult.body.project.payments)).toBe(true);
++  });
++
++  it('GET/PUT /admin/salary/audit-log works with valid admin JWT', async () => {
++    if (!ADMIN_TEST_JWT) {
++      if (REQUIRE_ADMIN_SUCCESS) {
++        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
++      }
++      const { status } = await request('/admin/salary/audit-log');
++      expect(status).toBe(401);
++      return;
++    }
++
++    const auditPayload = {
++      events: [{
++        id: Date.now(),
++        at: new Date().toISOString(),
++        action: 'manual-backup',
++        detail: `integration event ${RUN_ID}`,
++      }],
++    };
++
++    const putResult = await request('/admin/salary/audit-log', {
++      method: 'PUT',
++      headers: adminHeaders(),
++      body: JSON.stringify(auditPayload),
++    });
++    expect(putResult.status).toBe(200);
++    expect(putResult.body.success).toBe(true);
++
++    const getResult = await request('/admin/salary/audit-log', {
++      headers: adminHeaders(),
++    });
++    expect(getResult.status).toBe(200);
++    expect(Array.isArray(getResult.body.events)).toBe(true);
++  });
+ });

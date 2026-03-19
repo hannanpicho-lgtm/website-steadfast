@@ -80,8 +80,6 @@ import {
   createSalaryRestorePoint as createSalaryRestorePointRecord,
   fetchAdminSalaryAuditLogFromServer,
   fetchAdminSalaryProjectState,
-  loadSalaryAuditLog,
-  loadSalaryProjectAutosave,
   parseBackupImport,
   pruneExpiredRestorePoints,
   saveAdminSalaryAuditLogToServer,
@@ -1521,18 +1519,8 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    const restored = loadSalaryProjectAutosave(initialSalaryPayments);
-
-    setSalaryPayments(restored.payments);
-    setSalaryRestorePoints(restored.points);
-    setActiveRewardTab(restored.activeRewardTab);
-    setSelectedBulkOption(restored.selectedBulkOption);
-    setAutoBackupEnabled(restored.autoBackupEnabled);
-    setAutoBackupIntervalMinutes(restored.autoBackupIntervalMinutes);
-    setBackupRetentionDays(restored.backupRetentionDays);
-    setSalaryAuditLog(loadSalaryAuditLog());
-    salaryPaymentsRef.current = restored.payments;
-    lastAutoBackupSignatureRef.current = JSON.stringify(restored.payments);
+    salaryPaymentsRef.current = initialSalaryPayments;
+    lastAutoBackupSignatureRef.current = JSON.stringify(initialSalaryPayments);
     setIsSalaryStateHydrated(true);
 
     void (async () => {
