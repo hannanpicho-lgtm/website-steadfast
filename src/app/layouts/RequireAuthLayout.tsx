@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router';
-import { isAuthenticated } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
-import { verifyAndRestoreSession } from '../services/serverAuth';
+import { getStoredSessionToken, verifyAndRestoreSession } from '../services/serverAuth';
 
 export default function RequireAuthLayout() {
   const location = useLocation();
@@ -12,8 +11,9 @@ export default function RequireAuthLayout() {
     let isMounted = true;
 
     void (async () => {
-      if (isAuthenticated()) {
-        if (isMounted) setStatus('authorized');
+      const token = getStoredSessionToken();
+      if (!token) {
+        if (isMounted) setStatus('unauthorized');
         return;
       }
 
