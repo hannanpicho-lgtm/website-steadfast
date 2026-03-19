@@ -21,6 +21,7 @@ interface UserManagementProps {
   onToggleSuspension: (user: any) => void | Promise<void>;
   onResetTaskSet: (user: any) => void | Promise<void>;
   onRestoreNaturalState: (user: any) => void | Promise<void>;
+  onResetCredentials: (user: any) => void | Promise<void>;
 }
 
 export default function UserManagement({
@@ -42,6 +43,7 @@ export default function UserManagement({
   onToggleSuspension,
   onResetTaskSet,
   onRestoreNaturalState,
+  onResetCredentials,
 }: UserManagementProps) {
   type DisplayUser = {
     id: number;
@@ -207,13 +209,9 @@ export default function UserManagement({
                         <Edit size={16} className="text-gray-400 hover:text-blue-400" />
                       </button>
                       <button 
-                        onClick={() => { 
-                          if (confirm(`Reset password for ${user.username}?`)) {
-                            toast.success('Password reset link sent to user email');
-                          }
-                        }}
+                        onClick={() => { if (confirm(`Reset login and transaction passwords for ${user.username}?`)) { void onResetCredentials(user); } }}
                         className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
-                        title="Reset Password"
+                        title="Reset User Credentials"
                       >
                         <Key size={16} className="text-gray-400 hover:text-yellow-400" />
                       </button>

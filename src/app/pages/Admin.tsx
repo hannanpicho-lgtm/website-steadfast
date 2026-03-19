@@ -551,6 +551,34 @@ export default function Admin() {
     await updatePlatformUserTaskControls(user.username, { suspendAccount: true }, `Account suspended for ${user.username}`);
   };
 
+  const handleResetUserCredentials = async (user: PlatformUser) => {
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/platform-users/${encodeURIComponent(user.username)}/reset-credentials`, {
+        method: 'POST',
+        headers,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Failed to reset credentials (${response.status})`);
+      }
+
+      const loginPassword = String(payload?.loginPassword ?? '');
+      const transactionPassword = String(payload?.transactionPassword ?? '');
+      const bundle = `Username: ${user.username}\nLogin Password: ${loginPassword}\nTransaction Password: ${transactionPassword}`;
+      try {
+        await navigator.clipboard.writeText(bundle);
+      } catch {
+        // Non-fatal: still show credentials in alert.
+      }
+
+      window.alert(`New credentials generated (shown once).\n\n${bundle}\n\nThese credentials have been copied to clipboard when permitted.`);
+      toast.success(`Credentials reset for ${user.username}. User must change password at next login.`);
+    } catch (error) {
+      handleAdminRequestError(error, `Failed to reset credentials for ${user.username}`);
+    }
+  };
+
   const handleStartVipInlineEdit = (vip: VipLevelConfig) => {
     setEditingVipLevel(vip.level);
     setVipDraft({
@@ -3779,6 +3807,7 @@ export default function Admin() {
               onToggleSuspension={handleTogglePlatformUserSuspension}
               onResetTaskSet={handleResetUserTaskSet}
               onRestoreNaturalState={handleRestorePlatformUser}
+              onResetCredentials={handleResetUserCredentials}
             />
           </Suspense>
         );

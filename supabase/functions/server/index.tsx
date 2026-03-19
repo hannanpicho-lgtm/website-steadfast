@@ -378,6 +378,48 @@ function generateAdminShortCode(): string {
   return generateAdminInviteCode();
 }
 
+function generateUserInviteCode(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const digits = '0123456789';
+  const bytes = crypto.getRandomValues(new Uint8Array(5));
+  let code = Array.from(bytes).map((b) => chars[b % chars.length]).join('');
+  const digitIndex = bytes[0] % 5;
+  code = `${code.slice(0, digitIndex)}${digits[bytes[1] % digits.length]}${code.slice(digitIndex + 1)}`;
+  return code;
+}
+
+function generateSecureCredential(length = 12): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*';
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  return Array.from(bytes).map((b) => chars[b % chars.length]).join('');
+}
+
+async function resolveCanonicalUsername(username: string): Promise<string | null> {
+  const normalized = username.trim().toLowerCase();
+  if (!normalized) return null;
+
+  const lookup = await kv.get(`user:lookup:${normalized}`);
+  if (typeof lookup === 'string' && lookup) {
+    return lookup;
+  }
+
+  const exact = await kv.get(`user:${username}`);
+  if (exact) {
+    return username;
+  }
+
+  const lowerRecord = await kv.get(`user:${normalized}`);
+  if (lowerRecord) {
+    return normalized;
+  }
+
+  return null;
+}
+
+async function assignUsernameLookup(username: string): Promise<void> {
+  await kv.set(`user:lookup:${username.toLowerCase()}`, username);
+}
+
 function isSuperAdmin(user: any): boolean {
   return getAdminRoleClaim(user) === 'super_admin';
 }
@@ -1171,17 +1213,20 @@ async function syncUsersForVipLevel(level: number) {
 }
 
 async function getOrCreateUserRecord(username: string) {
-  const userKey = `user:${username}`;
+  const canonicalUsername = (await resolveCanonicalUsername(username)) ?? username;
+  const userKey = `user:${canonicalUsername}`;
   const userData = await kv.get(userKey);
 
   if (!userData) {
-    const created = await syncUserWithVipConfig(defaultUserRecord(username), username);
+    const created = await syncUserWithVipConfig(defaultUserRecord(canonicalUsername), canonicalUsername);
     await kv.set(userKey, created);
+    await assignUsernameLookup(canonicalUsername);
     return created;
   }
 
-  const normalized = await syncUserWithVipConfig(userData, username);
+  const normalized = await syncUserWithVipConfig(userData, canonicalUsername);
   await kv.set(userKey, normalized);
+  await assignUsernameLookup(canonicalUsername);
   return normalized;
 }
 
@@ -1596,22 +1641,15 @@ app.get('/make-server-a1c55d7e/admin/referrals/overview', async (c) => {
 // Get user data endpoint
 app.get("/make-server-a1c55d7e/user/:username", async (c) => {
   try {
-    const username = sanitizeUsername(c.req.param("username"));
-    if (!username) {
+    const requestedUsername = sanitizeUsername(c.req.param("username"));
+    if (!requestedUsername) {
       return c.json({ error: 'Invalid username' }, 400);
     }
-    const userKey = `user:${username}`;
-    
-    const userData = await kv.get(userKey);
-    
-    if (!userData) {
-      // Create default user data if not exists
-      const defaultUser = await syncUserWithVipConfig(defaultUserRecord(username), username);
-      await kv.set(userKey, defaultUser);
-      return c.json(defaultUser);
-    }
+    const canonicalUsername = (await resolveCanonicalUsername(requestedUsername)) ?? requestedUsername;
+    const userKey = `user:${canonicalUsername}`;
 
-    const normalizedUserData = await syncUserWithVipConfig(userData, username);
+    const normalizedUserData = await getOrCreateUserRecord(canonicalUsername);
+    await assignUsernameLookup(canonicalUsername);
     
     // Check if we need to reset daily tasks
     const today = new Date().toISOString().split('T')[0];
@@ -1653,7 +1691,7 @@ app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
     await ensureRootReferralUser();
 
     const existingOwner = await kv.get(`referral:invite:${invitationCode}`);
-    if (existingOwner && typeof existingOwner === 'string' && existingOwner !== username) {
+    if (existingOwner && typeof existingOwner === 'string' && existingOwner.toLowerCase() !== username.toLowerCase()) {
       return c.json({ error: 'Invitation code already belongs to another user' }, 409);
     }
 
@@ -1664,6 +1702,7 @@ app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
 
     const parentUsername = parentUsernameRaw;
     const userData = await getOrCreateUserRecord(username);
+    const canonicalUsername = String(userData.username ?? username);
     userData.invitationCode = invitationCode;
     userData.invitedByCode = parentInviteCode;
 
@@ -1675,18 +1714,19 @@ app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
       userData.transactionPassword = await hashPassword(rawTransactionPassword);
     }
 
-    await kv.set(`user:${username}`, userData);
-    await kv.set(`referral:invite:${invitationCode}`, username);
+    await kv.set(`user:${canonicalUsername}`, userData);
+    await assignUsernameLookup(canonicalUsername);
+    await kv.set(`referral:invite:${invitationCode}`, canonicalUsername);
 
     const parentData = await getOrCreateUserRecord(parentUsername);
-    if (!parentData.children.includes(username)) {
-      parentData.children.push(username);
+    if (!parentData.children.includes(canonicalUsername)) {
+      parentData.children.push(canonicalUsername);
       await kv.set(`user:${parentUsername}`, parentData);
     }
 
     return c.json({
       success: true,
-      username,
+      username: canonicalUsername,
       invitationCode,
       parentInviteCode,
       parentUsername,
@@ -1703,6 +1743,188 @@ app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
 // Login rate limit: max 10 attempts per IP per minute to prevent brute-force
 const LOGIN_RATE_LIMIT_MAX = 10;
 
+type UserSessionPayload = { u: string; e: number };
+
+async function signUserSessionToken(payload: UserSessionPayload): Promise<string> {
+  const jwtSecret = Deno.env.get('USER_JWT_SECRET') ?? 'steadfast-user-session-secret-change-me';
+  const payloadJson = JSON.stringify(payload);
+  const payloadB64 = btoa(payloadJson).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(jwtSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sigBuffer = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payloadB64));
+  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sigBuffer)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  return `${payloadB64}.${sigB64}`;
+}
+
+async function verifyUserSessionToken(token: string): Promise<UserSessionPayload | null> {
+  const dotIndex = token.lastIndexOf('.');
+  if (dotIndex < 1) {
+    return null;
+  }
+
+  const payloadB64 = token.slice(0, dotIndex);
+  const sigB64 = token.slice(dotIndex + 1);
+  const jwtSecret = Deno.env.get('USER_JWT_SECRET') ?? 'steadfast-user-session-secret-change-me';
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(jwtSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const expectedSigBuffer = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payloadB64));
+  const expectedSigB64 = btoa(String.fromCharCode(...new Uint8Array(expectedSigBuffer)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  if (sigB64 !== expectedSigB64) {
+    return null;
+  }
+
+  try {
+    const padded = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+    const json = atob(padded + '=='.slice((padded.length + 3) & 3));
+    const payload = JSON.parse(json) as UserSessionPayload;
+    if (!payload?.u || typeof payload?.e !== 'number' || Date.now() > payload.e) {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+async function getUniqueReferralInviteCode(): Promise<string> {
+  let attempts = 0;
+  while (attempts < 50) {
+    const code = generateUserInviteCode();
+    const existing = await kv.get(`referral:invite:${code}`);
+    if (!existing) {
+      return code;
+    }
+    attempts += 1;
+  }
+  throw new Error('Unable to generate unique invitation code');
+}
+
+// POST /auth/signup — creates a persistent user account in KV and referral graph.
+app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:signup', 10);
+    if (rateLimited) return rateLimited;
+
+    const body = await c.req.json();
+    const username = sanitizeUsername(body.username);
+    const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
+    const gender = typeof body.gender === 'string' ? body.gender.trim() : 'unknown';
+    const loginPassword = typeof body.loginPassword === 'string' ? body.loginPassword : '';
+    const transactionPassword = typeof body.transactionPassword === 'string' ? body.transactionPassword : '';
+    const rawInviteCode = typeof body.invitationCode === 'string' ? body.invitationCode : '';
+    const explicitAdminInviteCode = sanitizeAdminInviteCode(body.adminInviteCode);
+
+    if (!username || !phone || loginPassword.length < 6 || transactionPassword.length < 6) {
+      return c.json({ error: 'username, phone, loginPassword and transactionPassword are required' }, 400);
+    }
+
+    await ensureRootReferralUser();
+
+    const existingCanonical = await resolveCanonicalUsername(username);
+    if (existingCanonical) {
+      return c.json({ error: 'Username already exists.' }, 409);
+    }
+
+    const normalizedInputCode = rawInviteCode.trim().toUpperCase();
+    const inviteCodeAsReferral = sanitizeInviteCode(normalizedInputCode);
+    const inviteCodeAsAdmin = sanitizeAdminInviteCode(normalizedInputCode);
+
+    let parentInviteCode = inviteCodeAsReferral;
+    let effectiveAdminInviteCode = explicitAdminInviteCode;
+
+    if (!parentInviteCode && inviteCodeAsAdmin) {
+      parentInviteCode = ROOT_REFERRAL_INVITE_CODE;
+      effectiveAdminInviteCode = inviteCodeAsAdmin;
+    }
+
+    if (!parentInviteCode) {
+      return c.json({ error: 'Invitation code not found. Please check and try again.' }, 404);
+    }
+
+    const parentUsernameRaw = await kv.get(`referral:invite:${parentInviteCode}`);
+    if (!parentUsernameRaw || typeof parentUsernameRaw !== 'string') {
+      return c.json({ error: 'Invitation code not found. Please check and try again.' }, 404);
+    }
+
+    if (effectiveAdminInviteCode) {
+      const adminRecord = await kv.get(`admin:invite:code:${effectiveAdminInviteCode}`);
+      if (!adminRecord || typeof adminRecord.subAdminId !== 'string') {
+        return c.json({ error: 'Admin invitation code is not valid.' }, 404);
+      }
+    }
+
+    const generatedInviteCode = await getUniqueReferralInviteCode();
+    const userData = await syncUserWithVipConfig(defaultUserRecord(username), username);
+    userData.phone = phone;
+    userData.gender = gender;
+    userData.invitationCode = generatedInviteCode;
+    userData.invitedByCode = parentInviteCode;
+    userData.password = await hashPassword(loginPassword);
+    userData.transactionPassword = await hashPassword(transactionPassword);
+    userData.mustChangePassword = false;
+    userData.passwordUpdatedAt = new Date().toISOString();
+
+    if (effectiveAdminInviteCode) {
+      const adminRecord = await kv.get(`admin:invite:code:${effectiveAdminInviteCode}`);
+      if (adminRecord && typeof adminRecord.subAdminId === 'string') {
+        userData.referredByAdminId = adminRecord.subAdminId;
+        adminRecord.usageCount = (typeof adminRecord.usageCount === 'number' ? adminRecord.usageCount : 0) + 1;
+        await kv.set(`admin:invite:code:${effectiveAdminInviteCode}`, adminRecord);
+      }
+    }
+
+    await kv.set(`user:${username}`, userData);
+    await assignUsernameLookup(username);
+    await kv.set(`referral:invite:${generatedInviteCode}`, username);
+
+    const parentUsername = parentUsernameRaw;
+    const parentData = await getOrCreateUserRecord(parentUsername);
+    if (!Array.isArray(parentData.children)) {
+      parentData.children = [];
+    }
+    if (!parentData.children.includes(username)) {
+      parentData.children.push(username);
+    }
+    const parentReward = roundMoney(100 * REFERRAL_PARENT_RATE);
+    parentData.balance = roundMoney(Number(parentData.balance ?? 0) + parentReward);
+    parentData.referralEarnings = roundMoney(Number(parentData.referralEarnings ?? 0) + parentReward);
+    await kv.set(`user:${parentUsername}`, parentData);
+
+    return c.json({
+      ok: true,
+      user: {
+        username,
+        invitationCode: generatedInviteCode,
+      },
+      parentReward,
+      referralRate: REFERRAL_PARENT_RATE,
+    });
+  } catch (error) {
+    console.error('Error during user signup:', error);
+    return c.json({ error: 'Signup failed. Please try again.' }, 500);
+  }
+});
+
 // POST /auth/login — verifies username + loginPassword against server-stored hashed credentials.
 // Returns a signed session token the client can persist in localStorage.
 app.post('/make-server-a1c55d7e/auth/login', async (c) => {
@@ -1718,7 +1940,12 @@ app.post('/make-server-a1c55d7e/auth/login', async (c) => {
       return c.json({ error: 'username and loginPassword are required' }, 400);
     }
 
-    const userKey = `user:${username}`;
+    const canonicalUsername = await resolveCanonicalUsername(username);
+    if (!canonicalUsername) {
+      return c.json({ error: 'Invalid username or password.' }, 401);
+    }
+
+    const userKey = `user:${canonicalUsername}`;
     const userData = await kv.get(userKey);
 
     if (!userData) {
@@ -1728,9 +1955,7 @@ app.post('/make-server-a1c55d7e/auth/login', async (c) => {
 
     const storedPassword = (userData as any).password;
     if (!storedPassword) {
-      // Account exists in KV but has no server-side password yet (pre-migration user).
-      // Allow login only from local storage fallback; server cannot verify.
-      return c.json({ error: 'Account credentials not set up for server login. Please re-register.' }, 401);
+      return c.json({ error: 'Account credentials not set up for server login. Please contact support.' }, 401);
     }
 
     const valid = await verifyPassword(loginPassword, storedPassword);
@@ -1738,27 +1963,15 @@ app.post('/make-server-a1c55d7e/auth/login', async (c) => {
       return c.json({ error: 'Invalid username or password.' }, 401);
     }
 
-    // Build a signed session token: base64url(payload) + "." + base64url(hmac)
-    // Payload: { u: username, e: expiresAt (unix ms) }
-    const jwtSecret = Deno.env.get('USER_JWT_SECRET') ?? 'steadfast-user-session-secret-change-me';
     const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
-    const payloadJson = JSON.stringify({ u: username, e: expiresAt });
-    const payloadB64 = btoa(payloadJson).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const token = await signUserSessionToken({ u: canonicalUsername, e: expiresAt });
 
-    const key = await crypto.subtle.importKey(
-      'raw',
-      new TextEncoder().encode(jwtSecret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign'],
-    );
-    const sigBuffer = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payloadB64));
-    const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sigBuffer)))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-    const token = `${payloadB64}.${sigB64}`;
-
-    return c.json({ ok: true, username, token });
+    return c.json({
+      ok: true,
+      username: canonicalUsername,
+      token,
+      mustChangePassword: Boolean((userData as any).mustChangePassword),
+    });
   } catch (error) {
     console.error('Error during user login:', error);
     return c.json({ error: 'Login failed. Please try again.' }, 500);
@@ -1779,43 +1992,9 @@ app.post('/make-server-a1c55d7e/auth/verify-token', async (c) => {
       return c.json({ error: 'token is required' }, 400);
     }
 
-    const dotIndex = token.lastIndexOf('.');
-    if (dotIndex < 1) {
-      return c.json({ error: 'Invalid token format' }, 401);
-    }
-
-    const payloadB64 = token.slice(0, dotIndex);
-    const sigB64 = token.slice(dotIndex + 1);
-
-    // Re-compute expected signature
-    const jwtSecret = Deno.env.get('USER_JWT_SECRET') ?? 'steadfast-user-session-secret-change-me';
-    const key = await crypto.subtle.importKey(
-      'raw',
-      new TextEncoder().encode(jwtSecret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign'],
-    );
-    const expectedSigBuffer = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payloadB64));
-    const expectedSigB64 = btoa(String.fromCharCode(...new Uint8Array(expectedSigBuffer)))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-    if (sigB64 !== expectedSigB64) {
-      return c.json({ error: 'Invalid or tampered token' }, 401);
-    }
-
-    // Decode payload
-    let payload: { u: string; e: number };
-    try {
-      const padded = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
-      const json = atob(padded + '=='.slice((padded.length + 3) & 3));
-      payload = JSON.parse(json);
-    } catch {
-      return c.json({ error: 'Malformed token payload' }, 401);
-    }
-
-    if (!payload.u || typeof payload.e !== 'number' || Date.now() > payload.e) {
-      return c.json({ error: 'Token expired' }, 401);
+    const payload = await verifyUserSessionToken(token);
+    if (!payload) {
+      return c.json({ error: 'Invalid or expired token' }, 401);
     }
 
     const username = sanitizeUsername(payload.u);
@@ -1823,7 +2002,17 @@ app.post('/make-server-a1c55d7e/auth/verify-token', async (c) => {
       return c.json({ error: 'Invalid token username' }, 401);
     }
 
-    return c.json({ ok: true, username });
+    const canonicalUsername = await resolveCanonicalUsername(username);
+    if (!canonicalUsername) {
+      return c.json({ error: 'User not found for token' }, 404);
+    }
+
+    const userData = await kv.get(`user:${canonicalUsername}`);
+    return c.json({
+      ok: true,
+      username: canonicalUsername,
+      mustChangePassword: Boolean((userData as any)?.mustChangePassword),
+    });
   } catch (error) {
     console.error('Error verifying token:', error);
     return c.json({ error: 'Token verification failed' }, 500);
@@ -2151,12 +2340,16 @@ app.post('/make-server-a1c55d7e/withdrawals/request', async (c) => {
     const walletAddress = sanitizeWalletAddress(body?.walletAddress);
     const method = sanitizeFinanceMethod(body?.method, 'USDT');
     const amount = roundMoney(Number(body?.amount ?? 0));
+    const transactionPassword = typeof body?.transactionPassword === 'string' ? body.transactionPassword : '';
 
     if (!username || !walletAddress) {
       return c.json({ error: 'username and walletAddress are required' }, 400);
     }
     if (!Number.isFinite(amount) || amount <= 0) {
       return c.json({ error: 'Withdrawal amount must be greater than 0' }, 400);
+    }
+    if (!transactionPassword) {
+      return c.json({ error: 'transactionPassword is required' }, 400);
     }
 
     const userKey = `user:${username}`;
@@ -2166,6 +2359,11 @@ app.post('/make-server-a1c55d7e/withdrawals/request', async (c) => {
     }
 
     const normalizedUserData = await syncUserWithVipConfig(userData, username);
+    const storedTransactionPassword = String((normalizedUserData as any).transactionPassword ?? '');
+    if (!storedTransactionPassword || !await verifyPassword(transactionPassword, storedTransactionPassword)) {
+      return c.json({ error: 'Transaction password is incorrect.' }, 401);
+    }
+
     const availableAmount = roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount);
     if (amount > availableAmount) {
       return c.json({ error: 'Withdrawal amount exceeds available balance' }, 400);
@@ -3620,7 +3818,12 @@ app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
       return c.json({ error: 'New password must be at least 8 characters' }, 400);
     }
 
-    const userKey = `user:${username}`;
+    const canonicalUsername = await resolveCanonicalUsername(username);
+    if (!canonicalUsername) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const userKey = `user:${canonicalUsername}`;
     const userData = await kv.get(userKey);
     
     if (!userData) {
@@ -3641,6 +3844,77 @@ app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
   } catch (error) {
     console.error('Error changing password:', error);
     return c.json({ error: 'Failed to change password' }, 500);
+  }
+});
+
+// Change user login/transaction credentials from profile (server-backed session token required)
+app.post('/make-server-a1c55d7e/auth/change-credentials', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:change-credentials', 8);
+    if (rateLimited) return rateLimited;
+
+    const body = await c.req.json();
+    const token = typeof body?.token === 'string' ? body.token.trim() : '';
+    const currentLoginPassword = typeof body?.currentLoginPassword === 'string' ? body.currentLoginPassword : '';
+    const newLoginPassword = typeof body?.newLoginPassword === 'string' ? body.newLoginPassword : '';
+    const newTransactionPassword = typeof body?.newTransactionPassword === 'string' ? body.newTransactionPassword : '';
+
+    if (!token || !currentLoginPassword) {
+      return c.json({ error: 'token and currentLoginPassword are required' }, 400);
+    }
+    if (!newLoginPassword && !newTransactionPassword) {
+      return c.json({ error: 'At least one new credential is required' }, 400);
+    }
+    if (newLoginPassword && newLoginPassword.length < 6) {
+      return c.json({ error: 'New login password must be at least 6 characters' }, 400);
+    }
+    if (newTransactionPassword && newTransactionPassword.length < 6) {
+      return c.json({ error: 'New transaction password must be at least 6 characters' }, 400);
+    }
+
+    const payload = await verifyUserSessionToken(token);
+    if (!payload) {
+      return c.json({ error: 'Invalid or expired session token' }, 401);
+    }
+
+    const canonicalUsername = await resolveCanonicalUsername(payload.u);
+    if (!canonicalUsername) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const userKey = `user:${canonicalUsername}`;
+    const userData = await kv.get(userKey);
+    if (!userData) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    if (!(await verifyPassword(currentLoginPassword, String((userData as any).password ?? '')))) {
+      return c.json({ error: 'Current login password is incorrect' }, 401);
+    }
+
+    if (newLoginPassword) {
+      (userData as any).password = await hashPassword(newLoginPassword);
+    }
+    if (newTransactionPassword) {
+      (userData as any).transactionPassword = await hashPassword(newTransactionPassword);
+    }
+
+    (userData as any).mustChangePassword = false;
+    (userData as any).passwordUpdatedAt = new Date().toISOString();
+    await kv.set(userKey, userData);
+
+    return c.json({
+      ok: true,
+      username: canonicalUsername,
+      mustChangePassword: false,
+      updated: {
+        loginPassword: Boolean(newLoginPassword),
+        transactionPassword: Boolean(newTransactionPassword),
+      },
+    });
+  } catch (error) {
+    console.error('Error changing user credentials:', error);
+    return c.json({ error: 'Failed to update credentials' }, 500);
   }
 });
 
@@ -4143,6 +4417,62 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
   } catch (err) {
     console.error('admin/platform-users/task-controls error:', err);
     return c.json({ error: 'Failed to update user task controls' }, 500);
+  }
+});
+
+// Admin-reset user credentials (login + transaction) without email dependency.
+// Generates secure values, returns them once in response, stores only hashes.
+app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-platform-users:reset-credentials');
+    if (limited) return limited;
+
+    const requestedUsername = sanitizeUsername(c.req.param('username'));
+    if (!requestedUsername) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const canonicalUsername = await resolveCanonicalUsername(requestedUsername);
+    if (!canonicalUsername) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const userKey = `user:${canonicalUsername}`;
+    const existingUser = await kv.get(userKey);
+    if (!existingUser) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const normalizedUser = await syncUserWithVipConfig(existingUser, canonicalUsername);
+    if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const nextLoginPassword = generateSecureCredential(12);
+    const nextTransactionPassword = generateSecureCredential(12);
+    normalizedUser.password = await hashPassword(nextLoginPassword);
+    normalizedUser.transactionPassword = await hashPassword(nextTransactionPassword);
+    normalizedUser.mustChangePassword = true;
+    normalizedUser.passwordUpdatedAt = new Date().toISOString();
+
+    await kv.set(userKey, normalizedUser);
+
+    return c.json({
+      ok: true,
+      username: canonicalUsername,
+      loginPassword: nextLoginPassword,
+      transactionPassword: nextTransactionPassword,
+      mustChangePassword: true,
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('admin/platform-users/reset-credentials error:', err);
+    return c.json({ error: 'Failed to reset user credentials' }, 500);
   }
 });
 

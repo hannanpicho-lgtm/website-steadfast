@@ -6,7 +6,7 @@ import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
-import { getCurrentUserAccount, getCurrentUsername } from '../services/referralSystem';
+import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
 
 type UserWalletData = {
@@ -112,7 +112,6 @@ export default function Withdrawal() {
       return;
     }
 
-    const currentUser = getCurrentUserAccount();
     const amount = Number(withdrawAmount);
 
     if (!walletAddress.trim()) {
@@ -127,8 +126,8 @@ export default function Withdrawal() {
       toast.error('Withdrawal amount exceeds your available balance.');
       return;
     }
-    if (!currentUser || transactionPassword !== currentUser.transactionPassword) {
-      toast.error('Transaction password is incorrect.');
+    if (!transactionPassword) {
+      toast.error('Transaction password is required.');
       return;
     }
 
@@ -145,6 +144,7 @@ export default function Withdrawal() {
           amount,
           walletAddress: walletAddress.trim(),
           method: 'USDT',
+          transactionPassword,
         }),
       });
 

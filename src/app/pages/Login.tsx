@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router';
 import { useState } from 'react';
 import { useEffect } from 'react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
-import { authenticateUser, ensureReferralStore, getAdminCredentials, getDemoCredentials } from '../services/referralSystem';
+import { ensureReferralStore, getAdminCredentials, getDemoCredentials } from '../services/referralSystem';
 import { signInAdmin } from '../services/supabaseAuth';
 import { serverLogin } from '../services/serverAuth';
 import { type LoginLocationState } from '../services/loginRedirect';
@@ -177,22 +177,17 @@ export default function Login() {
     // 1. Try server-backed authentication (works cross-domain, survives cache clears)
     const serverResult = await serverLogin(username, password);
     if (serverResult.ok) {
-      setLoginTarget(from && from !== '/login' ? from : '/starting');
+      setLoginTarget(serverResult.mustChangePassword ? '/profile?forcePasswordChange=1' : (from && from !== '/login' ? from : '/starting'));
       setShowWelcome(true);
       return;
     }
 
-    // 2. If server is unreachable, fall back to localStorage (demo accounts / offline)
     if (serverResult.serverDown) {
-      const localResult = authenticateUser(username, password);
-      if (localResult.ok) {
-        setLoginTarget(from && from !== '/login' ? from : '/starting');
-        setShowWelcome(true);
-        return;
-      }
+      setErrorText('Login service is temporarily unavailable. Please try again in a moment.');
+      return;
     }
 
-    // 3. Server responded but credentials are wrong — show the server error
+    // Server responded with an explicit auth error
     setErrorText(serverResult.error ?? 'Login failed.');
   };
 

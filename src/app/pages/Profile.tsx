@@ -5,8 +5,9 @@ import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import profileImage from '../../assets/3df251a778530e24e8d83eda03085a2dc309c248.png';
-import { getCurrentUserAccount, getInvitationCodeForCurrentUser, getCurrentUsername } from '../services/referralSystem';
+import { getCurrentUserAccount, getCurrentUsername, logoutCurrentUser } from '../services/referralSystem';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { changeUserCredentials, isPasswordChangeRequired } from '../services/serverAuth';
 
 export default function Profile() {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -18,11 +19,21 @@ export default function Profile() {
   const [languageOpen, setLanguageOpen] = useState(false);
   const [todayProfit, setTodayProfit] = useState<number>(0);
   const [totalCommission, setTotalCommission] = useState<number>(0);
+  const [referralCode, setReferralCode] = useState('STF01');
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [currentLoginPassword, setCurrentLoginPassword] = useState('');
+  const [newLoginPassword, setNewLoginPassword] = useState('');
+  const [newTransactionPassword, setNewTransactionPassword] = useState('');
+  const [updatingCredentials, setUpdatingCredentials] = useState(false);
 
   const currentUser = getCurrentUserAccount();
-  const referralCode = getInvitationCodeForCurrentUser('STF01');
   const username = getCurrentUsername();
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+
+  useEffect(() => {
+    const forceFromQuery = new URLSearchParams(window.location.search).get('forcePasswordChange') === '1';
+    setMustChangePassword(forceFromQuery || isPasswordChangeRequired());
+  }, []);
 
   useEffect(() => {
     if (!username) return;
@@ -36,6 +47,7 @@ export default function Profile() {
         const data = await res.json().catch(() => ({}));
         setTodayProfit(Number(data.todayCommission ?? 0));
         setTotalCommission(Number(data.referralEarnings ?? 0));
+        setReferralCode(String(data.invitationCode ?? 'STF01'));
       } catch {
         // silently ignore — values stay at 0
       }
@@ -64,6 +76,46 @@ export default function Profile() {
     }
     
     document.body.removeChild(textArea);
+  };
+
+  const handleCredentialsUpdate = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!currentLoginPassword) {
+      toast.error('Current login password is required.');
+      return;
+    }
+    if (!newLoginPassword && !newTransactionPassword) {
+      toast.error('Enter at least one new password.');
+      return;
+    }
+    if (newLoginPassword && newLoginPassword.length < 6) {
+      toast.error('New login password must be at least 6 characters.');
+      return;
+    }
+    if (newTransactionPassword && newTransactionPassword.length < 6) {
+      toast.error('New transaction password must be at least 6 characters.');
+      return;
+    }
+
+    setUpdatingCredentials(true);
+    const result = await changeUserCredentials({
+      currentLoginPassword,
+      newLoginPassword,
+      newTransactionPassword,
+    });
+    setUpdatingCredentials(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
+    setCurrentLoginPassword('');
+    setNewLoginPassword('');
+    setNewTransactionPassword('');
+    setMustChangePassword(false);
+    toast.success('Credentials updated successfully.');
   };
 
   return (
@@ -98,7 +150,7 @@ export default function Profile() {
         <div className="bg-gradient-to-r from-[#0066cc] to-[#0088ee] rounded-lg p-6 text-white mb-6 shadow-md">
           <div className="mb-4">
             <p className="text-sm opacity-90 mb-1">Hello,</p>
-            <h2 className="text-2xl font-bold">{currentUser?.username ?? 'ugreen'}</h2>
+            <h2 className="text-2xl font-bold">{username ?? currentUser?.username ?? 'User'}</h2>
           </div>
 
           <div className="grid grid-cols-3 gap-4 mb-4">
@@ -138,6 +190,51 @@ export default function Profile() {
         {/* My Profile Section */}
         <div className="mb-6">
           <h3 className="text-lg font-bold text-[#0066cc] mb-3">My Profile</h3>
+
+          {mustChangePassword ? (
+            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+              <p className="text-sm font-semibold">Password update required</p>
+              <p className="mt-1 text-xs">Your credentials were reset by admin. Update your login and transaction passwords now.</p>
+            </div>
+          ) : null}
+
+          <div className="bg-white rounded-lg mb-3 shadow-sm overflow-hidden">
+            <div className="p-4 border-b border-gray-100">
+              <h4 className="font-semibold text-[#0066cc]">Security Credentials</h4>
+              <p className="text-xs text-gray-500 mt-1">Update login and transaction passwords from your profile.</p>
+            </div>
+            <form onSubmit={handleCredentialsUpdate} className="p-4 space-y-3">
+              <input
+                type="password"
+                value={currentLoginPassword}
+                onChange={(e) => setCurrentLoginPassword(e.target.value)}
+                placeholder="Current login password"
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[#0066cc] focus:outline-none"
+                required
+              />
+              <input
+                type="password"
+                value={newLoginPassword}
+                onChange={(e) => setNewLoginPassword(e.target.value)}
+                placeholder="New login password (optional)"
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[#0066cc] focus:outline-none"
+              />
+              <input
+                type="password"
+                value={newTransactionPassword}
+                onChange={(e) => setNewTransactionPassword(e.target.value)}
+                placeholder="New transaction password (optional)"
+                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[#0066cc] focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={updatingCredentials}
+                className="w-full rounded bg-[#0066cc] px-3 py-2 text-sm font-semibold text-white hover:bg-[#0055aa] disabled:opacity-60"
+              >
+                {updatingCredentials ? 'Updating...' : 'Update Credentials'}
+              </button>
+            </form>
+          </div>
           
           {/* Account Info */}
           <div className="bg-white rounded-lg mb-3 shadow-sm overflow-hidden">
@@ -356,6 +453,7 @@ export default function Profile() {
           <div className="bg-white rounded-lg shadow-sm">
             <Link
               to="/login"
+              onClick={() => logoutCurrentUser()}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center gap-3">

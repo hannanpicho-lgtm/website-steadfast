@@ -1,11 +1,10 @@
 import { Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router';
 import { useState } from 'react';
-import { useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
-import { ensureReferralStore, getSystemInviteCode, registerUserWithInvitation } from '../services/referralSystem';
+import { serverSignup } from '../services/serverAuth';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 export default function Signup() {
@@ -25,10 +24,6 @@ export default function Signup() {
   const [adminCode, setAdminCode] = useState('');
   const [adminCodeStatus, setAdminCodeStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [errorText, setErrorText] = useState('');
-
-  useEffect(() => {
-    ensureReferralStore();
-  }, []);
 
   const isValidUsername = (value: string) => /^[a-zA-Z0-9_.\-]{1,64}$/.test(value);
 
@@ -115,97 +110,24 @@ export default function Signup() {
       }
     }
 
-    let result = registerUserWithInvitation({
+    const signupResult = await serverSignup({
       username: normalizedUsername,
       phone,
       loginPassword,
       transactionPassword,
       gender,
       invitationCode: registrationInviteCode,
+      adminInviteCode: adminCodeValidated ? effectiveAdminCode : undefined,
     });
 
-    // If primary invite is not a user code, allow admin invitation code there as fallback.
-    if (!result.ok && /invitation code not found/i.test(result.error ?? '') && /^[A-Z0-9]{5}$/.test(registrationInviteCode)) {
-      try {
-        const fallbackRes = await fetch(`${serverUrl}/validate-admin-invite-code`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${publicAnonKey}` },
-          body: JSON.stringify({ code: registrationInviteCode }),
-        });
-
-        if (fallbackRes.ok) {
-          effectiveAdminCode = registrationInviteCode;
-          adminCodeValidated = true;
-          setAdminCodeStatus('valid');
-          setAdminCode(registrationInviteCode);
-          registrationInviteCode = getSystemInviteCode();
-
-          result = registerUserWithInvitation({
-            username: normalizedUsername,
-            phone,
-            loginPassword,
-            transactionPassword,
-            gender,
-            invitationCode: registrationInviteCode,
-          });
-        }
-      } catch {
-        // Keep original result error if fallback check fails.
-      }
-    }
-
-    if (!result.ok) {
-      setErrorText(result.error ?? 'Signup failed. Please try again.');
+    if (!signupResult.ok) {
+      setErrorText(signupResult.error ?? 'Signup failed. Please try again.');
       return;
     }
 
-    try {
-      const response = await fetch(`${serverUrl}/referral/link-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`,
-        },
-        body: JSON.stringify({
-          username: result.createdUser?.username,
-          invitationCode: result.createdUser?.invitationCode,
-          parentInviteCode: registrationInviteCode,
-          loginPassword,
-          transactionPassword,
-        }),
-      });
-
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error ?? 'Failed to sync referral relationship to server');
-      }
-    } catch (syncError) {
-      setErrorText(syncError instanceof Error ? syncError.message : 'Failed to sync referral relationship');
-      return;
-    }
-
-    // Link admin invitation code if one was provided and is valid
-    if (effectiveAdminCode && adminCodeValidated) {
-      try {
-        await fetch(`${serverUrl}/referral/link-admin-invite`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${publicAnonKey}`,
-          },
-          body: JSON.stringify({
-            username: result.createdUser?.username,
-            adminInviteCode: effectiveAdminCode,
-          }),
-        });
-      } catch {
-        // Non-fatal: sub-admin scoping won't work but the account is created
-      }
-    }
-
-    const referralPct = 20;
+    const referralPct = Math.round((signupResult.referralRate ?? 0.2) * 100);
     toast.success(
-      `Signup successful. Your invitation code is ${result.createdUser?.invitationCode}. Parent reward credited: ${referralPct}% (${result.parentReward?.toFixed(2)} USD).`
+      `Signup successful. Your invitation code is ${signupResult.invitationCode}. Parent reward credited: ${referralPct}% (${signupResult.parentReward.toFixed(2)} USD).`
     );
     navigate('/login');
   };
