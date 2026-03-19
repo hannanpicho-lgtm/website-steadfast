@@ -14,15 +14,28 @@ import {
   ensureReferralStore,
   type RegisterPayload,
 } from '../app/services/referralSystem';
+import { storeSessionToken } from '../app/services/serverAuth';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'steadfast_referral_accounts_v1';
 const CURRENT_USER_KEY = 'steadfast_current_user_v1';
+const SESSION_TOKEN_KEY = 'steadfast_user_session_token_v1';
 
 function clearStorage() {
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(CURRENT_USER_KEY);
+  localStorage.removeItem(SESSION_TOKEN_KEY);
+  sessionStorage.removeItem(SESSION_TOKEN_KEY);
+}
+
+function seedSessionFor(username: string) {
+  const payload = { u: username, e: Date.now() + 60_000 };
+  const payloadB64 = btoa(JSON.stringify(payload))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+  storeSessionToken(`${payloadB64}.testsig`, username, false);
 }
 
 function makePayload(overrides: Partial<RegisterPayload> = {}): RegisterPayload {
@@ -219,7 +232,7 @@ describe('getCurrentUsername / isAuthenticated', () => {
   });
 
   it('returns the username after login', () => {
-    authenticateUser('ugreen', 'demo123');
+    seedSessionFor('ugreen');
     expect(getCurrentUsername()).toBe('ugreen');
   });
 
@@ -228,7 +241,7 @@ describe('getCurrentUsername / isAuthenticated', () => {
   });
 
   it('isAuthenticated returns true after login', () => {
-    authenticateUser('ugreen', 'demo123');
+    seedSessionFor('ugreen');
     expect(isAuthenticated()).toBe(true);
   });
 });
@@ -239,7 +252,7 @@ describe('logoutCurrentUser', () => {
   beforeEach(clearStorage);
 
   it('clears the current user from storage', () => {
-    authenticateUser('ugreen', 'demo123');
+    seedSessionFor('ugreen');
     expect(isAuthenticated()).toBe(true);
     logoutCurrentUser();
     expect(isAuthenticated()).toBe(false);
@@ -261,12 +274,12 @@ describe('isCurrentUserAdmin', () => {
   });
 
   it('returns true for the admin account', () => {
-    authenticateUser('admin', 'admin123');
+    seedSessionFor('admin');
     expect(isCurrentUserAdmin()).toBe(true);
   });
 
   it('returns false for a regular (demo) user', () => {
-    authenticateUser('ugreen', 'demo123');
+    seedSessionFor('ugreen');
     expect(isCurrentUserAdmin()).toBe(false);
   });
 
@@ -290,7 +303,7 @@ describe('getInvitationCodeForCurrentUser', () => {
   });
 
   it('returns the user invitation code after login', () => {
-    authenticateUser('ugreen', 'demo123');
+    seedSessionFor('ugreen');
     const code = getInvitationCodeForCurrentUser('FALLBACK');
     expect(code).not.toBe('FALLBACK');
     expect(code).toMatch(/^[A-Z0-9]{5}$/);
