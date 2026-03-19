@@ -84,9 +84,9 @@ export default function Home() {
             muted
             playsInline
             className="absolute top-1/2 left-1/2 min-w-full min-h-full w-auto h-auto transform -translate-x-1/2 -translate-y-1/2 object-cover"
-            style={{ filter: 'brightness(0.4) contrast(1.1) saturate(0.8) hue-rotate(200deg)' }}
+            style={{ filter: 'brightness(0.4) contrast(1.1) saturate(0.8)' }}
           >
-            <source src="https://imagine-public.x.ai/imagine-public/share-videos/a3612b1a-ba58-4437-9515-779c1ee1fe9e.mp4" type="video/mp4" />
+            <source src="/banner-cdc94d47.mp4" type="video/mp4" />
           </video>
           <div className="absolute inset-0 bg-gradient-to-br from-[#1a1f2e]/70 via-[#2a3f5f]/60 to-[#1a1f2e]/75"></div>
           <div className="absolute inset-0 bg-[#00D9FF]/5"></div>
@@ -112,7 +112,125 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Home Information Section */}
+      {/* Welcome Section */}
+      <section className="bg-gradient-to-br from-[#1a1f2e] to-[#2d3a56] py-12 sm:py-16">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            <div className="text-white">
+              <h2 className="text-3xl sm:text-4xl font-bold mb-6 text-[#00D9FF]">Welcome to Steadfast Digital</h2>
+              <p className="text-base sm:text-lg text-gray-300 mb-4 leading-relaxed">
+                We are a performance-driven agency dedicated to serving the digital marketing needs of start-ups and emerging brands.
+              </p>
+              <p className="text-base sm:text-lg text-gray-300 mb-4 leading-relaxed">
+                We aim to amplify your digital presence by identifying and engaging your target audience at minimal acquisition costs.
+              </p>
+              <p className="text-base sm:text-lg text-gray-300 leading-relaxed">
+                Most of our clientele, spanning e-commerce and service sectors, choose us for our data-driven approach and proven track record of paid media success.
+              </p>
+            </div>
+            <div className="hidden md:block">
+              <div className="relative w-full h-64 bg-[#00D9FF]/10 rounded-lg border-2 border-[#00D9FF]/30 flex items-center justify-center">
+                <div className="text-center text-[#00D9FF]">
+                  <svg className="w-24 h-24 mx-auto mb-2 opacity-30" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Strategic Insights Section */}
+      <section className="bg-gradient-to-br from-[#2d3a56] to-[#1a1f2e] py-12 sm:py-16 border-t border-[#00D9FF]/20">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <div className="grid md:grid-cols-2 gap-8 items-center">
+            <div className="hidden md:block">
+              <div className="relative w-full h-64 bg-gradient-to-br from-cyan-400/20 to-blue-600/20 rounded-lg border border-[#00D9FF]/30 flex items-center justify-center overflow-hidden">
+                <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48ZmlsdGVyIGlkPSJncmlkIj48ZmVUdXJidWxlbmNlIHR5cGU9ImZyYWN0YWxOb2lzZSIgYmFzZUZyZXF1ZW5jeT0iMC41IiBudW1PY3RhdmVzPSI0IiByZXN1bHQ9Im5vaXNlIi8+PGZlQ29sb3JNYXRyaXggaW49Im5vaXNlIiB0eXBlPSJzYXR1cmF0ZSIgdmFsdWVzPSIwLjMiLz48L2ZpbHRlcj48L2RlZnM+PHJlY3Qgd2lkdGg9IjIwMCIgaGVpZ2h0PSIyMDAiIGZpbGw9IiMwMDQ0YWEiIGZpbHRlcj0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-40"></div>
+              </div>
+            </div>
+            <div className="text-white">
+              <h2 className="text-3xl sm:text-4xl font-bold mb-6 text-[#00D9FF]">Strategic Insights</h2>
+              <p className="text-base sm:text-lg text-gray-300 mb-6 leading-relaxed">
+                In today's dynamic landscape, mastering channels like Google, Meta and TikTok feels like navigating a complex ecosystem.
+              </p>
+              <p className="text-base sm:text-lg text-gray-300 leading-relaxed">
+                Algorithms evolve, audiences fragment and success demands both channel expertise and a holistic approach. That's where we come in.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Areas of Focus Section */}
+      <section className="bg-gradient-to-br from-[#1a1f2e] to-[#2d3a56] py-12 sm:py-16 border-t border-[#00D9FF]/20">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12 text-[#00D9FF]">Areas of Focus</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Search Engine Marketing */}
+            <div className="bg-[#00D9FF] text-[#1a1f2e] rounded-lg p-6">
+              <h3 className="text-xl font-bold mb-4">Search Engine Marketing</h3>
+              <p className="text-sm leading-relaxed">
+                Google Ads & Bing Ads: Designed for precision targeting, data-driven tests, and maximizing ROAS.
+              </p>
+            </div>
+            {/* Paid Social */}
+            <div className="bg-[#252b3d] text-white rounded-lg p-6 border border-[#00D9FF]/30">
+              <h3 className="text-xl font-bold mb-4 text-[#00D9FF]">Paid Social</h3>
+              <p className="text-sm leading-relaxed text-gray-300">
+                Facebook, Instagram, Pinterest, TikTok, and LinkedIn Ads. Reach the right audience at the right time in the right place.
+              </p>
+            </div>
+            {/* Paid Content */}
+            <div className="bg-[#252b3d] text-white rounded-lg p-6 border border-[#00D9FF]/30">
+              <h3 className="text-xl font-bold mb-4 text-[#00D9FF]">Paid Content</h3>
+              <p className="text-sm leading-relaxed text-gray-300">
+                Taboola & Outbrain: Amplify your content to drive awareness and attention.
+              </p>
+            </div>
+          </div>
+          <div className="grid md:grid-cols-2 gap-6 mt-6">
+            {/* Affiliate Marketing */}
+            <div className="bg-[#252b3d] text-white rounded-lg p-6 border border-[#00D9FF]/30">
+              <h3 className="text-xl font-bold mb-4 text-[#00D9FF]">Affiliate Marketing</h3>
+              <p className="text-sm leading-relaxed text-gray-300">
+                Get featured across sites and platforms your customers care about.
+              </p>
+            </div>
+            {/* Digital Strategy & Insights */}
+            <div className="bg-[#252b3d] text-white rounded-lg p-6 border border-[#00D9FF]/30">
+              <h3 className="text-xl font-bold mb-4 text-[#00D9FF]">Digital Strategy & Insights</h3>
+              <p className="text-sm leading-relaxed text-gray-300">
+                Data that ties it all together for the optimal performance for your media mix.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Our Clients Section */}
+      <section className="bg-gradient-to-br from-[#2d3a56] to-[#1a1f2e] py-12 sm:py-16 border-t border-[#00D9FF]/20">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6">
+          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-12 text-[#00D9FF]">Our Clients</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+            {[
+              { name: 'GIADZY', color: 'text-red-600' },
+              { name: 'Owlet', color: 'text-teal-400' },
+              { name: 'UBS', color: 'text-red-600' }
+            ].map((client) => (
+              <div
+                key={client.name}
+                className="bg-white rounded-lg p-8 flex items-center justify-center min-h-32 border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <span className={`text-2xl font-bold ${client.color}`}>{client.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      
       <section className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         <div className="bg-white rounded-xl shadow-sm border border-[#e7ecf5] p-5 sm:p-7 mb-7">
           <p className="text-center text-xs sm:text-sm font-semibold text-[#005ea6] tracking-wide uppercase mb-2">
