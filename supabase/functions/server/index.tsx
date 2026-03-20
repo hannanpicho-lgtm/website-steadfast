@@ -4545,7 +4545,7 @@ app.post("/make-server-a1c55d7e/cs/chat/mark-read", async (c) => {
 
     let username = sanitizeUsername(rawMarkReadUsername);
     if (viewer === 'user') {
-      const identity = await resolveSessionBoundUsername(c, rawMarkReadUsername);
+      const identity = await resolveSessionBoundUsername(c, rawMarkReadUsername, { required: false });
       if ('response' in identity) {
         return identity.response;
       }

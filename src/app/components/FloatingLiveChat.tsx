@@ -97,11 +97,12 @@ export function FloatingLiveChat() {
 
         await fetch(`${serverUrl}/cs/chat/mark-read`, {
           method: 'POST',
+          credentials: 'include',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${publicAnonKey}`,
           },
-          body: JSON.stringify({ username: currentUsername, viewer: 'user' }),
+          body: JSON.stringify({ viewer: 'user' }),
         });
       } catch {
         // Keep last known messages if polling fails.

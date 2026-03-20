@@ -73,12 +73,12 @@ export function LiveChat({ isOpen, onClose, username }: LiveChatProps) {
     try {
       await fetch(`${serverUrl}/cs/chat/mark-read`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
         },
         body: JSON.stringify({
-          username,
           viewer: 'user',
         }),
       });

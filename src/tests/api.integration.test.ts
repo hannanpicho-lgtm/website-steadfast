@@ -600,9 +600,11 @@ describe('Live chat', () => {
     expect(status).toBe(400);
   });
 
-  it('POST /cs/chat/mark-read returns 400 when username is missing', async () => {
-    const { status } = await postAsUser('/cs/chat/mark-read', { viewer: 'user' });
-    expect(status).toBe(400);
+  it('POST /cs/chat/mark-read accepts session-backed requests when username is missing', async () => {
+    const { status, body } = await postAsUser('/cs/chat/mark-read', { viewer: 'user' });
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(typeof body.updated).toBe('number');
   });
 
   it('POST /cs/chat/mark-read viewer=user marks admin messages read', async () => {
