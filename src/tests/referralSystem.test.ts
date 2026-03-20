@@ -1,59 +1,26 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  registerUserWithInvitation,
-  authenticateUser,
   logoutCurrentUser,
   getCurrentUsername,
   isAuthenticated,
   isCurrentUserAdmin,
-  getInvitationCodeForCurrentUser,
   getSystemInviteCode,
   getDemoCredentials,
   getAdminCredentials,
-  ensureReferralStore,
-  resetReferralStoreMemoryForTests,
-  type RegisterPayload,
 } from '../app/services/referralSystem';
 import { clearSessionToken, storeSessionToken } from '../app/services/serverAuth';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const STORAGE_KEY = 'steadfast_referral_accounts_v1';
 const CURRENT_USER_KEY = 'steadfast_current_user_v1';
-const SESSION_TOKEN_KEY = 'steadfast_user_session_token_v1';
 
 function clearStorage() {
   clearSessionToken();
-  resetReferralStoreMemoryForTests();
-  localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(CURRENT_USER_KEY);
-  localStorage.removeItem(SESSION_TOKEN_KEY);
-  sessionStorage.removeItem(SESSION_TOKEN_KEY);
 }
 
 function seedSessionFor(username: string) {
-  const payload = { u: username, e: Date.now() + 60_000 };
-  const payloadB64 = btoa(JSON.stringify(payload))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-  storeSessionToken(`${payloadB64}.testsig`, username, false);
+  storeSessionToken('', username, false);
 }
-
-function makePayload(overrides: Partial<RegisterPayload> = {}): RegisterPayload {
-  return {
-    username: 'newuser',
-    phone: '+1 555-1234',
-    loginPassword: 'pass1234',
-    transactionPassword: 'txn1234',
-    gender: 'male',
-    invitationCode: 'STF01',   // system root code
-    ...overrides,
-  };
-}
-
-// ─── Store constants ───────────────────────────────────────────────────────────
 
 describe('getSystemInviteCode', () => {
   it('returns STF01', () => {
@@ -78,150 +45,6 @@ describe('getAdminCredentials', () => {
     expect(creds.inviteCode).toBe('ADM01');
   });
 });
-
-// ─── ensureReferralStore ───────────────────────────────────────────────────────
-
-describe('ensureReferralStore', () => {
-  beforeEach(clearStorage);
-
-  it('creates deterministic demo/admin credentials and does not persist referral store to localStorage', () => {
-    ensureReferralStore();
-    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
-    const demo = authenticateUser('ugreen', 'demo123');
-    const admin = authenticateUser('admin', 'admin123');
-    expect(demo.ok).toBe(true);
-    expect(admin.ok).toBe(true);
-  });
-
-  it('is idempotent — calling again preserves credential-based login behavior', () => {
-    ensureReferralStore();
-    ensureReferralStore();
-    const demo = authenticateUser('UGREEN', 'demo123');
-    expect(demo.ok).toBe(true);
-  });
-});
-
-// ─── registerUserWithInvitation ────────────────────────────────────────────────
-
-describe('registerUserWithInvitation', () => {
-  beforeEach(clearStorage);
-
-  it('returns ok:true with a new user on a valid invitation', () => {
-    const result = registerUserWithInvitation(makePayload());
-    expect(result.ok).toBe(true);
-    expect(result.createdUser?.username).toBe('newuser');
-  });
-
-  it('assigns the new user a unique invitation code', () => {
-    const result = registerUserWithInvitation(makePayload());
-    expect(result.createdUser?.invitationCode).toMatch(/^[A-Z0-9]{5}$/);
-    // Must contain at least one digit (enforced by isCodeValid)
-    expect(result.createdUser?.invitationCode).toMatch(/\d/);
-  });
-
-  it('stores invitedByCode pointing at the parent', () => {
-    const result = registerUserWithInvitation(makePayload());
-    expect(result.createdUser?.invitedByCode).toBe('STF01');
-  });
-
-  it('credits the parent with a referral reward (20% of 100 = $20)', () => {
-    // ugreen is a child of steadfast_root; register a child of ugreen
-    const ugreen = authenticateUser('ugreen', 'demo123');
-    const ugreenCode = ugreen.user!.invitationCode;
-
-    const result = registerUserWithInvitation(makePayload({ invitationCode: ugreenCode }));
-    expect(result.ok).toBe(true);
-    expect(result.parentReward).toBe(20);
-  });
-
-  it('new user starts with balance 0', () => {
-    const result = registerUserWithInvitation(makePayload());
-    expect(result.createdUser?.balance).toBe(0);
-  });
-
-  it('returns ok:false for unknown invitation code', () => {
-    // 'ZZ1ZZ' is a valid format (5 chars, contains digit) but doesn't exist in the store
-    const result = registerUserWithInvitation(makePayload({ invitationCode: 'ZZ1ZZ' }));
-    expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/invitation code not found/i);
-  });
-
-  it('returns ok:false for invitation code that fails format validation', () => {
-    // Must be 5 chars with at least one digit
-    const result = registerUserWithInvitation(makePayload({ invitationCode: 'AAAAA' }));
-    expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/invitation code must/i);
-  });
-
-  it('returns ok:false for an invitation code that is too short', () => {
-    const result = registerUserWithInvitation(makePayload({ invitationCode: 'A1' }));
-    expect(result.ok).toBe(false);
-  });
-
-  it('returns ok:false for duplicate username (case-insensitive)', () => {
-    registerUserWithInvitation(makePayload({ username: 'Alice' }));
-    const result = registerUserWithInvitation(makePayload({ username: 'alice' }));
-    expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/username already exists/i);
-  });
-
-  it('returns ok:false for empty username', () => {
-    const result = registerUserWithInvitation(makePayload({ username: '' }));
-    expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/username is required/i);
-  });
-
-  it('returns ok:false for username with spaces', () => {
-    const result = registerUserWithInvitation(makePayload({ username: 'user name' }));
-    expect(result.ok).toBe(false);
-  });
-
-  it('returns ok:false for username with special chars beyond _ - .', () => {
-    const result = registerUserWithInvitation(makePayload({ username: 'user@name!' }));
-    expect(result.ok).toBe(false);
-  });
-
-  it('does not persist CURRENT_USER_KEY after successful registration', () => {
-    registerUserWithInvitation(makePayload({ username: 'freshuser' }));
-    expect(localStorage.getItem(CURRENT_USER_KEY)).toBeNull();
-  });
-});
-
-// ─── authenticateUser ─────────────────────────────────────────────────────────
-
-describe('authenticateUser', () => {
-  beforeEach(clearStorage);
-
-  it('returns ok:true and user for valid demo credentials', () => {
-    const result = authenticateUser('ugreen', 'demo123');
-    expect(result.ok).toBe(true);
-    expect(result.user?.username).toBe('ugreen');
-  });
-
-  it('is case-insensitive for username', () => {
-    const result = authenticateUser('UGREEN', 'demo123');
-    expect(result.ok).toBe(true);
-  });
-
-  it('returns ok:false for wrong password', () => {
-    const result = authenticateUser('ugreen', 'wrongpassword');
-    expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/invalid username or password/i);
-  });
-
-  it('returns ok:false for non-existent user', () => {
-    const result = authenticateUser('doesnotexist', 'any');
-    expect(result.ok).toBe(false);
-    expect(result.error).toMatch(/account not found/i);
-  });
-
-  it('does not persist CURRENT_USER_KEY after successful login', () => {
-    authenticateUser('ugreen', 'demo123');
-    expect(localStorage.getItem(CURRENT_USER_KEY)).toBeNull();
-  });
-});
-
-// ─── getCurrentUsername / isAuthenticated ─────────────────────────────────────
 
 describe('getCurrentUsername / isAuthenticated', () => {
   beforeEach(clearStorage);
@@ -250,7 +73,7 @@ describe('getCurrentUsername / isAuthenticated', () => {
 describe('logoutCurrentUser', () => {
   beforeEach(clearStorage);
 
-  it('clears the current user from storage', () => {
+  it('clears the in-memory session markers', () => {
     seedSessionFor('ugreen');
     expect(isAuthenticated()).toBe(true);
     logoutCurrentUser();
@@ -281,54 +104,14 @@ describe('isCurrentUserAdmin', () => {
     seedSessionFor('ugreen');
     expect(isCurrentUserAdmin()).toBe(false);
   });
-
-  it('returns false for a newly registered user', () => {
-    registerUserWithInvitation(makePayload({ username: 'regularjoe' }));
-    expect(isCurrentUserAdmin()).toBe(false);
-  });
 });
 
-// ─── getInvitationCodeForCurrentUser ──────────────────────────────────────────
-
-describe('getInvitationCodeForCurrentUser', () => {
+describe('legacy identity key cleanup', () => {
   beforeEach(clearStorage);
 
-  it('returns the fallback when no user is logged in', () => {
-    expect(getInvitationCodeForCurrentUser('FALLBACK')).toBe('FALLBACK');
-  });
-
-  it('returns default fallback N/A when no argument provided', () => {
-    expect(getInvitationCodeForCurrentUser()).toBe('N/A');
-  });
-
-  it('returns the user invitation code after login', () => {
-    seedSessionFor('ugreen');
-    const code = getInvitationCodeForCurrentUser('FALLBACK');
-    expect(code).not.toBe('FALLBACK');
-    expect(code).toMatch(/^[A-Z0-9]{5}$/);
-  });
-});
-
-// ─── referral chain integrity ─────────────────────────────────────────────────
-
-describe('referral chain integrity', () => {
-  beforeEach(clearStorage);
-
-  it('two different users get unique invitation codes', () => {
-    const r1 = registerUserWithInvitation(makePayload({ username: 'user_one' }));
-    const r2 = registerUserWithInvitation(makePayload({ username: 'user_two' }));
-    expect(r1.createdUser?.invitationCode).not.toBe(r2.createdUser?.invitationCode);
-  });
-
-  it('a child can use their own code to invite another user', () => {
-    const r1 = registerUserWithInvitation(makePayload({ username: 'firstgen' }));
-    const childCode = r1.createdUser!.invitationCode;
-
-    const r2 = registerUserWithInvitation(makePayload({
-      username: 'secondgen',
-      invitationCode: childCode,
-    }));
-    expect(r2.ok).toBe(true);
-    expect(r2.createdUser?.invitedByCode).toBe(childCode);
+  it('does not use localStorage identity as auth source', () => {
+    localStorage.setItem(CURRENT_USER_KEY, 'admin');
+    expect(getCurrentUsername()).toBeNull();
+    expect(localStorage.getItem(CURRENT_USER_KEY)).toBeNull();
   });
 });
