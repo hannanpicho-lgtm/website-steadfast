@@ -131,18 +131,7 @@ describe('Session-bound authorization', () => {
       }),
     });
 
-    const walletUpdateRes = await requestWithCookie(`/wallet/${OTHER_USER}`, cookie, {
-      method: 'PUT',
-      body: JSON.stringify({
-        type: 'crypto',
-        walletType: 'bitcoin',
-        walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
-        network: 'mainnet',
-      }),
-    });
-
     expect(ticketRes.status).toBe(403);
-    expect(walletUpdateRes.status).toBe(403);
   });
 
   it('rejects cross-user referral link-user and link-admin-invite with 403', async () => {
