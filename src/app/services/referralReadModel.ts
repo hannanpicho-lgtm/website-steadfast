@@ -27,9 +27,9 @@ export type ReferralSummaryResponse = {
   };
 };
 
-export async function fetchReferralSummary(username: string): Promise<ReferralSummaryResponse> {
-  const normalizedUsername = username.trim();
-  const response = await fetch(`${SERVER_URL}/referrals/${encodeURIComponent(normalizedUsername)}/summary`, {
+export async function fetchReferralSummary(): Promise<ReferralSummaryResponse> {
+  const response = await fetch(`${SERVER_URL}/me/referrals/summary`, {
+    credentials: 'include',
     headers: {
       Authorization: `Bearer ${publicAnonKey}`,
       apikey: publicAnonKey,

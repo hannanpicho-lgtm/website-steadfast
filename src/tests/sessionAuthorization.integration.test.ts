@@ -61,11 +61,17 @@ describe('Session-bound authorization', () => {
     const financialsRes = await requestWithCookie(`/financials/${OTHER_USER}/summary`, cookie);
     const tasksRes = await requestWithCookie(`/tasks/${OTHER_USER}`, cookie);
     const transactionsRes = await requestWithCookie(`/transactions/${OTHER_USER}`, cookie);
+    const walletRes = await requestWithCookie(`/wallet/${OTHER_USER}`, cookie);
+    const withdrawalsRes = await requestWithCookie(`/withdrawals/${OTHER_USER}`, cookie);
+    const referralsRes = await requestWithCookie(`/referrals/${OTHER_USER}/summary`, cookie);
 
     expect(userRes.status).toBe(403);
     expect(financialsRes.status).toBe(403);
     expect(tasksRes.status).toBe(403);
     expect(transactionsRes.status).toBe(403);
+    expect(walletRes.status).toBe(403);
+    expect(withdrawalsRes.status).toBe(403);
+    expect(referralsRes.status).toBe(403);
   });
 
   it('rejects cross-user support data access with 403', async () => {
@@ -267,12 +273,16 @@ describe('Session-bound authorization', () => {
       Authorization: `Bearer ${ANON_KEY}`,
     };
 
-    const [financialsRes, balanceRes, earningsRes, tasksRes, transactionsRes] = await Promise.all([
+    const [financialsRes, balanceRes, earningsRes, tasksRes, transactionsRes, userRes, walletRes, withdrawalsRes, referralsRes] = await Promise.all([
       fetch(`${BASE}/me/financials`, { headers }),
       fetch(`${BASE}/me/balance`, { headers }),
       fetch(`${BASE}/me/earnings`, { headers }),
       fetch(`${BASE}/me/tasks`, { headers }),
       fetch(`${BASE}/me/transactions`, { headers }),
+      fetch(`${BASE}/me/user`, { headers }),
+      fetch(`${BASE}/me/wallet`, { headers }),
+      fetch(`${BASE}/me/withdrawals`, { headers }),
+      fetch(`${BASE}/me/referrals/summary`, { headers }),
     ]);
 
     expect(financialsRes.status).toBe(401);
@@ -280,6 +290,10 @@ describe('Session-bound authorization', () => {
     expect(earningsRes.status).toBe(401);
     expect(tasksRes.status).toBe(401);
     expect(transactionsRes.status).toBe(401);
+    expect(userRes.status).toBe(401);
+    expect(walletRes.status).toBe(401);
+    expect(withdrawalsRes.status).toBe(401);
+    expect(referralsRes.status).toBe(401);
   });
 
   it('ignores injected username query parameters for /me financial read endpoints', async () => {
@@ -309,6 +323,24 @@ describe('Session-bound authorization', () => {
     expect(Array.isArray(transactionsRes.body)).toBe(true);
   });
 
+  it('returns session-user data from /me/user, /me/wallet, /me/withdrawals, and /me/referrals even when username is injected in the query', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const userRes = await requestWithCookie('/me/user?username=admin', cookie);
+    const walletRes = await requestWithCookie('/me/wallet?username=admin', cookie);
+    const withdrawalsRes = await requestWithCookie('/me/withdrawals?username=admin', cookie);
+    const referralsRes = await requestWithCookie('/me/referrals/summary?username=admin', cookie);
+
+    expect(userRes.status).toBe(200);
+    expect(userRes.body?.username).toBe(SESSION_USER);
+    expect(walletRes.status).toBe(200);
+    expect(walletRes.body?.username).toBe(SESSION_USER);
+    expect(withdrawalsRes.status).toBe(200);
+    expect(Array.isArray(withdrawalsRes.body)).toBe(true);
+    expect(referralsRes.status).toBe(200);
+    expect(referralsRes.body?.username).toBe(SESSION_USER);
+  });
+
   it('loads session-user financial, balance, earnings, task, and transaction reads successfully', async () => {
     const cookie = await loginAndGetSessionCookie();
 
@@ -335,6 +367,29 @@ describe('Session-bound authorization', () => {
 
     expect(transactionsRes.status).toBe(200);
     expect(Array.isArray(transactionsRes.body)).toBe(true);
+  });
+
+  it('loads session-user profile, wallet, withdrawal, and referral reads successfully', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const userRes = await requestWithCookie('/me/user', cookie);
+    const walletRes = await requestWithCookie('/me/wallet', cookie);
+    const withdrawalsRes = await requestWithCookie('/me/withdrawals', cookie);
+    const referralsRes = await requestWithCookie('/me/referrals/summary', cookie);
+
+    expect(userRes.status).toBe(200);
+    expect(userRes.body?.username).toBe(SESSION_USER);
+
+    expect(walletRes.status).toBe(200);
+    expect(walletRes.body?.username).toBe(SESSION_USER);
+    expect('walletProfile' in (walletRes.body ?? {})).toBe(true);
+
+    expect(withdrawalsRes.status).toBe(200);
+    expect(Array.isArray(withdrawalsRes.body)).toBe(true);
+
+    expect(referralsRes.status).toBe(200);
+    expect(referralsRes.body?.username).toBe(SESSION_USER);
+    expect(typeof referralsRes.body?.referralEarnings).toBe('number');
   });
 
   it('ignores injected username in /me/support/create body and uses session identity', async () => {

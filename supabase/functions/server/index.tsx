@@ -2115,6 +2115,75 @@ async function buildFinancialSummaryResponse(username: string) {
   return {
     ...normalizedUserData,
     username: canonicalUsername,
+
+  async function buildReferralSummaryResponse(username: string) {
+    const canonicalUsername = (await resolveCanonicalUsername(username)) ?? username;
+    const user = await getOrCreateUserRecord(canonicalUsername);
+    await assignUsernameLookup(canonicalUsername);
+
+    const parentCode = sanitizeInviteCode((user as any).invitedByCode);
+    let parentUsername: string | null = null;
+    if (parentCode) {
+      const lookup = await kv.get(`referral:invite:${parentCode}`);
+      parentUsername = typeof lookup === 'string' && lookup ? lookup : null;
+    }
+
+    const referralEvents = (await kv.getByPrefix('referral:event:'))
+      .map((event) => ({
+        parentUsername: typeof event?.parentUsername === 'string' ? event.parentUsername : null,
+        childUsername: typeof event?.childUsername === 'string' ? event.childUsername : null,
+        type: typeof event?.type === 'string' && event.type ? event.type : 'child_checkin',
+        childCommission: roundMoney(Number(event?.childCommission ?? 0)),
+        parentReward: roundMoney(Number(event?.parentReward ?? 0)),
+        rate: Number(event?.rate ?? REFERRAL_PARENT_RATE),
+        createdAt: typeof event?.createdAt === 'string' ? event.createdAt : new Date().toISOString(),
+      }))
+      .filter((event) => event.parentUsername === canonicalUsername || event.childUsername === canonicalUsername)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 50);
+
+    const children = Array.isArray((user as any).children) ? (user as any).children : [];
+    const referralEarnings = roundMoney(Number((user as any).referralEarnings ?? 0));
+
+    return {
+      username: canonicalUsername,
+      invitationCode: typeof (user as any).invitationCode === 'string' ? (user as any).invitationCode : null,
+      invitedByCode: parentCode,
+      parentUsername,
+      referralRate: REFERRAL_PARENT_RATE,
+      referralEarnings,
+      childrenCount: children.length,
+      children,
+      recentEvents: referralEvents,
+      summary: {
+        totalReferralEarnings: referralEarnings,
+        totalParentRewardsReceived: roundMoney(
+          referralEvents
+            .filter((event) => event.parentUsername === canonicalUsername)
+            .reduce((sum, event) => sum + event.parentReward, 0),
+        ),
+        totalChildCommissionsObserved: roundMoney(
+          referralEvents
+            .filter((event) => event.parentUsername === canonicalUsername)
+            .reduce((sum, event) => sum + event.childCommission, 0),
+        ),
+      },
+    };
+  }
+
+  app.get('/make-server-a1c55d7e/me/referrals/summary', async (c) => {
+    try {
+      const sessionResult = await requireActiveUserSession(c);
+      if ('response' in sessionResult) {
+        return sessionResult.response;
+      }
+
+      return c.json(await buildReferralSummaryResponse(sessionResult.session.username));
+    } catch (error) {
+      console.error('Session referral summary error:', error);
+      return c.json({ error: 'Failed to fetch referral summary' }, 500);
+    }
+  });
     balance,
     holdAmount,
     availableAmount,
@@ -2122,59 +2191,8 @@ async function buildFinancialSummaryResponse(username: string) {
     summary: {
       availableAmount,
       totalBalance: roundMoney(balance + holdAmount),
-      isFrozen: Boolean(normalizedUserData.isFrozen),
-    },
-  };
-}
 
-async function buildEarningsSummaryResponse(username: string) {
-  const userData = await getOrCreateUserRecord(username);
-  const transactions = await listTransactionRecords(username);
-  const completedCommission = roundMoney(
-    transactions
-      .filter((transaction) => transaction.type === 'Commission' && transaction.status === 'Completed')
-      .reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0),
-  );
-
-  return {
-    username,
-    todayCommission: roundMoney(Number(userData.todayCommission ?? 0)),
-    referralEarnings: roundMoney(Number(userData.referralEarnings ?? 0)),
-    luckyBonus: roundMoney(Number(userData.luckyBonus ?? 0)),
-    completedCommission,
-  };
-}
-
-app.get('/make-server-a1c55d7e/me/financials', async (c) => {
-  try {
-    const sessionResult = await requireActiveUserSession(c);
-    if ('response' in sessionResult) {
-      return sessionResult.response;
-    }
-
-    return c.json(await buildFinancialSummaryResponse(sessionResult.session.username));
-  } catch (error) {
-    console.error('Session financial summary error:', error);
-    return c.json({ error: 'Failed to fetch financial summary' }, 500);
-  }
-});
-
-app.get('/make-server-a1c55d7e/me/balance', async (c) => {
-  try {
-    const sessionResult = await requireActiveUserSession(c);
-    if ('response' in sessionResult) {
-      return sessionResult.response;
-    }
-
-    const financialSummary = await buildFinancialSummaryResponse(sessionResult.session.username);
-    return c.json({
-      username: financialSummary.username,
-      balance: financialSummary.balance,
-      holdAmount: financialSummary.holdAmount,
-      availableAmount: financialSummary.availableAmount,
-      totalBalance: financialSummary.summary.totalBalance,
-      isFrozen: financialSummary.summary.isFrozen,
-    });
+      return c.json(await buildReferralSummaryResponse(identity.username));
   } catch (error) {
     console.error('Session balance summary error:', error);
     return c.json({ error: 'Failed to fetch balance summary' }, 500);
@@ -2192,6 +2210,21 @@ app.get('/make-server-a1c55d7e/me/earnings', async (c) => {
   } catch (error) {
     console.error('Session earnings summary error:', error);
     return c.json({ error: 'Failed to fetch earnings summary' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/user', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const { normalizedUserData } = await getUserRecordWithDailyReset(sessionResult.session.username);
+    return c.json(normalizedUserData);
+  } catch (error) {
+    console.error('Error fetching session user data:', error);
+    return c.json({ error: 'Failed to fetch user data' }, 500);
   }
 });
 
@@ -2243,6 +2276,27 @@ app.get('/make-server-a1c55d7e/wallet/:username', async (c) => {
     });
   } catch (error) {
     console.error('Error fetching wallet profile:', error);
+    return c.json({ error: 'Failed to fetch wallet profile' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/wallet', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const canonicalUsername = sessionResult.session.username;
+    const userData = await getOrCreateUserRecord(canonicalUsername);
+    await assignUsernameLookup(canonicalUsername);
+
+    return c.json({
+      username: canonicalUsername,
+      walletProfile: normalizeStoredWalletProfile((userData as any).walletProfile),
+    });
+  } catch (error) {
+    console.error('Error fetching session wallet profile:', error);
     return c.json({ error: 'Failed to fetch wallet profile' }, 500);
   }
 });
@@ -3166,6 +3220,21 @@ app.get('/make-server-a1c55d7e/withdrawals/:username', async (c) => {
     return c.json(withdrawals);
   } catch (error) {
     console.error('Error fetching withdrawal records:', error);
+    return c.json({ error: 'Failed to fetch withdrawal records' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/withdrawals', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const withdrawals = await listWithdrawalRecords(sessionResult.session.username);
+    return c.json(withdrawals);
+  } catch (error) {
+    console.error('Error fetching session withdrawal records:', error);
     return c.json({ error: 'Failed to fetch withdrawal records' }, 500);
   }
 });

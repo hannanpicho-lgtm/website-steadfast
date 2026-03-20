@@ -95,7 +95,8 @@ export default function ConnectWallet() {
     const loadWalletProfile = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`${serverUrl}/wallet/${username}`, {
+        const response = await fetch(`${serverUrl}/me/wallet`, {
+          credentials: 'include',
           headers: { Authorization: `Bearer ${publicAnonKey}` },
         });
 

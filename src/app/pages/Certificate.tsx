@@ -62,7 +62,7 @@ export default function Certificate() {
           headers: { 'Authorization': `Bearer ${publicAnonKey}` },
         }),
         fetchPublicVipConfig(),
-        fetchReferralSummary(username),
+        fetchReferralSummary(),
       ]);
 
       setUserData(user as unknown as UserData);

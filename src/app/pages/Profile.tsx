@@ -41,7 +41,7 @@ export default function Profile() {
       try {
         const [userRes, referralSummary] = await Promise.all([
           fetchFinancialSummary(),
-          fetchReferralSummary(username),
+          fetchReferralSummary(),
         ]);
 
         const data = userRes;
