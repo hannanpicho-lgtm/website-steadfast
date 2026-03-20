@@ -2950,6 +2950,196 @@ app.post('/make-server-a1c55d7e/auth/session/logout', async (c) => {
   }
 });
 
+async function submitTaskForUser(c: any, username: string, body: any) {
+  const requestedTaskId = sanitizeTaskId(body?.taskId);
+  const requestedProductPrice = typeof body?.productPrice === 'number' ? body.productPrice : Number(body?.productPrice);
+
+  const taskCatalog = await listTaskCatalogRecords(false);
+  let selectedTask = requestedTaskId
+    ? taskCatalog.find((task) => task.id === requestedTaskId)
+    : null;
+
+  if (!selectedTask && Number.isFinite(requestedProductPrice) && requestedProductPrice > 0) {
+    selectedTask = taskCatalog.find((task) => task.price === roundMoney(requestedProductPrice) && task.status === 'Active')
+      ?? taskCatalog.find((task) => task.status === 'Active')
+      ?? null;
+  }
+
+  if (!selectedTask) {
+    return c.json({ error: 'No active task available' }, 400);
+  }
+  if (selectedTask.status !== 'Active') {
+    return c.json({ error: 'Selected task is not active' }, 400);
+  }
+
+  const productPrice = roundMoney(selectedTask.price);
+
+  const userKey = `user:${username}`;
+  const userData = await kv.get(userKey);
+
+  if (!userData) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  const normalizedUserData = await syncUserWithVipConfig(userData, username);
+
+  if (normalizedUserData.pendingTaskReset) {
+    await kv.set(userKey, normalizedUserData);
+    return c.json({
+      error: 'Current task set is complete. An admin must reset the next set before you can continue.',
+      code: 'task_set_reset_required',
+      disableSubmit: true,
+      taskProgress: buildUserTaskProgress(normalizedUserData),
+      user: normalizedUserData,
+    }, 409);
+  }
+
+  if (userHasPendingPremiumRequirement(normalizedUserData)) {
+    await kv.set(userKey, normalizedUserData);
+    return c.json({
+      error: 'Premium task requirement pending. Please top up your account before submitting the next task.',
+      code: 'premium_task_encountered',
+      disableSubmit: true,
+      premiumRequirement: buildPremiumRequirementResponse(normalizedUserData.activePremium),
+      user: normalizedUserData,
+    }, 409);
+  }
+
+  if (normalizedUserData.tasksCompleted >= normalizedUserData.tasksLimit) {
+    return c.json({ error: 'Daily task limit reached' }, 400);
+  }
+
+  const rewardsConfig = await getRewardsConfigRecord();
+  const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
+  const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
+  const shouldTriggerPremium = productSystem.premiumEnabled
+    && nextSubmissionNumber === productSystem.premiumTriggerTaskNumber;
+
+  if (shouldTriggerPremium) {
+    const premiumValue = computePremiumValueForVip(Number(normalizedUserData.vipLevel ?? 1), productSystem);
+    const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
+    const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - premiumValue);
+    const topUpRequired = Math.max(0, roundMoney(-balanceAfterAssignment));
+    const activePremium = {
+      id: `premium-rule-${Date.now()}`,
+      premiumProductValue: premiumValue,
+      premiumProductName: `Rule Premium (Task #${nextSubmissionNumber})`,
+      bundledProducts: [],
+      totalBundleValue: premiumValue,
+      balanceBeforeAssignment,
+      balanceAfterAssignment,
+      negativeAmount: topUpRequired,
+      topUpRequired,
+      triggerTaskNumber: nextSubmissionNumber,
+      vipLevel: Number(normalizedUserData.vipLevel ?? 1),
+      valueMode: productSystem.premiumValueMode,
+      tasksCompleted: 0,
+      totalTasks: 1,
+      assignedAt: new Date().toISOString(),
+      assignedBy: 'system-rule-engine',
+      status: topUpRequired > 0 ? 'awaiting_funds' : 'active',
+      commissionEarned: 0,
+    };
+
+    normalizedUserData.isFrozen = true;
+    normalizedUserData.activePremium = activePremium;
+    normalizedUserData.premiumQueue = Array.isArray(normalizedUserData.premiumQueue)
+      ? [activePremium, ...normalizedUserData.premiumQueue]
+      : [activePremium];
+    normalizedUserData.balance = balanceAfterAssignment;
+    normalizedUserData.holdAmount = roundMoney(Math.max(Number(normalizedUserData.holdAmount ?? 0), topUpRequired));
+
+    await kv.set(userKey, normalizedUserData);
+    await kv.set(`premium:${username}:${activePremium.id}`, activePremium);
+
+    return c.json({
+      error: 'Premium task encountered. Top-up is required before continuing task submission.',
+      code: 'premium_task_encountered',
+      disableSubmit: true,
+      premiumRequirement: buildPremiumRequirementResponse(activePremium),
+      user: normalizedUserData,
+    }, 409);
+  }
+
+  const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
+  normalizedUserData.tasksLimit = vipConfig.dailyTasks;
+  const commissionRate = vipConfig.commission;
+  const commission = roundMoney(productPrice * commissionRate);
+
+  normalizedUserData.tasksCompleted += 1;
+  normalizedUserData.tasksCompletedInSet += 1;
+  normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
+  normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);
+
+  if (
+    normalizedUserData.tasksCompletedInSet >= normalizedUserData.tasksPerSet
+    && normalizedUserData.tasksCompleted < normalizedUserData.tasksLimit
+  ) {
+    normalizedUserData.pendingTaskReset = true;
+  }
+
+  if (Math.random() < 0.01) {
+    const luckyAmount = Math.floor(Math.random() * 100) + 50;
+    normalizedUserData.luckyBonus = roundMoney(normalizedUserData.luckyBonus + luckyAmount);
+    normalizedUserData.balance = roundMoney(normalizedUserData.balance + luckyAmount);
+
+    await createTransactionRecord({
+      username,
+      type: 'Commission',
+      amount: luckyAmount,
+      method: 'Lucky Bonus',
+      source: 'lucky_bonus',
+      description: 'Lucky bonus reward',
+    });
+  }
+
+  const referralPayout = await creditParentReferralFromChildCommission(username, commission);
+
+  await kv.set(userKey, normalizedUserData);
+
+  const taskKey = `task:${username}:${Date.now()}`;
+  const taskRecord = {
+    taskId: selectedTask.id,
+    username,
+    productPrice,
+    commission,
+    isPremium: false,
+    merchant: selectedTask.merchant,
+    productName: selectedTask.product,
+    image: selectedTask.image,
+    rating: selectedTask.rating,
+    productUrl: selectedTask.productUrl,
+    timestamp: new Date().toISOString(),
+    tasksCompleted: normalizedUserData.tasksCompleted,
+  };
+  await kv.set(taskKey, taskRecord);
+
+  await createTransactionRecord({
+    username,
+    type: 'Commission',
+    amount: commission,
+    method: 'System',
+    source: 'task',
+    description: 'Task commission credited',
+    referenceId: taskKey,
+  });
+
+  return c.json({
+    success: true,
+    commission,
+    isPremium: false,
+    tasksCompleted: normalizedUserData.tasksCompleted,
+    tasksLimit: normalizedUserData.tasksLimit,
+    balance: normalizedUserData.balance,
+    todayCommission: normalizedUserData.todayCommission,
+    luckyBonus: normalizedUserData.luckyBonus,
+    parentReferralCommission: referralPayout.rewarded ? referralPayout.parentReward : 0,
+    parentReferralUsername: referralPayout.rewarded ? referralPayout.parentUsername : null,
+    taskProgress: buildUserTaskProgress(normalizedUserData),
+    task: selectedTask,
+  });
+}
+
 // Submit task endpoint
 app.post("/make-server-a1c55d7e/submit-task", async (c) => {
   try {
@@ -2965,207 +3155,40 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
       }, 400);
     }
 
-    const requestedTaskId = sanitizeTaskId(body?.taskId);
-    const requestedProductPrice = typeof body?.productPrice === 'number' ? body.productPrice : Number(body?.productPrice);
     const identity = await resolveSessionBoundUsername(c, body?.username, { required: false });
     if ('response' in identity) {
       return identity.response;
     }
 
-    const username = identity.username;
-
-    const taskCatalog = await listTaskCatalogRecords(false);
-    let selectedTask = requestedTaskId
-      ? taskCatalog.find((task) => task.id === requestedTaskId)
-      : null;
-
-    if (!selectedTask && Number.isFinite(requestedProductPrice) && requestedProductPrice > 0) {
-      selectedTask = taskCatalog.find((task) => task.price === roundMoney(requestedProductPrice) && task.status === 'Active')
-        ?? taskCatalog.find((task) => task.status === 'Active')
-        ?? null;
-    }
-
-    if (!selectedTask) {
-      return c.json({ error: 'No active task available' }, 400);
-    }
-    if (selectedTask.status !== 'Active') {
-      return c.json({ error: 'Selected task is not active' }, 400);
-    }
-
-    const productPrice = roundMoney(selectedTask.price);
-    
-    const userKey = `user:${username}`;
-    const userData = await kv.get(userKey);
-    
-    if (!userData) {
-      return c.json({ error: 'User not found' }, 404);
-    }
-    
-    const normalizedUserData = await syncUserWithVipConfig(userData, username);
-
-    if (normalizedUserData.pendingTaskReset) {
-      await kv.set(userKey, normalizedUserData);
-      return c.json({
-        error: 'Current task set is complete. An admin must reset the next set before you can continue.',
-        code: 'task_set_reset_required',
-        disableSubmit: true,
-        taskProgress: buildUserTaskProgress(normalizedUserData),
-        user: normalizedUserData,
-      }, 409);
-    }
-
-    if (userHasPendingPremiumRequirement(normalizedUserData)) {
-      await kv.set(userKey, normalizedUserData);
-      return c.json({
-        error: 'Premium task requirement pending. Please top up your account before submitting the next task.',
-        code: 'premium_task_encountered',
-        disableSubmit: true,
-        premiumRequirement: buildPremiumRequirementResponse(normalizedUserData.activePremium),
-        user: normalizedUserData,
-      }, 409);
-    }
-
-    // Check if user has reached daily task limit
-    if (normalizedUserData.tasksCompleted >= normalizedUserData.tasksLimit) {
-      return c.json({ error: 'Daily task limit reached' }, 400);
-    }
-
-    const rewardsConfig = await getRewardsConfigRecord();
-    const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
-    const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
-    const shouldTriggerPremium = productSystem.premiumEnabled
-      && nextSubmissionNumber === productSystem.premiumTriggerTaskNumber;
-
-    if (shouldTriggerPremium) {
-      const premiumValue = computePremiumValueForVip(Number(normalizedUserData.vipLevel ?? 1), productSystem);
-      const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
-      const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - premiumValue);
-      const topUpRequired = Math.max(0, roundMoney(-balanceAfterAssignment));
-      const activePremium = {
-        id: `premium-rule-${Date.now()}`,
-        premiumProductValue: premiumValue,
-        premiumProductName: `Rule Premium (Task #${nextSubmissionNumber})`,
-        bundledProducts: [],
-        totalBundleValue: premiumValue,
-        balanceBeforeAssignment,
-        balanceAfterAssignment,
-        negativeAmount: topUpRequired,
-        topUpRequired,
-        triggerTaskNumber: nextSubmissionNumber,
-        vipLevel: Number(normalizedUserData.vipLevel ?? 1),
-        valueMode: productSystem.premiumValueMode,
-        tasksCompleted: 0,
-        totalTasks: 1,
-        assignedAt: new Date().toISOString(),
-        assignedBy: 'system-rule-engine',
-        status: topUpRequired > 0 ? 'awaiting_funds' : 'active',
-        commissionEarned: 0,
-      };
-
-      normalizedUserData.isFrozen = true;
-      normalizedUserData.activePremium = activePremium;
-      normalizedUserData.premiumQueue = Array.isArray(normalizedUserData.premiumQueue)
-        ? [activePremium, ...normalizedUserData.premiumQueue]
-        : [activePremium];
-      normalizedUserData.balance = balanceAfterAssignment;
-      normalizedUserData.holdAmount = roundMoney(Math.max(Number(normalizedUserData.holdAmount ?? 0), topUpRequired));
-
-      await kv.set(userKey, normalizedUserData);
-      await kv.set(`premium:${username}:${activePremium.id}`, activePremium);
-
-      return c.json({
-        error: 'Premium task encountered. Top-up is required before continuing task submission.',
-        code: 'premium_task_encountered',
-        disableSubmit: true,
-        premiumRequirement: buildPremiumRequirementResponse(activePremium),
-        user: normalizedUserData,
-      }, 409);
-    }
-    
-    const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
-    normalizedUserData.tasksLimit = vipConfig.dailyTasks;
-    const commissionRate = vipConfig.commission;
-    const commission = roundMoney(productPrice * commissionRate);
-    
-    // REMOVED: Random premium chance - premium is ADMIN-ONLY now
-    
-    // Update user data
-    normalizedUserData.tasksCompleted += 1;
-    normalizedUserData.tasksCompletedInSet += 1;
-    normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
-    normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);  // Only commission is added to balance
-
-    if (
-      normalizedUserData.tasksCompletedInSet >= normalizedUserData.tasksPerSet
-      && normalizedUserData.tasksCompleted < normalizedUserData.tasksLimit
-    ) {
-      normalizedUserData.pendingTaskReset = true;
-    }
-    
-    // Random lucky bonus (1% chance)
-    if (Math.random() < 0.01) {
-      const luckyAmount = Math.floor(Math.random() * 100) + 50; // $50-$150
-      normalizedUserData.luckyBonus = roundMoney(normalizedUserData.luckyBonus + luckyAmount);
-      normalizedUserData.balance = roundMoney(normalizedUserData.balance + luckyAmount);
-
-      await createTransactionRecord({
-        username,
-        type: 'Commission',
-        amount: luckyAmount,
-        method: 'Lucky Bonus',
-        source: 'lucky_bonus',
-        description: 'Lucky bonus reward',
-      });
-    }
-
-    const referralPayout = await creditParentReferralFromChildCommission(username, commission);
-    
-    await kv.set(userKey, normalizedUserData);
-    
-    // Save task record
-    const taskKey = `task:${username}:${Date.now()}`;
-    const taskRecord = {
-      taskId: selectedTask.id,
-      username,
-      productPrice,
-      commission,
-      isPremium: false,  // Regular tasks are never premium
-      merchant: selectedTask.merchant,
-      productName: selectedTask.product,
-      image: selectedTask.image,
-      rating: selectedTask.rating,
-      productUrl: selectedTask.productUrl,
-      timestamp: new Date().toISOString(),
-      tasksCompleted: normalizedUserData.tasksCompleted,
-    };
-    await kv.set(taskKey, taskRecord);
-
-    await createTransactionRecord({
-      username,
-      type: 'Commission',
-      amount: commission,
-      method: 'System',
-      source: 'task',
-      description: 'Task commission credited',
-      referenceId: taskKey,
-    });
-    
-    return c.json({
-      success: true,
-      commission,
-      isPremium: false,
-      tasksCompleted: normalizedUserData.tasksCompleted,
-      tasksLimit: normalizedUserData.tasksLimit,
-      balance: normalizedUserData.balance,
-      todayCommission: normalizedUserData.todayCommission,
-      luckyBonus: normalizedUserData.luckyBonus,
-      parentReferralCommission: referralPayout.rewarded ? referralPayout.parentReward : 0,
-      parentReferralUsername: referralPayout.rewarded ? referralPayout.parentUsername : null,
-      taskProgress: buildUserTaskProgress(normalizedUserData),
-      task: selectedTask,
-    });
+    return await submitTaskForUser(c, identity.username, body);
   } catch (error) {
     console.error('Error submitting task:', error);
+    return c.json({ error: 'Failed to submit task' }, 500);
+  }
+});
+
+app.post('/make-server-a1c55d7e/me/submit-task', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:submit-task');
+    if (rateLimited) return rateLimited;
+
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const body = await c.req.json();
+    const forbiddenFinancialFields = getForbiddenClientFinancialFields(body);
+    if (forbiddenFinancialFields.length > 0) {
+      return c.json({
+        error: 'Client-side financial mutation fields are not allowed',
+        fields: forbiddenFinancialFields,
+      }, 400);
+    }
+
+    return await submitTaskForUser(c, sessionResult.session.username, body);
+  } catch (error) {
+    console.error('Error submitting session task:', error);
     return c.json({ error: 'Failed to submit task' }, 500);
   }
 });
@@ -3591,6 +3614,113 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
   }
 });
 
+async function completePremiumTaskForUser(c: any, username: string, productPrice: number) {
+  if (typeof productPrice !== 'number' || !Number.isFinite(productPrice) || productPrice <= 0) {
+    return c.json({ error: 'productPrice must be a positive finite number' }, 400);
+  }
+
+  const userKey = `user:${username}`;
+  const userData = await kv.get(userKey);
+
+  if (!userData || !userData.activePremium) {
+    return c.json({ error: 'No active premium assignment' }, 404);
+  }
+
+  const normalizedUserData = normalizeUserRecord(userData, username);
+  if (!normalizedUserData.activePremium) {
+    return c.json({ error: 'No active premium assignment' }, 404);
+  }
+
+  const premium = normalizedUserData.activePremium;
+
+  const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
+  normalizedUserData.tasksLimit = vipConfig.dailyTasks;
+  const commissionRate = vipConfig.commission;
+  const commission = roundMoney(productPrice * commissionRate);
+
+  premium.tasksCompleted += 1;
+  premium.commissionEarned = roundMoney(Number(premium.commissionEarned ?? 0) + commission);
+
+  normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);
+  normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
+
+  if (normalizedUserData.balance < 0) {
+    normalizedUserData.holdAmount = Math.abs(normalizedUserData.balance);
+  } else {
+    normalizedUserData.holdAmount = 0;
+  }
+
+  if (premium.tasksCompleted >= premium.totalTasks) {
+    premium.status = 'completed';
+    premium.completedAt = new Date().toISOString();
+
+    normalizedUserData.premiumQueue = normalizedUserData.premiumQueue.filter(p => p.id !== premium.id);
+
+    if (normalizedUserData.premiumQueue.length > 0) {
+      const nextPremium = normalizedUserData.premiumQueue[0];
+      normalizedUserData.activePremium = nextPremium;
+      normalizedUserData.isFrozen = true;
+
+      const newBalance = normalizedUserData.balance - nextPremium.totalBundleValue;
+      nextPremium.balanceBeforeAssignment = normalizedUserData.balance;
+      nextPremium.balanceAfterAssignment = newBalance;
+      nextPremium.negativeAmount = newBalance < 0 ? Math.abs(newBalance) : 0;
+      nextPremium.topUpRequired = nextPremium.negativeAmount;
+
+      normalizedUserData.balance = newBalance;
+      if (newBalance < 0) {
+        normalizedUserData.holdAmount = Math.abs(newBalance);
+      }
+    } else {
+      normalizedUserData.isFrozen = false;
+      normalizedUserData.activePremium = null;
+    }
+  } else {
+    normalizedUserData.activePremium = premium;
+  }
+
+  const premiumReferralPayout = await creditParentReferralFromChildCommission(username, commission);
+
+  await kv.set(userKey, normalizedUserData);
+
+  const premiumKey = `premium:${username}:${premium.id}`;
+  await kv.set(premiumKey, premium);
+
+  const taskKey = `task:${username}:${Date.now()}`;
+  const taskRecord = {
+    username,
+    productPrice,
+    commission,
+    isPremium: true,
+    premiumBundleId: premium.id,
+    timestamp: new Date().toISOString(),
+  };
+  await kv.set(taskKey, taskRecord);
+
+  await createTransactionRecord({
+    username,
+    type: 'Commission',
+    amount: commission,
+    method: 'Premium Task',
+    source: 'premium_task',
+    description: 'Premium task commission credited',
+    referenceId: premium.id,
+  });
+
+  return c.json({
+    success: true,
+    commission,
+    tasksCompleted: premium.tasksCompleted,
+    totalTasks: premium.totalTasks,
+    balance: normalizedUserData.balance,
+    holdAmount: normalizedUserData.holdAmount,
+    bundleCompleted: premium.status === 'completed',
+    nextInQueue: normalizedUserData.premiumQueue.length > 0,
+    parentReferralCommission: premiumReferralPayout.rewarded ? premiumReferralPayout.parentReward : 0,
+    parentReferralUsername: premiumReferralPayout.rewarded ? premiumReferralPayout.parentUsername : null,
+  });
+}
+
 // Complete premium bundle task
 app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
   try {
@@ -3604,124 +3734,29 @@ app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
     if ('response' in identity) {
       return identity.response;
     }
-    const username = identity.username;
 
-    if (typeof productPrice !== 'number' || !Number.isFinite(productPrice) || productPrice <= 0) {
-      return c.json({ error: 'productPrice must be a positive finite number' }, 400);
-    }
-    
-    const userKey = `user:${username}`;
-    const userData = await kv.get(userKey);
-    
-    if (!userData || !userData.activePremium) {
-      return c.json({ error: 'No active premium assignment' }, 404);
-    }
-
-    const normalizedUserData = normalizeUserRecord(userData, username);
-    if (!normalizedUserData.activePremium) {
-      return c.json({ error: 'No active premium assignment' }, 404);
-    }
-
-    const premium = normalizedUserData.activePremium;
-    
-    const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
-    normalizedUserData.tasksLimit = vipConfig.dailyTasks;
-    const commissionRate = vipConfig.commission;
-    const commission = roundMoney(productPrice * commissionRate);
-    
-    // Update premium assignment progress
-    premium.tasksCompleted += 1;
-    premium.commissionEarned = roundMoney(Number(premium.commissionEarned ?? 0) + commission);
-    
-    // Add commission to balance (not product value, only commission)
-    normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);
-    normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
-    
-    // Update hold amount as balance increases
-    if (normalizedUserData.balance < 0) {
-      normalizedUserData.holdAmount = Math.abs(normalizedUserData.balance);
-    } else {
-      normalizedUserData.holdAmount = 0;
-    }
-    
-    // Check if all tasks completed
-    if (premium.tasksCompleted >= premium.totalTasks) {
-      premium.status = 'completed';
-      premium.completedAt = new Date().toISOString();
-      
-      // Remove from queue
-      normalizedUserData.premiumQueue = normalizedUserData.premiumQueue.filter(p => p.id !== premium.id);
-      
-      // Activate next in queue if exists
-      if (normalizedUserData.premiumQueue.length > 0) {
-        const nextPremium = normalizedUserData.premiumQueue[0];
-        normalizedUserData.activePremium = nextPremium;
-        normalizedUserData.isFrozen = true;
-        
-        // Deduct next bundle value from balance
-        const newBalance = normalizedUserData.balance - nextPremium.totalBundleValue;
-        nextPremium.balanceBeforeAssignment = normalizedUserData.balance;
-        nextPremium.balanceAfterAssignment = newBalance;
-        nextPremium.negativeAmount = newBalance < 0 ? Math.abs(newBalance) : 0;
-        nextPremium.topUpRequired = nextPremium.negativeAmount;
-        
-        normalizedUserData.balance = newBalance;
-        if (newBalance < 0) {
-          normalizedUserData.holdAmount = Math.abs(newBalance);
-        }
-      } else {
-        // No more premiums in queue
-        normalizedUserData.isFrozen = false;
-        normalizedUserData.activePremium = null;
-      }
-    } else {
-      normalizedUserData.activePremium = premium;
-    }
-
-    const premiumReferralPayout = await creditParentReferralFromChildCommission(username, commission);
-    
-    await kv.set(userKey, normalizedUserData);
-    
-    // Update premium assignment record
-    const premiumKey = `premium:${username}:${premium.id}`;
-    await kv.set(premiumKey, premium);
-    
-    // Save task record
-    const taskKey = `task:${username}:${Date.now()}`;
-    const taskRecord = {
-      username,
-      productPrice,
-      commission,
-      isPremium: true,
-      premiumBundleId: premium.id,
-      timestamp: new Date().toISOString(),
-    };
-    await kv.set(taskKey, taskRecord);
-
-    await createTransactionRecord({
-      username,
-      type: 'Commission',
-      amount: commission,
-      method: 'Premium Task',
-      source: 'premium_task',
-      description: 'Premium task commission credited',
-      referenceId: premium.id,
-    });
-    
-    return c.json({
-      success: true,
-      commission,
-      tasksCompleted: premium.tasksCompleted,
-      totalTasks: premium.totalTasks,
-      balance: normalizedUserData.balance,
-      holdAmount: normalizedUserData.holdAmount,
-      bundleCompleted: premium.status === 'completed',
-      nextInQueue: normalizedUserData.premiumQueue.length > 0,
-      parentReferralCommission: premiumReferralPayout.rewarded ? premiumReferralPayout.parentReward : 0,
-      parentReferralUsername: premiumReferralPayout.rewarded ? premiumReferralPayout.parentUsername : null,
-    });
+    return await completePremiumTaskForUser(c, identity.username, productPrice);
   } catch (error) {
     console.error('Error completing premium task:', error);
+    return c.json({ error: 'Failed to complete premium task' }, 500);
+  }
+});
+
+app.post('/make-server-a1c55d7e/me/complete-premium-task', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:complete-premium-task');
+    if (rateLimited) return rateLimited;
+
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const premiumBody = await c.req.json();
+    const { productPrice } = premiumBody;
+    return await completePremiumTaskForUser(c, sessionResult.session.username, productPrice);
+  } catch (error) {
+    console.error('Error completing session premium task:', error);
     return c.json({ error: 'Failed to complete premium task' }, 500);
   }
 });

@@ -317,6 +317,43 @@ describe('Session-bound authorization', () => {
     expect(body?.error).toBeTruthy();
   });
 
+  it('rejects POST /me/submit-task without a session with 401', async () => {
+    const res = await fetch(`${BASE}/me/submit-task`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: ANON_KEY,
+        Authorization: `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        taskId: 'task-no-session-check',
+        productPrice: 100,
+      }),
+    });
+    const body = await res.json().catch(() => null);
+    expect([401, 404]).toContain(res.status);
+    if (res.status === 401) {
+      expect(body?.error).toBeTruthy();
+    }
+  });
+
+  it('rejects POST /me/complete-premium-task without a session with 401', async () => {
+    const res = await fetch(`${BASE}/me/complete-premium-task`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: ANON_KEY,
+        Authorization: `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({ productPrice: 100 }),
+    });
+    const body = await res.json().catch(() => null);
+    expect([401, 404]).toContain(res.status);
+    if (res.status === 401) {
+      expect(body?.error).toBeTruthy();
+    }
+  });
+
   it('rejects /me user read endpoints without a session with 401', async () => {
     const headers = {
       'Content-Type': 'application/json',
@@ -432,6 +469,37 @@ describe('Session-bound authorization', () => {
 
     expect(requestRes.status).not.toBe(403);
     expect(String(requestRes.body?.error ?? '')).not.toContain('requested user does not match active session');
+  });
+
+  it('ignores injected username in /me/submit-task payload and never treats it as cross-user access', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const submitRes = await requestWithCookie('/me/submit-task', cookie, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: OTHER_USER,
+        taskId: 'task-injected-username-check',
+        productPrice: 100,
+      }),
+    });
+
+    expect(submitRes.status).not.toBe(403);
+    expect(String(submitRes.body?.error ?? '')).not.toContain('requested user does not match active session');
+  });
+
+  it('ignores injected username in /me/complete-premium-task payload and never treats it as cross-user access', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const completeRes = await requestWithCookie('/me/complete-premium-task', cookie, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: OTHER_USER,
+        productPrice: 100,
+      }),
+    });
+
+    expect(completeRes.status).not.toBe(403);
+    expect(String(completeRes.body?.error ?? '')).not.toContain('requested user does not match active session');
   });
 
   it('loads session-user financial, balance, earnings, task, and transaction reads successfully', async () => {

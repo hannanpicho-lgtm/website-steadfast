@@ -190,7 +190,7 @@ export default function Starting() {
     try {
       setSubmitting(true);
 
-      const response = await fetch(`${serverUrl}/submit-task`, {
+      const response = await fetch(`${serverUrl}/me/submit-task`, {
         method: 'POST',
         credentials: 'include',
         headers: {
