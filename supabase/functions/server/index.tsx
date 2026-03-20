@@ -2294,23 +2294,7 @@ app.get('/make-server-a1c55d7e/financials/:username/summary', async (c) => {
   }
 });
 
-// Get user data endpoint
-app.get("/make-server-a1c55d7e/user/:username", async (c) => {
-  try {
-    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
-    if ('response' in identity) {
-      return identity.response;
-    }
-
-    const { normalizedUserData } = await getUserRecordWithDailyReset(identity.username);
-
-    return c.json(normalizedUserData);
-  } catch (error) {
-    console.error('Error fetching user data:', error);
-    return c.json({ error: 'Failed to fetch user data' }, 500);
-  }
-});
-
+// Get wallet data endpoint
 app.get('/make-server-a1c55d7e/me/wallet', async (c) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
