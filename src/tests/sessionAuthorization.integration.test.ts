@@ -54,12 +54,12 @@ async function loginAndGetSessionCookie() {
 }
 
 describe('Session-bound authorization', () => {
-  it('rejects cross-user GET access for user profile-like endpoints with 403', async () => {
+  it('returns session-bound data for /me/tasks even when username is injected in query', async () => {
     const cookie = await loginAndGetSessionCookie();
+    const injectedTasksRes = await requestWithCookie('/me/tasks?username=admin', cookie);
 
-    const tasksRes = await requestWithCookie(`/tasks/${OTHER_USER}`, cookie);
-
-    expect(tasksRes.status).toBe(403);
+    expect(injectedTasksRes.status).toBe(200);
+    expect(Array.isArray(injectedTasksRes.body)).toBe(true);
   });
 
   it('rejects cross-user support data access with 403', async () => {

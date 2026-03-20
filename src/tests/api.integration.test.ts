@@ -287,15 +287,15 @@ describe('POST /me/submit-task', () => {
 
 // ─── Task Records ─────────────────────────────────────────────────────────────
 
-describe('GET /tasks/:username', () => {
+describe('GET /me/tasks', () => {
   it('returns an array of task records', async () => {
-    const { status, body } = await requestAsUser(`/tasks/${SESSION_USER}`);
+    const { status, body } = await requestAsUser('/me/tasks');
     expect(status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
   });
 
   it('each record has expected fields', async () => {
-    const { body } = await requestAsUser(`/tasks/${SESSION_USER}`);
+    const { body } = await requestAsUser('/me/tasks');
     if (body.length > 0) {
       const record = body[0];
       expect(typeof record.username).toBe('string');
@@ -796,11 +796,6 @@ describe('Phase 1: Session endpoints', () => {
 describe('Input sanitization', () => {
   // Colon characters in usernames would escape the KV key namespace
   const INJECTED = 'admin%3Asecret'; // URL-encoded "admin:secret"
-
-  it('GET /tasks/:username → 400 for KV-injection username', async () => {
-    const { status } = await requestAsUser(`/tasks/${INJECTED}`);
-    expect(status).toBe(400);
-  });
 
   it('GET /premium/:username → 400 for KV-injection username', async () => {
     const { status } = await requestAsUser(`/premium/${INJECTED}`);

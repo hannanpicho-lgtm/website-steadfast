@@ -3035,42 +3035,6 @@ app.get('/make-server-a1c55d7e/me/tasks', async (c) => {
   }
 });
 
-app.get("/make-server-a1c55d7e/tasks/:username", async (c) => {
-  try {
-    const requestedUsername = sanitizeUsername(c.req.param("username"));
-    if (!requestedUsername) {
-      return c.json({ error: 'Invalid username' }, 400);
-    }
-
-    if (requestedUsername === 'catalog') {
-      const includePaused = c.req.query('includePaused') === 'true';
-      const tasks = await listTaskCatalogRecords(includePaused);
-      return c.json({ tasks });
-    }
-
-    const identity = await resolveSessionBoundUsername(c, requestedUsername);
-    if ('response' in identity) {
-      return identity.response;
-    }
-
-    const username = identity.username;
-
-    const taskPrefix = `task:${username}:`;
-    
-    const tasks = await kv.getByPrefix(taskPrefix);
-    
-    // Sort by timestamp descending
-    const sortedTasks = tasks.sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-    
-    return c.json(sortedTasks);
-  } catch (error) {
-    console.error('Error fetching task records:', error);
-    return c.json({ error: 'Failed to fetch task records' }, 500);
-  }
-});
-
 app.get('/make-server-a1c55d7e/tasks/catalog', async (c) => {
   try {
     const includePaused = c.req.query('includePaused') === 'true';
