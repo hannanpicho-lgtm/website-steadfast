@@ -487,6 +487,52 @@ describe('salary backup server sync helpers', () => {
     expect(result).toEqual({ ok: false, message: 'no access' });
   });
 
+  it('saveAdminSalaryProjectState returns default message when error payload is not JSON', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('upstream failure', { status: 500 }));
+
+    const result = await saveAdminSalaryProjectState({
+      serverUrl,
+      headers,
+      payload: {
+        activeRewardTab: 'workday',
+        selectedBulkOption: 'all',
+        autoBackupEnabled: true,
+        autoBackupIntervalMinutes: 1,
+        backupRetentionDays: 30,
+        payments: DEFAULT_PAYMENTS,
+        points: [],
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: 'Unable to save salary backup state to server.',
+    });
+  });
+
+  it('saveAdminSalaryProjectState returns network error details when fetch throws', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('network down'));
+
+    const result = await saveAdminSalaryProjectState({
+      serverUrl,
+      headers,
+      payload: {
+        activeRewardTab: 'workday',
+        selectedBulkOption: 'all',
+        autoBackupEnabled: true,
+        autoBackupIntervalMinutes: 1,
+        backupRetentionDays: 30,
+        payments: DEFAULT_PAYMENTS,
+        points: [],
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: 'Unable to save salary backup state to server. network down',
+    });
+  });
+
   it('fetchAdminSalaryAuditLogFromServer sanitizes and returns events', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
@@ -520,5 +566,47 @@ describe('salary backup server sync helpers', () => {
     const requestInit = fetchMock.mock.calls[0][1] as RequestInit;
     const body = JSON.parse(String(requestInit.body)) as { events: unknown[] };
     expect(body.events).toHaveLength(MAX_AUDIT_EVENTS);
+  });
+
+  it('saveAdminSalaryAuditLogToServer returns error message from server on failure', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'blocked' }, 403));
+
+    const result = await saveAdminSalaryAuditLogToServer({
+      serverUrl,
+      headers,
+      events: [createAuditEvent('manual-backup', 'x')],
+    });
+
+    expect(result).toEqual({ ok: false, message: 'blocked' });
+  });
+
+  it('saveAdminSalaryAuditLogToServer returns default message when response is not JSON', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('fail', { status: 500 }));
+
+    const result = await saveAdminSalaryAuditLogToServer({
+      serverUrl,
+      headers,
+      events: [createAuditEvent('manual-backup', 'x')],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: 'Unable to save salary audit log to server.',
+    });
+  });
+
+  it('saveAdminSalaryAuditLogToServer returns network error details when fetch throws', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('socket closed'));
+
+    const result = await saveAdminSalaryAuditLogToServer({
+      serverUrl,
+      headers,
+      events: [createAuditEvent('manual-backup', 'x')],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: 'Unable to save salary audit log to server. socket closed',
+    });
   });
 });
