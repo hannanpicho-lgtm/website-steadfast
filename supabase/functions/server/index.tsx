@@ -5225,7 +5225,7 @@ app.post('/make-server-a1c55d7e/referral/link-admin-invite', async (c) => {
     const body = await c.req.json();
     const code = sanitizeAdminInviteCode(body?.adminInviteCode);
 
-    const identity = await resolveSessionBoundUsername(c, body?.username);
+    const identity = await resolveSessionBoundUsername(c, body?.username, { required: false });
     if ('response' in identity) {
       return identity.response;
     }

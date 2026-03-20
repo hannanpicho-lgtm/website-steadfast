@@ -155,4 +155,16 @@ describe('Session-bound authorization', () => {
       expect(String(completePremiumRes.body?.error ?? '')).toContain('No active premium assignment');
     }
   });
+
+  it('allows link-admin-invite to use the active session when username is omitted', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const linkAdminInviteRes = await requestWithCookie('/referral/link-admin-invite', cookie, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+
+    expect(linkAdminInviteRes.status).toBe(400);
+    expect(String(linkAdminInviteRes.body?.error ?? '')).toContain('adminInviteCode is required');
+  });
 });
