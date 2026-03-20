@@ -2754,7 +2754,7 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
 
     const requestedTaskId = sanitizeTaskId(body?.taskId);
     const requestedProductPrice = typeof body?.productPrice === 'number' ? body.productPrice : Number(body?.productPrice);
-    const identity = await resolveSessionBoundUsername(c, body?.username);
+    const identity = await resolveSessionBoundUsername(c, body?.username, { required: false });
     if ('response' in identity) {
       return identity.response;
     }
@@ -3091,7 +3091,7 @@ app.post('/make-server-a1c55d7e/withdrawals/request', async (c) => {
     const idempotencyKey = resolveRequestIdempotencyKey(c, body);
 
     if (!walletAddress) {
-      return c.json({ error: 'username and walletAddress are required' }, 400);
+      return c.json({ error: 'walletAddress is required' }, 400);
     }
     if (!Number.isFinite(amount) || amount <= 0) {
       return c.json({ error: 'Withdrawal amount must be greater than 0' }, 400);

@@ -154,12 +154,12 @@ export default function Withdrawal() {
     try {
       const response = await fetch(`${serverUrl}/withdrawals/request`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${publicAnonKey}`,
         },
         body: JSON.stringify({
-          username,
           amount,
           walletAddress: walletAddress.trim(),
           method: 'USDT',
