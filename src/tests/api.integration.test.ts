@@ -115,6 +115,18 @@ describe('POST /submit-task', () => {
     expect(status).toBe(400);
   });
 
+  it('returns 400 when client tries to mutate financial fields', async () => {
+    const { status, body } = await post('/submit-task', {
+      username: TEST_USER,
+      productPrice: 299.99,
+      balance: 999999,
+      todayCommission: 999999,
+    });
+    expect(status).toBe(400);
+    expect(String(body.error)).toContain('Client-side financial mutation fields');
+    expect(Array.isArray(body.fields)).toBe(true);
+  });
+
   it('succeeds with a valid productPrice and returns commission', async () => {
     const { status, body } = await post('/submit-task', {
       username: TEST_USER,
@@ -225,6 +237,20 @@ describe('Finance endpoints', () => {
       method: 'USDT',
     });
     expect(status).toBe(400);
+  });
+
+  it('POST /withdrawals/request returns 400 when client tries to mutate financial fields', async () => {
+    const { status, body } = await post('/withdrawals/request', {
+      username: TEST_USER,
+      amount: 0.5,
+      walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      method: 'USDT',
+      holdAmount: 0,
+      availableAmount: 9999,
+    });
+    expect(status).toBe(400);
+    expect(String(body.error)).toContain('Client-side financial mutation fields');
+    expect(Array.isArray(body.fields)).toBe(true);
   });
 
   it('POST /withdrawals/request creates a pending withdrawal when balance is available', async () => {

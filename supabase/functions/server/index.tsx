@@ -555,6 +555,59 @@ function sanitizeWalletText(value: unknown, maxLength = 128): string {
   return trimmed;
 }
 
+const CLIENT_FINANCIAL_MUTATION_FIELDS = new Set([
+  'balance',
+  'todayCommission',
+  'referralEarnings',
+  'holdAmount',
+  'availableAmount',
+  'luckyBonus',
+  'tasksCompleted',
+  'tasksLimit',
+  'tasksCompletedInSet',
+  'completedTaskSets',
+]);
+
+function getForbiddenClientFinancialFields(body: unknown): string[] {
+  if (!body || typeof body !== 'object') {
+    return [];
+  }
+
+  const source = body as Record<string, unknown>;
+  return Object.keys(source).filter((key) => CLIENT_FINANCIAL_MUTATION_FIELDS.has(key));
+}
+
+function sanitizeIdempotencyKey(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 128) {
+    return null;
+  }
+
+  if (!/^[a-zA-Z0-9_.:-]+$/.test(trimmed)) {
+    return null;
+  }
+
+  return trimmed;
+}
+
+function resolveRequestIdempotencyKey(c: any, body: unknown): string | null {
+  const headerKey = sanitizeIdempotencyKey(c.req.header('x-idempotency-key'));
+  if (headerKey) {
+    return headerKey;
+  }
+
+  if (!body || typeof body !== 'object') {
+    return null;
+  }
+
+  const source = body as Record<string, unknown>;
+  return sanitizeIdempotencyKey(source.idempotencyKey);
+}
+
 type BankingWalletProfile = {
   type: 'banking';
   accountName: string;
@@ -2495,6 +2548,14 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
     if (rateLimited) return rateLimited;
 
     const body = await c.req.json();
+    const forbiddenFinancialFields = getForbiddenClientFinancialFields(body);
+    if (forbiddenFinancialFields.length > 0) {
+      return c.json({
+        error: 'Client-side financial mutation fields are not allowed',
+        fields: forbiddenFinancialFields,
+      }, 400);
+    }
+
     const requestedTaskId = sanitizeTaskId(body?.taskId);
     const requestedProductPrice = typeof body?.productPrice === 'number' ? body.productPrice : Number(body?.productPrice);
     const username = sanitizeUsername(body.username);
@@ -2805,11 +2866,20 @@ app.post('/make-server-a1c55d7e/withdrawals/request', async (c) => {
     if (rateLimited) return rateLimited;
 
     const body = await c.req.json();
+    const forbiddenFinancialFields = getForbiddenClientFinancialFields(body);
+    if (forbiddenFinancialFields.length > 0) {
+      return c.json({
+        error: 'Client-side financial mutation fields are not allowed',
+        fields: forbiddenFinancialFields,
+      }, 400);
+    }
+
     const username = sanitizeUsername(body?.username);
     const walletAddress = sanitizeWalletAddress(body?.walletAddress);
     const method = sanitizeFinanceMethod(body?.method, 'USDT');
     const amount = roundMoney(Number(body?.amount ?? 0));
     const transactionPassword = typeof body?.transactionPassword === 'string' ? body.transactionPassword : '';
+    const idempotencyKey = resolveRequestIdempotencyKey(c, body);
 
     if (!username || !walletAddress) {
       return c.json({ error: 'username and walletAddress are required' }, 400);
@@ -2831,6 +2901,34 @@ app.post('/make-server-a1c55d7e/withdrawals/request', async (c) => {
     const storedTransactionPassword = String((normalizedUserData as any).transactionPassword ?? '');
     if (!storedTransactionPassword || !await verifyPassword(transactionPassword, storedTransactionPassword)) {
       return c.json({ error: 'Transaction password is incorrect.' }, 401);
+    }
+
+    if (idempotencyKey) {
+      const idempotencyStorageKey = `withdrawal-idempotency:${username}:${idempotencyKey}`;
+      const existingRecord = await kv.get(idempotencyStorageKey) as any;
+      const signature = `${amount}|${walletAddress}|${method}`;
+      if (existingRecord && typeof existingRecord === 'object') {
+        const previousSignature = typeof existingRecord.signature === 'string' ? existingRecord.signature : '';
+        if (previousSignature && previousSignature !== signature) {
+          return c.json({ error: 'Idempotency key has already been used with a different payload.' }, 409);
+        }
+
+        const existingWithdrawalId = typeof existingRecord.withdrawalId === 'string' ? existingRecord.withdrawalId : '';
+        if (existingWithdrawalId) {
+          const existingWithdrawal = await kv.get(`${WITHDRAWAL_KEY_PREFIX}${existingWithdrawalId}`);
+          if (existingWithdrawal) {
+            const normalizedExistingWithdrawal = normalizeWithdrawalRecord(existingWithdrawal);
+            return c.json({
+              success: true,
+              idempotentReplay: true,
+              withdrawal: normalizedExistingWithdrawal,
+              balance: normalizedUserData.balance,
+              holdAmount: normalizedUserData.holdAmount,
+              availableAmount: roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount),
+            });
+          }
+        }
+      }
     }
 
     const availableAmount = roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount);
@@ -2864,6 +2962,14 @@ app.post('/make-server-a1c55d7e/withdrawals/request', async (c) => {
 
     await kv.set(userKey, normalizedUserData);
     await kv.set(`${WITHDRAWAL_KEY_PREFIX}${withdrawal.id}`, withdrawal);
+    if (idempotencyKey) {
+      await kv.set(`withdrawal-idempotency:${username}:${idempotencyKey}`, {
+        withdrawalId: withdrawal.id,
+        transactionId: transaction.id,
+        signature: `${amount}|${walletAddress}|${method}`,
+        createdAt: new Date().toISOString(),
+      });
+    }
 
     return c.json({
       success: true,
