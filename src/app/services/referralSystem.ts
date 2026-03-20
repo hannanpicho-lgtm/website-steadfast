@@ -44,6 +44,8 @@ type ReferralStore = {
   events: ReferralEvent[];
 };
 
+let referralStoreCache: ReferralStore | null = null;
+
 export type RegisterPayload = {
   username: string;
   phone: string;
@@ -143,9 +145,8 @@ function normalizeCode(code: string): string {
 }
 
 function readStore(): ReferralStore {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return {
+  if (!referralStoreCache) {
+    referralStoreCache = {
       accounts: [
         createSystemRootAccount(),
         createDemoAccount(),
@@ -155,42 +156,16 @@ function readStore(): ReferralStore {
     };
   }
 
-  try {
-    const parsed = JSON.parse(raw) as ReferralStore;
-    if (!Array.isArray(parsed.accounts) || !Array.isArray(parsed.events)) {
-      throw new Error('Invalid referral store shape');
-    }
-
-    const hasSystemRoot = parsed.accounts.some((x) => x.invitationCode === SYSTEM_ROOT_INVITE_CODE);
-    if (!hasSystemRoot) {
-      parsed.accounts.push(createSystemRootAccount());
-    }
-
-    const hasDemo = parsed.accounts.some((x) => x.username.toLowerCase() === DEMO_USERNAME.toLowerCase());
-    if (!hasDemo) {
-      parsed.accounts.push(createDemoAccount());
-    }
-
-    const hasAdmin = parsed.accounts.some((x) => x.username.toLowerCase() === ADMIN_USERNAME.toLowerCase());
-    if (!hasAdmin) {
-      parsed.accounts.push(createAdminAccount());
-    }
-
-    return parsed;
-  } catch {
-    return {
-      accounts: [
-        createSystemRootAccount(),
-        createDemoAccount(),
-        createAdminAccount(),
-      ],
-      events: [],
-    };
-  }
+  return referralStoreCache;
 }
 
 function writeStore(store: ReferralStore): void {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  referralStoreCache = {
+    accounts: store.accounts.map((account) => ({ ...account, children: [...account.children] })),
+    events: store.events.map((event) => ({ ...event })),
+  };
+  // Legacy key cleanup: financial/account authority is backend-only.
+  localStorage.removeItem(STORAGE_KEY);
 }
 
 function getUniqueInviteCode(existing: Set<string>): string {
@@ -204,6 +179,11 @@ function getUniqueInviteCode(existing: Set<string>): string {
 export function ensureReferralStore(): void {
   const store = readStore();
   writeStore(store);
+}
+
+export function resetReferralStoreMemoryForTests(): void {
+  referralStoreCache = null;
+  localStorage.removeItem(STORAGE_KEY);
 }
 
 export function getSystemInviteCode(): string {

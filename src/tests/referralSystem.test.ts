@@ -12,6 +12,7 @@ import {
   getDemoCredentials,
   getAdminCredentials,
   ensureReferralStore,
+  resetReferralStoreMemoryForTests,
   type RegisterPayload,
 } from '../app/services/referralSystem';
 import { clearSessionToken, storeSessionToken } from '../app/services/serverAuth';
@@ -24,6 +25,7 @@ const SESSION_TOKEN_KEY = 'steadfast_user_session_token_v1';
 
 function clearStorage() {
   clearSessionToken();
+  resetReferralStoreMemoryForTests();
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(CURRENT_USER_KEY);
   localStorage.removeItem(SESSION_TOKEN_KEY);
@@ -82,24 +84,20 @@ describe('getAdminCredentials', () => {
 describe('ensureReferralStore', () => {
   beforeEach(clearStorage);
 
-  it('creates the store with three seed accounts on first call', () => {
+  it('creates deterministic demo/admin credentials and does not persist referral store to localStorage', () => {
     ensureReferralStore();
-    const raw = localStorage.getItem(STORAGE_KEY);
-    expect(raw).not.toBeNull();
-    const parsed = JSON.parse(raw!);
-    const usernames = parsed.accounts.map((a: any) => a.username);
-    expect(usernames).toContain('steadfast_root');
-    expect(usernames).toContain('ugreen');
-    expect(usernames).toContain('admin');
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    const demo = authenticateUser('ugreen', 'demo123');
+    const admin = authenticateUser('admin', 'admin123');
+    expect(demo.ok).toBe(true);
+    expect(admin.ok).toBe(true);
   });
 
-  it('is idempotent — calling again does not duplicate accounts', () => {
+  it('is idempotent — calling again preserves credential-based login behavior', () => {
     ensureReferralStore();
     ensureReferralStore();
-    const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed = JSON.parse(raw!);
-    const roots = parsed.accounts.filter((a: any) => a.username === 'steadfast_root');
-    expect(roots).toHaveLength(1);
+    const demo = authenticateUser('UGREEN', 'demo123');
+    expect(demo.ok).toBe(true);
   });
 });
 
