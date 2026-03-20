@@ -4132,26 +4132,25 @@ app.post('/make-server-a1c55d7e/admin/withdrawals/:withdrawalId/review', async (
   }
 });
 
-// Get all premium assignments for a user
-app.get("/make-server-a1c55d7e/premium/:username", async (c) => {
+// Get premium assignments for the session-authenticated user
+app.get('/make-server-a1c55d7e/me/premium', async (c) => {
   try {
-    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
-    if ('response' in identity) {
-      return identity.response;
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
     }
-    const username = identity.username;
-    const premiumPrefix = `premium:${username}:`;
-    
+
+    const premiumPrefix = `premium:${sessionResult.session.username}:`;
     const premiums = await kv.getByPrefix(premiumPrefix);
-    
+
     // Sort by assigned date descending
-    const sortedPremiums = premiums.sort((a, b) => 
+    const sortedPremiums = premiums.sort((a, b) =>
       new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime()
     );
-    
+
     return c.json(sortedPremiums);
   } catch (error) {
-    console.error('Error fetching premium assignments:', error);
+    console.error('Error fetching session premium assignments:', error);
     return c.json({ error: 'Failed to fetch premium assignments' }, 500);
   }
 });

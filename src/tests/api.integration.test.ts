@@ -355,6 +355,14 @@ describe('VIP config', () => {
   });
 });
 
+describe('Premium endpoints', () => {
+  it('GET /me/premium returns an array', async () => {
+    const { status, body } = await requestAsUser('/me/premium');
+    expect(status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
+  });
+});
+
 // ─── Finance ─────────────────────────────────────────────────────────────────
 
 describe('Finance endpoints', () => {
@@ -796,11 +804,6 @@ describe('Phase 1: Session endpoints', () => {
 describe('Input sanitization', () => {
   // Colon characters in usernames would escape the KV key namespace
   const INJECTED = 'admin%3Asecret'; // URL-encoded "admin:secret"
-
-  it('GET /premium/:username → 400 for KV-injection username', async () => {
-    const { status } = await requestAsUser(`/premium/${INJECTED}`);
-    expect(status).toBe(400);
-  });
 
   it('GET /cs/chat/:username → 400 for KV-injection username', async () => {
     const { status } = await requestAsUser(`/cs/chat/${INJECTED}`);

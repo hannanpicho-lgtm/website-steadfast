@@ -312,12 +312,13 @@ describe('Session-bound authorization', () => {
       Authorization: `Bearer ${ANON_KEY}`,
     };
 
-    const [financialsRes, balanceRes, earningsRes, tasksRes, transactionsRes, userRes, walletRes, withdrawalsRes, referralsRes] = await Promise.all([
+    const [financialsRes, balanceRes, earningsRes, tasksRes, transactionsRes, premiumRes, userRes, walletRes, withdrawalsRes, referralsRes] = await Promise.all([
       fetch(`${BASE}/me/financials`, { headers }),
       fetch(`${BASE}/me/balance`, { headers }),
       fetch(`${BASE}/me/earnings`, { headers }),
       fetch(`${BASE}/me/tasks`, { headers }),
       fetch(`${BASE}/me/transactions`, { headers }),
+      fetch(`${BASE}/me/premium`, { headers }),
       fetch(`${BASE}/me/user`, { headers }),
       fetch(`${BASE}/me/wallet`, { headers }),
       fetch(`${BASE}/me/withdrawals`, { headers }),
@@ -329,6 +330,7 @@ describe('Session-bound authorization', () => {
     expect(earningsRes.status).toBe(401);
     expect(tasksRes.status).toBe(401);
     expect(transactionsRes.status).toBe(401);
+    expect(premiumRes.status).toBe(401);
     expect(userRes.status).toBe(401);
     expect(walletRes.status).toBe(401);
     expect(withdrawalsRes.status).toBe(401);
@@ -350,16 +352,19 @@ describe('Session-bound authorization', () => {
     expect(earningsRes.body?.username).toBe(SESSION_USER);
   });
 
-  it('returns session-user data from /me/tasks and /me/transactions even when username is injected in the query', async () => {
+  it('returns session-user data from /me/tasks, /me/transactions, and /me/premium even when username is injected in the query', async () => {
     const cookie = await loginAndGetSessionCookie();
 
     const tasksRes = await requestWithCookie('/me/tasks?username=admin', cookie);
     const transactionsRes = await requestWithCookie('/me/transactions?username=admin', cookie);
+    const premiumRes = await requestWithCookie('/me/premium?username=admin', cookie);
 
     expect(tasksRes.status).toBe(200);
     expect(Array.isArray(tasksRes.body)).toBe(true);
     expect(transactionsRes.status).toBe(200);
     expect(Array.isArray(transactionsRes.body)).toBe(true);
+    expect(premiumRes.status).toBe(200);
+    expect(Array.isArray(premiumRes.body)).toBe(true);
   });
 
   it('returns session-user data from /me/user, /me/wallet, /me/withdrawals, and /me/referrals even when username is injected in the query', async () => {
@@ -453,7 +458,7 @@ describe('Session-bound authorization', () => {
     expect(String(completeRes.body?.error ?? '')).not.toContain('requested user does not match active session');
   });
 
-  it('loads session-user financial, balance, earnings, task, and transaction reads successfully', async () => {
+  it('loads session-user financial, balance, earnings, task, transaction, and premium reads successfully', async () => {
     const cookie = await loginAndGetSessionCookie();
 
     const financialsRes = await requestWithCookie('/me/financials', cookie);
@@ -461,6 +466,7 @@ describe('Session-bound authorization', () => {
     const earningsRes = await requestWithCookie('/me/earnings', cookie);
     const tasksRes = await requestWithCookie('/me/tasks', cookie);
     const transactionsRes = await requestWithCookie('/me/transactions', cookie);
+    const premiumRes = await requestWithCookie('/me/premium', cookie);
 
     expect(financialsRes.status).toBe(200);
     expect(financialsRes.body?.username).toBe(SESSION_USER);
@@ -479,6 +485,9 @@ describe('Session-bound authorization', () => {
 
     expect(transactionsRes.status).toBe(200);
     expect(Array.isArray(transactionsRes.body)).toBe(true);
+
+    expect(premiumRes.status).toBe(200);
+    expect(Array.isArray(premiumRes.body)).toBe(true);
   });
 
   it('loads session-user profile, wallet, withdrawal, and referral reads successfully', async () => {
