@@ -116,19 +116,6 @@ function AdminPanelFallback({ label }: { label: string }) {
   );
 }
 
-// Mock data for users
-const mockUsers = [
-  { id: 1, username: 'user001', phone: '+1 234-567-8900', email: 'user001@example.com', vipLevel: 'VIP 1', balance: 1250.50, status: 'Active', registered: '2024-01-15', tasksCompleted: 45, totalEarnings: 562.50 },
-  { id: 2, username: 'user002', phone: '+1 234-567-8901', email: 'user002@example.com', vipLevel: 'VIP 2', balance: 3500.75, status: 'Active', registered: '2024-01-18', tasksCompleted: 89, totalEarnings: 1780.00 },
-  { id: 3, username: 'user003', phone: '+1 234-567-8902', email: 'user003@example.com', vipLevel: 'VIP 3', balance: 8900.00, status: 'Active', registered: '2024-01-20', tasksCompleted: 156, totalEarnings: 4680.00 },
-  { id: 4, username: 'user004', phone: '+1 234-567-8903', email: 'user004@example.com', vipLevel: 'VIP 1', balance: 450.25, status: 'Suspended', registered: '2024-01-22', tasksCompleted: 23, totalEarnings: 287.50 },
-  { id: 5, username: 'user005', phone: '+1 234-567-8904', email: 'user005@example.com', vipLevel: 'VIP 4', balance: 15600.00, status: 'Active', registered: '2024-01-25', tasksCompleted: 234, totalEarnings: 9360.00 },
-  { id: 6, username: 'user006', phone: '+1 234-567-8905', email: 'user006@example.com', vipLevel: 'VIP 2', balance: 2100.50, status: 'Active', registered: '2024-02-01', tasksCompleted: 67, totalEarnings: 1340.00 },
-  { id: 7, username: 'user007', phone: '+1 234-567-8906', email: 'user007@example.com', vipLevel: 'VIP 5', balance: 25000.00, status: 'Active', registered: '2024-02-03', tasksCompleted: 312, totalEarnings: 15600.00 },
-  { id: 8, username: 'user008', phone: '+1 234-567-8907', email: 'user008@example.com', vipLevel: 'VIP 1', balance: 890.75, status: 'Pending', registered: '2024-02-05', tasksCompleted: 12, totalEarnings: 150.00 },
-];
-
-
 // VIP Configuration
 const defaultVipConfigurations: VipConfig[] = [
   { level: 1, name: 'VIP 1', investment: 100, dailyTasks: 10, commission: 0.005, color: 'bronze' },
@@ -3861,7 +3848,6 @@ export default function Admin() {
               userPage={userPage}
               setUserPage={setUserPage}
               usersPerPage={usersPerPage}
-              mockUsers={mockUsers}
               setSelectedItem={setSelectedItem}
               setModalType={setModalType}
               handleExport={handleExport}
@@ -4016,7 +4002,6 @@ export default function Admin() {
             <AdminHome
               platformUsersLoaded={platformUsersLoaded}
               platformUsers={platformUsers}
-              mockUsers={mockUsers}
               platformRevenue={platformRevenue}
               formatCurrency={formatCurrency}
               taskConfigurations={taskConfigurations}

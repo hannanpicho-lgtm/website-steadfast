@@ -4,7 +4,6 @@ import { Users, DollarSign, Activity, Bell } from 'lucide-react';
 interface AdminHomeProps {
   platformUsersLoaded: boolean;
   platformUsers: any[];
-  mockUsers: any[];
   platformRevenue: number;
   formatCurrency: (amount: number) => string;
   taskConfigurations: any[];
@@ -16,7 +15,6 @@ interface AdminHomeProps {
 export default function AdminHome({
   platformUsersLoaded,
   platformUsers,
-  mockUsers,
   platformRevenue,
   formatCurrency,
   taskConfigurations,
@@ -24,6 +22,12 @@ export default function AdminHome({
   financeLoading,
   transactions,
 }: AdminHomeProps) {
+  const topPerformers = platformUsersLoaded
+    ? [...platformUsers]
+        .sort((a, b) => Number(b.tasksCompleted ?? 0) - Number(a.tasksCompleted ?? 0))
+        .slice(0, 5)
+    : [];
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-white">Dashboard Overview</h2>
@@ -35,9 +39,9 @@ export default function AdminHome({
             <div>
               <p className="text-gray-400 text-sm">Total Users</p>
               <p className="text-3xl font-bold text-white mt-2">
-                {platformUsersLoaded ? platformUsers.length : mockUsers.length}
+                {platformUsersLoaded ? platformUsers.length : '...'}
               </p>
-              <p className="text-green-400 text-xs mt-2">Live platform data</p>
+              <p className="text-green-400 text-xs mt-2">{platformUsersLoaded ? 'Live platform data' : 'Loading live platform data'}</p>
             </div>
             <Users className="text-blue-400" size={40} />
           </div>
@@ -122,10 +126,13 @@ export default function AdminHome({
         <div className="bg-[#252b3d] rounded-lg p-6">
           <h3 className="text-white font-semibold text-lg mb-4">Top Performers</h3>
           <div className="space-y-3">
-            {[...mockUsers]
-              .sort((a, b) => b.tasksCompleted - a.tasksCompleted)
-              .slice(0, 5)
-              .map((user: any, index: number) => (
+            {!platformUsersLoaded && (
+              <div className="p-3 bg-[#1a1f2e] rounded-lg text-sm text-gray-400">Loading live user performance…</div>
+            )}
+            {platformUsersLoaded && topPerformers.length === 0 && (
+              <div className="p-3 bg-[#1a1f2e] rounded-lg text-sm text-gray-400">No user performance data available yet.</div>
+            )}
+            {topPerformers.map((user: any, index: number) => (
                 <div key={user.id} className="flex items-center justify-between p-3 bg-[#1a1f2e] rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center">
@@ -133,12 +140,12 @@ export default function AdminHome({
                     </div>
                     <div>
                       <p className="text-white text-sm font-semibold">{user.username}</p>
-                      <p className="text-gray-400 text-xs">{user.vipLevel}</p>
+                      <p className="text-gray-400 text-xs">VIP {Number(user.vipLevel ?? 0)}</p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-[#00D9FF] font-bold text-sm">{user.tasksCompleted} tasks</p>
-                    <p className="text-green-400 text-xs">${user.totalEarnings.toFixed(2)}</p>
+                    <p className="text-[#00D9FF] font-bold text-sm">{Number(user.tasksCompleted ?? 0)} tasks</p>
+                    <p className="text-green-400 text-xs">{formatCurrency(Number(user.balance ?? 0))} balance</p>
                   </div>
                 </div>
               ))}

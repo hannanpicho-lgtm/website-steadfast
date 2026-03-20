@@ -14,7 +14,6 @@ interface UserManagementProps {
   userPage: number;
   setUserPage: React.Dispatch<React.SetStateAction<number>>;
   usersPerPage: number;
-  mockUsers: any[];
   setSelectedItem: (item: any) => void;
   setModalType: any;
   handleExport: () => void;
@@ -36,7 +35,6 @@ export default function UserManagement({
   userPage,
   setUserPage,
   usersPerPage,
-  mockUsers,
   setSelectedItem,
   setModalType,
   handleExport,
@@ -64,10 +62,9 @@ export default function UserManagement({
     holdAmount?: number;
     isFrozen?: boolean;
   };
-  const isRealData = platformUsersLoaded;
   const normalizedUsers: DisplayUser[] = platformUsersLoaded
     ? platformUsers.map((u, i) => ({ id: i + 1, username: u.username, email: '—', phone: '—', vipLevel: u.vipLevel, balance: u.balance, status: u.isFrozen ? 'Suspended' : 'Active', registered: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—', tasksCompleted: u.tasksCompleted, referredByAdminName: u.referredByAdminName || '—', taskSetCount: u.taskSetCount, tasksPerSet: u.tasksPerSet, tasksCompletedInSet: u.tasksCompletedInSet, completedTaskSets: u.completedTaskSets, pendingTaskReset: u.pendingTaskReset, holdAmount: u.holdAmount, isFrozen: u.isFrozen }))
-    : mockUsers.map((u) => ({ ...u, referredByAdminName: '—', vipLevel: Number(u.vipLevel.replace(/\D/g, '')) }));
+    : [];
   const filteredUsers = normalizedUsers.filter(user => {
     const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
