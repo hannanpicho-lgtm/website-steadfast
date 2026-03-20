@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   buildBackupExport,
   parseBackupImport,
@@ -12,6 +12,10 @@ import {
   saveSalaryProjectAutosave,
   loadSalaryAuditLog,
   saveSalaryAuditLog,
+  fetchAdminSalaryProjectState,
+  saveAdminSalaryProjectState,
+  fetchAdminSalaryAuditLogFromServer,
+  saveAdminSalaryAuditLogToServer,
   resetAdminSalaryCompatibilityStorageForTests,
   seedAdminSalaryProjectCompatibilityStorageForTests,
   seedAdminSalaryAuditCompatibilityStorageForTests,
@@ -44,6 +48,22 @@ const makeRestorePoint = (overrides: Partial<SalaryRestorePoint> = {}): SalaryRe
 });
 
 const DEFAULT_PAYMENTS = [makePayment(), makePayment({ id: 2, username: 'bob', salaryDue: 1428 })];
+const fetchMock = vi.fn();
+
+const jsonResponse = (payload: unknown, status = 200) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+
+beforeEach(() => {
+  fetchMock.mockReset();
+  vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -355,5 +375,150 @@ describe('saveSalaryAuditLog / loadSalaryAuditLog', () => {
   it('returns empty array when storage contains invalid JSON', () => {
     seedAdminSalaryAuditCompatibilityStorageForTests('bad');
     expect(loadSalaryAuditLog()).toEqual([]);
+  });
+});
+
+// ─── server sync helpers ─────────────────────────────────────────────────────
+
+describe('salary backup server sync helpers', () => {
+  const serverUrl = 'https://api.example.test';
+  const headers = { Authorization: 'Bearer token' };
+
+  it('fetchAdminSalaryProjectState returns sanitized project data on 200', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        project: {
+          uiState: {
+            activeRewardTab: 'salary-payments',
+            selectedBulkOption: 'manual',
+            autoBackupEnabled: false,
+            autoBackupIntervalMinutes: 999,
+            backupRetentionDays: 0,
+          },
+          payments: [makePayment({ username: 'server-user' })],
+          points: [makeRestorePoint({ label: 'server point' })],
+        },
+      }),
+    );
+
+    const result = await fetchAdminSalaryProjectState({
+      serverUrl,
+      headers,
+      defaultPayments: DEFAULT_PAYMENTS,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.payments[0].username).toBe('server-user');
+    expect(result?.points[0].label).toBe('server point');
+    expect(result?.activeRewardTab).toBe('salary-payments');
+    expect(result?.selectedBulkOption).toBe('manual');
+    expect(result?.autoBackupEnabled).toBe(false);
+    expect(result?.autoBackupIntervalMinutes).toBe(60);
+    expect(result?.backupRetentionDays).toBe(1);
+  });
+
+  it('fetchAdminSalaryProjectState returns null for non-ok response', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'forbidden' }, 403));
+
+    const result = await fetchAdminSalaryProjectState({
+      serverUrl,
+      headers,
+      defaultPayments: DEFAULT_PAYMENTS,
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it('saveAdminSalaryProjectState returns ok and sends PUT payload', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }, 200));
+
+    const result = await saveAdminSalaryProjectState({
+      serverUrl,
+      headers,
+      payload: {
+        activeRewardTab: 'workday',
+        selectedBulkOption: 'all',
+        autoBackupEnabled: true,
+        autoBackupIntervalMinutes: 0,
+        backupRetentionDays: 999,
+        payments: DEFAULT_PAYMENTS,
+        points: [makeRestorePoint()],
+      },
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0][0]).toBe(`${serverUrl}/admin/salary/project`);
+
+    const requestInit = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(requestInit.method).toBe('PUT');
+    const body = JSON.parse(String(requestInit.body)) as {
+      project: {
+        uiState: {
+          autoBackupIntervalMinutes: number;
+          backupRetentionDays: number;
+        };
+        checksum: string;
+      };
+    };
+    expect(body.project.uiState.autoBackupIntervalMinutes).toBe(1);
+    expect(body.project.uiState.backupRetentionDays).toBe(365);
+    expect(typeof body.project.checksum).toBe('string');
+    expect(body.project.checksum.length).toBeGreaterThan(0);
+  });
+
+  it('saveAdminSalaryProjectState returns error message from server on failure', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'no access' }, 401));
+
+    const result = await saveAdminSalaryProjectState({
+      serverUrl,
+      headers,
+      payload: {
+        activeRewardTab: 'workday',
+        selectedBulkOption: 'all',
+        autoBackupEnabled: true,
+        autoBackupIntervalMinutes: 1,
+        backupRetentionDays: 30,
+        payments: DEFAULT_PAYMENTS,
+        points: [],
+      },
+    });
+
+    expect(result).toEqual({ ok: false, message: 'no access' });
+  });
+
+  it('fetchAdminSalaryAuditLogFromServer sanitizes and returns events', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        events: [
+          { id: 1, at: new Date().toISOString(), action: 'manual-backup', detail: 'ok' },
+          { id: 'bad', action: 'unknown' },
+        ],
+      }),
+    );
+
+    const result = await fetchAdminSalaryAuditLogFromServer({ serverUrl, headers });
+    expect(result).toHaveLength(1);
+    expect(result?.[0].action).toBe('manual-backup');
+  });
+
+  it('fetchAdminSalaryAuditLogFromServer returns null for non-ok response', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'forbidden' }, 403));
+    const result = await fetchAdminSalaryAuditLogFromServer({ serverUrl, headers });
+    expect(result).toBeNull();
+  });
+
+  it('saveAdminSalaryAuditLogToServer trims payload and returns ok', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }, 200));
+    const events = Array.from({ length: MAX_AUDIT_EVENTS + 5 }, (_, index) =>
+      createAuditEvent('auto-backup', `e-${index}`),
+    );
+
+    const result = await saveAdminSalaryAuditLogToServer({ serverUrl, headers, events });
+    expect(result).toEqual({ ok: true });
+
+    const requestInit = fetchMock.mock.calls[0][1] as RequestInit;
+    const body = JSON.parse(String(requestInit.body)) as { events: unknown[] };
+    expect(body.events).toHaveLength(MAX_AUDIT_EVENTS);
   });
 });
