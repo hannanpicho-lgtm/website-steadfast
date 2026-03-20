@@ -13,8 +13,6 @@ export type AdminPlatformSettings = {
   savedAt: string;
 };
 
-export const LEGACY_ADMIN_PLATFORM_SETTINGS_KEY = 'steadfast_admin_platform_settings';
-
 const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
 function clamp(value: number, min: number, max: number): number {
@@ -81,19 +79,6 @@ export function normalizeAdminPlatformSettings(value: unknown): AdminPlatformSet
     autoAssignTasks: sanitizeAutoAssignTasks(source.autoAssignTasks),
     savedAt: typeof source.savedAt === 'string' && source.savedAt ? source.savedAt : new Date().toISOString(),
   };
-}
-
-export function parseLegacyAdminPlatformSettings(raw: string | null): AdminPlatformSettings | null {
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    return normalizeAdminPlatformSettings(parsed);
-  } catch {
-    return null;
-  }
 }
 
 export async function fetchAdminPlatformSettingsFromServer(): Promise<AdminPlatformSettings | null> {

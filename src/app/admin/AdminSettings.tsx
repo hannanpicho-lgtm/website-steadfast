@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   fetchAdminPlatformSettingsFromServer,
-  LEGACY_ADMIN_PLATFORM_SETTINGS_KEY,
-  parseLegacyAdminPlatformSettings,
   saveAdminPlatformSettingsToServer,
   type AdminPlatformSettings,
 } from '../services/adminPlatformSettings';
@@ -47,32 +45,10 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
 
         if (serverSettings) {
           applySettings(serverSettings);
-          localStorage.removeItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY);
           return;
         }
-
-        const legacySettings = parseLegacyAdminPlatformSettings(localStorage.getItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY));
-        if (!legacySettings) {
-          return;
-        }
-
-        if (isSuperAdmin) {
-          const migrated = await saveAdminPlatformSettingsToServer(legacySettings);
-          if (cancelled) {
-            return;
-          }
-          applySettings(migrated);
-          localStorage.removeItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY);
-          toast.success('Legacy platform settings migrated to server storage.');
-          return;
-        }
-
-        applySettings(legacySettings);
       } catch {
-        const legacySettings = parseLegacyAdminPlatformSettings(localStorage.getItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY));
-        if (legacySettings && !cancelled) {
-          applySettings(legacySettings);
-        }
+        // Keep defaults if backend fetch fails.
       } finally {
         if (!cancelled) {
           setIsHydrating(false);
@@ -119,7 +95,6 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
         savedAt: new Date().toISOString(),
       };
       await saveAdminPlatformSettingsToServer(settings);
-      localStorage.removeItem(LEGACY_ADMIN_PLATFORM_SETTINGS_KEY);
       toast.success('Platform settings saved successfully.');
     } catch {
       toast.error('Failed to save settings. Please try again.');
