@@ -58,10 +58,8 @@ describe('Session-bound authorization', () => {
     const cookie = await loginAndGetSessionCookie();
 
     const tasksRes = await requestWithCookie(`/tasks/${OTHER_USER}`, cookie);
-    const referralsRes = await requestWithCookie(`/referrals/${OTHER_USER}/summary`, cookie);
 
     expect(tasksRes.status).toBe(403);
-    expect(referralsRes.status).toBe(403);
   });
 
   it('rejects cross-user support data access with 403', async () => {
