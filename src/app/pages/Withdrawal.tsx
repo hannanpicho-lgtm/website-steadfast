@@ -152,7 +152,7 @@ export default function Withdrawal() {
 
     setSubmitting(true);
     try {
-      const response = await fetch(`${serverUrl}/withdrawals/request`, {
+      const response = await fetch(`${serverUrl}/me/withdrawals/request`, {
         method: 'POST',
         credentials: 'include',
         headers: {

@@ -3326,6 +3326,112 @@ app.get('/make-server-a1c55d7e/me/withdrawals', async (c) => {
   }
 });
 
+async function submitWithdrawalRequest(c: any, username: string, body: any) {
+  const walletAddress = sanitizeWalletAddress(body?.walletAddress);
+  const method = sanitizeFinanceMethod(body?.method, 'USDT');
+  const amount = roundMoney(Number(body?.amount ?? 0));
+  const transactionPassword = typeof body?.transactionPassword === 'string' ? body.transactionPassword : '';
+  const idempotencyKey = resolveRequestIdempotencyKey(c, body);
+
+  if (!walletAddress) {
+    return c.json({ error: 'walletAddress is required' }, 400);
+  }
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return c.json({ error: 'Withdrawal amount must be greater than 0' }, 400);
+  }
+  if (!transactionPassword) {
+    return c.json({ error: 'transactionPassword is required' }, 400);
+  }
+
+  const userKey = `user:${username}`;
+  const userData = await kv.get(userKey);
+  if (!userData) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  const normalizedUserData = await syncUserWithVipConfig(userData, username);
+  const storedTransactionPassword = String((normalizedUserData as any).transactionPassword ?? '');
+  if (!storedTransactionPassword || !await verifyPassword(transactionPassword, storedTransactionPassword)) {
+    return c.json({ error: 'Transaction password is incorrect.' }, 401);
+  }
+
+  if (idempotencyKey) {
+    const idempotencyStorageKey = `withdrawal-idempotency:${username}:${idempotencyKey}`;
+    const existingRecord = await kv.get(idempotencyStorageKey) as any;
+    const signature = `${amount}|${walletAddress}|${method}`;
+    if (existingRecord && typeof existingRecord === 'object') {
+      const previousSignature = typeof existingRecord.signature === 'string' ? existingRecord.signature : '';
+      if (previousSignature && previousSignature !== signature) {
+        return c.json({ error: 'Idempotency key has already been used with a different payload.' }, 409);
+      }
+
+      const existingWithdrawalId = typeof existingRecord.withdrawalId === 'string' ? existingRecord.withdrawalId : '';
+      if (existingWithdrawalId) {
+        const existingWithdrawal = await kv.get(`${WITHDRAWAL_KEY_PREFIX}${existingWithdrawalId}`);
+        if (existingWithdrawal) {
+          const normalizedExistingWithdrawal = normalizeWithdrawalRecord(existingWithdrawal);
+          return c.json({
+            success: true,
+            idempotentReplay: true,
+            withdrawal: normalizedExistingWithdrawal,
+            balance: normalizedUserData.balance,
+            holdAmount: normalizedUserData.holdAmount,
+            availableAmount: roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount),
+          });
+        }
+      }
+    }
+  }
+
+  const availableAmount = roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount);
+  if (amount > availableAmount) {
+    return c.json({ error: 'Withdrawal amount exceeds available balance' }, 400);
+  }
+
+  const transaction = await createTransactionRecord({
+    username,
+    type: 'Withdrawal',
+    amount,
+    status: 'Pending',
+    method,
+    source: 'withdrawal_request',
+    description: 'Withdrawal request submitted',
+  });
+
+  const withdrawal = normalizeWithdrawalRecord({
+    id: createFinanceId('wd'),
+    username,
+    amount,
+    walletAddress,
+    method,
+    status: 'Pending',
+    requestedDate: new Date().toISOString(),
+    transactionId: transaction.id,
+    txHash: '',
+  });
+
+  normalizedUserData.holdAmount = roundMoney(normalizedUserData.holdAmount + amount);
+
+  await kv.set(userKey, normalizedUserData);
+  await kv.set(`${WITHDRAWAL_KEY_PREFIX}${withdrawal.id}`, withdrawal);
+  if (idempotencyKey) {
+    await kv.set(`withdrawal-idempotency:${username}:${idempotencyKey}`, {
+      withdrawalId: withdrawal.id,
+      transactionId: transaction.id,
+      signature: `${amount}|${walletAddress}|${method}`,
+      createdAt: new Date().toISOString(),
+    });
+  }
+
+  return c.json({
+    success: true,
+    withdrawal,
+    balance: normalizedUserData.balance,
+    holdAmount: normalizedUserData.holdAmount,
+    availableAmount: roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount),
+  });
+}
+
 app.post('/make-server-a1c55d7e/withdrawals/request', async (c) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:withdrawal-request');
@@ -3345,112 +3451,35 @@ app.post('/make-server-a1c55d7e/withdrawals/request', async (c) => {
       return identity.response;
     }
 
-    const username = identity.username;
-    const walletAddress = sanitizeWalletAddress(body?.walletAddress);
-    const method = sanitizeFinanceMethod(body?.method, 'USDT');
-    const amount = roundMoney(Number(body?.amount ?? 0));
-    const transactionPassword = typeof body?.transactionPassword === 'string' ? body.transactionPassword : '';
-    const idempotencyKey = resolveRequestIdempotencyKey(c, body);
-
-    if (!walletAddress) {
-      return c.json({ error: 'walletAddress is required' }, 400);
-    }
-    if (!Number.isFinite(amount) || amount <= 0) {
-      return c.json({ error: 'Withdrawal amount must be greater than 0' }, 400);
-    }
-    if (!transactionPassword) {
-      return c.json({ error: 'transactionPassword is required' }, 400);
-    }
-
-    const userKey = `user:${username}`;
-    const userData = await kv.get(userKey);
-    if (!userData) {
-      return c.json({ error: 'User not found' }, 404);
-    }
-
-    const normalizedUserData = await syncUserWithVipConfig(userData, username);
-    const storedTransactionPassword = String((normalizedUserData as any).transactionPassword ?? '');
-    if (!storedTransactionPassword || !await verifyPassword(transactionPassword, storedTransactionPassword)) {
-      return c.json({ error: 'Transaction password is incorrect.' }, 401);
-    }
-
-    if (idempotencyKey) {
-      const idempotencyStorageKey = `withdrawal-idempotency:${username}:${idempotencyKey}`;
-      const existingRecord = await kv.get(idempotencyStorageKey) as any;
-      const signature = `${amount}|${walletAddress}|${method}`;
-      if (existingRecord && typeof existingRecord === 'object') {
-        const previousSignature = typeof existingRecord.signature === 'string' ? existingRecord.signature : '';
-        if (previousSignature && previousSignature !== signature) {
-          return c.json({ error: 'Idempotency key has already been used with a different payload.' }, 409);
-        }
-
-        const existingWithdrawalId = typeof existingRecord.withdrawalId === 'string' ? existingRecord.withdrawalId : '';
-        if (existingWithdrawalId) {
-          const existingWithdrawal = await kv.get(`${WITHDRAWAL_KEY_PREFIX}${existingWithdrawalId}`);
-          if (existingWithdrawal) {
-            const normalizedExistingWithdrawal = normalizeWithdrawalRecord(existingWithdrawal);
-            return c.json({
-              success: true,
-              idempotentReplay: true,
-              withdrawal: normalizedExistingWithdrawal,
-              balance: normalizedUserData.balance,
-              holdAmount: normalizedUserData.holdAmount,
-              availableAmount: roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount),
-            });
-          }
-        }
-      }
-    }
-
-    const availableAmount = roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount);
-    if (amount > availableAmount) {
-      return c.json({ error: 'Withdrawal amount exceeds available balance' }, 400);
-    }
-
-    const transaction = await createTransactionRecord({
-      username,
-      type: 'Withdrawal',
-      amount,
-      status: 'Pending',
-      method,
-      source: 'withdrawal_request',
-      description: 'Withdrawal request submitted',
-    });
-
-    const withdrawal = normalizeWithdrawalRecord({
-      id: createFinanceId('wd'),
-      username,
-      amount,
-      walletAddress,
-      method,
-      status: 'Pending',
-      requestedDate: new Date().toISOString(),
-      transactionId: transaction.id,
-      txHash: '',
-    });
-
-    normalizedUserData.holdAmount = roundMoney(normalizedUserData.holdAmount + amount);
-
-    await kv.set(userKey, normalizedUserData);
-    await kv.set(`${WITHDRAWAL_KEY_PREFIX}${withdrawal.id}`, withdrawal);
-    if (idempotencyKey) {
-      await kv.set(`withdrawal-idempotency:${username}:${idempotencyKey}`, {
-        withdrawalId: withdrawal.id,
-        transactionId: transaction.id,
-        signature: `${amount}|${walletAddress}|${method}`,
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    return c.json({
-      success: true,
-      withdrawal,
-      balance: normalizedUserData.balance,
-      holdAmount: normalizedUserData.holdAmount,
-      availableAmount: roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount),
-    });
+    return await submitWithdrawalRequest(c, identity.username, body);
   } catch (error) {
     console.error('Error submitting withdrawal request:', error);
+    return c.json({ error: 'Failed to submit withdrawal request' }, 500);
+  }
+});
+
+app.post('/make-server-a1c55d7e/me/withdrawals/request', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:withdrawal-request');
+    if (rateLimited) return rateLimited;
+
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const body = await c.req.json();
+    const forbiddenFinancialFields = getForbiddenClientFinancialFields(body);
+    if (forbiddenFinancialFields.length > 0) {
+      return c.json({
+        error: 'Client-side financial mutation fields are not allowed',
+        fields: forbiddenFinancialFields,
+      }, 400);
+    }
+
+    return await submitWithdrawalRequest(c, sessionResult.session.username, body);
+  } catch (error) {
+    console.error('Error submitting session withdrawal request:', error);
     return c.json({ error: 'Failed to submit withdrawal request' }, 500);
   }
 });

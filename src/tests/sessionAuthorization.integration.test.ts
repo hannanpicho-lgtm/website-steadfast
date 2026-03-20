@@ -297,6 +297,26 @@ describe('Session-bound authorization', () => {
     expect(body?.error).toBeTruthy();
   });
 
+  it('rejects POST /me/withdrawals/request without a session with 401', async () => {
+    const res = await fetch(`${BASE}/me/withdrawals/request`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: ANON_KEY,
+        Authorization: `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        amount: 0.5,
+        walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+        method: 'USDT',
+        transactionPassword: 'demo123',
+      }),
+    });
+    const body = await res.json().catch(() => null);
+    expect(res.status).toBe(401);
+    expect(body?.error).toBeTruthy();
+  });
+
   it('rejects /me user read endpoints without a session with 401', async () => {
     const headers = {
       'Content-Type': 'application/json',
@@ -394,6 +414,24 @@ describe('Session-bound authorization', () => {
     expect(walletReadRes.status).toBe(200);
     expect(walletReadRes.body?.username).toBe(SESSION_USER);
     expect(walletReadRes.body?.walletProfile?.type).toBe('crypto');
+  });
+
+  it('ignores injected username in /me/withdrawals/request payload and never treats it as cross-user access', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const requestRes = await requestWithCookie('/me/withdrawals/request', cookie, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: OTHER_USER,
+        amount: 0.5,
+        walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+        method: 'USDT',
+        transactionPassword: 'wrong-password',
+      }),
+    });
+
+    expect(requestRes.status).not.toBe(403);
+    expect(String(requestRes.body?.error ?? '')).not.toContain('requested user does not match active session');
   });
 
   it('loads session-user financial, balance, earnings, task, and transaction reads successfully', async () => {
