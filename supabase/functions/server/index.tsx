@@ -3309,7 +3309,7 @@ app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
     const premiumBody = await c.req.json();
     const { productPrice } = premiumBody;
 
-    const identity = await resolveSessionBoundUsername(c, premiumBody.username);
+    const identity = await resolveSessionBoundUsername(c, premiumBody.username, { required: false });
     if ('response' in identity) {
       return identity.response;
     }

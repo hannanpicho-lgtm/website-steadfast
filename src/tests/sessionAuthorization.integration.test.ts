@@ -141,4 +141,18 @@ describe('Session-bound authorization', () => {
     expect(linkAdminInviteRes.status).toBe(403);
     expect(completePremiumRes.status).toBe(403);
   });
+
+  it('allows complete-premium-task to use the active session when username is omitted', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const completePremiumRes = await requestWithCookie('/complete-premium-task', cookie, {
+      method: 'POST',
+      body: JSON.stringify({ productPrice: 500 }),
+    });
+
+    expect([200, 404]).toContain(completePremiumRes.status);
+    if (completePremiumRes.status === 404) {
+      expect(String(completePremiumRes.body?.error ?? '')).toContain('No active premium assignment');
+    }
+  });
 });
