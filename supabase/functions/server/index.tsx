@@ -2388,6 +2388,41 @@ app.put('/make-server-a1c55d7e/wallet/:username', async (c) => {
   }
 });
 
+app.put('/make-server-a1c55d7e/me/wallet', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:wallet-profile', 20);
+    if (rateLimited) return rateLimited;
+
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const body = await c.req.json();
+    const parsed = parseWalletProfileInput(body);
+    if (!parsed.ok) {
+      return c.json({ error: parsed.error }, 400);
+    }
+
+    const canonicalUsername = sessionResult.session.username;
+    const userData = await getOrCreateUserRecord(canonicalUsername);
+    const normalizedUserData = await syncUserWithVipConfig(userData, canonicalUsername);
+    normalizedUserData.walletProfile = parsed.walletProfile;
+
+    await kv.set(`user:${canonicalUsername}`, normalizedUserData);
+    await assignUsernameLookup(canonicalUsername);
+
+    return c.json({
+      success: true,
+      username: canonicalUsername,
+      walletProfile: parsed.walletProfile,
+    });
+  } catch (error) {
+    console.error('Error saving session wallet profile:', error);
+    return c.json({ error: 'Failed to save wallet profile' }, 500);
+  }
+});
+
 // Link referral identity for a user (username -> invitation code and parent invite code)
 // Also accepts optional loginPassword / transactionPassword to store server-side hashed credentials.
 app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {

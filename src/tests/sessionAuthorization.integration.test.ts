@@ -147,9 +147,20 @@ describe('Session-bound authorization', () => {
       }),
     });
 
+    const walletUpdateRes = await requestWithCookie(`/wallet/${OTHER_USER}`, cookie, {
+      method: 'PUT',
+      body: JSON.stringify({
+        type: 'crypto',
+        walletType: 'bitcoin',
+        walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+        network: 'mainnet',
+      }),
+    });
+
     expect(submitTaskRes.status).toBe(403);
     expect(withdrawalRes.status).toBe(403);
     expect(ticketRes.status).toBe(403);
+    expect(walletUpdateRes.status).toBe(403);
   });
 
   it('rejects cross-user referral link-user, link-admin-invite, and complete-premium-task with 403', async () => {
@@ -266,6 +277,26 @@ describe('Session-bound authorization', () => {
     expect(body?.error).toBeTruthy();
   });
 
+  it('rejects PUT /me/wallet without a session with 401', async () => {
+    const res = await fetch(`${BASE}/me/wallet`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: ANON_KEY,
+        Authorization: `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        type: 'crypto',
+        walletType: 'bitcoin',
+        walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+        network: 'mainnet',
+      }),
+    });
+    const body = await res.json().catch(() => null);
+    expect(res.status).toBe(401);
+    expect(body?.error).toBeTruthy();
+  });
+
   it('rejects /me user read endpoints without a session with 401', async () => {
     const headers = {
       'Content-Type': 'application/json',
@@ -339,6 +370,30 @@ describe('Session-bound authorization', () => {
     expect(Array.isArray(withdrawalsRes.body)).toBe(true);
     expect(referralsRes.status).toBe(200);
     expect(referralsRes.body?.username).toBe(SESSION_USER);
+  });
+
+  it('ignores injected username in /me/wallet write payload and applies updates to the session user', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const updateRes = await requestWithCookie('/me/wallet', cookie, {
+      method: 'PUT',
+      body: JSON.stringify({
+        username: OTHER_USER,
+        type: 'crypto',
+        walletType: 'bitcoin',
+        walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+        network: 'mainnet',
+      }),
+    });
+
+    expect(updateRes.status).toBe(200);
+    expect(updateRes.body?.success).toBe(true);
+    expect(updateRes.body?.username).toBe(SESSION_USER);
+
+    const walletReadRes = await requestWithCookie('/me/wallet', cookie);
+    expect(walletReadRes.status).toBe(200);
+    expect(walletReadRes.body?.username).toBe(SESSION_USER);
+    expect(walletReadRes.body?.walletProfile?.type).toBe('crypto');
   });
 
   it('loads session-user financial, balance, earnings, task, and transaction reads successfully', async () => {

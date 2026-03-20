@@ -124,8 +124,9 @@ export default function ConnectWallet() {
 
     setSubmitting(true);
     try {
-      const response = await fetch(`${serverUrl}/wallet/${username}`, {
+      const response = await fetch(`${serverUrl}/me/wallet`, {
         method: 'PUT',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${publicAnonKey}`,
