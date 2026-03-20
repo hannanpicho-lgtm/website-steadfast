@@ -1,6 +1,7 @@
 import { UserCircle, ChevronLeft, Package, Clock, CheckCircle, Loader2 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
@@ -68,7 +69,7 @@ export default function Records() {
   const location = useLocation();
 
   const sessionUsername = getCurrentUsername();
-  const username = sessionUsername ?? 'ugreen';
+  const username = sessionUsername;
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
   useEffect(() => {
@@ -134,38 +135,28 @@ export default function Records() {
   };
 
   const fetchData = async () => {
+    if (!username) {
+      return;
+    }
+
     try {
       setLoading(true);
+      const [user, tasks, transactionHistory, catalog, vipConfig] = await Promise.all([
+        fetchUser(username),
+        fetchTasks(username),
+        fetchTransactions(username),
+        fetchTaskCatalog(),
+        fetchPublicVipConfig(),
+      ]);
 
-      try {
-        const [user, tasks, transactionHistory, catalog, vipConfig] = await Promise.all([
-          fetchUser(username),
-          fetchTasks(username),
-          fetchTransactions(username),
-          fetchTaskCatalog(),
-          fetchPublicVipConfig(),
-        ]);
-        setUserData(user);
-        setTaskRecords(tasks);
-        setTransactions(Array.isArray(transactionHistory) ? transactionHistory : []);
-        setTaskCatalog(Array.isArray(catalog?.tasks) ? catalog.tasks : []);
-        setVipConfigurations(vipConfig);
-      } catch {
-        const [user, tasks, transactionHistory, catalog, vipConfig] = await Promise.all([
-          fetchUser('ugreen'),
-          fetchTasks('ugreen'),
-          fetchTransactions('ugreen'),
-          fetchTaskCatalog(),
-          fetchPublicVipConfig(),
-        ]);
-        setUserData(user);
-        setTaskRecords(tasks);
-        setTransactions(Array.isArray(transactionHistory) ? transactionHistory : []);
-        setTaskCatalog(Array.isArray(catalog?.tasks) ? catalog.tasks : []);
-        setVipConfigurations(vipConfig);
-      }
+      setUserData(user);
+      setTaskRecords(tasks);
+      setTransactions(Array.isArray(transactionHistory) ? transactionHistory : []);
+      setTaskCatalog(Array.isArray(catalog?.tasks) ? catalog.tasks : []);
+      setVipConfigurations(vipConfig);
     } catch (error) {
       console.error('Error fetching data:', error);
+      toast.error('Failed to load your records. Please refresh and try again.');
     } finally {
       setLoading(false);
     }

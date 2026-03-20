@@ -84,7 +84,7 @@ export default function Starting() {
   const [taskRuleConfig, setTaskRuleConfig] = useState<TaskCatalogResponse['ruleConfig'] | null>(null);
   
   const sessionUsername = getCurrentUsername();
-  const username = sessionUsername ?? 'ugreen';
+  const username = sessionUsername;
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
   const activeTasks = taskCatalog.filter((task) => task.status === 'Active');
@@ -133,56 +133,29 @@ export default function Starting() {
   };
 
   const fetchUserData = async () => {
+    if (!username) {
+      return;
+    }
+
     try {
       setLoading(true);
-      let data;
-      let tasksPayload: TaskCatalogResponse | null = null;
-      let vipPayload: VipConfig[] = [];
-      let rewardsPayload: RewardsConfig = defaultRewardsConfig;
-      try {
-        const [user, tasks, vipConfig, rewards] = await Promise.all([
-          fetchUserByName(username),
-          fetch(`${serverUrl}/tasks/catalog`, {
-            headers: {
-              'Authorization': `Bearer ${publicAnonKey}`,
-            },
-          }).then(async (response) => {
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok) {
-              throw new Error(payload?.error ?? 'Failed to fetch tasks');
-            }
-            return payload;
-          }),
-          fetchPublicVipConfig(),
-          fetchPublicRewardsConfig(),
-        ]);
-        data = user;
-        tasksPayload = tasks;
-        vipPayload = vipConfig;
-        rewardsPayload = rewards;
-      } catch {
-        // Fallback keeps dashboard usable for newly registered local users.
-        const [user, tasks, vipConfig, rewards] = await Promise.all([
-          fetchUserByName('ugreen'),
-          fetch(`${serverUrl}/tasks/catalog`, {
-            headers: {
-              'Authorization': `Bearer ${publicAnonKey}`,
-            },
-          }).then(async (response) => {
-            const payload = await response.json().catch(() => ({}));
-            if (!response.ok) {
-              throw new Error(payload?.error ?? 'Failed to fetch tasks');
-            }
-            return payload;
-          }),
-          fetchPublicVipConfig(),
-          fetchPublicRewardsConfig(),
-        ]);
-        data = user;
-        tasksPayload = tasks;
-        vipPayload = vipConfig;
-        rewardsPayload = rewards;
-      }
+      const [data, tasksPayload, vipPayload, rewardsPayload] = await Promise.all([
+        fetchUserByName(username),
+        fetch(`${serverUrl}/tasks/catalog`, {
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+          },
+        }).then(async (response) => {
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            throw new Error(payload?.error ?? 'Failed to fetch tasks');
+          }
+          return payload;
+        }),
+        fetchPublicVipConfig(),
+        fetchPublicRewardsConfig(),
+      ]);
+
       setUserData(data);
       setTaskCatalog(Array.isArray(tasksPayload?.tasks) ? tasksPayload.tasks : []);
       setTaskRuleConfig(tasksPayload?.ruleConfig ?? null);
@@ -190,6 +163,7 @@ export default function Starting() {
       setRewardsConfig(rewardsPayload);
     } catch (error) {
       console.error('Error fetching user data:', error);
+      toast.error('Failed to load your account data. Please refresh and try again.');
     } finally {
       setLoading(false);
     }

@@ -73,7 +73,7 @@ export default function Support() {
   const [priority, setPriority] = useState('medium');
 
   const sessionUsername = getCurrentUsername();
-  const username = sessionUsername ?? 'ugreen';
+  const username = sessionUsername;
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
   useEffect(() => {
@@ -131,7 +131,7 @@ export default function Support() {
   }, [location.pathname, navigate, sessionUsername]);
 
   useEffect(() => {
-    if (!sessionUsername) {
+    if (!sessionUsername || !username) {
       return;
     }
 
@@ -143,23 +143,19 @@ export default function Support() {
   }, [sessionUsername, username]);
 
   const fetchTickets = async (silent: boolean = false) => {
+    if (!username) {
+      return;
+    }
+
     try {
       if (!silent) {
         setLoading(true);
       }
-      let response = await fetch(`${serverUrl}/cs/tickets/${username}`, {
+      const response = await fetch(`${serverUrl}/cs/tickets/${username}`, {
         headers: {
           'Authorization': `Bearer ${publicAnonKey}`,
         },
       });
-
-      if (!response.ok && username !== 'ugreen') {
-        response = await fetch(`${serverUrl}/cs/tickets/ugreen`, {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-          },
-        });
-      }
 
       if (!response.ok) {
         throw new Error('Failed to fetch tickets');
@@ -201,6 +197,11 @@ export default function Support() {
 
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!username) {
+      toast.error('Your session ended. Please sign in again.');
+      return;
+    }
     
     if (!subject || !message) {
       toast.error('Please fill in all fields.');
@@ -250,6 +251,11 @@ export default function Support() {
   };
 
   const handleReply = async (ticketId: string) => {
+    if (!username) {
+      toast.error('Your session ended. Please sign in again.');
+      return;
+    }
+
     const replyMessage = replyDrafts[ticketId]?.trim() ?? '';
     if (!replyMessage.trim()) {
       toast.error('Please enter a message.');
