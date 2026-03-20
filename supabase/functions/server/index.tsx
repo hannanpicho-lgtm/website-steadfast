@@ -2042,12 +2042,12 @@ app.get('/make-server-a1c55d7e/admin/referrals/overview', async (c) => {
 
 app.get('/make-server-a1c55d7e/referrals/:username/summary', async (c) => {
   try {
-    const requestedUsername = sanitizeUsername(c.req.param('username'));
-    if (!requestedUsername) {
-      return c.json({ error: 'Invalid username' }, 400);
+    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
+    if ('response' in identity) {
+      return identity.response;
     }
 
-    const canonicalUsername = (await resolveCanonicalUsername(requestedUsername)) ?? requestedUsername;
+    const canonicalUsername = identity.username;
     const user = await getOrCreateUserRecord(canonicalUsername);
     await assignUsernameLookup(canonicalUsername);
 
@@ -2107,12 +2107,12 @@ app.get('/make-server-a1c55d7e/referrals/:username/summary', async (c) => {
 
 app.get('/make-server-a1c55d7e/financials/:username/summary', async (c) => {
   try {
-    const requestedUsername = sanitizeUsername(c.req.param('username'));
-    if (!requestedUsername) {
-      return c.json({ error: 'Invalid username' }, 400);
+    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
+    if ('response' in identity) {
+      return identity.response;
     }
 
-    const { canonicalUsername, normalizedUserData } = await getUserRecordWithDailyReset(requestedUsername);
+    const { canonicalUsername, normalizedUserData } = await getUserRecordWithDailyReset(identity.username);
 
     const balance = roundMoney(Number(normalizedUserData.balance ?? 0));
     const holdAmount = roundMoney(Number(normalizedUserData.holdAmount ?? 0));
@@ -2140,11 +2140,12 @@ app.get('/make-server-a1c55d7e/financials/:username/summary', async (c) => {
 // Get user data endpoint
 app.get("/make-server-a1c55d7e/user/:username", async (c) => {
   try {
-    const requestedUsername = sanitizeUsername(c.req.param("username"));
-    if (!requestedUsername) {
-      return c.json({ error: 'Invalid username' }, 400);
+    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
+    if ('response' in identity) {
+      return identity.response;
     }
-    const { normalizedUserData } = await getUserRecordWithDailyReset(requestedUsername);
+
+    const { normalizedUserData } = await getUserRecordWithDailyReset(identity.username);
 
     return c.json(normalizedUserData);
   } catch (error) {
@@ -2155,12 +2156,12 @@ app.get("/make-server-a1c55d7e/user/:username", async (c) => {
 
 app.get('/make-server-a1c55d7e/wallet/:username', async (c) => {
   try {
-    const requestedUsername = sanitizeUsername(c.req.param('username'));
-    if (!requestedUsername) {
-      return c.json({ error: 'Invalid username' }, 400);
+    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
+    if ('response' in identity) {
+      return identity.response;
     }
 
-    const canonicalUsername = (await resolveCanonicalUsername(requestedUsername)) ?? requestedUsername;
+    const canonicalUsername = identity.username;
     const userData = await getOrCreateUserRecord(canonicalUsername);
     await assignUsernameLookup(canonicalUsername);
 
@@ -2179,9 +2180,9 @@ app.put('/make-server-a1c55d7e/wallet/:username', async (c) => {
     const rateLimited = enforceUserRateLimit(c, 'user:wallet-profile', 20);
     if (rateLimited) return rateLimited;
 
-    const requestedUsername = sanitizeUsername(c.req.param('username'));
-    if (!requestedUsername) {
-      return c.json({ error: 'Invalid username' }, 400);
+    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
+    if ('response' in identity) {
+      return identity.response;
     }
 
     const body = await c.req.json();
@@ -2190,7 +2191,7 @@ app.put('/make-server-a1c55d7e/wallet/:username', async (c) => {
       return c.json({ error: parsed.error }, 400);
     }
 
-    const canonicalUsername = (await resolveCanonicalUsername(requestedUsername)) ?? requestedUsername;
+    const canonicalUsername = identity.username;
     const userData = await getOrCreateUserRecord(canonicalUsername);
     const normalizedUserData = await syncUserWithVipConfig(userData, canonicalUsername);
     normalizedUserData.walletProfile = parsed.walletProfile;
@@ -2396,6 +2397,50 @@ async function getSessionFromRequest(c: any): Promise<UserSessionRecord | null> 
   const cookies = parseCookies(c.req.header('cookie'));
   const sessionId = cookies[USER_SESSION_COOKIE_NAME] ?? '';
   return getValidSessionById(sessionId);
+}
+
+async function requireActiveUserSession(c: any): Promise<{ session: UserSessionRecord } | { response: any }> {
+  const session = await getSessionFromRequest(c);
+  if (!session) {
+    c.header('Set-Cookie', buildSessionClearCookieValue());
+    return { response: c.json({ error: 'Invalid or expired session' }, 401) };
+  }
+
+  return { session };
+}
+
+async function resolveSessionBoundUsername(
+  c: any,
+  rawUsername: unknown,
+  options?: { required?: boolean },
+): Promise<{ username: string; session: UserSessionRecord } | { response: any }> {
+  const required = options?.required ?? true;
+  const sessionResult = await requireActiveUserSession(c);
+  if ('response' in sessionResult) {
+    return sessionResult;
+  }
+
+  const sessionUsername = sessionResult.session.username;
+  const hasInput = typeof rawUsername === 'string' && rawUsername.trim().length > 0;
+
+  if (!hasInput) {
+    if (required) {
+      return { response: c.json({ error: 'Invalid username' }, 400) };
+    }
+    return { username: sessionUsername, session: sessionResult.session };
+  }
+
+  const requestedUsername = sanitizeUsername(rawUsername);
+  if (!requestedUsername) {
+    return { response: c.json({ error: 'Invalid username' }, 400) };
+  }
+
+  const canonicalRequestedUsername = (await resolveCanonicalUsername(requestedUsername)) ?? requestedUsername;
+  if (canonicalRequestedUsername !== sessionUsername) {
+    return { response: c.json({ error: 'Forbidden: requested user does not match active session' }, 403) };
+  }
+
+  return { username: sessionUsername, session: sessionResult.session };
 }
 
 async function getUniqueReferralInviteCode(): Promise<string> {
@@ -2663,11 +2708,12 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
 
     const requestedTaskId = sanitizeTaskId(body?.taskId);
     const requestedProductPrice = typeof body?.productPrice === 'number' ? body.productPrice : Number(body?.productPrice);
-    const username = sanitizeUsername(body.username);
-
-    if (!username) {
-      return c.json({ error: 'Invalid or missing username' }, 400);
+    const identity = await resolveSessionBoundUsername(c, body?.username);
+    if ('response' in identity) {
+      return identity.response;
     }
+
+    const username = identity.username;
 
     const taskCatalog = await listTaskCatalogRecords(false);
     let selectedTask = requestedTaskId
@@ -2868,16 +2914,23 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
 // Get task records endpoint
 app.get("/make-server-a1c55d7e/tasks/:username", async (c) => {
   try {
-    const username = sanitizeUsername(c.req.param("username"));
-    if (!username) {
+    const requestedUsername = sanitizeUsername(c.req.param("username"));
+    if (!requestedUsername) {
       return c.json({ error: 'Invalid username' }, 400);
     }
 
-    if (username === 'catalog') {
+    if (requestedUsername === 'catalog') {
       const includePaused = c.req.query('includePaused') === 'true';
       const tasks = await listTaskCatalogRecords(includePaused);
       return c.json({ tasks });
     }
+
+    const identity = await resolveSessionBoundUsername(c, requestedUsername);
+    if ('response' in identity) {
+      return identity.response;
+    }
+
+    const username = identity.username;
 
     const taskPrefix = `task:${username}:`;
     
@@ -2937,12 +2990,12 @@ app.get('/make-server-a1c55d7e/rewards-config', async (c) => {
 
 app.get('/make-server-a1c55d7e/transactions/:username', async (c) => {
   try {
-    const username = sanitizeUsername(c.req.param('username'));
-    if (!username) {
-      return c.json({ error: 'Invalid username' }, 400);
+    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
+    if ('response' in identity) {
+      return identity.response;
     }
 
-    const transactions = await listTransactionRecords(username);
+    const transactions = await listTransactionRecords(identity.username);
     return c.json(transactions);
   } catch (error) {
     console.error('Error fetching transaction records:', error);
@@ -2952,12 +3005,12 @@ app.get('/make-server-a1c55d7e/transactions/:username', async (c) => {
 
 app.get('/make-server-a1c55d7e/withdrawals/:username', async (c) => {
   try {
-    const username = sanitizeUsername(c.req.param('username'));
-    if (!username) {
-      return c.json({ error: 'Invalid username' }, 400);
+    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
+    if ('response' in identity) {
+      return identity.response;
     }
 
-    const withdrawals = await listWithdrawalRecords(username);
+    const withdrawals = await listWithdrawalRecords(identity.username);
     return c.json(withdrawals);
   } catch (error) {
     console.error('Error fetching withdrawal records:', error);
@@ -2979,14 +3032,19 @@ app.post('/make-server-a1c55d7e/withdrawals/request', async (c) => {
       }, 400);
     }
 
-    const username = sanitizeUsername(body?.username);
+    const identity = await resolveSessionBoundUsername(c, body?.username);
+    if ('response' in identity) {
+      return identity.response;
+    }
+
+    const username = identity.username;
     const walletAddress = sanitizeWalletAddress(body?.walletAddress);
     const method = sanitizeFinanceMethod(body?.method, 'USDT');
     const amount = roundMoney(Number(body?.amount ?? 0));
     const transactionPassword = typeof body?.transactionPassword === 'string' ? body.transactionPassword : '';
     const idempotencyKey = resolveRequestIdempotencyKey(c, body);
 
-    if (!username || !walletAddress) {
+    if (!walletAddress) {
       return c.json({ error: 'username and walletAddress are required' }, 400);
     }
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -3994,10 +4052,11 @@ app.post('/make-server-a1c55d7e/admin/withdrawals/:withdrawalId/review', async (
 // Get all premium assignments for a user
 app.get("/make-server-a1c55d7e/premium/:username", async (c) => {
   try {
-    const username = sanitizeUsername(c.req.param("username"));
-    if (!username) {
-      return c.json({ error: 'Invalid username' }, 400);
+    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
+    if ('response' in identity) {
+      return identity.response;
     }
+    const username = identity.username;
     const premiumPrefix = `premium:${username}:`;
     
     const premiums = await kv.getByPrefix(premiumPrefix);
@@ -4139,9 +4198,14 @@ app.post("/make-server-a1c55d7e/cs/create-ticket", async (c) => {
     if (rateLimited) return rateLimited;
 
     const { username: rawTicketUsername, subject, message, category, priority } = await c.req.json();
-    const username = sanitizeUsername(rawTicketUsername);
+    const identity = await resolveSessionBoundUsername(c, rawTicketUsername);
+    if ('response' in identity) {
+      return identity.response;
+    }
 
-    if (!username || !subject || !message || !category) {
+    const username = identity.username;
+
+    if (!subject || !message || !category) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
     
@@ -4179,10 +4243,11 @@ app.post("/make-server-a1c55d7e/cs/create-ticket", async (c) => {
 // Get user tickets
 app.get("/make-server-a1c55d7e/cs/tickets/:username", async (c) => {
   try {
-    const username = sanitizeUsername(c.req.param("username"));
-    if (!username) {
-      return c.json({ error: 'Invalid username' }, 400);
+    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
+    if ('response' in identity) {
+      return identity.response;
     }
+    const username = identity.username;
     const userTicketsKey = `user:${username}:tickets`;
     
     const ticketIds = await kv.get(userTicketsKey) || [];
@@ -4233,7 +4298,9 @@ app.get("/make-server-a1c55d7e/cs/admin/tickets", async (c) => {
 // Add response to ticket
 app.post("/make-server-a1c55d7e/cs/respond", async (c) => {
   try {
-    const { ticketId, message, respondedBy, isAdmin } = await c.req.json();
+    const { ticketId, message, respondedBy: rawRespondedBy, isAdmin } = await c.req.json();
+    let respondedBy = typeof rawRespondedBy === 'string' ? rawRespondedBy : '';
+    let sessionUsername: string | null = null;
 
     if (isAdmin) {
       const unauthorized = await requireAdmin(c);
@@ -4244,6 +4311,13 @@ app.post("/make-server-a1c55d7e/cs/respond", async (c) => {
       if (rateLimited) {
         return rateLimited;
       }
+    } else {
+      const sessionResult = await requireActiveUserSession(c);
+      if ('response' in sessionResult) {
+        return sessionResult.response;
+      }
+      sessionUsername = sessionResult.session.username;
+      respondedBy = sessionResult.session.username;
     }
     
     if (!ticketId || !message || !respondedBy) {
@@ -4255,6 +4329,10 @@ app.post("/make-server-a1c55d7e/cs/respond", async (c) => {
     
     if (!ticket) {
       return c.json({ error: 'Ticket not found' }, 404);
+    }
+
+    if (!isAdmin && sessionUsername && ticket.username !== sessionUsername) {
+      return c.json({ error: 'Forbidden: requested user does not match active session' }, 403);
     }
     
     const response = {
@@ -4327,7 +4405,7 @@ app.post("/make-server-a1c55d7e/cs/update-status", async (c) => {
 app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
   try {
     const { username: rawChatUsername, message, isAdmin } = await c.req.json();
-    const username = sanitizeUsername(rawChatUsername);
+    let username = sanitizeUsername(rawChatUsername);
 
     if (isAdmin) {
       const unauthorized = await requireAdmin(c);
@@ -4338,6 +4416,12 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
       if (rateLimited) {
         return rateLimited;
       }
+    } else {
+      const identity = await resolveSessionBoundUsername(c, rawChatUsername);
+      if ('response' in identity) {
+        return identity.response;
+      }
+      username = identity.username;
     }
     
     if (!username || !message) {
@@ -4375,10 +4459,11 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
 // Get chat messages
 app.get("/make-server-a1c55d7e/cs/chat/:username", async (c) => {
   try {
-    const username = sanitizeUsername(c.req.param("username"));
-    if (!username) {
-      return c.json({ error: 'Invalid username' }, 400);
+    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
+    if ('response' in identity) {
+      return identity.response;
     }
+    const username = identity.username;
     const chatKey = `chat:${username}`;
 
     const messages = await kv.get(chatKey) || [];
@@ -4393,7 +4478,7 @@ app.get("/make-server-a1c55d7e/cs/chat/:username", async (c) => {
 // Mark chat messages as read for the current viewer
 app.post("/make-server-a1c55d7e/cs/chat/mark-read", async (c) => {
   try {
-    const { username, viewer } = await c.req.json();
+    const { username: rawMarkReadUsername, viewer } = await c.req.json();
 
     if (viewer === 'admin') {
       const unauthorized = await requireAdmin(c);
@@ -4406,7 +4491,20 @@ app.post("/make-server-a1c55d7e/cs/chat/mark-read", async (c) => {
       }
     }
 
-    if (!username || (viewer !== 'admin' && viewer !== 'user')) {
+    if (viewer !== 'admin' && viewer !== 'user') {
+      return c.json({ error: 'Missing required fields' }, 400);
+    }
+
+    let username = sanitizeUsername(rawMarkReadUsername);
+    if (viewer === 'user') {
+      const identity = await resolveSessionBoundUsername(c, rawMarkReadUsername);
+      if ('response' in identity) {
+        return identity.response;
+      }
+      username = identity.username;
+    }
+
+    if (!username) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
@@ -4616,9 +4714,14 @@ app.post("/make-server-a1c55d7e/auth/reset-password", async (c) => {
 app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
   try {
     const { username: rawCpUsername, currentPassword, newPassword } = await c.req.json();
-    const username = sanitizeUsername(rawCpUsername);
+    const identity = await resolveSessionBoundUsername(c, rawCpUsername, { required: false });
+    if ('response' in identity) {
+      return identity.response;
+    }
 
-    if (!username || !currentPassword || !newPassword) {
+    const username = identity.username;
+
+    if (!currentPassword || !newPassword) {
       return c.json({ error: 'All fields are required' }, 400);
     }
 
