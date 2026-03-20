@@ -1583,9 +1583,6 @@ export default function Admin() {
           },
         });
         handleStorageSaveResult(saveResult);
-        if (saveResult.ok) {
-          localStorage.removeItem('steadfast_admin_salary_project_v1');
-        }
       } catch (error) {
         handleAdminRequestError(error, 'Failed to sync salary project state', {
           suppressToast: true,
@@ -1629,9 +1626,6 @@ export default function Admin() {
           events: salaryAuditLog,
         });
         handleStorageSaveResult(saveResult);
-        if (saveResult.ok) {
-          localStorage.removeItem('steadfast_admin_salary_audit_log_v1');
-        }
       } catch (error) {
         handleAdminRequestError(error, 'Failed to sync salary audit log', {
           suppressToast: true,

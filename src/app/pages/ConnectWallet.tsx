@@ -40,7 +40,6 @@ export default function ConnectWallet() {
 
   const username = getCurrentUsername();
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
-  const storageKey = username ? `steadfast_wallet_${username}` : null;
 
   // Banking form state
   const [bankingForm, setBankingForm] = useState({
@@ -104,16 +103,8 @@ export default function ConnectWallet() {
           const payload = await response.json().catch(() => ({} as { walletProfile?: WalletProfile | null }));
           if (payload.walletProfile) {
             hydrateFromProfile(payload.walletProfile);
-            if (storageKey) {
-              localStorage.removeItem(storageKey);
-            }
             return;
           }
-        }
-
-        if (storageKey) {
-          // Legacy cleanup only: wallet authority is backend-only.
-          localStorage.removeItem(storageKey);
         }
       } catch {
         toast.error('Failed to load wallet details. Please try again.');
@@ -123,7 +114,7 @@ export default function ConnectWallet() {
     };
 
     void loadWalletProfile();
-  }, [location.pathname, navigate, serverUrl, storageKey, username]);
+  }, [location.pathname, navigate, serverUrl, username]);
 
   const saveWalletProfile = async (profile: WalletProfile, successMessage: string) => {
     if (!username) {
@@ -146,9 +137,6 @@ export default function ConnectWallet() {
         throw new Error(String((payload as Record<string, unknown>).error ?? 'Failed to save wallet details'));
       }
 
-      if (storageKey) {
-        localStorage.removeItem(storageKey);
-      }
       toast.success(successMessage);
       setTimeout(() => navigate('/profile'), 1200);
     } catch (error) {
