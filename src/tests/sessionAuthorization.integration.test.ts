@@ -110,4 +110,35 @@ describe('Session-bound authorization', () => {
     expect(withdrawalRes.status).toBe(403);
     expect(ticketRes.status).toBe(403);
   });
+
+  it('rejects cross-user referral link-user, link-admin-invite, and complete-premium-task with 403', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const linkUserRes = await requestWithCookie('/referral/link-user', cookie, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: OTHER_USER,
+        invitationCode: 'XXXX01',
+        parentInviteCode: 'XXXX02',
+        loginPassword: 'hacked123',
+      }),
+    });
+
+    const linkAdminInviteRes = await requestWithCookie('/referral/link-admin-invite', cookie, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: OTHER_USER,
+        adminInviteCode: 'ABCD1',
+      }),
+    });
+
+    const completePremiumRes = await requestWithCookie('/complete-premium-task', cookie, {
+      method: 'POST',
+      body: JSON.stringify({ username: OTHER_USER, productPrice: 500 }),
+    });
+
+    expect(linkUserRes.status).toBe(403);
+    expect(linkAdminInviteRes.status).toBe(403);
+    expect(completePremiumRes.status).toBe(403);
+  });
 });

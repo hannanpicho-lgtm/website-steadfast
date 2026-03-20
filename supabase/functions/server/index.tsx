@@ -2218,14 +2218,19 @@ app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
     if (rateLimited) return rateLimited;
 
     const body = await c.req.json();
-    const username = sanitizeUsername(body.username);
     const invitationCode = sanitizeInviteCode(body.invitationCode);
     const parentInviteCode = sanitizeInviteCode(body.parentInviteCode);
     const rawLoginPassword = typeof body.loginPassword === 'string' ? body.loginPassword : null;
     const rawTransactionPassword = typeof body.transactionPassword === 'string' ? body.transactionPassword : null;
 
-    if (!username || !invitationCode || !parentInviteCode) {
-      return c.json({ error: 'username, invitationCode and parentInviteCode are required' }, 400);
+    const identity = await resolveSessionBoundUsername(c, body.username);
+    if ('response' in identity) {
+      return identity.response;
+    }
+    const username = identity.username;
+
+    if (!invitationCode || !parentInviteCode) {
+      return c.json({ error: 'invitationCode and parentInviteCode are required' }, 400);
     }
 
     await ensureRootReferralUser();
@@ -3262,11 +3267,13 @@ app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
 
     const premiumBody = await c.req.json();
     const { productPrice } = premiumBody;
-    const username = sanitizeUsername(premiumBody.username);
 
-    if (!username) {
-      return c.json({ error: 'Invalid or missing username' }, 400);
+    const identity = await resolveSessionBoundUsername(c, premiumBody.username);
+    if ('response' in identity) {
+      return identity.response;
     }
+    const username = identity.username;
+
     if (typeof productPrice !== 'number' || !Number.isFinite(productPrice) || productPrice <= 0) {
       return c.json({ error: 'productPrice must be a positive finite number' }, 400);
     }
@@ -5160,9 +5167,15 @@ app.post('/make-server-a1c55d7e/referral/link-admin-invite', async (c) => {
     if (rateLimited) return rateLimited;
 
     const body = await c.req.json();
-    const username = sanitizeUsername(body?.username);
     const code = sanitizeAdminInviteCode(body?.adminInviteCode);
-    if (!username || !code) return c.json({ error: 'username and adminInviteCode are required' }, 400);
+
+    const identity = await resolveSessionBoundUsername(c, body?.username);
+    if ('response' in identity) {
+      return identity.response;
+    }
+    const username = identity.username;
+
+    if (!code) return c.json({ error: 'adminInviteCode is required' }, 400);
 
     const record = await kv.get(`admin:invite:code:${code}`);
     if (!record || typeof record.subAdminId !== 'string') {
