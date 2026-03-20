@@ -167,4 +167,16 @@ describe('Session-bound authorization', () => {
     expect(linkAdminInviteRes.status).toBe(400);
     expect(String(linkAdminInviteRes.body?.error ?? '')).toContain('adminInviteCode is required');
   });
+
+  it('allows link-user to use the active session when username is omitted', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const linkUserRes = await requestWithCookie('/referral/link-user', cookie, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+
+    expect(linkUserRes.status).toBe(400);
+    expect(String(linkUserRes.body?.error ?? '')).toContain('invitationCode and parentInviteCode are required');
+  });
 });

@@ -2223,7 +2223,7 @@ app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
     const rawLoginPassword = typeof body.loginPassword === 'string' ? body.loginPassword : null;
     const rawTransactionPassword = typeof body.transactionPassword === 'string' ? body.transactionPassword : null;
 
-    const identity = await resolveSessionBoundUsername(c, body.username);
+    const identity = await resolveSessionBoundUsername(c, body.username, { required: false });
     if ('response' in identity) {
       return identity.response;
     }
