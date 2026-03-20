@@ -3140,33 +3140,6 @@ async function submitTaskForUser(c: any, username: string, body: any) {
   });
 }
 
-// Submit task endpoint
-app.post("/make-server-a1c55d7e/submit-task", async (c) => {
-  try {
-    const rateLimited = enforceUserRateLimit(c, 'user:submit-task');
-    if (rateLimited) return rateLimited;
-
-    const body = await c.req.json();
-    const forbiddenFinancialFields = getForbiddenClientFinancialFields(body);
-    if (forbiddenFinancialFields.length > 0) {
-      return c.json({
-        error: 'Client-side financial mutation fields are not allowed',
-        fields: forbiddenFinancialFields,
-      }, 400);
-    }
-
-    const identity = await resolveSessionBoundUsername(c, body?.username, { required: false });
-    if ('response' in identity) {
-      return identity.response;
-    }
-
-    return await submitTaskForUser(c, identity.username, body);
-  } catch (error) {
-    console.error('Error submitting task:', error);
-    return c.json({ error: 'Failed to submit task' }, 500);
-  }
-});
-
 app.post('/make-server-a1c55d7e/me/submit-task', async (c) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:submit-task');
@@ -3720,27 +3693,6 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
     parentReferralUsername: premiumReferralPayout.rewarded ? premiumReferralPayout.parentUsername : null,
   });
 }
-
-// Complete premium bundle task
-app.post("/make-server-a1c55d7e/complete-premium-task", async (c) => {
-  try {
-    const rateLimited = enforceUserRateLimit(c, 'user:complete-premium-task');
-    if (rateLimited) return rateLimited;
-
-    const premiumBody = await c.req.json();
-    const { productPrice } = premiumBody;
-
-    const identity = await resolveSessionBoundUsername(c, premiumBody.username, { required: false });
-    if ('response' in identity) {
-      return identity.response;
-    }
-
-    return await completePremiumTaskForUser(c, identity.username, productPrice);
-  } catch (error) {
-    console.error('Error completing premium task:', error);
-    return c.json({ error: 'Failed to complete premium task' }, 500);
-  }
-});
 
 app.post('/make-server-a1c55d7e/me/complete-premium-task', async (c) => {
   try {

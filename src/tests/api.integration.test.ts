@@ -134,8 +134,7 @@ async function ensureFinanceUserSessionCookie() {
 }
 
 async function ensureFinanceUserHasBalance(cookie: string) {
-  const submitResult = await postWithCookie('/submit-task', cookie, {
-    username: FINANCE_USER,
+  const submitResult = await postWithCookie('/me/submit-task', cookie, {
     productPrice: 299.99,
   });
 
@@ -221,9 +220,9 @@ describe('User endpoints', () => {
 
 // ─── Submit Task ──────────────────────────────────────────────────────────────
 
-describe('POST /submit-task', () => {
+describe('POST /me/submit-task', () => {
   it('accepts session-backed requests when username is missing', async () => {
-    const { status, body } = await postAsUser('/submit-task', { productPrice: 100 });
+    const { status, body } = await postAsUser('/me/submit-task', { productPrice: 100 });
     expect([200, 409]).toContain(status);
     if (status === 200) {
       expect(body.success).toBe(true);
@@ -234,28 +233,28 @@ describe('POST /submit-task', () => {
   });
 
   it('returns 400 when productPrice is missing', async () => {
-    const { status, body } = await postAsUser('/submit-task', { username: SESSION_USER });
+    const { status, body } = await postAsUser('/me/submit-task', { username: SESSION_USER });
     expect(status).toBe(400);
     expect(typeof body.error).toBe('string');
   });
 
   it('returns 400 for a negative productPrice', async () => {
-    const { status } = await postAsUser('/submit-task', { username: SESSION_USER, productPrice: -50 });
+    const { status } = await postAsUser('/me/submit-task', { username: SESSION_USER, productPrice: -50 });
     expect(status).toBe(400);
   });
 
   it('returns 400 for productPrice of 0', async () => {
-    const { status } = await postAsUser('/submit-task', { username: SESSION_USER, productPrice: 0 });
+    const { status } = await postAsUser('/me/submit-task', { username: SESSION_USER, productPrice: 0 });
     expect(status).toBe(400);
   });
 
   it('returns 400 for a non-numeric productPrice', async () => {
-    const { status } = await postAsUser('/submit-task', { username: SESSION_USER, productPrice: 'free' });
+    const { status } = await postAsUser('/me/submit-task', { username: SESSION_USER, productPrice: 'free' });
     expect(status).toBe(400);
   });
 
   it('returns 400 when client tries to mutate financial fields', async () => {
-    const { status, body } = await postAsUser('/submit-task', {
+    const { status, body } = await postAsUser('/me/submit-task', {
       username: SESSION_USER,
       productPrice: 299.99,
       balance: 999999,
@@ -267,7 +266,7 @@ describe('POST /submit-task', () => {
   });
 
   it('succeeds with a valid productPrice and returns commission', async () => {
-    const { status, body } = await postAsUser('/submit-task', {
+    const { status, body } = await postAsUser('/me/submit-task', {
       username: SESSION_USER,
       productPrice: 299.99,
     });
@@ -285,7 +284,7 @@ describe('POST /submit-task', () => {
   });
 
   it('commission is never negative for any positive price', async () => {
-    const { body } = await postAsUser('/submit-task', {
+    const { body } = await postAsUser('/me/submit-task', {
       username: SESSION_USER,
       productPrice: 0.01,
     });

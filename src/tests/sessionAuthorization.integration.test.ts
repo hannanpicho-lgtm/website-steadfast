@@ -120,11 +120,6 @@ describe('Session-bound authorization', () => {
   it('rejects cross-user POST mutations with 403', async () => {
     const cookie = await loginAndGetSessionCookie();
 
-    const submitTaskRes = await requestWithCookie('/submit-task', cookie, {
-      method: 'POST',
-      body: JSON.stringify({ username: OTHER_USER, productPrice: 100 }),
-    });
-
     const withdrawalRes = await requestWithCookie('/withdrawals/request', cookie, {
       method: 'POST',
       body: JSON.stringify({
@@ -157,13 +152,12 @@ describe('Session-bound authorization', () => {
       }),
     });
 
-    expect(submitTaskRes.status).toBe(403);
     expect(withdrawalRes.status).toBe(403);
     expect(ticketRes.status).toBe(403);
     expect(walletUpdateRes.status).toBe(403);
   });
 
-  it('rejects cross-user referral link-user, link-admin-invite, and complete-premium-task with 403', async () => {
+  it('rejects cross-user referral link-user and link-admin-invite with 403', async () => {
     const cookie = await loginAndGetSessionCookie();
 
     const linkUserRes = await requestWithCookie('/referral/link-user', cookie, {
@@ -184,20 +178,14 @@ describe('Session-bound authorization', () => {
       }),
     });
 
-    const completePremiumRes = await requestWithCookie('/complete-premium-task', cookie, {
-      method: 'POST',
-      body: JSON.stringify({ username: OTHER_USER, productPrice: 500 }),
-    });
-
     expect(linkUserRes.status).toBe(403);
     expect(linkAdminInviteRes.status).toBe(403);
-    expect(completePremiumRes.status).toBe(403);
   });
 
-  it('allows complete-premium-task to use the active session when username is omitted', async () => {
+  it('allows /me/complete-premium-task to use the active session identity', async () => {
     const cookie = await loginAndGetSessionCookie();
 
-    const completePremiumRes = await requestWithCookie('/complete-premium-task', cookie, {
+    const completePremiumRes = await requestWithCookie('/me/complete-premium-task', cookie, {
       method: 'POST',
       body: JSON.stringify({ productPrice: 500 }),
     });
