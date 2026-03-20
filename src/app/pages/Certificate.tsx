@@ -56,8 +56,9 @@ export default function Certificate() {
       setError(null);
 
       const [user, txRes, vipConfig, referralSummary] = await Promise.all([
-        fetchFinancialSummary(username),
-        fetch(`${serverUrl}/transactions/${username}`, {
+        fetchFinancialSummary(),
+        fetch(`${serverUrl}/me/transactions`, {
+          credentials: 'include',
           headers: { 'Authorization': `Bearer ${publicAnonKey}` },
         }),
         fetchPublicVipConfig(),

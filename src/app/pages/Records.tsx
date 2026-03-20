@@ -86,8 +86,9 @@ export default function Records() {
     fetchData();
   }, [location.pathname, navigate, sessionUsername]);
 
-  const fetchUser = async (name: string) => {
-    const userResponse = await fetch(`${serverUrl}/financials/${name}/summary`, {
+  const fetchUser = async () => {
+    const userResponse = await fetch(`${serverUrl}/me/financials`, {
+      credentials: 'include',
       headers: {
         'Authorization': `Bearer ${publicAnonKey}`,
       },
@@ -98,8 +99,9 @@ export default function Records() {
     return userResponse.json();
   };
 
-  const fetchTasks = async (name: string) => {
-    const tasksResponse = await fetch(`${serverUrl}/tasks/${name}`, {
+  const fetchTasks = async () => {
+    const tasksResponse = await fetch(`${serverUrl}/me/tasks`, {
+      credentials: 'include',
       headers: {
         'Authorization': `Bearer ${publicAnonKey}`,
       },
@@ -110,8 +112,9 @@ export default function Records() {
     return tasksResponse.json();
   };
 
-  const fetchTransactions = async (name: string) => {
-    const transactionsResponse = await fetch(`${serverUrl}/transactions/${name}`, {
+  const fetchTransactions = async () => {
+    const transactionsResponse = await fetch(`${serverUrl}/me/transactions`, {
+      credentials: 'include',
       headers: {
         'Authorization': `Bearer ${publicAnonKey}`,
       },
@@ -142,9 +145,9 @@ export default function Records() {
     try {
       setLoading(true);
       const [user, tasks, transactionHistory, catalog, vipConfig] = await Promise.all([
-        fetchUser(username),
-        fetchTasks(username),
-        fetchTransactions(username),
+        fetchUser(),
+        fetchTasks(),
+        fetchTransactions(),
         fetchTaskCatalog(),
         fetchPublicVipConfig(),
       ]);

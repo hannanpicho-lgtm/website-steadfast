@@ -37,9 +37,9 @@ export type FinancialSummaryResponse = {
   [key: string]: unknown;
 };
 
-export async function fetchFinancialSummary(username: string): Promise<FinancialSummaryResponse> {
-  const normalizedUsername = username.trim();
-  const response = await fetch(`${SERVER_URL}/financials/${encodeURIComponent(normalizedUsername)}/summary`, {
+export async function fetchFinancialSummary(): Promise<FinancialSummaryResponse> {
+  const response = await fetch(`${SERVER_URL}/me/financials`, {
+    credentials: 'include',
     headers: {
       Authorization: `Bearer ${publicAnonKey}`,
       apikey: publicAnonKey,

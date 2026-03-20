@@ -2105,6 +2105,96 @@ app.get('/make-server-a1c55d7e/referrals/:username/summary', async (c) => {
   }
 });
 
+async function buildFinancialSummaryResponse(username: string) {
+  const { canonicalUsername, normalizedUserData } = await getUserRecordWithDailyReset(username);
+
+  const balance = roundMoney(Number(normalizedUserData.balance ?? 0));
+  const holdAmount = roundMoney(Number(normalizedUserData.holdAmount ?? 0));
+  const availableAmount = roundMoney(balance - holdAmount);
+
+  return {
+    ...normalizedUserData,
+    username: canonicalUsername,
+    balance,
+    holdAmount,
+    availableAmount,
+    taskProgress: buildUserTaskProgress(normalizedUserData),
+    summary: {
+      availableAmount,
+      totalBalance: roundMoney(balance + holdAmount),
+      isFrozen: Boolean(normalizedUserData.isFrozen),
+    },
+  };
+}
+
+async function buildEarningsSummaryResponse(username: string) {
+  const userData = await getOrCreateUserRecord(username);
+  const transactions = await listTransactionRecords(username);
+  const completedCommission = roundMoney(
+    transactions
+      .filter((transaction) => transaction.type === 'Commission' && transaction.status === 'Completed')
+      .reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0),
+  );
+
+  return {
+    username,
+    todayCommission: roundMoney(Number(userData.todayCommission ?? 0)),
+    referralEarnings: roundMoney(Number(userData.referralEarnings ?? 0)),
+    luckyBonus: roundMoney(Number(userData.luckyBonus ?? 0)),
+    completedCommission,
+  };
+}
+
+app.get('/make-server-a1c55d7e/me/financials', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    return c.json(await buildFinancialSummaryResponse(sessionResult.session.username));
+  } catch (error) {
+    console.error('Session financial summary error:', error);
+    return c.json({ error: 'Failed to fetch financial summary' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/balance', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const financialSummary = await buildFinancialSummaryResponse(sessionResult.session.username);
+    return c.json({
+      username: financialSummary.username,
+      balance: financialSummary.balance,
+      holdAmount: financialSummary.holdAmount,
+      availableAmount: financialSummary.availableAmount,
+      totalBalance: financialSummary.summary.totalBalance,
+      isFrozen: financialSummary.summary.isFrozen,
+    });
+  } catch (error) {
+    console.error('Session balance summary error:', error);
+    return c.json({ error: 'Failed to fetch balance summary' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/earnings', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    return c.json(await buildEarningsSummaryResponse(sessionResult.session.username));
+  } catch (error) {
+    console.error('Session earnings summary error:', error);
+    return c.json({ error: 'Failed to fetch earnings summary' }, 500);
+  }
+});
+
 app.get('/make-server-a1c55d7e/financials/:username/summary', async (c) => {
   try {
     const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
@@ -2112,25 +2202,7 @@ app.get('/make-server-a1c55d7e/financials/:username/summary', async (c) => {
       return identity.response;
     }
 
-    const { canonicalUsername, normalizedUserData } = await getUserRecordWithDailyReset(identity.username);
-
-    const balance = roundMoney(Number(normalizedUserData.balance ?? 0));
-    const holdAmount = roundMoney(Number(normalizedUserData.holdAmount ?? 0));
-    const availableAmount = roundMoney(balance - holdAmount);
-
-    return c.json({
-      ...normalizedUserData,
-      username: canonicalUsername,
-      balance,
-      holdAmount,
-      availableAmount,
-      taskProgress: buildUserTaskProgress(normalizedUserData),
-      summary: {
-        availableAmount,
-        totalBalance: roundMoney(balance + holdAmount),
-        isFrozen: Boolean(normalizedUserData.isFrozen),
-      },
-    });
+    return c.json(await buildFinancialSummaryResponse(identity.username));
   } catch (error) {
     console.error('Financial summary error:', error);
     return c.json({ error: 'Failed to fetch financial summary' }, 500);
@@ -2958,6 +3030,25 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
 });
 
 // Get task records endpoint
+app.get('/make-server-a1c55d7e/me/tasks', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const tasks = await kv.getByPrefix(`task:${sessionResult.session.username}:`);
+    const sortedTasks = tasks.sort((a, b) =>
+      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+
+    return c.json(sortedTasks);
+  } catch (error) {
+    console.error('Error fetching session task records:', error);
+    return c.json({ error: 'Failed to fetch task records' }, 500);
+  }
+});
+
 app.get("/make-server-a1c55d7e/tasks/:username", async (c) => {
   try {
     const requestedUsername = sanitizeUsername(c.req.param("username"));
@@ -3031,6 +3122,21 @@ app.get('/make-server-a1c55d7e/rewards-config', async (c) => {
   } catch (error) {
     console.error('Error fetching rewards config:', error);
     return c.json({ error: 'Failed to fetch rewards config' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/transactions', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const transactions = await listTransactionRecords(sessionResult.session.username);
+    return c.json(transactions);
+  } catch (error) {
+    console.error('Error fetching session transaction records:', error);
+    return c.json({ error: 'Failed to fetch transaction records' }, 500);
   }
 });
 

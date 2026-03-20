@@ -60,10 +60,12 @@ describe('Session-bound authorization', () => {
     const userRes = await requestWithCookie(`/user/${OTHER_USER}`, cookie);
     const financialsRes = await requestWithCookie(`/financials/${OTHER_USER}/summary`, cookie);
     const tasksRes = await requestWithCookie(`/tasks/${OTHER_USER}`, cookie);
+    const transactionsRes = await requestWithCookie(`/transactions/${OTHER_USER}`, cookie);
 
     expect(userRes.status).toBe(403);
     expect(financialsRes.status).toBe(403);
     expect(tasksRes.status).toBe(403);
+    expect(transactionsRes.status).toBe(403);
   });
 
   it('rejects cross-user support data access with 403', async () => {
@@ -256,6 +258,83 @@ describe('Session-bound authorization', () => {
     const body = await res.json().catch(() => null);
     expect(res.status).toBe(401);
     expect(body?.error).toBeTruthy();
+  });
+
+  it('rejects /me user read endpoints without a session with 401', async () => {
+    const headers = {
+      'Content-Type': 'application/json',
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${ANON_KEY}`,
+    };
+
+    const [financialsRes, balanceRes, earningsRes, tasksRes, transactionsRes] = await Promise.all([
+      fetch(`${BASE}/me/financials`, { headers }),
+      fetch(`${BASE}/me/balance`, { headers }),
+      fetch(`${BASE}/me/earnings`, { headers }),
+      fetch(`${BASE}/me/tasks`, { headers }),
+      fetch(`${BASE}/me/transactions`, { headers }),
+    ]);
+
+    expect(financialsRes.status).toBe(401);
+    expect(balanceRes.status).toBe(401);
+    expect(earningsRes.status).toBe(401);
+    expect(tasksRes.status).toBe(401);
+    expect(transactionsRes.status).toBe(401);
+  });
+
+  it('ignores injected username query parameters for /me financial read endpoints', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const financialsRes = await requestWithCookie('/me/financials?username=admin', cookie);
+    const balanceRes = await requestWithCookie('/me/balance?username=admin', cookie);
+    const earningsRes = await requestWithCookie('/me/earnings?username=admin', cookie);
+
+    expect(financialsRes.status).toBe(200);
+    expect(financialsRes.body?.username).toBe(SESSION_USER);
+    expect(balanceRes.status).toBe(200);
+    expect(balanceRes.body?.username).toBe(SESSION_USER);
+    expect(earningsRes.status).toBe(200);
+    expect(earningsRes.body?.username).toBe(SESSION_USER);
+  });
+
+  it('returns session-user data from /me/tasks and /me/transactions even when username is injected in the query', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const tasksRes = await requestWithCookie('/me/tasks?username=admin', cookie);
+    const transactionsRes = await requestWithCookie('/me/transactions?username=admin', cookie);
+
+    expect(tasksRes.status).toBe(200);
+    expect(Array.isArray(tasksRes.body)).toBe(true);
+    expect(transactionsRes.status).toBe(200);
+    expect(Array.isArray(transactionsRes.body)).toBe(true);
+  });
+
+  it('loads session-user financial, balance, earnings, task, and transaction reads successfully', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const financialsRes = await requestWithCookie('/me/financials', cookie);
+    const balanceRes = await requestWithCookie('/me/balance', cookie);
+    const earningsRes = await requestWithCookie('/me/earnings', cookie);
+    const tasksRes = await requestWithCookie('/me/tasks', cookie);
+    const transactionsRes = await requestWithCookie('/me/transactions', cookie);
+
+    expect(financialsRes.status).toBe(200);
+    expect(financialsRes.body?.username).toBe(SESSION_USER);
+    expect(typeof financialsRes.body?.balance).toBe('number');
+
+    expect(balanceRes.status).toBe(200);
+    expect(balanceRes.body?.username).toBe(SESSION_USER);
+    expect(typeof balanceRes.body?.availableAmount).toBe('number');
+
+    expect(earningsRes.status).toBe(200);
+    expect(earningsRes.body?.username).toBe(SESSION_USER);
+    expect(typeof earningsRes.body?.todayCommission).toBe('number');
+
+    expect(tasksRes.status).toBe(200);
+    expect(Array.isArray(tasksRes.body)).toBe(true);
+
+    expect(transactionsRes.status).toBe(200);
+    expect(Array.isArray(transactionsRes.body)).toBe(true);
   });
 
   it('ignores injected username in /me/support/create body and uses session identity', async () => {

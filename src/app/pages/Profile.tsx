@@ -40,7 +40,7 @@ export default function Profile() {
     const load = async () => {
       try {
         const [userRes, referralSummary] = await Promise.all([
-          fetchFinancialSummary(username),
+          fetchFinancialSummary(),
           fetchReferralSummary(username),
         ]);
 

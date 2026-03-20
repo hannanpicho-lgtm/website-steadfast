@@ -43,7 +43,8 @@ export default function VipLevels() {
           return;
         }
 
-        const response = await fetch(`${serverUrl}/financials/${username}/summary`, {
+        const response = await fetch(`${serverUrl}/me/financials`, {
+          credentials: 'include',
           headers: {
             Authorization: `Bearer ${publicAnonKey}`,
           },

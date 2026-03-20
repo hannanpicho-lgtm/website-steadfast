@@ -128,8 +128,8 @@ export default function Starting() {
     fetchUserData();
   }, [location.pathname, navigate, sessionUsername]);
 
-  const fetchUserByName = async (name: string) => {
-    return fetchFinancialSummary(name);
+  const fetchSessionUser = async () => {
+    return fetchFinancialSummary();
   };
 
   const fetchUserData = async () => {
@@ -140,7 +140,7 @@ export default function Starting() {
     try {
       setLoading(true);
       const [data, tasksPayload, vipPayload, rewardsPayload] = await Promise.all([
-        fetchUserByName(username),
+        fetchSessionUser(),
         fetch(`${serverUrl}/tasks/catalog`, {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,
