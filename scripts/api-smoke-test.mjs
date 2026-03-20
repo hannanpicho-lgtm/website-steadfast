@@ -184,6 +184,79 @@ async function testTransactions() {
   check('GET /me/transactions?username=admin — injected username ignored', injected, 200, b => Array.isArray(b));
 }
 
+async function testMeReads() {
+  console.log('\n[Me Read Endpoints]');
+
+  // ── /me/financials ─────────────────────────────────────────────────────────
+  const financialsNoSession = await call('GET', '/me/financials');
+  check('GET /me/financials — no session → 401', financialsNoSession, 401);
+
+  const financials = await callAsUser('GET', '/me/financials');
+  check('GET /me/financials — session user returns object', financials, 200, b =>
+    b?.username === TEST_USER &&
+    typeof b?.balance === 'number' &&
+    typeof b?.holdAmount === 'number' &&
+    typeof b?.availableAmount === 'number',
+  );
+
+  // ── /me/referrals/summary ──────────────────────────────────────────────────
+  const referralsNoSession = await call('GET', '/me/referrals/summary');
+  check('GET /me/referrals/summary — no session → 401', referralsNoSession, 401);
+
+  const referrals = await callAsUser('GET', '/me/referrals/summary');
+  check('GET /me/referrals/summary — session user returns object', referrals, 200, b =>
+    b?.username === TEST_USER &&
+    typeof b?.referralEarnings === 'number' &&
+    Array.isArray(b?.children),
+  );
+
+  // ── /me/balance ────────────────────────────────────────────────────────────
+  const balanceNoSession = await call('GET', '/me/balance');
+  check('GET /me/balance — no session → 401', balanceNoSession, 401);
+
+  const balance = await callAsUser('GET', '/me/balance');
+  check('GET /me/balance — session user returns object', balance, 200, b =>
+    b?.username === TEST_USER &&
+    typeof b?.balance === 'number' &&
+    typeof b?.availableAmount === 'number',
+  );
+
+  // ── /me/earnings ───────────────────────────────────────────────────────────
+  const earningsNoSession = await call('GET', '/me/earnings');
+  check('GET /me/earnings — no session → 401', earningsNoSession, 401);
+
+  const earnings = await callAsUser('GET', '/me/earnings');
+  check('GET /me/earnings — session user returns object', earnings, 200, b =>
+    b?.username === TEST_USER &&
+    typeof b?.todayCommission === 'number' &&
+    typeof b?.completedCommission === 'number',
+  );
+
+  // ── /me/wallet ─────────────────────────────────────────────────────────────
+  const walletNoSession = await call('GET', '/me/wallet');
+  check('GET /me/wallet — no session → 401', walletNoSession, 401);
+
+  const wallet = await callAsUser('GET', '/me/wallet');
+  check('GET /me/wallet — session user returns object', wallet, 200, b =>
+    b?.username === TEST_USER &&
+    typeof b?.walletProfile === 'object',
+  );
+
+  // ── /me/withdrawals ────────────────────────────────────────────────────────
+  const withdrawalsNoSession = await call('GET', '/me/withdrawals');
+  check('GET /me/withdrawals — no session → 401', withdrawalsNoSession, 401);
+
+  const withdrawals = await callAsUser('GET', '/me/withdrawals');
+  check('GET /me/withdrawals — session user returns array', withdrawals, 200, b => Array.isArray(b));
+
+  // ── /me/premium ────────────────────────────────────────────────────────────
+  const premiumNoSession = await call('GET', '/me/premium');
+  check('GET /me/premium — no session → 401', premiumNoSession, 401);
+
+  const premium = await callAsUser('GET', '/me/premium');
+  check('GET /me/premium — session user returns array', premium, 200, b => Array.isArray(b));
+}
+
 async function testSupportLinks() {
   console.log('\n[Support Links]');
 
@@ -392,6 +465,7 @@ try {
   await testSubmitTask();
   await testTaskRecords();
   await testTransactions();
+  await testMeReads();
   await testSupportLinks();
   await testTickets();
   await testChat();
