@@ -54,7 +54,7 @@ export default function Deposit() {
         const headers = { Authorization: `Bearer ${publicAnonKey}` };
 
         const [userRes, txRes] = await Promise.all([
-          fetch(`${serverUrl}/user/${username}`, { headers }),
+          fetch(`${serverUrl}/financials/${username}/summary`, { headers }),
           fetch(`${serverUrl}/transactions/${username}`, { headers }),
         ]);
 

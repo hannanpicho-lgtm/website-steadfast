@@ -6,9 +6,9 @@ import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import profileImage from '../../assets/3df251a778530e24e8d83eda03085a2dc309c248.png';
 import { getCurrentUsername, logoutCurrentUser } from '../services/referralSystem';
-import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { changeUserCredentials, isPasswordChangeRequired } from '../services/serverAuth';
 import { fetchReferralSummary } from '../services/referralReadModel';
+import { fetchFinancialSummary } from '../services/financialReadModel';
 
 export default function Profile() {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -28,7 +28,6 @@ export default function Profile() {
   const [updatingCredentials, setUpdatingCredentials] = useState(false);
 
   const username = getCurrentUsername();
-  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
   useEffect(() => {
     const forceFromQuery = new URLSearchParams(window.location.search).get('forcePasswordChange') === '1';
@@ -41,14 +40,11 @@ export default function Profile() {
     const load = async () => {
       try {
         const [userRes, referralSummary] = await Promise.all([
-          fetch(`${serverUrl}/user/${username}`, {
-            headers: { Authorization: `Bearer ${publicAnonKey}` },
-          }),
+          fetchFinancialSummary(username),
           fetchReferralSummary(username),
         ]);
 
-        if (!userRes.ok) return;
-        const data = await userRes.json().catch(() => ({}));
+        const data = userRes;
         setTodayProfit(Number(data.todayCommission ?? 0));
         setTotalCommission(Number(referralSummary.referralEarnings ?? 0));
         setReferralCode(String(referralSummary.invitationCode ?? 'STF01'));
@@ -58,7 +54,7 @@ export default function Profile() {
     };
 
     void load();
-  }, [username, serverUrl]);
+  }, [username]);
 
   const handleCopyReferral = () => {
     // Fallback copy method for environments where Clipboard API is blocked

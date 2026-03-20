@@ -86,7 +86,7 @@ export default function Records() {
   }, [location.pathname, navigate, sessionUsername]);
 
   const fetchUser = async (name: string) => {
-    const userResponse = await fetch(`${serverUrl}/user/${name}`, {
+    const userResponse = await fetch(`${serverUrl}/financials/${name}/summary`, {
       headers: {
         'Authorization': `Bearer ${publicAnonKey}`,
       },

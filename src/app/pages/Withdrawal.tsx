@@ -73,7 +73,7 @@ export default function Withdrawal() {
       };
 
       const [userResponse, withdrawalsResponse, walletResponse] = await Promise.all([
-        fetch(`${serverUrl}/user/${activeUsername}`, { headers }),
+        fetch(`${serverUrl}/financials/${activeUsername}/summary`, { headers }),
         fetch(`${serverUrl}/withdrawals/${activeUsername}`, { headers }),
         fetch(`${serverUrl}/wallet/${activeUsername}`, { headers }),
       ]);

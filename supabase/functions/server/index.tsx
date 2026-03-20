@@ -1547,6 +1547,30 @@ function buildUserTaskProgress(userData: any) {
   };
 }
 
+async function getUserRecordWithDailyReset(username: string) {
+  const canonicalUsername = (await resolveCanonicalUsername(username)) ?? username;
+  const userKey = `user:${canonicalUsername}`;
+
+  const normalizedUserData = await getOrCreateUserRecord(canonicalUsername);
+  await assignUsernameLookup(canonicalUsername);
+
+  const today = new Date().toISOString().split('T')[0];
+  if (normalizedUserData.lastReset !== today) {
+    normalizedUserData.tasksCompleted = 0;
+    normalizedUserData.tasksCompletedInSet = 0;
+    normalizedUserData.completedTaskSets = 0;
+    normalizedUserData.pendingTaskReset = false;
+    normalizedUserData.todayCommission = 0;
+    normalizedUserData.lastReset = today;
+    await kv.set(userKey, normalizedUserData);
+  }
+
+  return {
+    canonicalUsername,
+    normalizedUserData,
+  };
+}
+
 function restoreUserToNaturalState(userData: any) {
   const restored = { ...userData };
   const currentBalance = roundMoney(Number(restored.balance ?? 0));
@@ -2081,6 +2105,38 @@ app.get('/make-server-a1c55d7e/referrals/:username/summary', async (c) => {
   }
 });
 
+app.get('/make-server-a1c55d7e/financials/:username/summary', async (c) => {
+  try {
+    const requestedUsername = sanitizeUsername(c.req.param('username'));
+    if (!requestedUsername) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    const { canonicalUsername, normalizedUserData } = await getUserRecordWithDailyReset(requestedUsername);
+
+    const balance = roundMoney(Number(normalizedUserData.balance ?? 0));
+    const holdAmount = roundMoney(Number(normalizedUserData.holdAmount ?? 0));
+    const availableAmount = roundMoney(balance - holdAmount);
+
+    return c.json({
+      ...normalizedUserData,
+      username: canonicalUsername,
+      balance,
+      holdAmount,
+      availableAmount,
+      taskProgress: buildUserTaskProgress(normalizedUserData),
+      summary: {
+        availableAmount,
+        totalBalance: roundMoney(balance + holdAmount),
+        isFrozen: Boolean(normalizedUserData.isFrozen),
+      },
+    });
+  } catch (error) {
+    console.error('Financial summary error:', error);
+    return c.json({ error: 'Failed to fetch financial summary' }, 500);
+  }
+});
+
 // Get user data endpoint
 app.get("/make-server-a1c55d7e/user/:username", async (c) => {
   try {
@@ -2088,23 +2144,7 @@ app.get("/make-server-a1c55d7e/user/:username", async (c) => {
     if (!requestedUsername) {
       return c.json({ error: 'Invalid username' }, 400);
     }
-    const canonicalUsername = (await resolveCanonicalUsername(requestedUsername)) ?? requestedUsername;
-    const userKey = `user:${canonicalUsername}`;
-
-    const normalizedUserData = await getOrCreateUserRecord(canonicalUsername);
-    await assignUsernameLookup(canonicalUsername);
-    
-    // Check if we need to reset daily tasks
-    const today = new Date().toISOString().split('T')[0];
-    if (normalizedUserData.lastReset !== today) {
-      normalizedUserData.tasksCompleted = 0;
-      normalizedUserData.tasksCompletedInSet = 0;
-      normalizedUserData.completedTaskSets = 0;
-      normalizedUserData.pendingTaskReset = false;
-      normalizedUserData.todayCommission = 0;
-      normalizedUserData.lastReset = today;
-      await kv.set(userKey, normalizedUserData);
-    }
+    const { normalizedUserData } = await getUserRecordWithDailyReset(requestedUsername);
 
     return c.json(normalizedUserData);
   } catch (error) {

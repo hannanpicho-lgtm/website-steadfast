@@ -10,6 +10,7 @@ import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 import { fetchPublicRewardsConfig, type RewardsConfig, defaultRewardsConfig } from '../services/rewardsConfig';
+import { fetchFinancialSummary } from '../services/financialReadModel';
 
 interface UserData {
   username: string;
@@ -128,17 +129,7 @@ export default function Starting() {
   }, [location.pathname, navigate, sessionUsername]);
 
   const fetchUserByName = async (name: string) => {
-    const response = await fetch(`${serverUrl}/user/${name}`, {
-      headers: {
-        'Authorization': `Bearer ${publicAnonKey}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch user data');
-    }
-
-    return response.json();
+    return fetchFinancialSummary(name);
   };
 
   const fetchUserData = async () => {

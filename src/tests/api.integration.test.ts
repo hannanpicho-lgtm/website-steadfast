@@ -99,6 +99,25 @@ describe('User endpoints', () => {
     const { status } = await request('/referrals/invalid%3Aname/summary');
     expect(status).toBe(400);
   });
+
+  it('GET /financials/:username/summary returns financial projection shape', async () => {
+    const { status, body } = await request(`/financials/${TEST_USER}/summary`);
+    expect(status).toBe(200);
+    expect(body.username).toBe(TEST_USER);
+    expect(typeof body.balance).toBe('number');
+    expect(typeof body.holdAmount).toBe('number');
+    expect(typeof body.availableAmount).toBe('number');
+    expect(typeof body.todayCommission).toBe('number');
+    expect(typeof body.tasksCompleted).toBe('number');
+    expect(typeof body.tasksLimit).toBe('number');
+    expect(typeof body.taskProgress).toBe('object');
+    expect(typeof body.summary).toBe('object');
+  });
+
+  it('GET /financials/:username/summary returns 400 for invalid username', async () => {
+    const { status } = await request('/financials/invalid%3Aname/summary');
+    expect(status).toBe(400);
+  });
 });
 
 // ─── Submit Task ──────────────────────────────────────────────────────────────

@@ -10,6 +10,7 @@ import { buildLoginRedirectState } from '../services/loginRedirect';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { fetchReferralSummary } from '../services/referralReadModel';
+import { fetchFinancialSummary } from '../services/financialReadModel';
 
 interface UserData {
   username: string;
@@ -54,10 +55,8 @@ export default function Certificate() {
       setLoading(true);
       setError(null);
 
-      const [userRes, txRes, vipConfig, referralSummary] = await Promise.all([
-        fetch(`${serverUrl}/user/${username}`, {
-          headers: { 'Authorization': `Bearer ${publicAnonKey}` },
-        }),
+      const [user, txRes, vipConfig, referralSummary] = await Promise.all([
+        fetchFinancialSummary(username),
         fetch(`${serverUrl}/transactions/${username}`, {
           headers: { 'Authorization': `Bearer ${publicAnonKey}` },
         }),
@@ -65,9 +64,7 @@ export default function Certificate() {
         fetchReferralSummary(username),
       ]);
 
-      if (!userRes.ok) throw new Error('Failed to fetch user data');
-      const user: UserData = await userRes.json();
-      setUserData(user);
+      setUserData(user as unknown as UserData);
       setVipConfigurations(vipConfig);
       setReferralEarnings(Number(referralSummary.referralEarnings ?? 0));
 
