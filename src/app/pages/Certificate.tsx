@@ -9,6 +9,7 @@ import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
+import { fetchReferralSummary } from '../services/referralReadModel';
 
 interface UserData {
   username: string;
@@ -16,7 +17,6 @@ interface UserData {
   balance: number;
   tasksCompleted: number;
   tasksLimit: number;
-  referralEarnings: number;
   todayCommission: number;
   createdAt: string;
 }
@@ -27,6 +27,7 @@ export default function Certificate() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [totalCommission, setTotalCommission] = useState(0);
+  const [referralEarnings, setReferralEarnings] = useState(0);
   const [vipConfigurations, setVipConfigurations] = useState<VipConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +54,7 @@ export default function Certificate() {
       setLoading(true);
       setError(null);
 
-      const [userRes, txRes, vipConfig] = await Promise.all([
+      const [userRes, txRes, vipConfig, referralSummary] = await Promise.all([
         fetch(`${serverUrl}/user/${username}`, {
           headers: { 'Authorization': `Bearer ${publicAnonKey}` },
         }),
@@ -61,12 +62,14 @@ export default function Certificate() {
           headers: { 'Authorization': `Bearer ${publicAnonKey}` },
         }),
         fetchPublicVipConfig(),
+        fetchReferralSummary(username),
       ]);
 
       if (!userRes.ok) throw new Error('Failed to fetch user data');
       const user: UserData = await userRes.json();
       setUserData(user);
       setVipConfigurations(vipConfig);
+      setReferralEarnings(Number(referralSummary.referralEarnings ?? 0));
 
       if (txRes.ok) {
         const txList: Array<{ type: string; amount: number; status: string }> = await txRes.json();
@@ -197,7 +200,7 @@ export default function Certificate() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Referral Earnings</span>
-                <span className="font-bold text-purple-600">${userData.referralEarnings.toFixed(2)}</span>
+                <span className="font-bold text-purple-600">${referralEarnings.toFixed(2)}</span>
               </div>
             </div>
           </>

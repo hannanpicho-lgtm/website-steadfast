@@ -83,6 +83,22 @@ describe('User endpoints', () => {
     expect(status).toBe(200);
     expect(body.username).toBe(TEST_USER);
   });
+
+  it('GET /referrals/:username/summary returns referral projection shape', async () => {
+    const { status, body } = await request(`/referrals/${TEST_USER}/summary`);
+    expect(status).toBe(200);
+    expect(body.username).toBe(TEST_USER);
+    expect(typeof body.referralEarnings).toBe('number');
+    expect(typeof body.referralRate).toBe('number');
+    expect(Array.isArray(body.children)).toBe(true);
+    expect(typeof body.childrenCount).toBe('number');
+    expect(Array.isArray(body.recentEvents)).toBe(true);
+  });
+
+  it('GET /referrals/:username/summary returns 400 for invalid username', async () => {
+    const { status } = await request('/referrals/invalid%3Aname/summary');
+    expect(status).toBe(400);
+  });
 });
 
 // ─── Submit Task ──────────────────────────────────────────────────────────────

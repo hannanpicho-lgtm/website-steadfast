@@ -8,6 +8,7 @@ import profileImage from '../../assets/3df251a778530e24e8d83eda03085a2dc309c248.
 import { getCurrentUsername, logoutCurrentUser } from '../services/referralSystem';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { changeUserCredentials, isPasswordChangeRequired } from '../services/serverAuth';
+import { fetchReferralSummary } from '../services/referralReadModel';
 
 export default function Profile() {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -39,14 +40,18 @@ export default function Profile() {
 
     const load = async () => {
       try {
-        const res = await fetch(`${serverUrl}/user/${username}`, {
-          headers: { Authorization: `Bearer ${publicAnonKey}` },
-        });
-        if (!res.ok) return;
-        const data = await res.json().catch(() => ({}));
+        const [userRes, referralSummary] = await Promise.all([
+          fetch(`${serverUrl}/user/${username}`, {
+            headers: { Authorization: `Bearer ${publicAnonKey}` },
+          }),
+          fetchReferralSummary(username),
+        ]);
+
+        if (!userRes.ok) return;
+        const data = await userRes.json().catch(() => ({}));
         setTodayProfit(Number(data.todayCommission ?? 0));
-        setTotalCommission(Number(data.referralEarnings ?? 0));
-        setReferralCode(String(data.invitationCode ?? 'STF01'));
+        setTotalCommission(Number(referralSummary.referralEarnings ?? 0));
+        setReferralCode(String(referralSummary.invitationCode ?? 'STF01'));
       } catch {
         // silently ignore — values stay at 0
       }
