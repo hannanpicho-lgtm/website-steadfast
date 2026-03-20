@@ -2105,6 +2105,61 @@ app.get('/make-server-a1c55d7e/referrals/:username/summary', async (c) => {
   }
 });
 
+async function buildReferralSummaryResponse(username: string) {
+  const canonicalUsername = (await resolveCanonicalUsername(username)) ?? username;
+  const user = await getOrCreateUserRecord(canonicalUsername);
+  await assignUsernameLookup(canonicalUsername);
+
+  const parentCode = sanitizeInviteCode((user as any).invitedByCode);
+  let parentUsername: string | null = null;
+  if (parentCode) {
+    const lookup = await kv.get(`referral:invite:${parentCode}`);
+    parentUsername = typeof lookup === 'string' && lookup ? lookup : null;
+  }
+
+  const referralEvents = (await kv.getByPrefix('referral:event:'))
+    .map((event) => ({
+      parentUsername: typeof event?.parentUsername === 'string' ? event.parentUsername : null,
+      childUsername: typeof event?.childUsername === 'string' ? event.childUsername : null,
+      type: typeof event?.type === 'string' && event.type ? event.type : 'child_checkin',
+      childCommission: roundMoney(Number(event?.childCommission ?? 0)),
+      parentReward: roundMoney(Number(event?.parentReward ?? 0)),
+      rate: Number(event?.rate ?? REFERRAL_PARENT_RATE),
+      createdAt: typeof event?.createdAt === 'string' ? event.createdAt : new Date().toISOString(),
+    }))
+    .filter((event) => event.parentUsername === canonicalUsername || event.childUsername === canonicalUsername)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 50);
+
+  const children = Array.isArray((user as any).children) ? (user as any).children : [];
+  const referralEarnings = roundMoney(Number((user as any).referralEarnings ?? 0));
+
+  return {
+    username: canonicalUsername,
+    invitationCode: typeof (user as any).invitationCode === 'string' ? (user as any).invitationCode : null,
+    invitedByCode: parentCode,
+    parentUsername,
+    referralRate: REFERRAL_PARENT_RATE,
+    referralEarnings,
+    childrenCount: children.length,
+    children,
+    recentEvents: referralEvents,
+    summary: {
+      totalReferralEarnings: referralEarnings,
+      totalParentRewardsReceived: roundMoney(
+        referralEvents
+          .filter((event) => event.parentUsername === canonicalUsername)
+          .reduce((sum, event) => sum + event.parentReward, 0),
+      ),
+      totalChildCommissionsObserved: roundMoney(
+        referralEvents
+          .filter((event) => event.parentUsername === canonicalUsername)
+          .reduce((sum, event) => sum + event.childCommission, 0),
+      ),
+    },
+  };
+}
+
 async function buildFinancialSummaryResponse(username: string) {
   const { canonicalUsername, normalizedUserData } = await getUserRecordWithDailyReset(username);
 
@@ -2115,75 +2170,6 @@ async function buildFinancialSummaryResponse(username: string) {
   return {
     ...normalizedUserData,
     username: canonicalUsername,
-
-  async function buildReferralSummaryResponse(username: string) {
-    const canonicalUsername = (await resolveCanonicalUsername(username)) ?? username;
-    const user = await getOrCreateUserRecord(canonicalUsername);
-    await assignUsernameLookup(canonicalUsername);
-
-    const parentCode = sanitizeInviteCode((user as any).invitedByCode);
-    let parentUsername: string | null = null;
-    if (parentCode) {
-      const lookup = await kv.get(`referral:invite:${parentCode}`);
-      parentUsername = typeof lookup === 'string' && lookup ? lookup : null;
-    }
-
-    const referralEvents = (await kv.getByPrefix('referral:event:'))
-      .map((event) => ({
-        parentUsername: typeof event?.parentUsername === 'string' ? event.parentUsername : null,
-        childUsername: typeof event?.childUsername === 'string' ? event.childUsername : null,
-        type: typeof event?.type === 'string' && event.type ? event.type : 'child_checkin',
-        childCommission: roundMoney(Number(event?.childCommission ?? 0)),
-        parentReward: roundMoney(Number(event?.parentReward ?? 0)),
-        rate: Number(event?.rate ?? REFERRAL_PARENT_RATE),
-        createdAt: typeof event?.createdAt === 'string' ? event.createdAt : new Date().toISOString(),
-      }))
-      .filter((event) => event.parentUsername === canonicalUsername || event.childUsername === canonicalUsername)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 50);
-
-    const children = Array.isArray((user as any).children) ? (user as any).children : [];
-    const referralEarnings = roundMoney(Number((user as any).referralEarnings ?? 0));
-
-    return {
-      username: canonicalUsername,
-      invitationCode: typeof (user as any).invitationCode === 'string' ? (user as any).invitationCode : null,
-      invitedByCode: parentCode,
-      parentUsername,
-      referralRate: REFERRAL_PARENT_RATE,
-      referralEarnings,
-      childrenCount: children.length,
-      children,
-      recentEvents: referralEvents,
-      summary: {
-        totalReferralEarnings: referralEarnings,
-        totalParentRewardsReceived: roundMoney(
-          referralEvents
-            .filter((event) => event.parentUsername === canonicalUsername)
-            .reduce((sum, event) => sum + event.parentReward, 0),
-        ),
-        totalChildCommissionsObserved: roundMoney(
-          referralEvents
-            .filter((event) => event.parentUsername === canonicalUsername)
-            .reduce((sum, event) => sum + event.childCommission, 0),
-        ),
-      },
-    };
-  }
-
-  app.get('/make-server-a1c55d7e/me/referrals/summary', async (c) => {
-    try {
-      const sessionResult = await requireActiveUserSession(c);
-      if ('response' in sessionResult) {
-        return sessionResult.response;
-      }
-
-      return c.json(await buildReferralSummaryResponse(sessionResult.session.username));
-    } catch (error) {
-      console.error('Session referral summary error:', error);
-      return c.json({ error: 'Failed to fetch referral summary' }, 500);
-    }
-  });
     balance,
     holdAmount,
     availableAmount,
@@ -2191,8 +2177,55 @@ async function buildFinancialSummaryResponse(username: string) {
     summary: {
       availableAmount,
       totalBalance: roundMoney(balance + holdAmount),
+      isFrozen: Boolean(normalizedUserData.isFrozen),
+    },
+  };
+}
 
-      return c.json(await buildReferralSummaryResponse(identity.username));
+app.get('/make-server-a1c55d7e/me/referrals/summary', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    return c.json(await buildReferralSummaryResponse(sessionResult.session.username));
+  } catch (error) {
+    console.error('Session referral summary error:', error);
+    return c.json({ error: 'Failed to fetch referral summary' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/financials', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    return c.json(await buildFinancialSummaryResponse(sessionResult.session.username));
+  } catch (error) {
+    console.error('Session financial summary error:', error);
+    return c.json({ error: 'Failed to fetch financial summary' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/balance', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const financialSummary = await buildFinancialSummaryResponse(sessionResult.session.username);
+    return c.json({
+      username: financialSummary.username,
+      balance: financialSummary.balance,
+      holdAmount: financialSummary.holdAmount,
+      availableAmount: financialSummary.availableAmount,
+      totalBalance: financialSummary.summary.totalBalance,
+      isFrozen: financialSummary.summary.isFrozen,
+    });
   } catch (error) {
     console.error('Session balance summary error:', error);
     return c.json({ error: 'Failed to fetch balance summary' }, 500);
