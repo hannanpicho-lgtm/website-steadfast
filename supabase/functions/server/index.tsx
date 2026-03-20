@@ -2182,6 +2182,25 @@ async function buildFinancialSummaryResponse(username: string) {
   };
 }
 
+async function buildEarningsSummaryResponse(username: string) {
+  const canonicalUsername = (await resolveCanonicalUsername(username)) ?? username;
+  const userData = await getOrCreateUserRecord(canonicalUsername);
+  const transactions = await listTransactionRecords(canonicalUsername);
+  const completedCommission = roundMoney(
+    transactions
+      .filter((transaction) => transaction.type === 'Commission' && transaction.status === 'Completed')
+      .reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0),
+  );
+
+  return {
+    username: canonicalUsername,
+    todayCommission: roundMoney(Number(userData.todayCommission ?? 0)),
+    referralEarnings: roundMoney(Number(userData.referralEarnings ?? 0)),
+    luckyBonus: roundMoney(Number(userData.luckyBonus ?? 0)),
+    completedCommission,
+  };
+}
+
 app.get('/make-server-a1c55d7e/me/referrals/summary', async (c) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
