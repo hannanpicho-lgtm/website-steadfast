@@ -198,8 +198,8 @@ describe('User endpoints', () => {
     expect(status).toBe(400);
   });
 
-  it('GET /financials/:username/summary returns financial projection shape', async () => {
-    const { status, body } = await requestAsUser(`/financials/${SESSION_USER}/summary`);
+  it('GET /me/financials returns financial projection shape', async () => {
+    const { status, body } = await requestAsUser(`/me/financials`);
     expect(status).toBe(200);
     expect(body.username).toBe(SESSION_USER);
     expect(typeof body.balance).toBe('number');
@@ -212,10 +212,6 @@ describe('User endpoints', () => {
     expect(typeof body.summary).toBe('object');
   });
 
-  it('GET /financials/:username/summary returns 400 for invalid username', async () => {
-    const { status } = await requestAsUser('/financials/invalid%3Aname/summary');
-    expect(status).toBe(400);
-  });
 });
 
 // ─── Submit Task ──────────────────────────────────────────────────────────────

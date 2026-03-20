@@ -2280,20 +2280,6 @@ app.get('/make-server-a1c55d7e/me/user', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/financials/:username/summary', async (c) => {
-  try {
-    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
-    if ('response' in identity) {
-      return identity.response;
-    }
-
-    return c.json(await buildFinancialSummaryResponse(identity.username));
-  } catch (error) {
-    console.error('Financial summary error:', error);
-    return c.json({ error: 'Failed to fetch financial summary' }, 500);
-  }
-});
-
 // Get wallet data endpoint
 app.get('/make-server-a1c55d7e/me/wallet', async (c) => {
   try {
