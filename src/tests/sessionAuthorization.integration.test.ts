@@ -65,10 +65,8 @@ describe('Session-bound authorization', () => {
   it('rejects cross-user support data access with 403', async () => {
     const cookie = await loginAndGetSessionCookie();
 
-    const ticketsRes = await requestWithCookie(`/cs/tickets/${OTHER_USER}`, cookie);
     const chatRes = await requestWithCookie(`/cs/chat/${OTHER_USER}`, cookie);
 
-    expect(ticketsRes.status).toBe(403);
     expect(chatRes.status).toBe(403);
   });
 

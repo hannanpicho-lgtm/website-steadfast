@@ -146,8 +146,8 @@ async function testTickets() {
     return b?.success === true && typeof b?.ticket?.id === 'string';
   });
 
-  const r3 = await call('GET', `/cs/tickets/${TEST_USER}`);
-  check('GET /cs/tickets/:username → array with ticket', r3, 200, b =>
+  const r3 = await call('GET', '/me/support');
+  check('GET /me/support → array with ticket', r3, 200, b =>
     Array.isArray(b) && b.some(t => t.subject === 'Smoke test ticket'),
   );
 

@@ -468,8 +468,8 @@ describe('Support tickets', () => {
     createdTicketId = body.ticket.id;
   });
 
-  it('GET /cs/tickets/:username returns the created ticket', async () => {
-    const { status, body } = await requestAsUser(`/cs/tickets/${SESSION_USER}`);
+  it('GET /me/support returns the created ticket', async () => {
+    const { status, body } = await requestAsUser('/me/support');
     expect(status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
     expect(body.some((t: { subject: string }) => t.subject === 'Audit test ticket')).toBe(true);
@@ -799,11 +799,6 @@ describe('Input sanitization', () => {
 
   it('GET /premium/:username → 400 for KV-injection username', async () => {
     const { status } = await requestAsUser(`/premium/${INJECTED}`);
-    expect(status).toBe(400);
-  });
-
-  it('GET /cs/tickets/:username → 400 for KV-injection username', async () => {
-    const { status } = await requestAsUser(`/cs/tickets/${INJECTED}`);
     expect(status).toBe(400);
   });
 

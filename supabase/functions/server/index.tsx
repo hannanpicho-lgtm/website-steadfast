@@ -4323,36 +4323,6 @@ app.post("/make-server-a1c55d7e/cs/create-ticket", async (c) => {
   }
 });
 
-// Get user tickets
-app.get("/make-server-a1c55d7e/cs/tickets/:username", async (c) => {
-  try {
-    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
-    if ('response' in identity) {
-      return identity.response;
-    }
-    const username = identity.username;
-    const userTicketsKey = `user:${username}:tickets`;
-    
-    const ticketIds = await kv.get(userTicketsKey) || [];
-    
-    const tickets = [];
-    for (const ticketId of ticketIds) {
-      const ticket = await kv.get(`ticket:${ticketId}`);
-      if (ticket) {
-        tickets.push(ticket);
-      }
-    }
-    
-    // Sort by created date descending
-    tickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    
-    return c.json(tickets);
-  } catch (error) {
-    console.error('Error fetching user tickets:', error);
-    return c.json({ error: 'Failed to fetch user tickets' }, 500);
-  }
-});
-
 // Get all tickets (admin)
 app.get("/make-server-a1c55d7e/cs/admin/tickets", async (c) => {
   try {
