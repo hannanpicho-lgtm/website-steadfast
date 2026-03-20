@@ -151,7 +151,8 @@ export default function Support() {
       if (!silent) {
         setLoading(true);
       }
-      const response = await fetch(`${serverUrl}/cs/tickets/${username}`, {
+      const response = await fetch(`${serverUrl}/me/support`, {
+        credentials: 'include',
         headers: {
           'Authorization': `Bearer ${publicAnonKey}`,
         },

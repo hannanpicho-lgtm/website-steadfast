@@ -212,4 +212,122 @@ describe('Session-bound authorization', () => {
     expect(linkUserRes.status).toBe(400);
     expect(String(linkUserRes.body?.error ?? '')).toContain('invitationCode and parentInviteCode are required');
   });
+
+  // ── /me/support* negative tests ───────────────────────────────────────────
+
+  it('rejects GET /me/support without a session with 401', async () => {
+    const res = await fetch(`${BASE}/me/support`, {
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: ANON_KEY,
+        Authorization: `Bearer ${ANON_KEY}`,
+      },
+    });
+    const body = await res.json().catch(() => null);
+    expect(res.status).toBe(401);
+    expect(body?.error).toBeTruthy();
+  });
+
+  it('rejects POST /me/support/create without a session with 401', async () => {
+    const res = await fetch(`${BASE}/me/support/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: ANON_KEY,
+        Authorization: `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({ subject: 'Test', message: 'Test msg', category: 'general' }),
+    });
+    const body = await res.json().catch(() => null);
+    expect(res.status).toBe(401);
+    expect(body?.error).toBeTruthy();
+  });
+
+  it('rejects POST /me/support/reply without a session with 401', async () => {
+    const res = await fetch(`${BASE}/me/support/reply`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: ANON_KEY,
+        Authorization: `Bearer ${ANON_KEY}`,
+      },
+      body: JSON.stringify({ ticketId: 'ticket_fake', message: 'Reply msg' }),
+    });
+    const body = await res.json().catch(() => null);
+    expect(res.status).toBe(401);
+    expect(body?.error).toBeTruthy();
+  });
+
+  it('ignores injected username in /me/support/create body and uses session identity', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    // Body contains a username field that should be completely ignored
+    const createRes = await requestWithCookie('/me/support/create', cookie, {
+      method: 'POST',
+      body: JSON.stringify({
+        username: OTHER_USER,
+        subject: 'Session identity test',
+        message: 'Username in body must be ignored',
+        category: 'general',
+        priority: 'low',
+      }),
+    });
+
+    // Ticket is created successfully (not rejected) and owned by SESSION_USER
+    expect(createRes.status).toBe(200);
+    expect(createRes.body?.success).toBe(true);
+    expect(createRes.body?.ticket?.username).toBe(SESSION_USER);
+  });
+
+  it('returns 404 when /me/support/reply targets a non-existent ticket', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const replyRes = await requestWithCookie('/me/support/reply', cookie, {
+      method: 'POST',
+      body: JSON.stringify({
+        ticketId: 'ticket_nonexistent_me_support_pilot',
+        message: 'Should hit 404',
+      }),
+    });
+
+    expect(replyRes.status).toBe(404);
+    expect(String(replyRes.body?.error ?? '')).toContain('Ticket not found');
+  });
+
+  it('full cycle: create ticket via /me/support/create, fetch via GET /me/support, reply via /me/support/reply', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    // Create
+    const createRes = await requestWithCookie('/me/support/create', cookie, {
+      method: 'POST',
+      body: JSON.stringify({
+        subject: 'Phase 3 pilot ticket',
+        message: 'Initial message for pilot test',
+        category: 'general',
+        priority: 'high',
+      }),
+    });
+    expect(createRes.status).toBe(200);
+    expect(createRes.body?.success).toBe(true);
+    const ticketId = createRes.body?.ticket?.id;
+    expect(typeof ticketId).toBe('string');
+    expect(createRes.body?.ticket?.username).toBe(SESSION_USER);
+
+    // Fetch
+    const fetchRes = await requestWithCookie('/me/support', cookie);
+    expect(fetchRes.status).toBe(200);
+    expect(Array.isArray(fetchRes.body)).toBe(true);
+    const found = (fetchRes.body as any[]).find((t: any) => t.id === ticketId);
+    expect(found).toBeTruthy();
+
+    // Reply
+    const replyRes = await requestWithCookie('/me/support/reply', cookie, {
+      method: 'POST',
+      body: JSON.stringify({ ticketId, message: 'Follow-up reply from pilot test' }),
+    });
+    expect(replyRes.status).toBe(200);
+    expect(replyRes.body?.success).toBe(true);
+    expect(replyRes.body?.ticket?.responses).toHaveLength(1);
+    expect(replyRes.body?.ticket?.responses[0]?.respondedBy).toBe(SESSION_USER);
+  });
 });

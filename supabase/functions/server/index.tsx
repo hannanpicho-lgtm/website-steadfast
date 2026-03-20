@@ -5468,4 +5468,133 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials
   }
 });
 
+// ==================== SESSION-NATIVE /me/support ENDPOINTS ====================
+
+// GET /me/support – fetch tickets for the session-authenticated user (no username in request)
+app.get('/make-server-a1c55d7e/me/support', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+    const username = sessionResult.session.username;
+
+    const userTicketsKey = `user:${username}:tickets`;
+    const ticketIds = await kv.get(userTicketsKey) || [];
+
+    const tickets = [];
+    for (const ticketId of ticketIds) {
+      const ticket = await kv.get(`ticket:${ticketId}`);
+      if (ticket) {
+        tickets.push(ticket);
+      }
+    }
+
+    tickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return c.json(tickets);
+  } catch (error) {
+    console.error('Error fetching session user tickets:', error);
+    return c.json({ error: 'Failed to fetch tickets' }, 500);
+  }
+});
+
+// POST /me/support/create – create a ticket as the session-authenticated user
+app.post('/make-server-a1c55d7e/me/support/create', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:create-ticket');
+    if (rateLimited) return rateLimited;
+
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+    const username = sessionResult.session.username;
+
+    const body = await c.req.json();
+    const subject = typeof body?.subject === 'string' ? body.subject.trim() : '';
+    const message = typeof body?.message === 'string' ? body.message.trim() : '';
+    const category = typeof body?.category === 'string' ? body.category.trim() : '';
+    const priority = typeof body?.priority === 'string' ? body.priority.trim() : 'medium';
+
+    if (!subject || !message || !category) {
+      return c.json({ error: 'Missing required fields' }, 400);
+    }
+
+    const ticketId = `ticket_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const ticket = {
+      id: ticketId,
+      username,
+      subject,
+      message,
+      category,
+      priority,
+      status: 'open',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      responses: [],
+      assignedTo: null,
+    };
+
+    await kv.set(`ticket:${ticketId}`, ticket);
+
+    const userTicketsKey = `user:${username}:tickets`;
+    const userTickets = await kv.get(userTicketsKey) || [];
+    userTickets.push(ticketId);
+    await kv.set(userTicketsKey, userTickets);
+
+    return c.json({ success: true, ticket });
+  } catch (error) {
+    console.error('Error creating session user ticket:', error);
+    return c.json({ error: 'Failed to create ticket' }, 500);
+  }
+});
+
+// POST /me/support/reply – reply to a ticket owned by the session-authenticated user
+app.post('/make-server-a1c55d7e/me/support/reply', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+    const username = sessionResult.session.username;
+
+    const body = await c.req.json();
+    const ticketId = typeof body?.ticketId === 'string' ? body.ticketId.trim() : '';
+    const message = typeof body?.message === 'string' ? body.message.trim() : '';
+
+    if (!ticketId || !message) {
+      return c.json({ error: 'Missing required fields' }, 400);
+    }
+
+    const ticketKey = `ticket:${ticketId}`;
+    const ticket = await kv.get(ticketKey);
+
+    if (!ticket) {
+      return c.json({ error: 'Ticket not found' }, 404);
+    }
+
+    if (ticket.username !== username) {
+      return c.json({ error: 'Forbidden: ticket does not belong to the active session' }, 403);
+    }
+
+    const response = {
+      id: `response_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      message,
+      respondedBy: username,
+      isAdmin: false,
+      createdAt: new Date().toISOString(),
+    };
+
+    ticket.responses.push(response);
+    ticket.updatedAt = new Date().toISOString();
+    await kv.set(ticketKey, ticket);
+
+    return c.json({ success: true, ticket });
+  } catch (error) {
+    console.error('Error replying to ticket:', error);
+    return c.json({ error: 'Failed to reply to ticket' }, 500);
+  }
+});
+
 Deno.serve(app.fetch);
