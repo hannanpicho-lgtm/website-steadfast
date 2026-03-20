@@ -265,6 +265,7 @@ export default function Support() {
     try {
       const response = await fetch(`${serverUrl}/cs/respond`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
@@ -272,7 +273,6 @@ export default function Support() {
         body: JSON.stringify({
           ticketId,
           message: replyMessage,
-          respondedBy: username,
           isAdmin: false,
         }),
       });

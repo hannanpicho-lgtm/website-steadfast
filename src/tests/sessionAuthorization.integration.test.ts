@@ -76,6 +76,22 @@ describe('Session-bound authorization', () => {
     expect(chatRes.status).toBe(403);
   });
 
+  it('allows /cs/respond to derive respondedBy from the active session when omitted', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const respondRes = await requestWithCookie('/cs/respond', cookie, {
+      method: 'POST',
+      body: JSON.stringify({
+        ticketId: 'ticket_nonexistent_for_session_authority_check',
+        message: 'Session identity should be used when respondedBy is omitted',
+        isAdmin: false,
+      }),
+    });
+
+    expect(respondRes.status).toBe(404);
+    expect(String(respondRes.body?.error ?? '')).toContain('Ticket not found');
+  });
+
   it('rejects cross-user POST mutations with 403', async () => {
     const cookie = await loginAndGetSessionCookie();
 
