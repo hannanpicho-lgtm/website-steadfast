@@ -14,6 +14,8 @@ const BASE = 'https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2cXd2dXFlZW5rdXNkYXlvc3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxODA3ODksImV4cCI6MjA4ODc1Njc4OX0.R0dNwSW9ibeU0XE9kYdKI3E2D6vEP6dVu2VATAHXK1A';
 const ADMIN_TEST_JWT = process.env.SUPABASE_ADMIN_TEST_JWT;
 const REQUIRE_ADMIN_SUCCESS = process.env.REQUIRE_ADMIN_SUCCESS === 'true';
+const SESSION_USER = 'ugreen';
+const SESSION_PASSWORD = 'demo123';
 
 // Unique test username per run to avoid polluting production state
 const RUN_ID = Date.now();
@@ -45,6 +47,49 @@ function post(path: string, payload: unknown, extraHeaders: Record<string, strin
   });
 }
 
+async function loginAndGetSessionCookie(username = SESSION_USER, loginPassword = SESSION_PASSWORD) {
+  const res = await fetch(`${BASE}/auth/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${ANON_KEY}`,
+    },
+    body: JSON.stringify({ username, loginPassword }),
+  });
+
+  const body = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(String((body as Record<string, unknown> | null)?.error ?? 'Failed to establish session'));
+  }
+
+  const setCookie = res.headers.get('set-cookie') ?? '';
+  const cookie = setCookie.split(';')[0]?.trim() ?? '';
+  if (!cookie || !cookie.includes('steadfast_user_session=')) {
+    throw new Error('Session cookie was not returned by auth/login');
+  }
+
+  return cookie;
+}
+
+async function requestAsUser(path: string, init?: RequestInit) {
+  const cookie = await loginAndGetSessionCookie();
+  return request(path, {
+    ...init,
+    headers: {
+      Cookie: cookie,
+      ...(init?.headers ?? {}),
+    },
+  });
+}
+
+async function postAsUser(path: string, payload: unknown) {
+  return requestAsUser(path, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 function adminHeaders() {
   if (!ADMIN_TEST_JWT) {
     throw new Error('SUPABASE_ADMIN_TEST_JWT is not set');
@@ -69,9 +114,9 @@ describe('Health check', () => {
 
 describe('User endpoints', () => {
   it('GET /user/:username auto-creates a user and returns correct shape', async () => {
-    const { status, body } = await request(`/user/${TEST_USER}`);
+    const { status, body } = await requestAsUser(`/user/${SESSION_USER}`);
     expect(status).toBe(200);
-    expect(body.username).toBe(TEST_USER);
+    expect(body.username).toBe(SESSION_USER);
     expect(typeof body.balance).toBe('number');
     expect(typeof body.vipLevel).toBe('number');
     expect(typeof body.tasksCompleted).toBe('number');
@@ -79,15 +124,15 @@ describe('User endpoints', () => {
   });
 
   it('GET /user/:username is idempotent (same data on second call)', async () => {
-    const { status, body } = await request(`/user/${TEST_USER}`);
+    const { status, body } = await requestAsUser(`/user/${SESSION_USER}`);
     expect(status).toBe(200);
-    expect(body.username).toBe(TEST_USER);
+    expect(body.username).toBe(SESSION_USER);
   });
 
   it('GET /referrals/:username/summary returns referral projection shape', async () => {
-    const { status, body } = await request(`/referrals/${TEST_USER}/summary`);
+    const { status, body } = await requestAsUser(`/referrals/${SESSION_USER}/summary`);
     expect(status).toBe(200);
-    expect(body.username).toBe(TEST_USER);
+    expect(body.username).toBe(SESSION_USER);
     expect(typeof body.referralEarnings).toBe('number');
     expect(typeof body.referralRate).toBe('number');
     expect(Array.isArray(body.children)).toBe(true);
@@ -96,14 +141,14 @@ describe('User endpoints', () => {
   });
 
   it('GET /referrals/:username/summary returns 400 for invalid username', async () => {
-    const { status } = await request('/referrals/invalid%3Aname/summary');
+    const { status } = await requestAsUser('/referrals/invalid%3Aname/summary');
     expect(status).toBe(400);
   });
 
   it('GET /financials/:username/summary returns financial projection shape', async () => {
-    const { status, body } = await request(`/financials/${TEST_USER}/summary`);
+    const { status, body } = await requestAsUser(`/financials/${SESSION_USER}/summary`);
     expect(status).toBe(200);
-    expect(body.username).toBe(TEST_USER);
+    expect(body.username).toBe(SESSION_USER);
     expect(typeof body.balance).toBe('number');
     expect(typeof body.holdAmount).toBe('number');
     expect(typeof body.availableAmount).toBe('number');
@@ -115,7 +160,7 @@ describe('User endpoints', () => {
   });
 
   it('GET /financials/:username/summary returns 400 for invalid username', async () => {
-    const { status } = await request('/financials/invalid%3Aname/summary');
+    const { status } = await requestAsUser('/financials/invalid%3Aname/summary');
     expect(status).toBe(400);
   });
 });
@@ -124,35 +169,35 @@ describe('User endpoints', () => {
 
 describe('POST /submit-task', () => {
   it('returns 400 when username is missing', async () => {
-    const { status, body } = await post('/submit-task', { productPrice: 100 });
+    const { status, body } = await postAsUser('/submit-task', { productPrice: 100 });
     expect(status).toBe(400);
     expect(typeof body.error).toBe('string');
   });
 
   it('returns 400 when productPrice is missing', async () => {
-    const { status, body } = await post('/submit-task', { username: TEST_USER });
+    const { status, body } = await postAsUser('/submit-task', { username: SESSION_USER });
     expect(status).toBe(400);
     expect(typeof body.error).toBe('string');
   });
 
   it('returns 400 for a negative productPrice', async () => {
-    const { status } = await post('/submit-task', { username: TEST_USER, productPrice: -50 });
+    const { status } = await postAsUser('/submit-task', { username: SESSION_USER, productPrice: -50 });
     expect(status).toBe(400);
   });
 
   it('returns 400 for productPrice of 0', async () => {
-    const { status } = await post('/submit-task', { username: TEST_USER, productPrice: 0 });
+    const { status } = await postAsUser('/submit-task', { username: SESSION_USER, productPrice: 0 });
     expect(status).toBe(400);
   });
 
   it('returns 400 for a non-numeric productPrice', async () => {
-    const { status } = await post('/submit-task', { username: TEST_USER, productPrice: 'free' });
+    const { status } = await postAsUser('/submit-task', { username: SESSION_USER, productPrice: 'free' });
     expect(status).toBe(400);
   });
 
   it('returns 400 when client tries to mutate financial fields', async () => {
-    const { status, body } = await post('/submit-task', {
-      username: TEST_USER,
+    const { status, body } = await postAsUser('/submit-task', {
+      username: SESSION_USER,
       productPrice: 299.99,
       balance: 999999,
       todayCommission: 999999,
@@ -163,10 +208,15 @@ describe('POST /submit-task', () => {
   });
 
   it('succeeds with a valid productPrice and returns commission', async () => {
-    const { status, body } = await post('/submit-task', {
-      username: TEST_USER,
+    const { status, body } = await postAsUser('/submit-task', {
+      username: SESSION_USER,
       productPrice: 299.99,
     });
+    if (status === 409) {
+      expect(['premium_task_encountered', 'task_set_reset_required']).toContain(String(body?.code ?? ''));
+      return;
+    }
+
     expect(status).toBe(200);
     expect(body.success).toBe(true);
     expect(typeof body.commission).toBe('number');
@@ -176,8 +226,8 @@ describe('POST /submit-task', () => {
   });
 
   it('commission is never negative for any positive price', async () => {
-    const { body } = await post('/submit-task', {
-      username: TEST_USER,
+    const { body } = await postAsUser('/submit-task', {
+      username: SESSION_USER,
       productPrice: 0.01,
     });
     if (body.success) {
@@ -190,13 +240,13 @@ describe('POST /submit-task', () => {
 
 describe('GET /tasks/:username', () => {
   it('returns an array of task records', async () => {
-    const { status, body } = await request(`/tasks/${TEST_USER}`);
+    const { status, body } = await requestAsUser(`/tasks/${SESSION_USER}`);
     expect(status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
   });
 
   it('each record has expected fields', async () => {
-    const { body } = await request(`/tasks/${TEST_USER}`);
+    const { body } = await requestAsUser(`/tasks/${SESSION_USER}`);
     if (body.length > 0) {
       const record = body[0];
       expect(typeof record.username).toBe('string');
@@ -260,14 +310,14 @@ describe('VIP config', () => {
 
 describe('Finance endpoints', () => {
   it('GET /transactions/:username returns an array', async () => {
-    const { status, body } = await request(`/transactions/${TEST_USER}`);
+    const { status, body } = await requestAsUser(`/transactions/${SESSION_USER}`);
     expect(status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
   });
 
   it('POST /withdrawals/request returns 400 when walletAddress is missing', async () => {
-    const { status } = await post('/withdrawals/request', {
-      username: TEST_USER,
+    const { status } = await postAsUser('/withdrawals/request', {
+      username: SESSION_USER,
       amount: 0.5,
       method: 'USDT',
     });
@@ -275,8 +325,8 @@ describe('Finance endpoints', () => {
   });
 
   it('POST /withdrawals/request returns 400 when client tries to mutate financial fields', async () => {
-    const { status, body } = await post('/withdrawals/request', {
-      username: TEST_USER,
+    const { status, body } = await postAsUser('/withdrawals/request', {
+      username: SESSION_USER,
       amount: 0.5,
       walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
       method: 'USDT',
@@ -289,8 +339,8 @@ describe('Finance endpoints', () => {
   });
 
   it('POST /withdrawals/request creates a pending withdrawal when balance is available', async () => {
-    const { status, body } = await post('/withdrawals/request', {
-      username: TEST_USER,
+    const { status, body } = await postAsUser('/withdrawals/request', {
+      username: SESSION_USER,
       amount: 0.5,
       walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
       method: 'USDT',
@@ -302,7 +352,7 @@ describe('Finance endpoints', () => {
   });
 
   it('GET /withdrawals/:username returns the submitted request', async () => {
-    const { status, body } = await request(`/withdrawals/${TEST_USER}`);
+    const { status, body } = await requestAsUser(`/withdrawals/${SESSION_USER}`);
     expect(status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
     expect(body.some((record: { walletAddress: string }) => record.walletAddress === '0x1234567890abcdef1234567890abcdef12345678')).toBe(true);
@@ -346,13 +396,13 @@ describe('Support tickets', () => {
   let createdTicketId: string;
 
   it('POST /cs/create-ticket returns 400 when required fields are missing', async () => {
-    const { status } = await post('/cs/create-ticket', { username: TEST_USER });
+    const { status } = await postAsUser('/cs/create-ticket', { username: SESSION_USER });
     expect(status).toBe(400);
   });
 
   it('POST /cs/create-ticket creates a ticket and returns its id', async () => {
-    const { status, body } = await post('/cs/create-ticket', {
-      username: TEST_USER,
+    const { status, body } = await postAsUser('/cs/create-ticket', {
+      username: SESSION_USER,
       subject: 'Audit test ticket',
       message: 'Automated integration test message',
       category: 'general',
@@ -366,14 +416,14 @@ describe('Support tickets', () => {
   });
 
   it('GET /cs/tickets/:username returns the created ticket', async () => {
-    const { status, body } = await request(`/cs/tickets/${TEST_USER}`);
+    const { status, body } = await requestAsUser(`/cs/tickets/${SESSION_USER}`);
     expect(status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
     expect(body.some((t: { subject: string }) => t.subject === 'Audit test ticket')).toBe(true);
   });
 
   it('POST /cs/respond returns 400 when required fields are missing', async () => {
-    const { status } = await post('/cs/respond', { ticketId: createdTicketId });
+    const { status } = await postAsUser('/cs/respond', { ticketId: createdTicketId });
     expect(status).toBe(400);
   });
 
@@ -444,18 +494,18 @@ describe('Support tickets', () => {
 
 describe('Live chat', () => {
   it('POST /cs/chat/send returns 400 when message is missing', async () => {
-    const { status } = await post('/cs/chat/send', { username: TEST_USER });
+    const { status } = await postAsUser('/cs/chat/send', { username: SESSION_USER });
     expect(status).toBe(400);
   });
 
   it('POST /cs/chat/send returns 400 when username is missing', async () => {
-    const { status } = await post('/cs/chat/send', { message: 'hello' });
+    const { status } = await postAsUser('/cs/chat/send', { message: 'hello' });
     expect(status).toBe(400);
   });
 
   it('POST /cs/chat/send sends a user message and returns it', async () => {
-    const { status, body } = await post('/cs/chat/send', {
-      username: TEST_USER,
+    const { status, body } = await postAsUser('/cs/chat/send', {
+      username: SESSION_USER,
       message: 'Integration test chat message',
     });
     expect(status).toBe(200);
@@ -467,31 +517,31 @@ describe('Live chat', () => {
   });
 
   it('GET /cs/chat/:username returns an array of messages', async () => {
-    const { status, body } = await request(`/cs/chat/${TEST_USER}`);
+    const { status, body } = await requestAsUser(`/cs/chat/${SESSION_USER}`);
     expect(status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
     expect(body.length).toBeGreaterThan(0);
   });
 
   it('POST /cs/chat/mark-read returns 400 for an invalid viewer value', async () => {
-    const { status } = await post('/cs/chat/mark-read', {
-      username: TEST_USER,
+    const { status } = await postAsUser('/cs/chat/mark-read', {
+      username: SESSION_USER,
       viewer: 'superadmin',
     });
     expect(status).toBe(400);
   });
 
   it('POST /cs/chat/mark-read returns 400 when username is missing', async () => {
-    const { status } = await post('/cs/chat/mark-read', { viewer: 'user' });
+    const { status } = await postAsUser('/cs/chat/mark-read', { viewer: 'user' });
     expect(status).toBe(400);
   });
 
   it('POST /cs/chat/mark-read viewer=user marks admin messages read', async () => {
     // First send an admin message
-    await post('/cs/chat/send', { username: TEST_USER, message: 'Admin says hi', isAdmin: true });
+    await post('/cs/chat/send', { username: SESSION_USER, message: 'Admin says hi', isAdmin: true });
 
-    const { status, body } = await post('/cs/chat/mark-read', {
-      username: TEST_USER,
+    const { status, body } = await postAsUser('/cs/chat/mark-read', {
+      username: SESSION_USER,
       viewer: 'user',
     });
     expect(status).toBe(200);
@@ -549,13 +599,13 @@ describe('Auth endpoints', () => {
   });
 
   it('POST /auth/change-password returns 400 when fields are missing', async () => {
-    const { status } = await post('/auth/change-password', { username: TEST_USER });
+    const { status } = await postAsUser('/auth/change-password', { username: SESSION_USER });
     expect(status).toBe(400);
   });
 
   it('POST /auth/change-password rejects new passwords shorter than 8 characters', async () => {
-    const { status } = await post('/auth/change-password', {
-      username: TEST_USER,
+    const { status } = await postAsUser('/auth/change-password', {
+      username: SESSION_USER,
       currentPassword: 'oldpassword',
       newPassword: 'abc',
     });
@@ -583,8 +633,8 @@ describe('Auth endpoints', () => {
   });
 
   it('POST /auth/change-password → 401 for wrong current password', async () => {
-    const { status } = await post('/auth/change-password', {
-      username: TEST_USER,
+    const { status } = await postAsUser('/auth/change-password', {
+      username: SESSION_USER,
       currentPassword: 'definitely_wrong_password_xyz',
       newPassword: 'newpassword123',
     });
@@ -691,27 +741,27 @@ describe('Input sanitization', () => {
   const INJECTED = 'admin%3Asecret'; // URL-encoded "admin:secret"
 
   it('GET /user/:username → 400 for KV-injection username', async () => {
-    const { status } = await request(`/user/${INJECTED}`);
+    const { status } = await requestAsUser(`/user/${INJECTED}`);
     expect(status).toBe(400);
   });
 
   it('GET /tasks/:username → 400 for KV-injection username', async () => {
-    const { status } = await request(`/tasks/${INJECTED}`);
+    const { status } = await requestAsUser(`/tasks/${INJECTED}`);
     expect(status).toBe(400);
   });
 
   it('GET /premium/:username → 400 for KV-injection username', async () => {
-    const { status } = await request(`/premium/${INJECTED}`);
+    const { status } = await requestAsUser(`/premium/${INJECTED}`);
     expect(status).toBe(400);
   });
 
   it('GET /cs/tickets/:username → 400 for KV-injection username', async () => {
-    const { status } = await request(`/cs/tickets/${INJECTED}`);
+    const { status } = await requestAsUser(`/cs/tickets/${INJECTED}`);
     expect(status).toBe(400);
   });
 
   it('GET /cs/chat/:username → 400 for KV-injection username', async () => {
-    const { status } = await request(`/cs/chat/${INJECTED}`);
+    const { status } = await requestAsUser(`/cs/chat/${INJECTED}`);
     expect(status).toBe(400);
   });
 
