@@ -168,6 +168,22 @@ async function testTaskRecords() {
   check('GET /me/tasks — returns array', r, 200, b => Array.isArray(b));
 }
 
+async function testTransactions() {
+  console.log('\n[Transactions]');
+
+  const legacy = await call('GET', `/transactions/${TEST_USER}`);
+  check('GET /transactions/:username — retired route returns 404', legacy, 404);
+
+  const noSession = await call('GET', '/me/transactions');
+  check('GET /me/transactions — no session rejected', noSession, 401);
+
+  const sessionRead = await callAsUser('GET', '/me/transactions');
+  check('GET /me/transactions — session user returns array', sessionRead, 200, b => Array.isArray(b));
+
+  const injected = await callAsUser('GET', '/me/transactions?username=admin');
+  check('GET /me/transactions?username=admin — injected username ignored', injected, 200, b => Array.isArray(b));
+}
+
 async function testSupportLinks() {
   console.log('\n[Support Links]');
 
@@ -375,6 +391,7 @@ try {
   await testUserEndpoints();
   await testSubmitTask();
   await testTaskRecords();
+  await testTransactions();
   await testSupportLinks();
   await testTickets();
   await testChat();
