@@ -1,12 +1,8 @@
 /**
  * Server-backed user authentication service.
  *
- * Replaces the unreliable localStorage-only credential lookup with
- * server-side verification so logins persist across domain switches,
- * cache clears, and redeployments.
- *
- * Token format: base64url(payload_json) + "." + base64url(hmac_sha256)
- * Payload: { u: username, e: expiresAt (unix ms) }
+ * Auth authority lives on the backend via httpOnly cookie-backed sessions.
+ * Frontend keeps only ephemeral in-memory identity markers.
  */
 
 import { projectId, publicAnonKey } from '@utils/supabase/info';
@@ -14,61 +10,43 @@ import { projectId, publicAnonKey } from '@utils/supabase/info';
 const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 const SESSION_TOKEN_KEY = 'steadfast_user_session_token_v1';
 const MUST_CHANGE_PASSWORD_KEY = 'steadfast_force_password_change_v1';
+const LEGACY_CURRENT_USER_KEY = 'steadfast_current_user_v1';
+
+let sessionUsernameCache: string | null = null;
+let mustChangePasswordCache = false;
 
 // ── Token storage ────────────────────────────────────────────────────────────
 
 export function storeSessionToken(token: string, username: string, mustChangePassword = false): void {
-  sessionStorage.setItem(SESSION_TOKEN_KEY, token);
-  // Legacy key cleanup: username is now derived from the signed session token payload.
-  localStorage.removeItem('steadfast_current_user_v1');
-  localStorage.removeItem(SESSION_TOKEN_KEY); // migrate any pre-existing localStorage token out
-  if (mustChangePassword) {
-    sessionStorage.setItem(MUST_CHANGE_PASSWORD_KEY, '1');
-  } else {
-    sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
-  }
+  sessionUsernameCache = username.trim() || null;
+  mustChangePasswordCache = mustChangePassword;
+
+  // Legacy key cleanup: auth authority is now backend session + in-memory cache.
+  sessionStorage.removeItem(SESSION_TOKEN_KEY);
+  sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
+  localStorage.removeItem(SESSION_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_CURRENT_USER_KEY);
 }
 
 export function clearSessionToken(): void {
+  sessionUsernameCache = null;
+  mustChangePasswordCache = false;
   sessionStorage.removeItem(SESSION_TOKEN_KEY);
-  localStorage.removeItem(SESSION_TOKEN_KEY); // clean up any legacy localStorage token
-  localStorage.removeItem('steadfast_current_user_v1');
+  localStorage.removeItem(SESSION_TOKEN_KEY);
+  localStorage.removeItem(LEGACY_CURRENT_USER_KEY);
   sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
 }
 
 export function getStoredSessionToken(): string | null {
-  return sessionStorage.getItem(SESSION_TOKEN_KEY);
+  return null;
 }
 
 export function isPasswordChangeRequired(): boolean {
-  return sessionStorage.getItem(MUST_CHANGE_PASSWORD_KEY) === '1';
-}
-
-function parseTokenPayload(token: string): Record<string, unknown> | null {
-  const [payloadPart] = token.split('.');
-  if (!payloadPart) {
-    return null;
-  }
-
-  try {
-    const normalized = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
-    const decoded = atob(padded);
-    return JSON.parse(decoded) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
+  return mustChangePasswordCache;
 }
 
 export function getSessionUsername(): string | null {
-  const token = getStoredSessionToken();
-  if (!token) {
-    return null;
-  }
-
-  const payload = parseTokenPayload(token);
-  const username = typeof payload?.u === 'string' ? payload.u.trim() : '';
-  return username || null;
+  return sessionUsernameCache;
 }
 
 // ── Server login ─────────────────────────────────────────────────────────────
@@ -102,6 +80,7 @@ export async function serverLogin(
   try {
     const res = await fetch(`${SERVER_URL}/auth/login`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${publicAnonKey}`,
@@ -115,14 +94,12 @@ export async function serverLogin(
       return { ok: false, error: String(data?.error ?? 'Invalid username or password.') };
     }
 
-    const token = String(data.token ?? '');
     const returnedUsername = String(data.username ?? username.trim());
     const mustChangePassword = Boolean(data.mustChangePassword);
 
-    storeSessionToken(token, returnedUsername, mustChangePassword);
+    storeSessionToken('', returnedUsername, mustChangePassword);
     return { ok: true, username: returnedUsername, mustChangePassword };
   } catch {
-    // Network failure — caller should fall back to localStorage
     return { ok: false, error: 'Server unreachable.', serverDown: true };
   }
 }
@@ -165,17 +142,14 @@ export async function serverSignup(payload: ServerSignupPayload): Promise<Server
  * Returns the username if valid, null otherwise.
  */
 export async function verifyAndRestoreSession(): Promise<string | null> {
-  const token = getStoredSessionToken();
-  if (!token) return null;
-
   try {
-    const res = await fetch(`${SERVER_URL}/auth/verify-token`, {
+    const res = await fetch(`${SERVER_URL}/auth/session/restore`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${publicAnonKey}`,
       },
-      body: JSON.stringify({ token }),
     });
 
     if (!res.ok) {
@@ -190,15 +164,27 @@ export async function verifyAndRestoreSession(): Promise<string | null> {
       return null;
     }
 
-    localStorage.removeItem('steadfast_current_user_v1');
-    if (Boolean(data.mustChangePassword)) {
-      sessionStorage.setItem(MUST_CHANGE_PASSWORD_KEY, '1');
-    } else {
-      sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
-    }
+    storeSessionToken('', username, Boolean(data.mustChangePassword));
     return username;
   } catch {
+    clearSessionToken();
     return null;
+  }
+}
+
+export async function serverLogout(): Promise<void> {
+  try {
+    await fetch(`${SERVER_URL}/auth/session/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${publicAnonKey}`,
+      },
+    });
+  } catch {
+    // Best effort logout.
+  } finally {
+    clearSessionToken();
   }
 }
 
@@ -207,20 +193,19 @@ export async function changeUserCredentials(params: {
   newLoginPassword?: string;
   newTransactionPassword?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const token = getStoredSessionToken();
-  if (!token) {
+  if (!sessionUsernameCache) {
     return { ok: false, error: 'You are not signed in.' };
   }
 
   try {
     const res = await fetch(`${SERVER_URL}/auth/change-credentials`, {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${publicAnonKey}`,
       },
       body: JSON.stringify({
-        token,
         currentLoginPassword: params.currentLoginPassword,
         newLoginPassword: params.newLoginPassword ?? '',
         newTransactionPassword: params.newTransactionPassword ?? '',
@@ -232,7 +217,7 @@ export async function changeUserCredentials(params: {
       return { ok: false, error: String(data.error ?? 'Failed to update credentials.') };
     }
 
-    sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
+    mustChangePasswordCache = false;
     return { ok: true };
   } catch {
     return { ok: false, error: 'Server unreachable.' };

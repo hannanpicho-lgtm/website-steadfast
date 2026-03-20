@@ -26,7 +26,8 @@ app.use('*', logger(console.log));
 app.use(
   "/*",
   cors({
-    origin: "*",
+    origin: (origin) => origin ?? '*',
+    credentials: true,
     allowHeaders: ["Content-Type", "Authorization", "apikey", "x-admin-secret", "x-user-jwt"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
@@ -2122,68 +2123,121 @@ app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
 
 // Login rate limit: max 10 attempts per IP per minute to prevent brute-force
 const LOGIN_RATE_LIMIT_MAX = 10;
+const USER_SESSION_PREFIX = 'user-session:';
+const USER_SESSION_COOKIE_NAME = 'steadfast_user_session';
+const USER_SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
-type UserSessionPayload = { u: string; e: number };
+type UserSessionRecord = {
+  sessionId: string;
+  username: string;
+  mustChangePassword: boolean;
+  issuedAt: string;
+  expiresAt: string;
+  lastSeenAt: string;
+  revokedAt?: string;
+};
 
-async function signUserSessionToken(payload: UserSessionPayload): Promise<string> {
-  const jwtSecret = Deno.env.get('USER_JWT_SECRET') ?? 'steadfast-user-session-secret-change-me';
-  const payloadJson = JSON.stringify(payload);
-  const payloadB64 = btoa(payloadJson).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+function parseCookies(headerValue: string | null | undefined): Record<string, string> {
+  if (!headerValue) {
+    return {};
+  }
 
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(jwtSecret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const sigBuffer = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payloadB64));
-  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sigBuffer)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-
-  return `${payloadB64}.${sigB64}`;
+  const cookies: Record<string, string> = {};
+  for (const item of headerValue.split(';')) {
+    const [rawKey, ...rawValueParts] = item.trim().split('=');
+    if (!rawKey) {
+      continue;
+    }
+    const key = rawKey.trim();
+    const value = rawValueParts.join('=').trim();
+    if (!key) {
+      continue;
+    }
+    cookies[key] = decodeURIComponent(value);
+  }
+  return cookies;
 }
 
-async function verifyUserSessionToken(token: string): Promise<UserSessionPayload | null> {
-  const dotIndex = token.lastIndexOf('.');
-  if (dotIndex < 1) {
+function buildSessionCookieValue(sessionId: string, maxAgeSeconds = USER_SESSION_MAX_AGE_SECONDS): string {
+  return `${USER_SESSION_COOKIE_NAME}=${encodeURIComponent(sessionId)}; Path=/; Max-Age=${maxAgeSeconds}; HttpOnly; Secure; SameSite=None`;
+}
+
+function buildSessionClearCookieValue(): string {
+  return `${USER_SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=None`;
+}
+
+async function createUserSession(username: string, mustChangePassword: boolean): Promise<UserSessionRecord> {
+  const sessionId = crypto.randomUUID();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + USER_SESSION_MAX_AGE_SECONDS * 1000);
+  const record: UserSessionRecord = {
+    sessionId,
+    username,
+    mustChangePassword,
+    issuedAt: now.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    lastSeenAt: now.toISOString(),
+  };
+
+  await kv.set(`${USER_SESSION_PREFIX}${sessionId}`, record);
+  return record;
+}
+
+async function revokeUserSession(sessionId: string): Promise<void> {
+  const key = `${USER_SESSION_PREFIX}${sessionId}`;
+  const existing = await kv.get(key);
+  if (!existing) {
+    return;
+  }
+
+  const now = new Date().toISOString();
+  await kv.set(key, {
+    ...existing,
+    revokedAt: now,
+    lastSeenAt: now,
+  });
+}
+
+async function getValidSessionById(sessionId: string): Promise<UserSessionRecord | null> {
+  if (!sessionId) {
     return null;
   }
 
-  const payloadB64 = token.slice(0, dotIndex);
-  const sigB64 = token.slice(dotIndex + 1);
-  const jwtSecret = Deno.env.get('USER_JWT_SECRET') ?? 'steadfast-user-session-secret-change-me';
-
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(jwtSecret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const expectedSigBuffer = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(payloadB64));
-  const expectedSigB64 = btoa(String.fromCharCode(...new Uint8Array(expectedSigBuffer)))
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
-
-  if (sigB64 !== expectedSigB64) {
+  const raw = await kv.get(`${USER_SESSION_PREFIX}${sessionId}`);
+  if (!raw || typeof raw !== 'object') {
     return null;
   }
 
-  try {
-    const padded = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
-    const json = atob(padded + '=='.slice((padded.length + 3) & 3));
-    const payload = JSON.parse(json) as UserSessionPayload;
-    if (!payload?.u || typeof payload?.e !== 'number' || Date.now() > payload.e) {
-      return null;
-    }
-    return payload;
-  } catch {
+  const session = raw as UserSessionRecord;
+  if (session.revokedAt) {
     return null;
   }
+
+  const expiresAtMs = Date.parse(String(session.expiresAt ?? ''));
+  if (!Number.isFinite(expiresAtMs) || Date.now() > expiresAtMs) {
+    return null;
+  }
+
+  const canonicalUsername = await resolveCanonicalUsername(String(session.username ?? ''));
+  if (!canonicalUsername) {
+    return null;
+  }
+
+  if (canonicalUsername !== session.username) {
+    session.username = canonicalUsername;
+  }
+
+  const userData = await kv.get(`user:${canonicalUsername}`);
+  session.mustChangePassword = Boolean((userData as any)?.mustChangePassword);
+  session.lastSeenAt = new Date().toISOString();
+  await kv.set(`${USER_SESSION_PREFIX}${sessionId}`, session);
+  return session;
+}
+
+async function getSessionFromRequest(c: any): Promise<UserSessionRecord | null> {
+  const cookies = parseCookies(c.req.header('cookie'));
+  const sessionId = cookies[USER_SESSION_COOKIE_NAME] ?? '';
+  return getValidSessionById(sessionId);
 }
 
 async function getUniqueReferralInviteCode(): Promise<string> {
@@ -2314,8 +2368,7 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
   }
 });
 
-// POST /auth/login — verifies username + loginPassword against server-stored hashed credentials.
-// Returns a signed session token the client can persist in localStorage.
+// POST /auth/login — verifies username + loginPassword and creates server-backed session.
 app.post('/make-server-a1c55d7e/auth/login', async (c) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:login', LOGIN_RATE_LIMIT_MAX);
@@ -2352,14 +2405,14 @@ app.post('/make-server-a1c55d7e/auth/login', async (c) => {
       return c.json({ error: 'Invalid username or password.' }, 401);
     }
 
-    const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days
-    const token = await signUserSessionToken({ u: canonicalUsername, e: expiresAt });
+    const mustChangePassword = Boolean((userData as any).mustChangePassword);
+    const session = await createUserSession(canonicalUsername, mustChangePassword);
+    c.header('Set-Cookie', buildSessionCookieValue(session.sessionId));
 
     return c.json({
       ok: true,
       username: canonicalUsername,
-      token,
-      mustChangePassword: Boolean((userData as any).mustChangePassword),
+      mustChangePassword,
     });
   } catch (error) {
     console.error('Error during user login:', error);
@@ -2367,44 +2420,71 @@ app.post('/make-server-a1c55d7e/auth/login', async (c) => {
   }
 });
 
-// POST /auth/verify-token — verifies a previously issued session token.
-// Used on startup to restore session without re-entering credentials.
+// POST /auth/session/restore — validates the cookie-backed session and restores auth state.
+app.post('/make-server-a1c55d7e/auth/session/restore', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:session-restore');
+    if (rateLimited) return rateLimited;
+
+    const session = await getSessionFromRequest(c);
+    if (!session) {
+      c.header('Set-Cookie', buildSessionClearCookieValue());
+      return c.json({ error: 'Invalid or expired session' }, 401);
+    }
+
+    const userData = await kv.get(`user:${session.username}`);
+    return c.json({
+      ok: true,
+      username: session.username,
+      mustChangePassword: Boolean((userData as any)?.mustChangePassword),
+    });
+  } catch (error) {
+    console.error('Error restoring user session:', error);
+    return c.json({ error: 'Session restore failed' }, 500);
+  }
+});
+
+// Keep backward compatibility for clients still calling /auth/verify-token.
 app.post('/make-server-a1c55d7e/auth/verify-token', async (c) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:verify-token');
     if (rateLimited) return rateLimited;
 
-    const body = await c.req.json();
-    const token = typeof body.token === 'string' ? body.token.trim() : '';
-
-    if (!token) {
-      return c.json({ error: 'token is required' }, 400);
+    const session = await getSessionFromRequest(c);
+    if (!session) {
+      c.header('Set-Cookie', buildSessionClearCookieValue());
+      return c.json({ error: 'Invalid or expired session' }, 401);
     }
 
-    const payload = await verifyUserSessionToken(token);
-    if (!payload) {
-      return c.json({ error: 'Invalid or expired token' }, 401);
-    }
-
-    const username = sanitizeUsername(payload.u);
-    if (!username) {
-      return c.json({ error: 'Invalid token username' }, 401);
-    }
-
-    const canonicalUsername = await resolveCanonicalUsername(username);
-    if (!canonicalUsername) {
-      return c.json({ error: 'User not found for token' }, 404);
-    }
-
-    const userData = await kv.get(`user:${canonicalUsername}`);
+    const userData = await kv.get(`user:${session.username}`);
     return c.json({
       ok: true,
-      username: canonicalUsername,
+      username: session.username,
       mustChangePassword: Boolean((userData as any)?.mustChangePassword),
     });
   } catch (error) {
-    console.error('Error verifying token:', error);
-    return c.json({ error: 'Token verification failed' }, 500);
+    console.error('Error verifying session:', error);
+    return c.json({ error: 'Session verification failed' }, 500);
+  }
+});
+
+// POST /auth/session/logout — revokes the current cookie-backed session.
+app.post('/make-server-a1c55d7e/auth/session/logout', async (c) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:session-logout');
+    if (rateLimited) return rateLimited;
+
+    const cookies = parseCookies(c.req.header('cookie'));
+    const sessionId = cookies[USER_SESSION_COOKIE_NAME] ?? '';
+    if (sessionId) {
+      await revokeUserSession(sessionId);
+    }
+
+    c.header('Set-Cookie', buildSessionClearCookieValue());
+    return c.json({ ok: true });
+  } catch (error) {
+    console.error('Error logging out user session:', error);
+    return c.json({ error: 'Logout failed' }, 500);
   }
 });
 
@@ -4371,13 +4451,12 @@ app.post('/make-server-a1c55d7e/auth/change-credentials', async (c) => {
     if (rateLimited) return rateLimited;
 
     const body = await c.req.json();
-    const token = typeof body?.token === 'string' ? body.token.trim() : '';
     const currentLoginPassword = typeof body?.currentLoginPassword === 'string' ? body.currentLoginPassword : '';
     const newLoginPassword = typeof body?.newLoginPassword === 'string' ? body.newLoginPassword : '';
     const newTransactionPassword = typeof body?.newTransactionPassword === 'string' ? body.newTransactionPassword : '';
 
-    if (!token || !currentLoginPassword) {
-      return c.json({ error: 'token and currentLoginPassword are required' }, 400);
+    if (!currentLoginPassword) {
+      return c.json({ error: 'currentLoginPassword is required' }, 400);
     }
     if (!newLoginPassword && !newTransactionPassword) {
       return c.json({ error: 'At least one new credential is required' }, 400);
@@ -4389,17 +4468,13 @@ app.post('/make-server-a1c55d7e/auth/change-credentials', async (c) => {
       return c.json({ error: 'New transaction password must be at least 6 characters' }, 400);
     }
 
-    const payload = await verifyUserSessionToken(token);
-    if (!payload) {
-      return c.json({ error: 'Invalid or expired session token' }, 401);
+    const session = await getSessionFromRequest(c);
+    if (!session) {
+      c.header('Set-Cookie', buildSessionClearCookieValue());
+      return c.json({ error: 'Invalid or expired session' }, 401);
     }
 
-    const canonicalUsername = await resolveCanonicalUsername(payload.u);
-    if (!canonicalUsername) {
-      return c.json({ error: 'User not found' }, 404);
-    }
-
-    const userKey = `user:${canonicalUsername}`;
+    const userKey = `user:${session.username}`;
     const userData = await kv.get(userKey);
     if (!userData) {
       return c.json({ error: 'User not found' }, 404);
@@ -4420,9 +4495,16 @@ app.post('/make-server-a1c55d7e/auth/change-credentials', async (c) => {
     (userData as any).passwordUpdatedAt = new Date().toISOString();
     await kv.set(userKey, userData);
 
+    // Keep session state synchronized with password-policy marker.
+    const sessionRecord = await getValidSessionById(session.sessionId);
+    if (sessionRecord) {
+      sessionRecord.mustChangePassword = false;
+      await kv.set(`${USER_SESSION_PREFIX}${session.sessionId}`, sessionRecord);
+    }
+
     return c.json({
       ok: true,
-      username: canonicalUsername,
+      username: session.username,
       mustChangePassword: false,
       updated: {
         loginPassword: Boolean(newLoginPassword),

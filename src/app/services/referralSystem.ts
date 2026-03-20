@@ -1,4 +1,4 @@
-import { clearSessionToken, getSessionUsername } from './serverAuth';
+import { clearSessionToken, getSessionUsername, serverLogout } from './serverAuth';
 
 const STORAGE_KEY = 'steadfast_referral_accounts_v1';
 const CURRENT_USER_KEY = 'steadfast_current_user_v1';
@@ -293,7 +293,6 @@ export function registerUserWithInvitation(payload: RegisterPayload): RegisterRe
   });
 
   writeStore(store);
-  localStorage.setItem(CURRENT_USER_KEY, createdUser.username);
 
   return { ok: true, createdUser, parentReward };
 }
@@ -336,6 +335,7 @@ export function isCurrentUserAdmin(): boolean {
 }
 
 export function logoutCurrentUser(): void {
+  void serverLogout();
   clearSessionToken();
 }
 
@@ -354,6 +354,5 @@ export function authenticateUser(username: string, loginPassword: string): Login
     return { ok: false, error: 'Invalid username or password.' };
   }
 
-  localStorage.setItem(CURRENT_USER_KEY, user.username);
   return { ok: true, user };
 }

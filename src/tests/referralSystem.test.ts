@@ -14,7 +14,7 @@ import {
   ensureReferralStore,
   type RegisterPayload,
 } from '../app/services/referralSystem';
-import { storeSessionToken } from '../app/services/serverAuth';
+import { clearSessionToken, storeSessionToken } from '../app/services/serverAuth';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -23,6 +23,7 @@ const CURRENT_USER_KEY = 'steadfast_current_user_v1';
 const SESSION_TOKEN_KEY = 'steadfast_user_session_token_v1';
 
 function clearStorage() {
+  clearSessionToken();
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(CURRENT_USER_KEY);
   localStorage.removeItem(SESSION_TOKEN_KEY);
@@ -182,9 +183,9 @@ describe('registerUserWithInvitation', () => {
     expect(result.ok).toBe(false);
   });
 
-  it('sets CURRENT_USER_KEY after successful registration', () => {
+  it('does not persist CURRENT_USER_KEY after successful registration', () => {
     registerUserWithInvitation(makePayload({ username: 'freshuser' }));
-    expect(localStorage.getItem(CURRENT_USER_KEY)).toBe('freshuser');
+    expect(localStorage.getItem(CURRENT_USER_KEY)).toBeNull();
   });
 });
 
@@ -216,9 +217,9 @@ describe('authenticateUser', () => {
     expect(result.error).toMatch(/account not found/i);
   });
 
-  it('sets CURRENT_USER_KEY after successful login', () => {
+  it('does not persist CURRENT_USER_KEY after successful login', () => {
     authenticateUser('ugreen', 'demo123');
-    expect(localStorage.getItem(CURRENT_USER_KEY)).toBe('ugreen');
+    expect(localStorage.getItem(CURRENT_USER_KEY)).toBeNull();
   });
 });
 
