@@ -3256,23 +3256,36 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       return rateLimited;
     }
 
-    const { username, premiumProductValue, bundledProductCount } = await c.req.json();
-    const adminUser = c.get('adminUser');
-    const adminUsername = adminUser?.email ?? adminUser?.id ?? 'admin';
+    const { username: rawUsername, premiumProductValue, bundledProductCount } = await c.req.json();
+    const requestedUsername = sanitizeUsername(rawUsername);
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const adminIdentity = mapAuthUserToAdminRecord(callingAdmin ?? {});
+    const adminUsername = adminIdentity.username || callingAdmin?.email || callingAdmin?.id || 'admin';
 
-    if (!username || !premiumProductValue || !bundledProductCount) {
+    if (!requestedUsername || !premiumProductValue || !bundledProductCount) {
       return c.json({ error: 'Missing required fields' }, 400);
+    }
+
+    const canonicalUsername = await resolveCanonicalUsername(requestedUsername);
+    if (!canonicalUsername) {
+      return c.json({ error: 'User not found' }, 404);
     }
 
     if (![1, 2, 3].includes(bundledProductCount)) {
       return c.json({ error: 'Bundled product count must be 1, 2, or 3' }, 400);
     }
     
-    const userKey = `user:${username}`;
+    const userKey = `user:${canonicalUsername}`;
     const userData = await kv.get(userKey);
     
     if (!userData) {
       return c.json({ error: 'User not found' }, 404);
+    }
+
+    const normalizedUserData = normalizeUserRecord(userData, canonicalUsername);
+    if (!callerIsSuperAdmin && normalizedUserData.referredByAdminId !== callingAdmin?.id) {
+      return c.json({ error: 'Forbidden' }, 403);
     }
 
     // Select highest value products for bundling
@@ -3284,7 +3297,7 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     const totalBundleValue = premiumProductValue + bundledProductsTotal;
     
     // Calculate balance after assignment
-    const balanceBeforeAssignment = userData.balance;
+    const balanceBeforeAssignment = normalizedUserData.balance;
     const balanceAfterAssignment = balanceBeforeAssignment - totalBundleValue;
     const negativeAmount = balanceAfterAssignment < 0 ? Math.abs(balanceAfterAssignment) : 0;
     
@@ -3308,27 +3321,27 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     };
 
     // Initialize premium queue if not exists
-    if (!userData.premiumQueue) {
-      userData.premiumQueue = [];
+    if (!normalizedUserData.premiumQueue) {
+      normalizedUserData.premiumQueue = [];
     }
 
     // Add to queue
-    userData.premiumQueue.push(premiumAssignment);
+    normalizedUserData.premiumQueue.push(premiumAssignment);
     
     // If this is the first in queue, activate it
-    if (userData.premiumQueue.length === 1) {
-      userData.isFrozen = true;
-      userData.activePremium = premiumAssignment;
-      userData.balance = balanceAfterAssignment;
+    if (normalizedUserData.premiumQueue.length === 1) {
+      normalizedUserData.isFrozen = true;
+      normalizedUserData.activePremium = premiumAssignment;
+      normalizedUserData.balance = balanceAfterAssignment;
       if (negativeAmount > 0) {
-        userData.holdAmount = negativeAmount;
+        normalizedUserData.holdAmount = negativeAmount;
       }
     }
     
-    await kv.set(userKey, userData);
+    await kv.set(userKey, normalizedUserData);
     
     // Save premium assignment record
-    const premiumKey = `premium:${username}:${premiumAssignment.id}`;
+    const premiumKey = `premium:${canonicalUsername}:${premiumAssignment.id}`;
     await kv.set(premiumKey, premiumAssignment);
     
     return c.json({
@@ -3336,7 +3349,7 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       premiumAssignment,
       balanceAfter: balanceAfterAssignment,
       topUpRequired: negativeAmount,
-      queuePosition: userData.premiumQueue.length,
+      queuePosition: normalizedUserData.premiumQueue.length,
     });
   } catch (error) {
     console.error('Error assigning premium bundle:', error);
@@ -3482,11 +3495,51 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
       return rateLimited;
     }
 
-    const username = sanitizeUsername(c.req.param("username"));
+    const requestedUsername = sanitizeUsername(c.req.param("username"));
     const premiumId = sanitizePremiumId(c.req.param("premiumId"));
-    if (!username || !premiumId) {
+    if (!requestedUsername || !premiumId) {
       return c.json({ error: 'Invalid username or premium ID' }, 400);
     }
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const canonicalRequestedUsername = await resolveCanonicalUsername(requestedUsername);
+    if (!canonicalRequestedUsername) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const requestedUserData = await kv.get(`user:${canonicalRequestedUsername}`);
+    if (!requestedUserData) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const normalizedRequestedUser = normalizeUserRecord(requestedUserData, canonicalRequestedUsername);
+    if (!callerIsSuperAdmin && normalizedRequestedUser.referredByAdminId !== callingAdmin?.id) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const allUsers = await kv.getByPrefix('user:');
+    const premiumOwner = allUsers
+      .map((raw) => normalizeUserRecord(raw, String(raw?.username ?? '')))
+      .find((user) => {
+        if (!user.username || user.username === ROOT_REFERRAL_USERNAME) {
+          return false;
+        }
+        if (!callerIsSuperAdmin && user.referredByAdminId !== callingAdmin?.id) {
+          return false;
+        }
+        return Array.isArray(user.premiumQueue) && user.premiumQueue.some((premium) => premium.id === premiumId);
+      });
+
+    if (!premiumOwner?.username) {
+      return c.json({ error: 'Premium assignment not found' }, 404);
+    }
+
+    if (canonicalRequestedUsername !== premiumOwner.username) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const username = premiumOwner.username;
 
     const userKey = `user:${username}`;
     const userData = await kv.get(userKey);
@@ -4351,8 +4404,10 @@ app.get("/make-server-a1c55d7e/cs/admin/tickets", async (c) => {
 app.post("/make-server-a1c55d7e/cs/respond", async (c) => {
   try {
     const { ticketId, message, respondedBy: rawRespondedBy, isAdmin } = await c.req.json();
-    let respondedBy = typeof rawRespondedBy === 'string' ? rawRespondedBy : '';
+    let respondedBy = '';
     let sessionUsername: string | null = null;
+    let adminUser: any = null;
+    let callerIsSuperAdmin = false;
 
     if (isAdmin) {
       const unauthorized = await requireAdmin(c);
@@ -4363,6 +4418,10 @@ app.post("/make-server-a1c55d7e/cs/respond", async (c) => {
       if (rateLimited) {
         return rateLimited;
       }
+
+      adminUser = c.get('adminUser');
+      callerIsSuperAdmin = isSuperAdmin(adminUser);
+      respondedBy = mapAuthUserToAdminRecord(adminUser ?? {}).username || adminUser?.email || adminUser?.id || 'admin';
     } else {
       const sessionResult = await requireActiveUserSession(c);
       if ('response' in sessionResult) {
@@ -4387,6 +4446,24 @@ app.post("/make-server-a1c55d7e/cs/respond", async (c) => {
     
     if (!ticket) {
       return c.json({ error: 'Ticket not found' }, 404);
+    }
+
+    if (isAdmin) {
+      const ticketUsername = sanitizeUsername(ticket.username);
+      if (!ticketUsername) {
+        return c.json({ error: 'Ticket owner is invalid' }, 400);
+      }
+
+      const canonicalTicketUsername = (await resolveCanonicalUsername(ticketUsername)) ?? ticketUsername;
+      const targetUserData = await kv.get(`user:${canonicalTicketUsername}`);
+      if (!targetUserData) {
+        return c.json({ error: 'User not found' }, 404);
+      }
+
+      const normalizedTargetUser = normalizeUserRecord(targetUserData, canonicalTicketUsername);
+      if (!callerIsSuperAdmin && normalizedTargetUser.referredByAdminId !== adminUser?.id) {
+        return c.json({ error: 'Forbidden' }, 403);
+      }
     }
 
     if (!isAdmin && sessionUsername && ticket.username !== sessionUsername) {
@@ -4463,7 +4540,7 @@ app.post("/make-server-a1c55d7e/cs/update-status", async (c) => {
 app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
   try {
     const { username: rawChatUsername, message, isAdmin } = await c.req.json();
-    let username = sanitizeUsername(rawChatUsername);
+    let username = '';
 
     if (isAdmin) {
       const unauthorized = await requireAdmin(c);
@@ -4474,6 +4551,30 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
       if (rateLimited) {
         return rateLimited;
       }
+
+      const requestedUsername = sanitizeUsername(rawChatUsername);
+      if (!requestedUsername) {
+        return c.json({ error: 'Invalid username' }, 400);
+      }
+
+      const canonicalRequestedUsername = await resolveCanonicalUsername(requestedUsername);
+      if (!canonicalRequestedUsername) {
+        return c.json({ error: 'User not found' }, 404);
+      }
+
+      const adminUser = c.get('adminUser');
+      const callerIsSuperAdmin = isSuperAdmin(adminUser);
+      const userData = await kv.get(`user:${canonicalRequestedUsername}`);
+      if (!userData) {
+        return c.json({ error: 'User not found' }, 404);
+      }
+
+      const normalizedUser = normalizeUserRecord(userData, canonicalRequestedUsername);
+      if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== adminUser?.id) {
+        return c.json({ error: 'Forbidden' }, 403);
+      }
+
+      username = canonicalRequestedUsername;
     } else {
       const identity = await resolveSessionBoundUsername(c, rawChatUsername, { required: false });
       if ('response' in identity) {
@@ -4492,7 +4593,9 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
     const newMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
       message,
-      sender: isAdmin ? 'support' : username,
+      sender: isAdmin
+        ? (mapAuthUserToAdminRecord(c.get('adminUser') ?? {}).username || c.get('adminUser')?.email || c.get('adminUser')?.id || 'support')
+        : username,
       isAdmin: isAdmin || false,
       timestamp: new Date().toISOString(),
       read: false,

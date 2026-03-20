@@ -153,6 +153,46 @@ function adminHeaders() {
   };
 }
 
+async function getAdminScopeProbe() {
+  if (!ADMIN_TEST_JWT) {
+    return null;
+  }
+
+  const scopeResult = await request('/admin/platform-users', {
+    headers: adminHeaders(),
+  });
+
+  if (scopeResult.status !== 200 || !scopeResult.body || !Array.isArray(scopeResult.body.users)) {
+    return null;
+  }
+
+  const users = scopeResult.body.users.filter((user: Record<string, unknown>) =>
+    typeof user?.username === 'string' && user.username !== 'steadfast_root',
+  );
+
+  return {
+    scoped: Boolean(scopeResult.body.scoped),
+    users,
+  };
+}
+
+async function ensureOutOfScopeUser() {
+  const outsiderUsername = `tier1_out_${RUN_ID}`;
+  const outsiderPassword = 'tier1pass123';
+
+  const signupResult = await post('/auth/signup', {
+    username: outsiderUsername,
+    phone: `1666${String(RUN_ID).slice(-7)}`,
+    gender: 'unknown',
+    invitationCode: 'STF01',
+    loginPassword: outsiderPassword,
+    transactionPassword: 'tier1txn123',
+  });
+
+  expect([200, 409]).toContain(signupResult.status);
+  return { outsiderUsername, outsiderPassword };
+}
+
 // ─── Health ───────────────────────────────────────────────────────────────────
 
 describe('Health check', () => {
@@ -984,6 +1024,241 @@ describe('Admin route authentication', () => {
       }),
     });
     expect(status).toBe(401);
+  });
+});
+
+describe('Tier 1 critical identity enforcement', () => {
+  it('POST /admin/assign-premium-bundle allows scoped admin targets and rejects out-of-scope users', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await post('/admin/assign-premium-bundle', {
+        username: TEST_USER,
+        premiumProductValue: 100,
+        bundledProductCount: 1,
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const scopeProbe = await getAdminScopeProbe();
+    if (!scopeProbe || scopeProbe.users.length === 0) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('No scoped admin users available for Tier 1 assign-premium test');
+      }
+      return;
+    }
+
+    const targetUsername = String(scopeProbe.users[0].username);
+    const assignResult = await post('/admin/assign-premium-bundle', {
+      username: targetUsername,
+      premiumProductValue: 100,
+      bundledProductCount: 1,
+      assignedBy: 'spoofed-client-identity',
+    }, adminHeaders());
+
+    expect(assignResult.status).toBe(200);
+    expect(assignResult.body.success).toBe(true);
+    expect(typeof assignResult.body.premiumAssignment?.id).toBe('string');
+
+    const assignedBy = String(assignResult.body.premiumAssignment?.assignedBy ?? '');
+    expect(assignedBy).not.toBe('spoofed-client-identity');
+
+    const { outsiderUsername } = await ensureOutOfScopeUser();
+    const outsiderAssignResult = await post('/admin/assign-premium-bundle', {
+      username: outsiderUsername,
+      premiumProductValue: 100,
+      bundledProductCount: 1,
+    }, adminHeaders());
+
+    if (scopeProbe.scoped) {
+      expect(outsiderAssignResult.status).toBe(403);
+    } else {
+      expect([200, 403]).toContain(outsiderAssignResult.status);
+    }
+
+    const cleanupCancelResult = await request(
+      `/admin/cancel-premium/${targetUsername}/${assignResult.body.premiumAssignment.id}`,
+      {
+        method: 'DELETE',
+        headers: adminHeaders(),
+      },
+    );
+    expect(cleanupCancelResult.status).toBe(200);
+  });
+
+  it('DELETE /admin/cancel-premium/:username/:premiumId rejects mismatched usernames and out-of-scope targets', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await request(`/admin/cancel-premium/${TEST_USER}/premium_fake`, { method: 'DELETE' });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const scopeProbe = await getAdminScopeProbe();
+    if (!scopeProbe || scopeProbe.users.length === 0) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('No scoped admin users available for Tier 1 cancel-premium test');
+      }
+      return;
+    }
+
+    const targetUsername = String(scopeProbe.users[0].username);
+    const assignResult = await post('/admin/assign-premium-bundle', {
+      username: targetUsername,
+      premiumProductValue: 100,
+      bundledProductCount: 1,
+    }, adminHeaders());
+    expect(assignResult.status).toBe(200);
+
+    const premiumId = String(assignResult.body.premiumAssignment?.id ?? '');
+    expect(premiumId.length > 0).toBe(true);
+
+    const { outsiderUsername } = await ensureOutOfScopeUser();
+    const mismatchResult = await request(
+      `/admin/cancel-premium/${outsiderUsername}/${premiumId}`,
+      {
+        method: 'DELETE',
+        headers: adminHeaders(),
+      },
+    );
+    expect(mismatchResult.status).toBe(403);
+
+    const scopedCancelResult = await request(
+      `/admin/cancel-premium/${targetUsername}/${premiumId}`,
+      {
+        method: 'DELETE',
+        headers: adminHeaders(),
+      },
+    );
+    expect(scopedCancelResult.status).toBe(200);
+
+    const outsiderCancelResult = await request(
+      `/admin/cancel-premium/${outsiderUsername}/premium_fake`,
+      {
+        method: 'DELETE',
+        headers: adminHeaders(),
+      },
+    );
+    if (scopeProbe.scoped) {
+      expect(outsiderCancelResult.status).toBe(403);
+    } else {
+      expect([404, 403]).toContain(outsiderCancelResult.status);
+    }
+  });
+
+  it('POST /cs/chat/send uses server-derived admin sender and enforces scope', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await post('/cs/chat/send', {
+        username: TEST_USER,
+        message: 'No auth',
+        isAdmin: true,
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const scopeProbe = await getAdminScopeProbe();
+    if (!scopeProbe || scopeProbe.users.length === 0) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('No scoped admin users available for Tier 1 chat/send test');
+      }
+      return;
+    }
+
+    const targetUsername = String(scopeProbe.users[0].username);
+    const chatResult = await post('/cs/chat/send', {
+      username: targetUsername,
+      message: 'Tier1 admin chat message',
+      sender: 'spoofed-sender',
+      isAdmin: true,
+    }, adminHeaders());
+
+    expect(chatResult.status).toBe(200);
+    expect(chatResult.body.success).toBe(true);
+    expect(chatResult.body.message.isAdmin).toBe(true);
+    expect(String(chatResult.body.message.sender)).not.toBe('spoofed-sender');
+
+    const { outsiderUsername } = await ensureOutOfScopeUser();
+    const outsiderChatResult = await post('/cs/chat/send', {
+      username: outsiderUsername,
+      message: 'Should be blocked by scope',
+      isAdmin: true,
+    }, adminHeaders());
+
+    if (scopeProbe.scoped) {
+      expect(outsiderChatResult.status).toBe(403);
+    } else {
+      expect([200, 403]).toContain(outsiderChatResult.status);
+    }
+  });
+
+  it('POST /cs/respond uses server-derived admin identity and enforces scope', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await post('/cs/respond', {
+        ticketId: 'ticket_fake',
+        message: 'No auth',
+        isAdmin: true,
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const scopeProbe = await getAdminScopeProbe();
+    if (!scopeProbe || scopeProbe.users.length === 0) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('No scoped admin users available for Tier 1 cs/respond test');
+      }
+      return;
+    }
+
+    const sessionTicketResult = await postAsUser('/cs/create-ticket', {
+      subject: 'Tier1 scope test ticket',
+      message: 'Ticket for Tier1 response checks',
+      category: 'general',
+      priority: 'low',
+    });
+    expect(sessionTicketResult.status).toBe(200);
+    const ticketId = String(sessionTicketResult.body.ticket?.id ?? '');
+    expect(ticketId.length > 0).toBe(true);
+
+    const respondResult = await post('/cs/respond', {
+      ticketId,
+      message: 'Tier1 admin response',
+      respondedBy: 'spoofed-admin-name',
+      isAdmin: true,
+    }, adminHeaders());
+
+    expect([200, 403]).toContain(respondResult.status);
+    if (respondResult.status === 200) {
+      const responses = Array.isArray(respondResult.body.ticket?.responses)
+        ? respondResult.body.ticket.responses
+        : [];
+      expect(responses.length).toBeGreaterThan(0);
+      const latestResponse = responses[responses.length - 1];
+      expect(String(latestResponse.respondedBy)).not.toBe('spoofed-admin-name');
+    }
+
+    const { outsiderUsername, outsiderPassword } = await ensureOutOfScopeUser();
+    const outsiderCookie = await loginAndGetSessionCookie(outsiderUsername, outsiderPassword);
+    const outsiderTicketCreate = await postWithCookie('/cs/create-ticket', outsiderCookie, {
+      subject: 'Tier1 outsider ticket',
+      message: 'Should be out of scope for scoped admins',
+      category: 'general',
+      priority: 'low',
+    });
+    expect(outsiderTicketCreate.status).toBe(200);
+
+    const outsiderTicketId = String(outsiderTicketCreate.body.ticket?.id ?? '');
+    const outsiderRespondResult = await post('/cs/respond', {
+      ticketId: outsiderTicketId,
+      message: 'Scope enforcement check',
+      respondedBy: 'spoofed-admin-name',
+      isAdmin: true,
+    }, adminHeaders());
+
+    if (scopeProbe.scoped) {
+      expect(outsiderRespondResult.status).toBe(403);
+    } else {
+      expect([200, 403]).toContain(outsiderRespondResult.status);
+    }
   });
 });
 
