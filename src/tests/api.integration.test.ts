@@ -413,9 +413,9 @@ describe('Finance endpoints', () => {
     expect(typeof body.availableAmount).toBe('number');
   });
 
-  it('GET /withdrawals/:username returns the submitted request', async () => {
+  it('GET /me/withdrawals returns the submitted request', async () => {
     const cookie = await ensureFinanceUserSessionCookie();
-    const { status, body } = await requestWithCookie(`/withdrawals/${FINANCE_USER}`, cookie);
+    const { status, body } = await requestWithCookie('/me/withdrawals', cookie);
     expect(status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
     expect(body.some((record: { walletAddress: string }) => record.walletAddress === FINANCE_WALLET)).toBe(true);
