@@ -93,46 +93,6 @@ export default function ConnectWallet() {
       });
     };
 
-    const migrateLegacyWallet = async () => {
-      if (!storageKey) {
-        return false;
-      }
-
-      const saved = localStorage.getItem(storageKey);
-      if (!saved) {
-        return false;
-      }
-
-      try {
-        const legacyProfile = JSON.parse(saved) as WalletProfile;
-        const response = await fetch(`${serverUrl}/wallet/${username}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${publicAnonKey}`,
-          },
-          body: JSON.stringify(legacyProfile),
-        });
-
-        if (!response.ok) {
-          return false;
-        }
-
-        const payload = await response.json().catch(() => ({} as { walletProfile?: WalletProfile }));
-        const migratedProfile = payload.walletProfile;
-        if (!migratedProfile) {
-          return false;
-        }
-
-        hydrateFromProfile(migratedProfile);
-        localStorage.removeItem(storageKey);
-        toast.success('Wallet details migrated securely to your account.');
-        return true;
-      } catch {
-        return false;
-      }
-    };
-
     const loadWalletProfile = async () => {
       setLoading(true);
       try {
@@ -151,7 +111,10 @@ export default function ConnectWallet() {
           }
         }
 
-        await migrateLegacyWallet();
+        if (storageKey) {
+          // Legacy cleanup only: wallet authority is backend-only.
+          localStorage.removeItem(storageKey);
+        }
       } catch {
         toast.error('Failed to load wallet details. Please try again.');
       } finally {
