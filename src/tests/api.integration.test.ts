@@ -367,9 +367,9 @@ describe('VIP config', () => {
 // ─── Finance ─────────────────────────────────────────────────────────────────
 
 describe('Finance endpoints', () => {
-  it('GET /transactions/:username returns an array', async () => {
+  it('GET /me/transactions returns an array', async () => {
     const cookie = await ensureFinanceUserSessionCookie();
-    const { status, body } = await requestWithCookie(`/transactions/${FINANCE_USER}`, cookie);
+    const { status, body } = await requestWithCookie(`/me/transactions`, cookie);
     expect(status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
   });

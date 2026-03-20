@@ -3221,21 +3221,6 @@ app.get('/make-server-a1c55d7e/me/transactions', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/transactions/:username', async (c) => {
-  try {
-    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
-    if ('response' in identity) {
-      return identity.response;
-    }
-
-    const transactions = await listTransactionRecords(identity.username);
-    return c.json(transactions);
-  } catch (error) {
-    console.error('Error fetching transaction records:', error);
-    return c.json({ error: 'Failed to fetch transaction records' }, 500);
-  }
-});
-
 app.get('/make-server-a1c55d7e/me/withdrawals', async (c) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
