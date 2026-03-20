@@ -2362,6 +2362,47 @@ async function revokeUserSession(sessionId: string): Promise<void> {
   });
 }
 
+async function revokeUserSessionsForUsername(
+  username: string,
+  options?: {
+    preserveSessionId?: string;
+    preservedMustChangePassword?: boolean;
+  },
+): Promise<void> {
+  const canonicalUsername = await resolveCanonicalUsername(username);
+  if (!canonicalUsername) {
+    return;
+  }
+
+  const sessionRecords = await kv.getByPrefix(USER_SESSION_PREFIX);
+  for (const raw of sessionRecords) {
+    if (!raw || typeof raw !== 'object') {
+      continue;
+    }
+
+    const session = raw as Partial<UserSessionRecord>;
+    if (typeof session.sessionId !== 'string' || typeof session.username !== 'string') {
+      continue;
+    }
+
+    if (session.username !== canonicalUsername) {
+      continue;
+    }
+
+    if (options?.preserveSessionId && session.sessionId === options.preserveSessionId) {
+      await kv.set(`${USER_SESSION_PREFIX}${session.sessionId}`, {
+        ...session,
+        username: canonicalUsername,
+        mustChangePassword: options.preservedMustChangePassword ?? Boolean(session.mustChangePassword),
+        lastSeenAt: new Date().toISOString(),
+      });
+      continue;
+    }
+
+    await revokeUserSession(session.sessionId);
+  }
+}
+
 async function getValidSessionById(sessionId: string): Promise<UserSessionRecord | null> {
   if (!sessionId) {
     return null;
@@ -4700,8 +4741,10 @@ app.post("/make-server-a1c55d7e/auth/reset-password", async (c) => {
     
     // Hash the new password before storing
     userData.password = await hashPassword(newPassword);
+    userData.mustChangePassword = false;
     userData.passwordUpdatedAt = new Date().toISOString();
     await kv.set(userKey, userData);
+    await revokeUserSessionsForUsername(username);
 
     // Mark token as used
     resetData.used = true;
@@ -4755,8 +4798,14 @@ app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
 
     // Hash and store the new password
     userData.password = await hashPassword(newPassword);
+    userData.mustChangePassword = false;
     userData.passwordUpdatedAt = new Date().toISOString();
     await kv.set(userKey, userData);
+
+    await revokeUserSessionsForUsername(canonicalUsername, {
+      preserveSessionId: identity.session.sessionId,
+      preservedMustChangePassword: false,
+    });
     
     return c.json({ success: true, message: 'Password changed successfully' });
   } catch (error) {
@@ -4816,11 +4865,18 @@ app.post('/make-server-a1c55d7e/auth/change-credentials', async (c) => {
     (userData as any).passwordUpdatedAt = new Date().toISOString();
     await kv.set(userKey, userData);
 
-    // Keep session state synchronized with password-policy marker.
-    const sessionRecord = await getValidSessionById(session.sessionId);
-    if (sessionRecord) {
-      sessionRecord.mustChangePassword = false;
-      await kv.set(`${USER_SESSION_PREFIX}${session.sessionId}`, sessionRecord);
+    if (newLoginPassword) {
+      await revokeUserSessionsForUsername(session.username, {
+        preserveSessionId: session.sessionId,
+        preservedMustChangePassword: false,
+      });
+    } else {
+      // Keep session state synchronized with password-policy marker.
+      const sessionRecord = await getValidSessionById(session.sessionId);
+      if (sessionRecord) {
+        sessionRecord.mustChangePassword = false;
+        await kv.set(`${USER_SESSION_PREFIX}${session.sessionId}`, sessionRecord);
+      }
     }
 
     return c.json({
