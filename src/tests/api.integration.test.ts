@@ -166,8 +166,8 @@ describe('Health check', () => {
 // ─── User ─────────────────────────────────────────────────────────────────────
 
 describe('User endpoints', () => {
-  it('GET /user/:username auto-creates a user and returns correct shape', async () => {
-    const { status, body } = await requestAsUser(`/user/${SESSION_USER}`);
+  it('GET /me/user auto-creates a user and returns correct shape', async () => {
+    const { status, body } = await requestAsUser(`/me/user`);
     expect(status).toBe(200);
     expect(body.username).toBe(SESSION_USER);
     expect(typeof body.balance).toBe('number');
@@ -176,8 +176,8 @@ describe('User endpoints', () => {
     expect(typeof body.isFrozen).toBe('boolean');
   });
 
-  it('GET /user/:username is idempotent (same data on second call)', async () => {
-    const { status, body } = await requestAsUser(`/user/${SESSION_USER}`);
+  it('GET /me/user is idempotent (same data on second call)', async () => {
+    const { status, body } = await requestAsUser(`/me/user`);
     expect(status).toBe(200);
     expect(body.username).toBe(SESSION_USER);
   });
@@ -805,11 +805,6 @@ describe('Phase 1: Session endpoints', () => {
 describe('Input sanitization', () => {
   // Colon characters in usernames would escape the KV key namespace
   const INJECTED = 'admin%3Asecret'; // URL-encoded "admin:secret"
-
-  it('GET /user/:username → 400 for KV-injection username', async () => {
-    const { status } = await requestAsUser(`/user/${INJECTED}`);
-    expect(status).toBe(400);
-  });
 
   it('GET /tasks/:username → 400 for KV-injection username', async () => {
     const { status } = await requestAsUser(`/tasks/${INJECTED}`);
