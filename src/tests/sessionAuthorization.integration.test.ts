@@ -92,6 +92,23 @@ describe('Session-bound authorization', () => {
     expect(String(respondRes.body?.error ?? '')).toContain('Ticket not found');
   });
 
+  it('rejects /cs/respond when client respondedBy mismatches the active session', async () => {
+    const cookie = await loginAndGetSessionCookie();
+
+    const respondRes = await requestWithCookie('/cs/respond', cookie, {
+      method: 'POST',
+      body: JSON.stringify({
+        ticketId: 'ticket_nonexistent_for_session_authority_check',
+        message: 'This should be rejected before ticket lookup',
+        respondedBy: OTHER_USER,
+        isAdmin: false,
+      }),
+    });
+
+    expect(respondRes.status).toBe(403);
+    expect(String(respondRes.body?.error ?? '')).toContain('requested user does not match active session');
+  });
+
   it('rejects cross-user POST mutations with 403', async () => {
     const cookie = await loginAndGetSessionCookie();
 

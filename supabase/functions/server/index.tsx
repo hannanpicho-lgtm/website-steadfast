@@ -4365,6 +4365,12 @@ app.post("/make-server-a1c55d7e/cs/respond", async (c) => {
         return sessionResult.response;
       }
       sessionUsername = sessionResult.session.username;
+
+      const requestedRespondedBy = sanitizeUsername(rawRespondedBy);
+      if (requestedRespondedBy && requestedRespondedBy.toLowerCase() !== sessionUsername.toLowerCase()) {
+        return c.json({ error: 'Forbidden: requested user does not match active session' }, 403);
+      }
+
       respondedBy = sessionResult.session.username;
     }
     
