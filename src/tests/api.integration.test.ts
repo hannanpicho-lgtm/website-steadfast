@@ -532,6 +532,94 @@ describe('Auth endpoints', () => {
   });
 });
 
+// ─── Phase 1: Session endpoints (server-backed authentication) ───────────────
+
+describe('Phase 1: Session endpoints', () => {
+  // Demo user credentials from referralSystem.ts
+  const DEMO_USER = 'ugreen';
+  const DEMO_PASSWORD = 'demo123';
+  const ADMIN_USER = 'admin';
+  const ADMIN_PASSWORD = 'admin123';
+
+  it('POST /auth/login returns 400 when username is missing', async () => {
+    const { status, body } = await post('/auth/login', {
+      loginPassword: DEMO_PASSWORD,
+    });
+    expect(status).toBe(400);
+    expect(typeof body.error).toBe('string');
+  });
+
+  it('POST /auth/login returns 400 when password is missing', async () => {
+    const { status, body } = await post('/auth/login', {
+      username: DEMO_USER,
+    });
+    expect(status).toBe(400);
+    expect(typeof body.error).toBe('string');
+  });
+
+  it('POST /auth/login returns 401 for invalid credentials', async () => {
+    const { status, body } = await post('/auth/login', {
+      username: `invalid_${RUN_ID}`,
+      loginPassword: 'definitely_wrong_password',
+    });
+    expect(status).toBe(401);
+    expect(body.error).toContain('Invalid username or password');
+  });
+
+  it('POST /auth/login succeeds with valid demo credentials', async () => {
+    const { status, body } = await post('/auth/login', {
+      username: DEMO_USER,
+      loginPassword: DEMO_PASSWORD,
+    });
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.username).toBe(DEMO_USER);
+    expect(typeof body.mustChangePassword).toBe('boolean');
+  });
+
+  it('POST /auth/session/restore returns 401 with invalid/missing session', async () => {
+    // Call without valid session cookie
+    const { status, body } = await post('/auth/session/restore', {});
+    expect(status).toBe(401);
+    expect(body.ok).toBeUndefined();
+  });
+
+  it('POST /auth/session/restore succeeds after login (verifies session created)', async () => {
+    // Step 1: Login to establish session
+    const loginRes = await post('/auth/login', {
+      username: DEMO_USER,
+      loginPassword: DEMO_PASSWORD,
+    });
+    expect(loginRes.status).toBe(200);
+    expect(loginRes.body.ok).toBe(true);
+    expect(loginRes.body.username).toBe(DEMO_USER);
+  });
+
+  it('POST /auth/session/logout succeeds and clears session', async () => {
+    // Step 1: Login to establish session
+    const loginRes = await post('/auth/login', {
+      username: DEMO_USER,
+      loginPassword: DEMO_PASSWORD,
+    });
+    expect(loginRes.status).toBe(200);
+
+    // Step 2: Logout (server clears KV record + cookie)
+    const logoutRes = await post('/auth/session/logout', {});
+    expect(logoutRes.status).toBe(200);
+    expect(logoutRes.body.ok).toBe(true);
+  });
+
+  it('POST /auth/login works with admin credentials', async () => {
+    const { status, body } = await post('/auth/login', {
+      username: ADMIN_USER,
+      loginPassword: ADMIN_PASSWORD,
+    });
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.username).toBe(ADMIN_USER);
+  });
+});
+
 // ─── Input sanitization (KV-injection prevention) ────────────────────────────
 
 describe('Input sanitization', () => {
