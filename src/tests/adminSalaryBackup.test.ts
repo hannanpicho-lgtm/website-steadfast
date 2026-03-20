@@ -12,6 +12,9 @@ import {
   saveSalaryProjectAutosave,
   loadSalaryAuditLog,
   saveSalaryAuditLog,
+  resetAdminSalaryCompatibilityStorageForTests,
+  seedAdminSalaryProjectCompatibilityStorageForTests,
+  seedAdminSalaryAuditCompatibilityStorageForTests,
   MAX_RESTORE_POINTS,
   MAX_AUDIT_EVENTS,
   AUTO_BACKUP_INTERVAL_MS,
@@ -228,7 +231,7 @@ describe('buildBackupExport / parseBackupImport', () => {
 // ─── saveSalaryProjectAutosave / loadSalaryProjectAutosave ────────────────────
 
 describe('saveSalaryProjectAutosave / loadSalaryProjectAutosave', () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => resetAdminSalaryCompatibilityStorageForTests());
 
   const save = (overrides = {}) =>
     saveSalaryProjectAutosave({
@@ -259,16 +262,29 @@ describe('saveSalaryProjectAutosave / loadSalaryProjectAutosave', () => {
   });
 
   it('returns defaults when storage contains malformed JSON', () => {
-    localStorage.setItem('steadfast_admin_salary_project_v1', '{{invalid}}');
+    seedAdminSalaryProjectCompatibilityStorageForTests('{{invalid}}');
     const { payments } = loadSalaryProjectAutosave(DEFAULT_PAYMENTS);
     expect(payments).toEqual(DEFAULT_PAYMENTS);
   });
 
   it('returns defaults when checksum is tampered', () => {
     save();
-    const raw = JSON.parse(localStorage.getItem('steadfast_admin_salary_project_v1')!);
+    const raw = {
+      version: 1,
+      savedAt: new Date().toISOString(),
+      checksum: 'tampered00',
+      uiState: {
+        activeRewardTab: 'workday',
+        selectedBulkOption: 'all',
+        autoBackupEnabled: true,
+        autoBackupIntervalMinutes: 1,
+        backupRetentionDays: 30,
+      },
+      payments: DEFAULT_PAYMENTS,
+      points: [],
+    };
     raw.checksum = 'tampered00';
-    localStorage.setItem('steadfast_admin_salary_project_v1', JSON.stringify(raw));
+    seedAdminSalaryProjectCompatibilityStorageForTests(JSON.stringify(raw));
     const { payments } = loadSalaryProjectAutosave(DEFAULT_PAYMENTS);
     expect(payments).toEqual(DEFAULT_PAYMENTS);
   });
@@ -314,7 +330,7 @@ describe('createAuditEvent', () => {
 // ─── saveSalaryAuditLog / loadSalaryAuditLog ────────────────────────────────────
 
 describe('saveSalaryAuditLog / loadSalaryAuditLog', () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => resetAdminSalaryCompatibilityStorageForTests());
 
   it('returns empty array when no log exists', () => {
     expect(loadSalaryAuditLog()).toEqual([]);
@@ -337,7 +353,7 @@ describe('saveSalaryAuditLog / loadSalaryAuditLog', () => {
   });
 
   it('returns empty array when storage contains invalid JSON', () => {
-    localStorage.setItem('steadfast_admin_salary_audit_log_v1', 'bad');
+    seedAdminSalaryAuditCompatibilityStorageForTests('bad');
     expect(loadSalaryAuditLog()).toEqual([]);
   });
 });

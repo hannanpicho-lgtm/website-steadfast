@@ -78,17 +78,34 @@ const SALARY_PROJECT_AUTOSAVE_KEY = 'steadfast_admin_salary_project_v1';
 const SALARY_AUDIT_LOG_KEY = 'steadfast_admin_salary_audit_log_v1';
 const VALID_REWARD_TABS: RewardTab[] = ['workday', 'reset', 'accumulated', 'product-system', 'salary-payments'];
 const VALID_BULK_OPTIONS = ['all', 'auto', 'manual'] as const;
+const localCompatibilityStore = new Map<string, string>();
 
 export const AUTO_BACKUP_INTERVAL_MS = 60_000;
 export const MAX_RESTORE_POINTS = 10;
 export const MAX_AUDIT_EVENTS = 50;
 
-function writeLocalStorageItem(key: string, value: unknown): StorageSaveResult {
+export function resetAdminSalaryCompatibilityStorageForTests(): void {
+  localCompatibilityStore.clear();
+}
+
+export function seedAdminSalaryProjectCompatibilityStorageForTests(raw: string): void {
+  localCompatibilityStore.set(SALARY_PROJECT_AUTOSAVE_KEY, raw);
+}
+
+export function seedAdminSalaryAuditCompatibilityStorageForTests(raw: string): void {
+  localCompatibilityStore.set(SALARY_AUDIT_LOG_KEY, raw);
+}
+
+function readCompatibilityItem(key: string): string | null {
+  return localCompatibilityStore.get(key) ?? null;
+}
+
+function writeCompatibilityItem(key: string, value: unknown): StorageSaveResult {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    localCompatibilityStore.set(key, JSON.stringify(value));
     return { ok: true };
   } catch (error) {
-    const defaultMessage = 'Unable to save backup data to browser storage.';
+    const defaultMessage = 'Unable to save backup data to in-memory compatibility storage.';
     if (error instanceof Error && error.message) {
       return { ok: false, message: `${defaultMessage} ${error.message}` };
     }
@@ -305,7 +322,7 @@ export function loadSalaryProjectAutosave(defaultPayments: SalaryPayment[]): {
   let restoredBackupRetentionDays = 30;
 
   try {
-    const savedProject = localStorage.getItem(SALARY_PROJECT_AUTOSAVE_KEY);
+    const savedProject = readCompatibilityItem(SALARY_PROJECT_AUTOSAVE_KEY);
     if (savedProject) {
       const parsedProject = JSON.parse(savedProject) as SalaryProjectAutosave;
       if (parsedProject?.version === 1) {
@@ -376,7 +393,7 @@ export function saveSalaryProjectAutosave(payload: {
     checksum: computeChecksum(dataWithoutChecksum),
   };
 
-  return writeLocalStorageItem(SALARY_PROJECT_AUTOSAVE_KEY, data);
+  return writeCompatibilityItem(SALARY_PROJECT_AUTOSAVE_KEY, data);
 }
 
 export function createSalaryRestorePoint(label: string, payments: SalaryPayment[]): SalaryRestorePoint {
@@ -510,7 +527,7 @@ export function createAuditEvent(action: SalaryAuditAction, detail: string): Sal
 
 export function loadSalaryAuditLog(): SalaryAuditEvent[] {
   try {
-    const raw = localStorage.getItem(SALARY_AUDIT_LOG_KEY);
+    const raw = readCompatibilityItem(SALARY_AUDIT_LOG_KEY);
     if (!raw) {
       return [];
     }
@@ -522,7 +539,7 @@ export function loadSalaryAuditLog(): SalaryAuditEvent[] {
 }
 
 export function saveSalaryAuditLog(events: SalaryAuditEvent[]): StorageSaveResult {
-  return writeLocalStorageItem(SALARY_AUDIT_LOG_KEY, events.slice(0, MAX_AUDIT_EVENTS));
+  return writeCompatibilityItem(SALARY_AUDIT_LOG_KEY, events.slice(0, MAX_AUDIT_EVENTS));
 }
 
 export async function fetchAdminSalaryProjectState(params: {
