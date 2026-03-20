@@ -3428,32 +3428,6 @@ async function submitWithdrawalRequest(c: any, username: string, body: any) {
   });
 }
 
-app.post('/make-server-a1c55d7e/withdrawals/request', async (c) => {
-  try {
-    const rateLimited = enforceUserRateLimit(c, 'user:withdrawal-request');
-    if (rateLimited) return rateLimited;
-
-    const body = await c.req.json();
-    const forbiddenFinancialFields = getForbiddenClientFinancialFields(body);
-    if (forbiddenFinancialFields.length > 0) {
-      return c.json({
-        error: 'Client-side financial mutation fields are not allowed',
-        fields: forbiddenFinancialFields,
-      }, 400);
-    }
-
-    const identity = await resolveSessionBoundUsername(c, body?.username, { required: false });
-    if ('response' in identity) {
-      return identity.response;
-    }
-
-    return await submitWithdrawalRequest(c, identity.username, body);
-  } catch (error) {
-    console.error('Error submitting withdrawal request:', error);
-    return c.json({ error: 'Failed to submit withdrawal request' }, 500);
-  }
-});
-
 app.post('/make-server-a1c55d7e/me/withdrawals/request', async (c) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:withdrawal-request');

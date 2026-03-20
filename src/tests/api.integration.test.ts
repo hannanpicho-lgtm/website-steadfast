@@ -374,20 +374,18 @@ describe('Finance endpoints', () => {
     expect(Array.isArray(body)).toBe(true);
   });
 
-  it('POST /withdrawals/request returns 400 when walletAddress is missing', async () => {
+  it('POST /me/withdrawals/request returns 400 when walletAddress is missing', async () => {
     const cookie = await ensureFinanceUserSessionCookie();
-    const { status } = await postWithCookie('/withdrawals/request', cookie, {
-      username: FINANCE_USER,
+    const { status } = await postWithCookie('/me/withdrawals/request', cookie, {
       amount: 0.5,
       method: 'USDT',
     });
     expect(status).toBe(400);
   });
 
-  it('POST /withdrawals/request returns 400 when client tries to mutate financial fields', async () => {
+  it('POST /me/withdrawals/request returns 400 when client tries to mutate financial fields', async () => {
     const cookie = await ensureFinanceUserSessionCookie();
-    const { status, body } = await postWithCookie('/withdrawals/request', cookie, {
-      username: FINANCE_USER,
+    const { status, body } = await postWithCookie('/me/withdrawals/request', cookie, {
       amount: 0.5,
       walletAddress: FINANCE_WALLET,
       method: 'USDT',
@@ -399,12 +397,11 @@ describe('Finance endpoints', () => {
     expect(Array.isArray(body.fields)).toBe(true);
   });
 
-  it('POST /withdrawals/request creates a pending withdrawal when balance is available', async () => {
+  it('POST /me/withdrawals/request creates a pending withdrawal when balance is available', async () => {
     const cookie = await ensureFinanceUserSessionCookie();
     await ensureFinanceUserHasBalance(cookie);
 
-    const { status, body } = await postWithCookie('/withdrawals/request', cookie, {
-      username: FINANCE_USER,
+    const { status, body } = await postWithCookie('/me/withdrawals/request', cookie, {
       amount: 0.5,
       walletAddress: FINANCE_WALLET,
       method: 'USDT',

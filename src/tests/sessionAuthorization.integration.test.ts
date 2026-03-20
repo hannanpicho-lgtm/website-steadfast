@@ -120,17 +120,6 @@ describe('Session-bound authorization', () => {
   it('rejects cross-user POST mutations with 403', async () => {
     const cookie = await loginAndGetSessionCookie();
 
-    const withdrawalRes = await requestWithCookie('/withdrawals/request', cookie, {
-      method: 'POST',
-      body: JSON.stringify({
-        username: OTHER_USER,
-        amount: 0.5,
-        walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
-        method: 'USDT',
-        transactionPassword: 'demo123',
-      }),
-    });
-
     const ticketRes = await requestWithCookie('/cs/create-ticket', cookie, {
       method: 'POST',
       body: JSON.stringify({
@@ -152,7 +141,6 @@ describe('Session-bound authorization', () => {
       }),
     });
 
-    expect(withdrawalRes.status).toBe(403);
     expect(ticketRes.status).toBe(403);
     expect(walletUpdateRes.status).toBe(403);
   });
