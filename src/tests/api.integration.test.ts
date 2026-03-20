@@ -20,6 +20,12 @@ const SESSION_PASSWORD = 'demo123';
 // Unique test username per run to avoid polluting production state
 const RUN_ID = Date.now();
 const TEST_USER = `test_audit_${RUN_ID}`;
+const FINANCE_USER = `finance_audit_${RUN_ID}`;
+const FINANCE_LOGIN_PASSWORD = 'audit12345';
+const FINANCE_TRANSACTION_PASSWORD = 'audit67890';
+const FINANCE_WALLET = '0x1234567890abcdef1234567890abcdef12345678';
+
+let financeSessionCookie: string | null = null;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -88,6 +94,54 @@ async function postAsUser(path: string, payload: unknown) {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+async function requestWithCookie(path: string, cookie: string, init?: RequestInit) {
+  return request(path, {
+    ...init,
+    headers: {
+      Cookie: cookie,
+      ...(init?.headers ?? {}),
+    },
+  });
+}
+
+async function postWithCookie(path: string, cookie: string, payload: unknown) {
+  return requestWithCookie(path, cookie, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+async function ensureFinanceUserSessionCookie() {
+  if (financeSessionCookie) {
+    return financeSessionCookie;
+  }
+
+  const signupResult = await post('/auth/signup', {
+    username: FINANCE_USER,
+    phone: `1555${String(RUN_ID).slice(-7)}`,
+    gender: 'unknown',
+    invitationCode: 'STF01',
+    loginPassword: FINANCE_LOGIN_PASSWORD,
+    transactionPassword: FINANCE_TRANSACTION_PASSWORD,
+  });
+
+  expect([200, 409]).toContain(signupResult.status);
+
+  financeSessionCookie = await loginAndGetSessionCookie(FINANCE_USER, FINANCE_LOGIN_PASSWORD);
+  return financeSessionCookie;
+}
+
+async function ensureFinanceUserHasBalance(cookie: string) {
+  const submitResult = await postWithCookie('/submit-task', cookie, {
+    username: FINANCE_USER,
+    productPrice: 299.99,
+  });
+
+  // Fresh users should normally receive 200. If product-system gating responds with 409,
+  // finance withdrawal assertions in this suite are expected to remain in known-failure state.
+  expect([200, 409]).toContain(submitResult.status);
 }
 
 function adminHeaders() {
@@ -310,14 +364,16 @@ describe('VIP config', () => {
 
 describe('Finance endpoints', () => {
   it('GET /transactions/:username returns an array', async () => {
-    const { status, body } = await requestAsUser(`/transactions/${SESSION_USER}`);
+    const cookie = await ensureFinanceUserSessionCookie();
+    const { status, body } = await requestWithCookie(`/transactions/${FINANCE_USER}`, cookie);
     expect(status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
   });
 
   it('POST /withdrawals/request returns 400 when walletAddress is missing', async () => {
-    const { status } = await postAsUser('/withdrawals/request', {
-      username: SESSION_USER,
+    const cookie = await ensureFinanceUserSessionCookie();
+    const { status } = await postWithCookie('/withdrawals/request', cookie, {
+      username: FINANCE_USER,
       amount: 0.5,
       method: 'USDT',
     });
@@ -325,10 +381,11 @@ describe('Finance endpoints', () => {
   });
 
   it('POST /withdrawals/request returns 400 when client tries to mutate financial fields', async () => {
-    const { status, body } = await postAsUser('/withdrawals/request', {
-      username: SESSION_USER,
+    const cookie = await ensureFinanceUserSessionCookie();
+    const { status, body } = await postWithCookie('/withdrawals/request', cookie, {
+      username: FINANCE_USER,
       amount: 0.5,
-      walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      walletAddress: FINANCE_WALLET,
       method: 'USDT',
       holdAmount: 0,
       availableAmount: 9999,
@@ -339,11 +396,15 @@ describe('Finance endpoints', () => {
   });
 
   it('POST /withdrawals/request creates a pending withdrawal when balance is available', async () => {
-    const { status, body } = await postAsUser('/withdrawals/request', {
-      username: SESSION_USER,
+    const cookie = await ensureFinanceUserSessionCookie();
+    await ensureFinanceUserHasBalance(cookie);
+
+    const { status, body } = await postWithCookie('/withdrawals/request', cookie, {
+      username: FINANCE_USER,
       amount: 0.5,
-      walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+      walletAddress: FINANCE_WALLET,
       method: 'USDT',
+      transactionPassword: FINANCE_TRANSACTION_PASSWORD,
     });
     expect(status).toBe(200);
     expect(body.success).toBe(true);
@@ -352,10 +413,11 @@ describe('Finance endpoints', () => {
   });
 
   it('GET /withdrawals/:username returns the submitted request', async () => {
-    const { status, body } = await requestAsUser(`/withdrawals/${SESSION_USER}`);
+    const cookie = await ensureFinanceUserSessionCookie();
+    const { status, body } = await requestWithCookie(`/withdrawals/${FINANCE_USER}`, cookie);
     expect(status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
-    expect(body.some((record: { walletAddress: string }) => record.walletAddress === '0x1234567890abcdef1234567890abcdef12345678')).toBe(true);
+    expect(body.some((record: { walletAddress: string }) => record.walletAddress === FINANCE_WALLET)).toBe(true);
   });
 });
 
