@@ -429,6 +429,18 @@ describe('salary backup server sync helpers', () => {
     expect(result).toBeNull();
   });
 
+  it('fetchAdminSalaryProjectState returns null when fetch throws', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('request failed'));
+
+    const result = await fetchAdminSalaryProjectState({
+      serverUrl,
+      headers,
+      defaultPayments: DEFAULT_PAYMENTS,
+    });
+
+    expect(result).toBeNull();
+  });
+
   it('saveAdminSalaryProjectState returns ok and sends PUT payload', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true }, 200));
 
@@ -533,6 +545,29 @@ describe('salary backup server sync helpers', () => {
     });
   });
 
+  it('saveAdminSalaryProjectState returns default message when a non-Error is thrown', async () => {
+    fetchMock.mockRejectedValueOnce('boom');
+
+    const result = await saveAdminSalaryProjectState({
+      serverUrl,
+      headers,
+      payload: {
+        activeRewardTab: 'workday',
+        selectedBulkOption: 'all',
+        autoBackupEnabled: true,
+        autoBackupIntervalMinutes: 1,
+        backupRetentionDays: 30,
+        payments: DEFAULT_PAYMENTS,
+        points: [],
+      },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: 'Unable to save salary backup state to server.',
+    });
+  });
+
   it('fetchAdminSalaryAuditLogFromServer sanitizes and returns events', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
@@ -550,6 +585,12 @@ describe('salary backup server sync helpers', () => {
 
   it('fetchAdminSalaryAuditLogFromServer returns null for non-ok response', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: 'forbidden' }, 403));
+    const result = await fetchAdminSalaryAuditLogFromServer({ serverUrl, headers });
+    expect(result).toBeNull();
+  });
+
+  it('fetchAdminSalaryAuditLogFromServer returns null when fetch throws', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('timeout'));
     const result = await fetchAdminSalaryAuditLogFromServer({ serverUrl, headers });
     expect(result).toBeNull();
   });
@@ -607,6 +648,21 @@ describe('salary backup server sync helpers', () => {
     expect(result).toEqual({
       ok: false,
       message: 'Unable to save salary audit log to server. socket closed',
+    });
+  });
+
+  it('saveAdminSalaryAuditLogToServer returns default message when a non-Error is thrown', async () => {
+    fetchMock.mockRejectedValueOnce({ unexpected: true });
+
+    const result = await saveAdminSalaryAuditLogToServer({
+      serverUrl,
+      headers,
+      events: [createAuditEvent('manual-backup', 'x')],
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      message: 'Unable to save salary audit log to server.',
     });
   });
 });
