@@ -2311,27 +2311,6 @@ app.get("/make-server-a1c55d7e/user/:username", async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/wallet/:username', async (c) => {
-  try {
-    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
-    if ('response' in identity) {
-      return identity.response;
-    }
-
-    const canonicalUsername = identity.username;
-    const userData = await getOrCreateUserRecord(canonicalUsername);
-    await assignUsernameLookup(canonicalUsername);
-
-    return c.json({
-      username: canonicalUsername,
-      walletProfile: normalizeStoredWalletProfile((userData as any).walletProfile),
-    });
-  } catch (error) {
-    console.error('Error fetching wallet profile:', error);
-    return c.json({ error: 'Failed to fetch wallet profile' }, 500);
-  }
-});
-
 app.get('/make-server-a1c55d7e/me/wallet', async (c) => {
   try {
     const sessionResult = await requireActiveUserSession(c);

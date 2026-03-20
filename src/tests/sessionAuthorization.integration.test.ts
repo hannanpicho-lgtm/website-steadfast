@@ -61,7 +61,6 @@ describe('Session-bound authorization', () => {
     const financialsRes = await requestWithCookie(`/financials/${OTHER_USER}/summary`, cookie);
     const tasksRes = await requestWithCookie(`/tasks/${OTHER_USER}`, cookie);
     const transactionsRes = await requestWithCookie(`/transactions/${OTHER_USER}`, cookie);
-    const walletRes = await requestWithCookie(`/wallet/${OTHER_USER}`, cookie);
     const withdrawalsRes = await requestWithCookie(`/withdrawals/${OTHER_USER}`, cookie);
     const referralsRes = await requestWithCookie(`/referrals/${OTHER_USER}/summary`, cookie);
 
@@ -69,7 +68,6 @@ describe('Session-bound authorization', () => {
     expect(financialsRes.status).toBe(403);
     expect(tasksRes.status).toBe(403);
     expect(transactionsRes.status).toBe(403);
-    expect(walletRes.status).toBe(403);
     expect(withdrawalsRes.status).toBe(403);
     expect(referralsRes.status).toBe(403);
   });
