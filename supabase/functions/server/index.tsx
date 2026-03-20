@@ -2754,7 +2754,7 @@ app.post("/make-server-a1c55d7e/submit-task", async (c) => {
 
     const requestedTaskId = sanitizeTaskId(body?.taskId);
     const requestedProductPrice = typeof body?.productPrice === 'number' ? body.productPrice : Number(body?.productPrice);
-    const identity = await resolveSessionBoundUsername(c, body?.username);
+    const identity = await resolveSessionBoundUsername(c, body?.username, { required: false });
     if ('response' in identity) {
       return identity.response;
     }

@@ -222,10 +222,15 @@ describe('User endpoints', () => {
 // ─── Submit Task ──────────────────────────────────────────────────────────────
 
 describe('POST /submit-task', () => {
-  it('returns 400 when username is missing', async () => {
+  it('accepts session-backed requests when username is missing', async () => {
     const { status, body } = await postAsUser('/submit-task', { productPrice: 100 });
-    expect(status).toBe(400);
-    expect(typeof body.error).toBe('string');
+    expect([200, 409]).toContain(status);
+    if (status === 200) {
+      expect(body.success).toBe(true);
+      return;
+    }
+
+    expect(['premium_task_encountered', 'task_set_reset_required']).toContain(String(body?.code ?? ''));
   });
 
   it('returns 400 when productPrice is missing', async () => {

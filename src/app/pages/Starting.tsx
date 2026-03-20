@@ -192,12 +192,12 @@ export default function Starting() {
 
       const response = await fetch(`${serverUrl}/submit-task`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
         },
         body: JSON.stringify({
-          username,
           taskId: currentProduct.id,
           productPrice: currentProduct.price,
         }),
