@@ -4246,7 +4246,7 @@ app.post("/make-server-a1c55d7e/cs/create-ticket", async (c) => {
     if (rateLimited) return rateLimited;
 
     const { username: rawTicketUsername, subject, message, category, priority } = await c.req.json();
-    const identity = await resolveSessionBoundUsername(c, rawTicketUsername);
+    const identity = await resolveSessionBoundUsername(c, rawTicketUsername, { required: false });
     if ('response' in identity) {
       return identity.response;
     }

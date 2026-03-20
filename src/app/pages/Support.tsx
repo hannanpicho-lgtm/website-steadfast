@@ -212,12 +212,12 @@ export default function Support() {
       setSubmitting(true);
       const response = await fetch(`${serverUrl}/cs/create-ticket`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
         },
         body: JSON.stringify({
-          username,
           subject,
           message,
           category,

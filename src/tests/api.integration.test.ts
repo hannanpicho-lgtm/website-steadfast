@@ -469,7 +469,6 @@ describe('Support tickets', () => {
 
   it('POST /cs/create-ticket creates a ticket and returns its id', async () => {
     const { status, body } = await postAsUser('/cs/create-ticket', {
-      username: SESSION_USER,
       subject: 'Audit test ticket',
       message: 'Automated integration test message',
       category: 'general',
