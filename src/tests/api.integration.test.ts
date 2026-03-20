@@ -565,9 +565,11 @@ describe('Live chat', () => {
     expect(status).toBe(400);
   });
 
-  it('POST /cs/chat/send returns 400 when username is missing', async () => {
-    const { status } = await postAsUser('/cs/chat/send', { message: 'hello' });
-    expect(status).toBe(400);
+  it('POST /cs/chat/send accepts session-backed requests when username is missing', async () => {
+    const { status, body } = await postAsUser('/cs/chat/send', { message: 'hello' });
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.message.message).toBe('hello');
   });
 
   it('POST /cs/chat/send sends a user message and returns it', async () => {

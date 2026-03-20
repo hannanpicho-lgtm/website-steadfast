@@ -4465,7 +4465,7 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
         return rateLimited;
       }
     } else {
-      const identity = await resolveSessionBoundUsername(c, rawChatUsername);
+      const identity = await resolveSessionBoundUsername(c, rawChatUsername, { required: false });
       if ('response' in identity) {
         return identity.response;
       }

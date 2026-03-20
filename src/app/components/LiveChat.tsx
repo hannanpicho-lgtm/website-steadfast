@@ -96,12 +96,12 @@ export function LiveChat({ isOpen, onClose, username }: LiveChatProps) {
       setSending(true);
       const response = await fetch(`${serverUrl}/cs/chat/send`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
         },
         body: JSON.stringify({
-          username,
           message: newMessage,
           isAdmin: false,
         }),

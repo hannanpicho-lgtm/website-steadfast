@@ -133,11 +133,12 @@ export function FloatingLiveChat() {
       const trimmedMessage = message.trim();
       const response = await fetch(`${serverUrl}/cs/chat/send`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${publicAnonKey}`,
         },
-        body: JSON.stringify({ username: currentUsername, message: trimmedMessage }),
+        body: JSON.stringify({ message: trimmedMessage }),
       });
 
       const payload = await response.json().catch(() => ({}));
