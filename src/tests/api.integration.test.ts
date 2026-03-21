@@ -403,6 +403,27 @@ describe('Premium endpoints', () => {
   });
 });
 
+// ─── Transaction read surface hardening ──────────────────────────────────────
+
+describe('Transaction read surface hardening', () => {
+  it('GET /transactions/:username — retired route returns 404', async () => {
+    const { status } = await request(`/transactions/${SESSION_USER}`);
+    expect(status).toBe(404);
+  });
+
+  it('GET /me/transactions — returns 401 without session', async () => {
+    const { status } = await request('/me/transactions');
+    expect(status).toBe(401);
+  });
+
+  it('GET /me/transactions?username=injected — ignores query param, returns session array', async () => {
+    const cookie = await loginAndGetSessionCookie();
+    const { status, body } = await requestWithCookie('/me/transactions?username=admin', cookie);
+    expect(status).toBe(200);
+    expect(Array.isArray(body)).toBe(true);
+  });
+});
+
 // ─── Finance ─────────────────────────────────────────────────────────────────
 
 describe('Finance endpoints', () => {
