@@ -92,12 +92,58 @@ function latencyBucketMs(latencyMs: number): '<=100ms' | '<=500ms' | '<=1000ms' 
   return '>5000ms';
 }
 
+type RuntimeObservedEvent = {
+  atMs: number;
+  at: string;
+  event: string;
+  severity: 'info' | 'warn' | 'error';
+  path: string;
+  method: string;
+  statusClass?: string;
+};
+
+const RUNTIME_OBSERVABILITY_RETENTION_MS = 60 * 60 * 1000;
+const RUNTIME_OBSERVABILITY_MAX_EVENTS = 5000;
+const runtimeObservedEvents: RuntimeObservedEvent[] = [];
+
+function pruneRuntimeObservedEvents(now = Date.now()): void {
+  const cutoff = now - RUNTIME_OBSERVABILITY_RETENTION_MS;
+  while (runtimeObservedEvents.length > 0 && runtimeObservedEvents[0].atMs < cutoff) {
+    runtimeObservedEvents.shift();
+  }
+
+  if (runtimeObservedEvents.length > RUNTIME_OBSERVABILITY_MAX_EVENTS) {
+    runtimeObservedEvents.splice(0, runtimeObservedEvents.length - RUNTIME_OBSERVABILITY_MAX_EVENTS);
+  }
+}
+
+function recordRuntimeObservedEvent(
+  c: any,
+  event: string,
+  severity: 'info' | 'warn' | 'error',
+  details: Record<string, unknown>,
+): void {
+  const now = Date.now();
+  runtimeObservedEvents.push({
+    atMs: now,
+    at: new Date(now).toISOString(),
+    event,
+    severity,
+    path: c.req.path,
+    method: c.req.method,
+    statusClass: typeof details.statusClass === 'string' ? details.statusClass : undefined,
+  });
+  pruneRuntimeObservedEvents(now);
+}
+
 function logStructuredEvent(
   c: any,
   event: string,
   severity: 'info' | 'warn' | 'error' = 'info',
   details: Record<string, unknown> = {},
 ) {
+  recordRuntimeObservedEvent(c, event, severity, details);
+
   const payload = {
     event,
     severity,
@@ -4006,6 +4052,62 @@ app.put('/make-server-a1c55d7e/admin/platform-settings', async (c) => {
   } catch (error) {
     console.error('Error saving admin platform settings:', error);
     return c.json({ error: 'Failed to save platform settings' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/observability/security-summary', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:observability-security-summary-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const requestedWindow = Number(c.req.query('windowMinutes') ?? 15);
+    const windowMinutes = Number.isFinite(requestedWindow)
+      ? Math.min(60, Math.max(1, Math.round(requestedWindow)))
+      : 15;
+
+    const now = Date.now();
+    pruneRuntimeObservedEvents(now);
+    const cutoff = now - windowMinutes * 60_000;
+    const windowEvents = runtimeObservedEvents.filter((entry) => entry.atMs >= cutoff);
+
+    const bySeverity = { info: 0, warn: 0, error: 0 };
+    const byEvent: Record<string, number> = {};
+    const byStatusClass: Record<string, number> = {};
+
+    windowEvents.forEach((entry) => {
+      bySeverity[entry.severity] += 1;
+      byEvent[entry.event] = (byEvent[entry.event] ?? 0) + 1;
+      if (entry.statusClass) {
+        byStatusClass[entry.statusClass] = (byStatusClass[entry.statusClass] ?? 0) + 1;
+      }
+    });
+
+    return c.json({
+      generatedAt: new Date(now).toISOString(),
+      windowMinutes,
+      totals: {
+        events: windowEvents.length,
+        bySeverity,
+        byEvent,
+        byStatusClass,
+      },
+      recent: windowEvents.slice(-10),
+    });
+  } catch (error) {
+    console.error('Error fetching admin observability security summary:', error);
+    return c.json({ error: 'Failed to fetch observability security summary' }, 500);
   }
 });
 
