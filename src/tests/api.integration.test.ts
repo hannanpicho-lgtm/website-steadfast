@@ -1099,6 +1099,26 @@ describe('Admin route authentication', () => {
     const { status } = await request('/admin/observability/security-alerts');
     expect(status).toBe(401);
   });
+
+  it('GET /admin/observability/security-alert-config → 401 with anon token only', async () => {
+    const { status } = await request('/admin/observability/security-alert-config');
+    expect(status).toBe(401);
+  });
+
+  it('PUT /admin/observability/security-alert-config → 401 with anon token only', async () => {
+    const { status } = await request('/admin/observability/security-alert-config', {
+      method: 'PUT',
+      body: JSON.stringify({
+        config: {
+          errorRate5xxPctThreshold: 1.5,
+          authFailuresPerMinuteThreshold: 25,
+          rateLimitEventsPerMinuteThreshold: 40,
+          requestLatencyP95MsThreshold: 1200,
+        },
+      }),
+    });
+    expect(status).toBe(401);
+  });
 });
 
 describe('Tier 1 critical identity enforcement', () => {
@@ -1918,5 +1938,48 @@ describe('Admin route success path', () => {
     expect(typeof result.body.windowMinutes).toBe('number');
     expect(['ok', 'warning', 'critical']).toContain(result.body.overallStatus);
     expect(Array.isArray(result.body.rules)).toBe(true);
+  });
+
+  it('GET/PUT /admin/observability/security-alert-config is role-gated and supports super-admin writes', async () => {
+    if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
+      const { status } = await request('/admin/observability/security-alert-config');
+      expect(status).toBe(401);
+      return;
+    }
+
+    const putResult = await request('/admin/observability/security-alert-config', {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        config: {
+          errorRate5xxPctThreshold: 1.75,
+          authFailuresPerMinuteThreshold: 22,
+          rateLimitEventsPerMinuteThreshold: 35,
+          requestLatencyP95MsThreshold: 1100,
+        },
+      }),
+    });
+
+    if (putResult.status === 403) {
+      expect(String(putResult.body.error ?? '')).toContain('super-admin');
+      return;
+    }
+
+    expect(putResult.status).toBe(200);
+    expect(putResult.body.success).toBe(true);
+    expect(typeof putResult.body.config?.errorRate5xxPctThreshold).toBe('number');
+
+    const getResult = await request('/admin/observability/security-alert-config', {
+      headers: adminHeaders(),
+    });
+    expect(getResult.status).toBe(200);
+    expect(typeof getResult.body.config).toBe('object');
+    expect(typeof getResult.body.config.errorRate5xxPctThreshold).toBe('number');
+    expect(typeof getResult.body.config.authFailuresPerMinuteThreshold).toBe('number');
+    expect(typeof getResult.body.config.rateLimitEventsPerMinuteThreshold).toBe('number');
+    expect(typeof getResult.body.config.requestLatencyP95MsThreshold).toBe('number');
   });
 });

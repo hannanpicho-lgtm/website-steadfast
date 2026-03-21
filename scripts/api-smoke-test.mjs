@@ -430,6 +430,15 @@ async function testAdminAuth() {
     ['GET', '/cs/admin/chats', undefined],
     ['GET', '/admin/observability/security-summary', undefined],
     ['GET', '/admin/observability/security-alerts', undefined],
+    ['GET', '/admin/observability/security-alert-config', undefined],
+    ['PUT', '/admin/observability/security-alert-config', {
+      config: {
+        errorRate5xxPctThreshold: 1.9,
+        authFailuresPerMinuteThreshold: 28,
+        rateLimitEventsPerMinuteThreshold: 45,
+        requestLatencyP95MsThreshold: 1300,
+      },
+    }],
   ];
 
   for (const [method, path, body] of routes) {
@@ -476,8 +485,38 @@ async function testAdminSuccess() {
         ? typeof b?.error === 'string'
         : typeof b?.generatedAt === 'string' &&
           typeof b?.windowMinutes === 'number' &&
+          typeof b?.thresholds === 'object' &&
           ['ok', 'warning', 'critical'].includes(b?.overallStatus) &&
           Array.isArray(b?.rules),
+  );
+
+  const securityAlertConfigPut = await call('PUT', '/admin/observability/security-alert-config', {
+    config: {
+      errorRate5xxPctThreshold: 1.8,
+      authFailuresPerMinuteThreshold: 24,
+      rateLimitEventsPerMinuteThreshold: 38,
+      requestLatencyP95MsThreshold: 1150,
+    },
+  }, headers);
+  check(
+    'PUT /admin/observability/security-alert-config → 200 or 403 (admin JWT)',
+    securityAlertConfigPut,
+    [200, 403],
+    b =>
+      securityAlertConfigPut.status === 403
+        ? typeof b?.error === 'string'
+        : b?.success === true && typeof b?.config === 'object',
+  );
+
+  const securityAlertConfigGet = await call('GET', '/admin/observability/security-alert-config', undefined, headers);
+  check(
+    'GET /admin/observability/security-alert-config → 200 or 403 (admin JWT)',
+    securityAlertConfigGet,
+    [200, 403],
+    b =>
+      securityAlertConfigGet.status === 403
+        ? typeof b?.error === 'string'
+        : typeof b?.config === 'object' && typeof b?.config?.errorRate5xxPctThreshold === 'number',
   );
 }
 
