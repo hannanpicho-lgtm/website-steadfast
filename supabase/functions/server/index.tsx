@@ -100,6 +100,7 @@ type RuntimeObservedEvent = {
   path: string;
   method: string;
   statusClass?: string;
+  durationMs?: number;
 };
 
 const RUNTIME_OBSERVABILITY_RETENTION_MS = 60 * 60 * 1000;
@@ -132,8 +133,99 @@ function recordRuntimeObservedEvent(
     path: c.req.path,
     method: c.req.method,
     statusClass: typeof details.statusClass === 'string' ? details.statusClass : undefined,
+    durationMs: typeof details.durationMs === 'number' ? details.durationMs : undefined,
   });
   pruneRuntimeObservedEvents(now);
+}
+
+type SecurityAlertRule = {
+  id: string;
+  severity: 'warning' | 'critical';
+  triggered: boolean;
+  observed: number | null;
+  threshold: number;
+  unit: string;
+};
+
+function percentile(values: number[], percentileTarget: number): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(percentileTarget * sorted.length) - 1));
+  return sorted[index];
+}
+
+function evaluateSecurityAlerts(windowEvents: RuntimeObservedEvent[], windowMinutes: number): {
+  overallStatus: 'ok' | 'warning' | 'critical';
+  rules: SecurityAlertRule[];
+} {
+  const perMinuteDivisor = Math.max(windowMinutes, 1);
+  const requestMetrics = windowEvents.filter((entry) => entry.event === 'request_metric');
+
+  const totalRequests = requestMetrics.length;
+  const total5xx = requestMetrics.filter((entry) => entry.statusClass === '5xx').length;
+  const errorRate5xxPct = totalRequests > 0 ? (total5xx / totalRequests) * 100 : 0;
+
+  const authEventsPerMinute = (
+    windowEvents.filter((entry) =>
+      entry.event === 'admin_auth_failure' ||
+      entry.event === 'user_session_missing_or_expired' ||
+      entry.event === 'session_username_mismatch')
+      .length
+  ) / perMinuteDivisor;
+
+  const rateLimitEventsPerMinute = (
+    windowEvents.filter((entry) =>
+      entry.event === 'admin_rate_limit_exceeded' || entry.event === 'user_rate_limit_exceeded')
+      .length
+  ) / perMinuteDivisor;
+
+  const requestDurations = requestMetrics
+    .map((entry) => entry.durationMs)
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+  const p95DurationMs = percentile(requestDurations, 0.95);
+
+  const rules: SecurityAlertRule[] = [
+    {
+      id: 'error_rate_5xx_pct',
+      severity: 'critical',
+      triggered: errorRate5xxPct >= 2,
+      observed: Number(errorRate5xxPct.toFixed(2)),
+      threshold: 2,
+      unit: 'percent',
+    },
+    {
+      id: 'auth_failures_per_minute',
+      severity: 'warning',
+      triggered: authEventsPerMinute >= 30,
+      observed: Number(authEventsPerMinute.toFixed(2)),
+      threshold: 30,
+      unit: 'events_per_minute',
+    },
+    {
+      id: 'rate_limit_events_per_minute',
+      severity: 'warning',
+      triggered: rateLimitEventsPerMinute >= 50,
+      observed: Number(rateLimitEventsPerMinute.toFixed(2)),
+      threshold: 50,
+      unit: 'events_per_minute',
+    },
+    {
+      id: 'request_latency_p95_ms',
+      severity: 'warning',
+      triggered: typeof p95DurationMs === 'number' && p95DurationMs >= 1500,
+      observed: p95DurationMs,
+      threshold: 1500,
+      unit: 'milliseconds',
+    },
+  ];
+
+  const overallStatus = rules.some((rule) => rule.triggered && rule.severity === 'critical')
+    ? 'critical'
+    : rules.some((rule) => rule.triggered)
+      ? 'warning'
+      : 'ok';
+
+  return { overallStatus, rules };
 }
 
 function logStructuredEvent(
@@ -4108,6 +4200,46 @@ app.get('/make-server-a1c55d7e/admin/observability/security-summary', async (c) 
   } catch (error) {
     console.error('Error fetching admin observability security summary:', error);
     return c.json({ error: 'Failed to fetch observability security summary' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/observability/security-alerts', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:observability-security-alerts-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const requestedWindow = Number(c.req.query('windowMinutes') ?? 15);
+    const windowMinutes = Number.isFinite(requestedWindow)
+      ? Math.min(60, Math.max(1, Math.round(requestedWindow)))
+      : 15;
+
+    const now = Date.now();
+    pruneRuntimeObservedEvents(now);
+    const cutoff = now - windowMinutes * 60_000;
+    const windowEvents = runtimeObservedEvents.filter((entry) => entry.atMs >= cutoff);
+    const alertEvaluation = evaluateSecurityAlerts(windowEvents, windowMinutes);
+
+    return c.json({
+      generatedAt: new Date(now).toISOString(),
+      windowMinutes,
+      overallStatus: alertEvaluation.overallStatus,
+      rules: alertEvaluation.rules,
+    });
+  } catch (error) {
+    console.error('Error fetching admin observability security alerts:', error);
+    return c.json({ error: 'Failed to fetch observability security alerts' }, 500);
   }
 });
 

@@ -1094,6 +1094,11 @@ describe('Admin route authentication', () => {
     const { status } = await request('/admin/observability/security-summary');
     expect(status).toBe(401);
   });
+
+  it('GET /admin/observability/security-alerts → 401 with anon token only', async () => {
+    const { status } = await request('/admin/observability/security-alerts');
+    expect(status).toBe(401);
+  });
 });
 
 describe('Tier 1 critical identity enforcement', () => {
@@ -1887,5 +1892,31 @@ describe('Admin route success path', () => {
     expect(typeof result.body.totals?.events).toBe('number');
     expect(typeof result.body.totals?.bySeverity).toBe('object');
     expect(Array.isArray(result.body.recent)).toBe(true);
+  });
+
+  it('GET /admin/observability/security-alerts is role-gated and returns alert evaluation', async () => {
+    if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
+      const { status } = await request('/admin/observability/security-alerts');
+      expect(status).toBe(401);
+      return;
+    }
+
+    const result = await request('/admin/observability/security-alerts?windowMinutes=15', {
+      headers: adminHeaders(),
+    });
+
+    if (result.status === 403) {
+      expect(String(result.body.error ?? '')).toContain('super-admin');
+      return;
+    }
+
+    expect(result.status).toBe(200);
+    expect(typeof result.body.generatedAt).toBe('string');
+    expect(typeof result.body.windowMinutes).toBe('number');
+    expect(['ok', 'warning', 'critical']).toContain(result.body.overallStatus);
+    expect(Array.isArray(result.body.rules)).toBe(true);
   });
 });

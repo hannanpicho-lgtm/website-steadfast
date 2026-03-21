@@ -429,6 +429,7 @@ async function testAdminAuth() {
     ['GET', '/cs/admin/tickets', undefined],
     ['GET', '/cs/admin/chats', undefined],
     ['GET', '/admin/observability/security-summary', undefined],
+    ['GET', '/admin/observability/security-alerts', undefined],
   ];
 
   for (const [method, path, body] of routes) {
@@ -463,6 +464,20 @@ async function testAdminSuccess() {
           typeof b?.windowMinutes === 'number' &&
           typeof b?.totals?.events === 'number' &&
           Array.isArray(b?.recent),
+  );
+
+  const securityAlerts = await call('GET', '/admin/observability/security-alerts?windowMinutes=15', undefined, headers);
+  check(
+    'GET /admin/observability/security-alerts → 200 or 403 (admin JWT)',
+    securityAlerts,
+    [200, 403],
+    b =>
+      securityAlerts.status === 403
+        ? typeof b?.error === 'string'
+        : typeof b?.generatedAt === 'string' &&
+          typeof b?.windowMinutes === 'number' &&
+          ['ok', 'warning', 'critical'].includes(b?.overallStatus) &&
+          Array.isArray(b?.rules),
   );
 }
 
