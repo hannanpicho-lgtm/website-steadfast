@@ -132,7 +132,16 @@ function check(name, { status, body }, expectedStatus, extraValidation) {
 async function testHealth() {
   console.log('\n[Health]');
   const r = await call('GET', '/health');
-  check('GET /health', r, 200, b => b?.status === 'ok');
+  check('GET /health', r, 200, b => b?.status === 'ok' && typeof b?.timestamp === 'string');
+
+  const rLive = await call('GET', '/health/live');
+  check('GET /health/live (liveness probe)', rLive, 200, b => b?.status === 'alive' && typeof b?.timestamp === 'string');
+
+  const rReady = await call('GET', '/health/ready');
+  check('GET /health/ready (readiness probe)', rReady, [200, 503], b => 
+    (rReady.status === 200 && b?.status === 'ready' && b?.checks?.kv === 'healthy') ||
+    (rReady.status === 503 && b?.status === 'not-ready')
+  );
 }
 
 async function testUserEndpoints() {

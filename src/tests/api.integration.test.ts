@@ -242,6 +242,22 @@ describe('Health check', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('x-request-id')).toBe(suppliedRequestId);
   });
+
+  it('GET /health/live → 200 liveness probe (process alive)', async () => {
+    const { status, body } = await request('/health/live');
+    expect(status).toBe(200);
+    expect(body.status).toBe('alive');
+    expect(typeof body.timestamp).toBe('string');
+  });
+
+  it('GET /health/ready → 200 readiness probe (dependencies healthy)', async () => {
+    const { status, body } = await request('/health/ready');
+    expect(status).toBe(200);
+    expect(body.status).toBe('ready');
+    expect(typeof body.timestamp).toBe('string');
+    expect(typeof body.checks).toBe('object');
+    expect(body.checks.kv).toBe('healthy');
+  });
 });
 
 // ─── User ─────────────────────────────────────────────────────────────────────

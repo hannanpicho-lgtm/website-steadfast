@@ -2147,7 +2147,55 @@ function enforceUserRateLimit(c: any, bucket: string, maxRequests = USER_RATE_LI
 
 // Health check endpoint
 app.get("/make-server-a1c55d7e/health", (c) => {
-  return c.json({ status: "ok" });
+  return c.json({ 
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    service: "make-server-a1c55d7e"
+  });
+});
+
+app.get("/make-server-a1c55d7e/health/live", (c) => {
+  // Liveness probe: Process is alive (minimal dependencies)
+  return c.json({ 
+    status: "alive",
+    timestamp: new Date().toISOString()
+  }, 200);
+});
+
+app.get("/make-server-a1c55d7e/health/ready", async (c) => {
+  try {
+    // Readiness probe: Service is ready to handle traffic
+    // Check KV store connectivity with a quick operation
+    const probeKey = 'health:readiness:probe';
+    const testValue = { probeAt: new Date().toISOString() };
+    
+    await kv.set(probeKey, testValue);
+    const retrieved = await kv.get(probeKey);
+    
+    const kvHealthy = retrieved && typeof retrieved === 'object' && retrieved.probeAt;
+    
+    if (!kvHealthy) {
+      return c.json({ 
+        status: "not-ready",
+        timestamp: new Date().toISOString(),
+        checks: { kv: "unhealthy" }
+      }, 503);
+    }
+    
+    return c.json({ 
+      status: "ready",
+      timestamp: new Date().toISOString(),
+      checks: { kv: "healthy" }
+    }, 200);
+  } catch (error) {
+    console.error('Readiness check failed:', error);
+    return c.json({ 
+      status: "not-ready",
+      timestamp: new Date().toISOString(),
+      error: String(error),
+      checks: { kv: "error" }
+    }, 503);
+  }
 });
 
 app.get("/make-server-a1c55d7e/admin/users", async (c) => {
