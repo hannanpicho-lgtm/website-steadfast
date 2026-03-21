@@ -2315,6 +2315,20 @@ app.post("/make-server-a1c55d7e/admin/users", async (c) => {
       return limited;
     }
 
+    const callingAdmin = c.get('adminUser');
+    const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+
+    if (!isSuperAdmin(callingAdmin)) {
+      await recordObservabilityAuditEvent(
+        'admin-user-create-denied',
+        actorEmail,
+        'Denied admin user creation: super-admin access required',
+      ).catch((e) => console.error('Failed to record admin-create-denied audit event:', e));
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
     if (!authClient) {
       return c.json({ error: 'Server auth configuration missing' }, 500);
     }
@@ -2381,6 +2395,13 @@ app.post("/make-server-a1c55d7e/admin/users", async (c) => {
 
     await kv.set(`admin:invite:code:${shortCode}`, codeRecord);
     await kv.set(`admin:invite:by-admin:${data.user.id}`, shortCode);
+
+    const createdRole = accessRole === 'super_admin' ? 'super-admin' : 'admin';
+    await recordObservabilityAuditEvent(
+      'admin-user-create',
+      actorEmail,
+      `Created ${createdRole} account ${data.user.email ?? data.user.id} (${data.user.id}) with role '${roleName}'`,
+    ).catch((e) => console.error('Failed to record admin-user-create audit event:', e));
 
     const adminRecord = mapAuthUserToAdminRecord(data.user);
     return c.json({ admin: adminRecord, invitationCode: shortCode }, 201);
@@ -6855,6 +6876,15 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials
     normalizedUser.passwordUpdatedAt = new Date().toISOString();
 
     await kv.set(userKey, normalizedUser);
+
+    const resetActorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'user-credentials-reset',
+      resetActorEmail,
+      `Reset login and transaction password for user '${canonicalUsername}' (mustChangePassword=true)`,
+    ).catch((e) => console.error('Failed to record user-credentials-reset audit event:', e));
 
     return c.json({
       ok: true,

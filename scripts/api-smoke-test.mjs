@@ -436,6 +436,7 @@ async function testAdminAuth() {
     ['POST', '/admin/assign-premium-bundle', { username: TEST_USER, premiumProductValue: 500, bundledProductCount: 1 }],
     ['DELETE', `/admin/cancel-premium/${TEST_USER}/premium-fake`, undefined],
     ['DELETE', '/admin/users/admin_fake', undefined],
+    ['POST', '/admin/users', { fullName: 'Test Admin', username: 'smokeadmin', email: 'smokeadmin@example.com', roleName: 'Admin', password: 'password123' }],
     ['GET', '/cs/admin/tickets', undefined],
     ['GET', '/cs/admin/chats', undefined],
     ['GET', '/admin/observability/security-summary', undefined],
@@ -487,6 +488,23 @@ async function testAdminSuccess() {
       deleteAdmin.status === 403
         ? typeof b?.error === 'string' && b.error.includes('super-admin')
         : typeof b?.error === 'string',
+  );
+
+  const createAdmin = await call('POST', '/admin/users', {
+    fullName: 'Test Admin',
+    username: 'smokeadmin',
+    email: 'smokeadmin@example.com',
+    roleName: 'Admin',
+    password: 'password123',
+  }, headers);
+  check(
+    'POST /admin/users → 403 (non-super) or 201/400 (super-admin JWT)',
+    createAdmin,
+    [201, 400, 403],
+    b =>
+      createAdmin.status === 403
+        ? typeof b?.error === 'string' && b.error.includes('super-admin')
+        : typeof b?.error === 'string' || typeof b?.admin === 'object',
   );
 
   const securitySummary = await call('GET', '/admin/observability/security-summary?windowMinutes=15', undefined, headers);

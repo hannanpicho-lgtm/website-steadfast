@@ -978,6 +978,17 @@ describe('Admin route authentication', () => {
     expect(status).toBe(401);
   });
 
+  it('POST /admin/users → 401 with anon token only', async () => {
+    const { status } = await post('/admin/users', {
+      fullName: 'Test Admin',
+      username: 'testadmin',
+      email: 'testadmin@example.com',
+      roleName: 'Admin',
+      password: 'password123',
+    });
+    expect(status).toBe(401);
+  });
+
   it('GET /cs/admin/tickets → 401 with anon token only', async () => {
     const { status } = await request('/cs/admin/tickets');
     expect(status).toBe(401);
@@ -1585,6 +1596,37 @@ describe('Tier 2 admin authorization hardening', () => {
 
     expect(result.status).toBe(404);
     expect(typeof result.body.error).toBe('string');
+  });
+
+  it('POST /admin/users requires super-admin', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await post('/admin/users', {
+        fullName: 'Test Admin',
+        username: 'testadmin',
+        email: 'testadmin@example.com',
+        roleName: 'Admin',
+        password: 'password123',
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const result = await post('/admin/users', {
+      fullName: 'Test Admin',
+      username: 'testadmin',
+      email: 'testadmin@example.com',
+      roleName: 'Admin',
+      password: 'password123',
+    }, adminHeaders());
+
+    if (result.status === 403) {
+      expect(String(result.body.error ?? '')).toContain('super-admin');
+      return;
+    }
+
+    // If the calling admin is a super-admin the request may succeed (201) or
+    // fail with a validation error (400) if the email already exists — both are acceptable.
+    expect([200, 201, 400, 409]).toContain(result.status);
   });
 
   it('POST /cs/update-status enforces ticket-to-user scope validation', async () => {
