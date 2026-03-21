@@ -230,6 +230,18 @@ describe('Health check', () => {
     expect(response.headers.get('strict-transport-security')).toContain('max-age=31536000');
     expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
   });
+
+  it('GET /health echoes caller-provided x-request-id', async () => {
+    const suppliedRequestId = `tier2-audit-${RUN_ID}`;
+    const response = await requestRaw('/health', {
+      headers: {
+        'x-request-id': suppliedRequestId,
+      },
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-request-id')).toBe(suppliedRequestId);
+  });
 });
 
 // ─── User ─────────────────────────────────────────────────────────────────────

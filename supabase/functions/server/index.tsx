@@ -50,6 +50,62 @@ function resolveRequestId(c: any): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function requestSource(c: any): string {
+  const forwardedFor = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? 'unknown-ip';
+  return forwardedFor.split(',')[0].trim();
+}
+
+function baseRequestContext(c: any): Record<string, unknown> {
+  return {
+    requestId: c.get('requestId') ?? null,
+    path: c.req.path,
+    method: c.req.method,
+    source: requestSource(c),
+  };
+}
+
+function statusClass(status: number): '1xx' | '2xx' | '3xx' | '4xx' | '5xx' {
+  if (status >= 500) return '5xx';
+  if (status >= 400) return '4xx';
+  if (status >= 300) return '3xx';
+  if (status >= 200) return '2xx';
+  return '1xx';
+}
+
+function latencyBucketMs(latencyMs: number): '<=100ms' | '<=500ms' | '<=1000ms' | '<=5000ms' | '>5000ms' {
+  if (latencyMs <= 100) return '<=100ms';
+  if (latencyMs <= 500) return '<=500ms';
+  if (latencyMs <= 1000) return '<=1000ms';
+  if (latencyMs <= 5000) return '<=5000ms';
+  return '>5000ms';
+}
+
+function logStructuredEvent(
+  c: any,
+  event: string,
+  severity: 'info' | 'warn' | 'error' = 'info',
+  details: Record<string, unknown> = {},
+) {
+  const payload = {
+    event,
+    severity,
+    at: new Date().toISOString(),
+    ...baseRequestContext(c),
+    ...details,
+  };
+
+  const text = JSON.stringify(payload);
+  if (severity === 'error') {
+    console.error(text);
+    return;
+  }
+  if (severity === 'warn') {
+    console.warn(text);
+    return;
+  }
+  console.log(text);
+}
+
 function applySecurityHeaders(c: any): void {
   c.header('X-Content-Type-Options', 'nosniff');
   c.header('X-Frame-Options', 'DENY');
@@ -61,10 +117,20 @@ function applySecurityHeaders(c: any): void {
 
 app.use('*', async (c, next) => {
   const requestId = resolveRequestId(c);
+  const startedAt = Date.now();
   c.set('requestId', requestId);
   c.header('X-Request-Id', requestId);
   applySecurityHeaders(c);
   await next();
+  const totalMs = Date.now() - startedAt;
+  if (c.req.method !== 'OPTIONS') {
+    logStructuredEvent(c, 'request_metric', 'info', {
+      status: c.res.status,
+      statusClass: statusClass(c.res.status),
+      durationMs: totalMs,
+      durationBucket: latencyBucketMs(totalMs),
+    });
+  }
   c.header('X-Request-Id', requestId);
   applySecurityHeaders(c);
 });
@@ -124,34 +190,27 @@ function hasAdminRole(user: any): boolean {
 }
 
 function adminRequestContext(c: any) {
-  const forwardedFor = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? 'unknown-ip';
-  const source = forwardedFor.split(',')[0].trim();
   const adminUser = c.get('adminUser');
   return {
-    requestId: c.get('requestId') ?? null,
-    path: c.req.path,
-    method: c.req.method,
-    source,
+    ...baseRequestContext(c),
     userId: adminUser?.id ?? null,
   };
 }
 
 function logAdminAuthFailure(c: any, reason: string, details: Record<string, unknown> = {}) {
-  console.warn(JSON.stringify({
-    event: 'admin_auth_failure',
+  logStructuredEvent(c, 'admin_auth_failure', 'warn', {
     reason,
     ...adminRequestContext(c),
     ...details,
-  }));
+  });
 }
 
 function logAdminRateLimit(c: any, bucket: string, retryAfterSeconds: number) {
-  console.warn(JSON.stringify({
-    event: 'admin_rate_limit_exceeded',
+  logStructuredEvent(c, 'admin_rate_limit_exceeded', 'warn', {
     bucket,
     retryAfterSeconds,
     ...adminRequestContext(c),
-  }));
+  });
 }
 
 async function requireAdmin(c: any) {
@@ -1773,8 +1832,7 @@ const userRateLimitStore = new Map<string, { count: number; resetAt: number }>()
 
 function enforceUserRateLimit(c: any, bucket: string, maxRequests = USER_RATE_LIMIT_MAX_REQUESTS) {
   const now = Date.now();
-  const forwardedFor = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? 'unknown-ip';
-  const source = forwardedFor.split(',')[0].trim();
+  const source = requestSource(c);
   const key = `${bucket}:${source}`;
 
   const current = userRateLimitStore.get(key);
@@ -1786,6 +1844,11 @@ function enforceUserRateLimit(c: any, bucket: string, maxRequests = USER_RATE_LI
   if (current.count >= maxRequests) {
     const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
     c.header('Retry-After', String(retryAfterSeconds));
+    logStructuredEvent(c, 'user_rate_limit_exceeded', 'warn', {
+      bucket,
+      retryAfterSeconds,
+      maxRequests,
+    });
     return c.json({ error: 'Too many requests. Please retry shortly.' }, 429);
   }
 
@@ -2562,6 +2625,9 @@ async function getSessionFromRequest(c: any): Promise<UserSessionRecord | null> 
 async function requireActiveUserSession(c: any): Promise<{ session: UserSessionRecord } | { response: any }> {
   const session = await getSessionFromRequest(c);
   if (!session) {
+    logStructuredEvent(c, 'user_session_missing_or_expired', 'warn', {
+      authType: 'session_cookie',
+    });
     c.header('Set-Cookie', buildSessionClearCookieValue());
     return { response: c.json({ error: 'Invalid or expired session' }, 401) };
   }
@@ -2597,6 +2663,10 @@ async function resolveSessionBoundUsername(
 
   const canonicalRequestedUsername = (await resolveCanonicalUsername(requestedUsername)) ?? requestedUsername;
   if (canonicalRequestedUsername !== sessionUsername) {
+    logStructuredEvent(c, 'session_username_mismatch', 'warn', {
+      sessionUsername,
+      requestedUsername: canonicalRequestedUsername,
+    });
     return { response: c.json({ error: 'Forbidden: requested user does not match active session' }, 403) };
   }
 
