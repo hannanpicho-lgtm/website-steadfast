@@ -8,11 +8,11 @@ import { defaultRewardsConfig, fetchPublicRewardsConfig } from '../services/rewa
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 
 const vipColorByTier: Record<string, string> = {
-  bronze: 'bg-gray-500',
-  silver: 'bg-blue-500',
-  gold: 'bg-purple-500',
-  platinum: 'bg-yellow-500',
-  diamond: 'bg-red-500',
+  bronze: 'bg-slate-300',
+  silver: 'bg-yellow-500',
+  gold: 'bg-blue-500',
+  platinum: 'bg-emerald-500',
+  diamond: 'bg-orange-500',
 };
 
 type ActivityVipLevel = {
@@ -24,21 +24,22 @@ type ActivityVipLevel = {
 };
 
 const fallbackVipLevels: ActivityVipLevel[] = [
-  { level: 1, range: '100-499', products: 10, rate: '0.5%', color: 'bg-gray-500' },
-  { level: 2, range: '500-1999', products: 15, rate: '1.0%', color: 'bg-blue-500' },
-  { level: 3, range: '2000-4999', products: 20, rate: '1.5%', color: 'bg-purple-500' },
-  { level: 4, range: '5000-9999', products: 25, rate: '2.0%', color: 'bg-yellow-500' },
-  { level: 5, range: '10000', products: 30, rate: '2.5%', color: 'bg-red-500' },
+  { level: 1, range: '100 - 499', products: 40, rate: '0.5%', color: 'bg-slate-300' },
+  { level: 2, range: '500 - 1,599', products: 45, rate: '1.0%', color: 'bg-yellow-500' },
+  { level: 3, range: '1,600 - 5,499', products: 50, rate: '1.5%', color: 'bg-blue-500' },
+  { level: 4, range: '5,500 - 9,999', products: 55, rate: '2.0%', color: 'bg-emerald-500' },
+  { level: 5, range: '10,000', products: 60, rate: '2.5%', color: 'bg-orange-500' },
 ];
 
 function mapVipConfigToActivity(tiers: VipConfig[]): ActivityVipLevel[] {
+  const formatAmount = (value: number) => Math.round(value).toLocaleString('en-US');
   const sorted = [...tiers].sort((a, b) => a.level - b.level);
 
   return sorted.map((tier, index) => {
     const nextTier = sorted[index + 1];
     const range = nextTier
-      ? `${tier.investment}-${Math.max(tier.investment, nextTier.investment - 1)}`
-      : `${tier.investment}`;
+      ? `${formatAmount(tier.investment)} - ${formatAmount(Math.max(tier.investment, nextTier.investment - 1))}`
+      : `${formatAmount(tier.investment)}`;
 
     return {
       level: tier.level,

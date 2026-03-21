@@ -785,11 +785,19 @@ const defaultTaskCatalog = [
 ];
 
 const defaultVipConfig = [
-  { level: 1, name: 'VIP 1', investment: 100, dailyTasks: 10, commission: 0.005, color: 'bronze' },
-  { level: 2, name: 'VIP 2', investment: 500, dailyTasks: 15, commission: 0.01, color: 'silver' },
-  { level: 3, name: 'VIP 3', investment: 2000, dailyTasks: 20, commission: 0.015, color: 'gold' },
-  { level: 4, name: 'VIP 4', investment: 5000, dailyTasks: 25, commission: 0.02, color: 'platinum' },
-  { level: 5, name: 'VIP 5', investment: 10000, dailyTasks: 30, commission: 0.025, color: 'diamond' },
+  { level: 1, name: 'VIP 1', investment: 100, dailyTasks: 40, commission: 0.005, color: 'bronze' },
+  { level: 2, name: 'VIP 2', investment: 500, dailyTasks: 45, commission: 0.01, color: 'silver' },
+  { level: 3, name: 'VIP 3', investment: 1600, dailyTasks: 50, commission: 0.015, color: 'gold' },
+  { level: 4, name: 'VIP 4', investment: 5500, dailyTasks: 55, commission: 0.02, color: 'platinum' },
+  { level: 5, name: 'VIP 5', investment: 10000, dailyTasks: 60, commission: 0.025, color: 'diamond' },
+];
+
+const legacyVipConfigBaseline = [
+  { level: 1, investment: 100, dailyTasks: 10, commission: 0.005 },
+  { level: 2, investment: 500, dailyTasks: 15, commission: 0.01 },
+  { level: 3, investment: 2000, dailyTasks: 20, commission: 0.015 },
+  { level: 4, investment: 5000, dailyTasks: 25, commission: 0.02 },
+  { level: 5, investment: 10000, dailyTasks: 30, commission: 0.025 },
 ];
 
 const defaultRewardsConfig = {
@@ -803,8 +811,8 @@ const defaultRewardsConfig = {
   reset: [
     { id: 1, deposit: 100, reward: 28, label: 'Bronze', color: 'bg-orange-300', labelColor: 'bg-orange-600', enabled: true },
     { id: 2, deposit: 500, reward: 158, label: 'Silver', color: 'bg-gray-300', labelColor: 'bg-gray-600', enabled: true },
-    { id: 3, deposit: 2000, reward: 688, label: 'Gold', color: 'bg-yellow-300', labelColor: 'bg-yellow-600', enabled: true },
-    { id: 4, deposit: 5000, reward: 1788, label: 'Platinum', color: 'bg-blue-300', labelColor: 'bg-blue-600', enabled: true },
+    { id: 3, deposit: 1600, reward: 688, label: 'Gold', color: 'bg-yellow-300', labelColor: 'bg-yellow-600', enabled: true },
+    { id: 4, deposit: 5500, reward: 1788, label: 'Platinum', color: 'bg-blue-300', labelColor: 'bg-blue-600', enabled: true },
     { id: 5, deposit: 10000, reward: 3888, label: 'Diamond', color: 'bg-purple-300', labelColor: 'bg-purple-600', enabled: true },
     { id: 6, deposit: 30000, reward: 12888, label: 'Crown', color: 'bg-red-300', labelColor: 'bg-red-600', enabled: true },
   ],
@@ -1656,6 +1664,31 @@ function normalizeVipConfigRecord(record: any) {
 async function ensureVipConfigSeeded() {
   const existing = await kv.getByPrefix(VIP_CONFIG_KEY_PREFIX);
   if (existing.length > 0) {
+    const normalized = existing
+      .map((tier) => normalizeVipConfigRecord(tier))
+      .sort((left, right) => left.level - right.level);
+
+    const matchesLegacyDefaults =
+      normalized.length === legacyVipConfigBaseline.length
+      && legacyVipConfigBaseline.every((legacyTier, index) => {
+        const currentTier = normalized[index];
+        return currentTier
+          && currentTier.level === legacyTier.level
+          && currentTier.investment === legacyTier.investment
+          && currentTier.dailyTasks === legacyTier.dailyTasks
+          && Math.abs(currentTier.commission - legacyTier.commission) < 0.000001;
+      });
+
+    if (matchesLegacyDefaults) {
+      for (const tier of defaultVipConfig) {
+        const normalizedTier = normalizeVipConfigRecord({
+          ...tier,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        await kv.set(`${VIP_CONFIG_KEY_PREFIX}${normalizedTier.level}`, normalizedTier);
+      }
+    }
     return;
   }
 

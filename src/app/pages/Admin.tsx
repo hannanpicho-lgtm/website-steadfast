@@ -118,11 +118,11 @@ function AdminPanelFallback({ label }: { label: string }) {
 
 // VIP Configuration
 const defaultVipConfigurations: VipConfig[] = [
-  { level: 1, name: 'VIP 1', investment: 100, dailyTasks: 10, commission: 0.005, color: 'bronze' },
-  { level: 2, name: 'VIP 2', investment: 500, dailyTasks: 15, commission: 0.010, color: 'silver' },
-  { level: 3, name: 'VIP 3', investment: 2000, dailyTasks: 20, commission: 0.015, color: 'gold' },
-  { level: 4, name: 'VIP 4', investment: 5000, dailyTasks: 25, commission: 0.020, color: 'platinum' },
-  { level: 5, name: 'VIP 5', investment: 10000, dailyTasks: 30, commission: 0.025, color: 'diamond' },
+  { level: 1, name: 'VIP 1', investment: 100, dailyTasks: 40, commission: 0.005, color: 'bronze' },
+  { level: 2, name: 'VIP 2', investment: 500, dailyTasks: 45, commission: 0.010, color: 'silver' },
+  { level: 3, name: 'VIP 3', investment: 1600, dailyTasks: 50, commission: 0.015, color: 'gold' },
+  { level: 4, name: 'VIP 4', investment: 5500, dailyTasks: 55, commission: 0.020, color: 'platinum' },
+  { level: 5, name: 'VIP 5', investment: 10000, dailyTasks: 60, commission: 0.025, color: 'diamond' },
 ];
 
 type VipLevelConfig = VipConfig;
