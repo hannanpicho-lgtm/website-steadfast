@@ -438,6 +438,18 @@ export default function Admin() {
     return message.includes('(404)') || message.startsWith('404 ');
   };
 
+  const isPermissionDeniedError = (error: unknown): boolean => {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    const message = error.message.trim().toLowerCase();
+    return message.includes('forbidden')
+      || message.includes('super-admin access required')
+      || message.includes('(403)')
+      || message.startsWith('403 ');
+  };
+
   useEffect(() => {
     if (modalType !== 'edit-user' || !selectedItem) {
       setUserTaskControlDraft(null);
@@ -597,7 +609,7 @@ export default function Admin() {
     } catch (error) {
       setVipConfigurations(defaultVipConfigurations);
       handleAdminRequestError(error, 'Failed to load VIP configuration', {
-        suppressToast: isNotFoundError(error),
+        suppressToast: isNotFoundError(error) || isPermissionDeniedError(error),
       });
     } finally {
       setVipConfigLoading(false);
@@ -656,7 +668,7 @@ export default function Admin() {
     } catch (error) {
       setRewardsConfig(defaultRewardsConfig);
       handleAdminRequestError(error, 'Failed to load rewards configuration', {
-        suppressToast: isNotFoundError(error),
+        suppressToast: isNotFoundError(error) || isPermissionDeniedError(error),
       });
     } finally {
       setRewardsConfigLoading(false);
@@ -885,7 +897,9 @@ export default function Admin() {
       setTaskConfigurations(Array.isArray(payload?.tasks) ? payload.tasks : []);
     } catch (error) {
       setTaskConfigurations([]);
-      handleAdminRequestError(error, 'Failed to load tasks');
+      handleAdminRequestError(error, 'Failed to load tasks', {
+        suppressToast: isPermissionDeniedError(error),
+      });
     } finally {
       setTasksLoading(false);
     }

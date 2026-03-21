@@ -457,28 +457,41 @@ function enforceAdminRateLimit(c: any, bucket: string) {
   return null;
 }
 
+function normalizeAdminRoleToken(role: unknown): string | null {
+  if (typeof role !== 'string') {
+    return null;
+  }
+
+  const normalized = role.trim().toLowerCase().replace(/[\s-]+/g, '_');
+  return normalized || null;
+}
+
 function getAdminRoleClaim(user: any): 'admin' | 'super_admin' {
   const roles = new Set<string>();
   const appMetadata = typeof user?.app_metadata === 'object' && user.app_metadata ? user.app_metadata : {};
   const userMetadata = typeof user?.user_metadata === 'object' && user.user_metadata ? user.user_metadata : {};
 
-  if (typeof appMetadata.role === 'string') {
-    roles.add(appMetadata.role.toLowerCase());
+  const appRole = normalizeAdminRoleToken(appMetadata.role);
+  if (appRole) {
+    roles.add(appRole);
   }
   if (Array.isArray(appMetadata.roles)) {
     appMetadata.roles.forEach((role: unknown) => {
-      if (typeof role === 'string') {
-        roles.add(role.toLowerCase());
+      const normalizedRole = normalizeAdminRoleToken(role);
+      if (normalizedRole) {
+        roles.add(normalizedRole);
       }
     });
   }
-  if (typeof userMetadata.role === 'string') {
-    roles.add(userMetadata.role.toLowerCase());
+  const userRole = normalizeAdminRoleToken(userMetadata.role);
+  if (userRole) {
+    roles.add(userRole);
   }
   if (Array.isArray(userMetadata.roles)) {
     userMetadata.roles.forEach((role: unknown) => {
-      if (typeof role === 'string') {
-        roles.add(role.toLowerCase());
+      const normalizedRole = normalizeAdminRoleToken(role);
+      if (normalizedRole) {
+        roles.add(normalizedRole);
       }
     });
   }
