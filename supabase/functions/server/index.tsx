@@ -5145,6 +5145,12 @@ app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
     const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-create');
     if (rateLimited) {
       return rateLimited;
@@ -5181,6 +5187,16 @@ app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
     });
 
     await kv.set(`${TASK_CATALOG_KEY_PREFIX}${task.id}`, task);
+
+    const taskCreateActorEmail = typeof adminUser?.email === 'string' && adminUser.email
+      ? adminUser.email
+      : String(adminUser?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-task-catalog-create',
+      taskCreateActorEmail,
+      `Created task catalog entry '${task.id}' (${merchant} ${product}, \$${price}, ${commission}% commission)`,
+    ).catch((e) => console.error('Failed to record admin-task-catalog-create audit event:', e));
+
     return c.json({ success: true, task }, 201);
   } catch (error) {
     console.error('Error creating admin task:', error);
@@ -5194,6 +5210,12 @@ app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
     const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-update');
     if (rateLimited) {
       return rateLimited;
@@ -5239,6 +5261,16 @@ app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
     });
 
     await kv.set(`${TASK_CATALOG_KEY_PREFIX}${taskId}`, updatedTask);
+
+    const taskUpdateActorEmail = typeof adminUser?.email === 'string' && adminUser.email
+      ? adminUser.email
+      : String(adminUser?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-task-catalog-update',
+      taskUpdateActorEmail,
+      `Updated task catalog entry '${taskId}' (${updatedTask.merchant} ${updatedTask.product}, \$${updatedTask.price}, ${updatedTask.commission}% commission)`,
+    ).catch((e) => console.error('Failed to record admin-task-catalog-update audit event:', e));
+
     return c.json({ success: true, task: updatedTask });
   } catch (error) {
     console.error('Error updating admin task:', error);
@@ -5252,6 +5284,12 @@ app.put('/make-server-a1c55d7e/admin/vip-config/:level', async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
     const rateLimited = enforceAdminRateLimit(c, 'admin:vip-config-update');
     if (rateLimited) {
       return rateLimited;
@@ -5294,6 +5332,15 @@ app.put('/make-server-a1c55d7e/admin/vip-config/:level', async (c) => {
 
     await kv.set(`${VIP_CONFIG_KEY_PREFIX}${level}`, updatedTier);
     await syncUsersForVipLevel(level);
+
+    const vipActorEmail = typeof adminUser?.email === 'string' && adminUser.email
+      ? adminUser.email
+      : String(adminUser?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-vip-config-update',
+      vipActorEmail,
+      `Updated VIP tier level ${level} (investment: \$${updatedTier.investment}, dailyTasks: ${updatedTier.dailyTasks}, commission: ${updatedTier.commission}%)`,
+    ).catch((e) => console.error('Failed to record admin-vip-config-update audit event:', e));
 
     return c.json({ success: true, tier: updatedTier });
   } catch (error) {
@@ -5359,6 +5406,12 @@ app.delete('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
     const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-delete');
     if (rateLimited) {
       return rateLimited;
@@ -5375,6 +5428,16 @@ app.delete('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
     }
 
     await kv.del(`${TASK_CATALOG_KEY_PREFIX}${taskId}`);
+
+    const taskDeleteActorEmail = typeof adminUser?.email === 'string' && adminUser.email
+      ? adminUser.email
+      : String(adminUser?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-task-catalog-delete',
+      taskDeleteActorEmail,
+      `Deleted task catalog entry '${taskId}'`,
+    ).catch((e) => console.error('Failed to record admin-task-catalog-delete audit event:', e));
+
     return c.json({ success: true, deletedTaskId: taskId });
   } catch (error) {
     console.error('Error deleting admin task:', error);
@@ -6515,6 +6578,15 @@ app.post('/make-server-a1c55d7e/admin/invitation-codes/generate', async (c) => {
     await kv.set(`admin:invite:code:${code}`, record);
     await kv.set(oldCodeKey, code);
 
+    const inviteGenActorEmail = typeof c.get('adminUser')?.email === 'string' && c.get('adminUser')?.email
+      ? c.get('adminUser')?.email
+      : String(c.get('adminUser')?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-invitation-code-generate',
+      inviteGenActorEmail,
+      `Generated invitation code for admin '${targetData.user.email ?? subAdminId}'`,
+    ).catch((e) => console.error('Failed to record admin-invitation-code-generate audit event:', e));
+
     return c.json({ subAdminId, code, createdAt: record.createdAt });
   } catch (err) {
     console.error('invitation-code generate error:', err);
@@ -6600,9 +6672,19 @@ app.post('/make-server-a1c55d7e/admin/invitation-codes/assign-missing', async (c
       });
     }
 
+    const inviteBulkActorEmail = typeof c.get('adminUser')?.email === 'string' && c.get('adminUser')?.email
+      ? c.get('adminUser')?.email
+      : String(c.get('adminUser')?.id ?? 'unknown');
+    const newlyAssigned = results.filter((r) => r.status === 'newly_assigned').length;
+    await recordObservabilityAuditEvent(
+      'admin-invitation-codes-bulk-assign',
+      inviteBulkActorEmail,
+      `Assigned ${newlyAssigned} invitation codes to admins without codes (${admins.length} admins total)`,
+    ).catch((e) => console.error('Failed to record admin-invitation-codes-bulk-assign audit event:', e));
+
     return c.json({
       message: 'Invitation codes assigned to admins without codes',
-      assigned: results.filter((r) => r.status === 'newly_assigned').length,
+      assigned: newlyAssigned,
       already_had: results.filter((r) => r.status === 'already_has_code').length,
       results,
     });
@@ -6888,6 +6970,23 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
     }
 
     await kv.set(userKey, normalizedUser);
+
+    const taskCtrlActorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    const ctrlAction = (() => {
+      const flags = [
+        shouldResetCurrentSet ? 'reset-set' : '',
+        shouldSuspendAccount ? 'suspend' : '',
+        shouldRestoreNaturalState ? 'restore' : '',
+      ].filter(Boolean);
+      return flags.length > 0 ? flags.join('+') : 'update';
+    })();
+    await recordObservabilityAuditEvent(
+      'admin-user-task-controls-update',
+      taskCtrlActorEmail,
+      `Modified task controls for user '${username}' (taskSetCount: ${nextTaskSetCount}, tasksPerSet: ${nextTasksPerSet}, action: ${ctrlAction})`,
+    ).catch((e) => console.error('Failed to record admin-user-task-controls-update audit event:', e));
 
     return c.json({
       success: true,

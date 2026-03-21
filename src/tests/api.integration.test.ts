@@ -1575,6 +1575,111 @@ describe('Tier 2 admin authorization hardening', () => {
     }
   });
 
+  it('POST /admin/tasks requires super-admin', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await post('/admin/tasks', {
+        merchant: 'TestMerchant',
+        product: 'TestProduct',
+        price: 100,
+        commission: 0.1,
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const scopeProbe = await getAdminScopeProbe();
+    if (!scopeProbe) {
+      return;
+    }
+
+    const result = await post('/admin/tasks', {
+      merchant: 'TestMerchant',
+      product: 'TestProduct',
+      price: 100,
+      commission: 0.1,
+    }, adminHeaders());
+
+    if (scopeProbe.scoped) {
+      expect(result.status).toBe(403);
+    } else {
+      expect([200, 201]).toContain(result.status);
+    }
+  });
+
+  it('PUT /admin/tasks/:taskId requires super-admin', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await request('/admin/tasks/task_fake', {
+        method: 'PUT',
+        body: JSON.stringify({ price: 200 }),
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const result = await request('/admin/tasks/task_fake', {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({ price: 200 }),
+    });
+
+    if (result.status === 403) {
+      expect(String(result.body.error ?? '')).toContain('super-admin');
+      return;
+    }
+
+    expect(result.status).toBe(404);
+  });
+
+  it('DELETE /admin/tasks/:taskId requires super-admin', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await request('/admin/tasks/task_fake', {
+        method: 'DELETE',
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const result = await request('/admin/tasks/task_fake', {
+      method: 'DELETE',
+      headers: adminHeaders(),
+    });
+
+    if (result.status === 403) {
+      expect(String(result.body.error ?? '')).toContain('super-admin');
+      return;
+    }
+
+    expect(result.status).toBe(404);
+  });
+
+  it('PUT /admin/vip-config/:level requires super-admin', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await request('/admin/vip-config/1', {
+        method: 'PUT',
+        body: JSON.stringify({ investment: 5000 }),
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const scopeProbe = await getAdminScopeProbe();
+    if (!scopeProbe) {
+      return;
+    }
+
+    const result = await request('/admin/vip-config/1', {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({ investment: 5000 }),
+    });
+
+    if (scopeProbe.scoped) {
+      expect(result.status).toBe(403);
+    } else {
+      expect([200]).toContain(result.status);
+    }
+  });
+
   it('DELETE /admin/users/:adminId requires super-admin', async () => {
     if (!ADMIN_TEST_JWT) {
       const { status } = await request('/admin/users/admin_fake', {
@@ -2444,6 +2549,52 @@ describe('Admin route success path', () => {
       expect(auditResult.status).toBe(200);
       expect(auditResult.body.filters?.action).toBe(action);
       // If this action was triggered by earlier test runs the items array may have entries
+      for (const item of auditResult.body.items) {
+        expect(item.action).toBe(action);
+        expect(typeof item.actor).toBe('string');
+        expect(typeof item.detail).toBe('string');
+      }
+    }
+  });
+
+  it('Task catalog and configuration audit events are queryable via audit-log', async () => {
+    if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
+      const { status } = await request('/admin/observability/audit-log');
+      expect(status).toBe(401);
+      return;
+    }
+
+    // Stage 17 adds 7 new audit events:
+    // 1-4: Task catalog CRUD (create, update, delete) + VIP config update
+    // 5-6: Invitation code generation (single + bulk)
+    // 7: User task-controls update
+    const stage17Actions = [
+      'admin-task-catalog-create',
+      'admin-task-catalog-update',
+      'admin-task-catalog-delete',
+      'admin-vip-config-update',
+      'admin-invitation-code-generate',
+      'admin-invitation-codes-bulk-assign',
+      'admin-user-task-controls-update',
+    ];
+
+    for (const action of stage17Actions) {
+      const auditResult = await request(
+        `/admin/observability/audit-log?action=${action}&limit=10&sinceMinutes=1440`,
+        { headers: adminHeaders() },
+      );
+
+      if (auditResult.status === 403) {
+        expect(String(auditResult.body.error ?? '')).toContain('super-admin');
+        return;
+      }
+
+      expect(auditResult.status).toBe(200);
+      expect(auditResult.body.filters?.action).toBe(action);
+      // If any of these events exist in the audit log, validate their structure
       for (const item of auditResult.body.items) {
         expect(item.action).toBe(action);
         expect(typeof item.actor).toBe('string');
