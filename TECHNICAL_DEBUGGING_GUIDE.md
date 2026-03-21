@@ -1135,6 +1135,42 @@ console.log(localStorage);
 3. Navigate to: Edge Functions → Logs
 4. Filter by function: `make-server-a1c55d7e`
 
+### Structured Log Events (Phase 6 Baseline)
+
+Backend now emits structured JSON events for security and metrics analysis.
+
+Core events to watch:
+- request_metric
+- admin_auth_failure
+- admin_rate_limit_exceeded
+- user_rate_limit_exceeded
+- user_session_missing_or_expired
+- session_username_mismatch
+
+Common fields:
+- event
+- severity
+- at
+- requestId
+- path
+- method
+- source
+
+Use requestId to correlate an auth failure, rate-limit response, and latency metric for the same request chain.
+
+### Request-ID Triage Workflow
+
+1. Identify a failing request from client logs or support report.
+2. Extract x-request-id from the API response headers.
+3. Search function logs by requestId.
+4. Collect all matching events and order by timestamp.
+5. Classify failure type:
+  - auth failure
+  - scope mismatch
+  - rate-limit rejection
+  - server error
+6. Document route, source, and mitigation applied.
+
 ### Enable Detailed Logging
 
 Add to backend endpoints:

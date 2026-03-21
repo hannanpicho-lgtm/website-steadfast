@@ -12,6 +12,7 @@ Constraint: No feature work during migration phases.
 3. Phase 3 - Wallet and Banking Data
 4. Phase 4 - Admin Salary and Audit Systems
 5. Phase 5 - Admin Settings Centralization
+6. Phase 6 - Runtime Security and Observability Hardening
 
 ## Global Rules
 
@@ -115,6 +116,33 @@ Constraint: No feature work during migration phases.
 - [ ] Migration event logs captured.
 - [ ] Alerts reviewed for anomalies.
 
+### 8A. Alert Thresholds and Escalation
+
+- Alert Scope: function logs for make-server-a1c55d7e only.
+- Alert Window: rolling 5 minutes unless explicitly stated otherwise.
+- Pager Trigger:
+  - [ ] 5xx error rate >= 2% for 5 minutes.
+  - [ ] auth failures (401 or 403) >= 30 events per minute for 5 minutes.
+  - [ ] rate-limit responses (429) >= 50 events per minute for 10 minutes.
+  - [ ] p95 latency >= 1500ms for 10 minutes on health-critical routes.
+- High Priority Ticket Trigger:
+  - [ ] 4xx rate growth >= 3x baseline for 15 minutes.
+  - [ ] login failure ratio >= 20% over 15 minutes.
+- Incident Priority Rules:
+  - [ ] P1: credential abuse suspected, cross-scope data exposure, or sustained 5xx >= 5%.
+  - [ ] P2: sustained auth/rate-limit anomalies with customer impact.
+  - [ ] P3: noisy alerts without user impact, monitor and tune thresholds.
+- Escalation Timeline:
+  - [ ] P1 acknowledged within 5 minutes, mitigation owner assigned within 10 minutes.
+  - [ ] P2 acknowledged within 15 minutes.
+  - [ ] P3 acknowledged within 1 business day.
+- Required Incident Fields:
+  - [ ] requestId sample set
+  - [ ] affected route list
+  - [ ] first seen and mitigated timestamps
+  - [ ] root cause class
+  - [ ] remediation commit or rollback commit
+
 ### 9. Rollback Plan
 
 - Rollback Trigger Conditions:
@@ -134,6 +162,13 @@ Constraint: No feature work during migration phases.
 - Release Owner Signoff: Pass or Fail
 - Final Approver: Pass or Fail
 - Timestamp:
+
+### 10A. Security Operations Signoff
+
+- On-call Reviewer Signoff: Pass or Fail
+- Alert Threshold Reviewer Signoff: Pass or Fail
+- Incident Runbook Link Verified: Yes or No
+- Request ID Traceability Spot Check: Pass or Fail
 
 ## Phase-Specific Execution Notes
 

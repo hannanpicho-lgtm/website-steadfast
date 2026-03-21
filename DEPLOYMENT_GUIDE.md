@@ -280,6 +280,21 @@ Visit each page and verify it loads:
 - [ ] Check chat system performance
 - [ ] Verify no console errors
 
+### **Security Alert Thresholds (Production Baseline)**
+- [ ] 5xx error rate < 2% (rolling 5m)
+- [ ] 401/403 auth failures < 30 per minute sustained
+- [ ] 429 rate-limit responses < 50 per minute sustained
+- [ ] p95 latency < 1500ms on /health, /auth/login, /auth/session/restore, /me/* reads
+- [ ] Structured request metrics log present with requestId and duration bucket
+
+### **Incident Triage Checklist**
+- [ ] Capture at least 5 requestId values from impacted route logs
+- [ ] Confirm blast radius (user endpoints, admin endpoints, or both)
+- [ ] Classify severity: P1, P2, or P3
+- [ ] Decide mitigation path: rollback, rate-limit tune, or hotfix
+- [ ] Record mitigation commit SHA and timestamp
+- [ ] Run post-mitigation smoke and auth checks
+
 ### **Weekly Checks**
 - [ ] Database size monitoring
 - [ ] Performance metrics review
