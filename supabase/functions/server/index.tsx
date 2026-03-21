@@ -2285,11 +2285,11 @@ app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
     const rawLoginPassword = typeof body.loginPassword === 'string' ? body.loginPassword : null;
     const rawTransactionPassword = typeof body.transactionPassword === 'string' ? body.transactionPassword : null;
 
-    const identity = await resolveSessionBoundUsername(c, body.username, { required: false });
-    if ('response' in identity) {
-      return identity.response;
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
     }
-    const username = identity.username;
+    const username = sessionResult.session.username;
 
     if (!invitationCode || !parentInviteCode) {
       return c.json({ error: 'invitationCode and parentInviteCode are required' }, 400);
@@ -4368,13 +4368,13 @@ app.post("/make-server-a1c55d7e/cs/create-ticket", async (c) => {
     const rateLimited = enforceUserRateLimit(c, 'user:create-ticket');
     if (rateLimited) return rateLimited;
 
-    const { username: rawTicketUsername, subject, message, category, priority } = await c.req.json();
-    const identity = await resolveSessionBoundUsername(c, rawTicketUsername, { required: false });
-    if ('response' in identity) {
-      return identity.response;
+    const { subject, message, category, priority } = await c.req.json();
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
     }
 
-    const username = identity.username;
+    const username = sessionResult.session.username;
 
     if (!subject || !message || !category) {
       return c.json({ error: 'Missing required fields' }, 400);
@@ -4632,11 +4632,11 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
 
       username = canonicalRequestedUsername;
     } else {
-      const identity = await resolveSessionBoundUsername(c, rawChatUsername, { required: false });
-      if ('response' in identity) {
-        return identity.response;
+      const sessionResult = await requireActiveUserSession(c);
+      if ('response' in sessionResult) {
+        return sessionResult.response;
       }
-      username = identity.username;
+      username = sessionResult.session.username;
     }
     
     if (!username || !message) {
@@ -4712,17 +4712,37 @@ app.post("/make-server-a1c55d7e/cs/chat/mark-read", async (c) => {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
-    let username = sanitizeUsername(rawMarkReadUsername);
+    let username = '';
     if (viewer === 'user') {
-      const identity = await resolveSessionBoundUsername(c, rawMarkReadUsername, { required: false });
-      if ('response' in identity) {
-        return identity.response;
+      const sessionResult = await requireActiveUserSession(c);
+      if ('response' in sessionResult) {
+        return sessionResult.response;
       }
-      username = identity.username;
-    }
+      username = sessionResult.session.username;
+    } else {
+      const requestedUsername = sanitizeUsername(rawMarkReadUsername);
+      if (!requestedUsername) {
+        return c.json({ error: 'Missing required fields' }, 400);
+      }
 
-    if (!username) {
-      return c.json({ error: 'Missing required fields' }, 400);
+      const canonicalRequestedUsername = await resolveCanonicalUsername(requestedUsername);
+      if (!canonicalRequestedUsername) {
+        return c.json({ error: 'User not found' }, 404);
+      }
+
+      const adminUser = c.get('adminUser');
+      const callerIsSuperAdmin = isSuperAdmin(adminUser);
+      const userData = await kv.get(`user:${canonicalRequestedUsername}`);
+      if (!userData) {
+        return c.json({ error: 'User not found' }, 404);
+      }
+
+      const normalizedUser = normalizeUserRecord(userData, canonicalRequestedUsername);
+      if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== adminUser?.id) {
+        return c.json({ error: 'Forbidden' }, 403);
+      }
+
+      username = canonicalRequestedUsername;
     }
 
     const chatKey = `chat:${username}`;
@@ -4817,8 +4837,10 @@ app.post("/make-server-a1c55d7e/auth/forgot-password", async (c) => {
       return c.json({ error: 'Email is required' }, 400);
     }
     
-    // Find user by email (in real implementation, search KV store for user with this email)
-    // For now, we'll simulate this
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const emailLocalPart = normalizedEmail.includes('@') ? normalizedEmail.split('@')[0] : normalizedEmail;
+    const resetUsername = emailLocalPart ? await resolveCanonicalUsername(emailLocalPart) : null;
+
     const resetToken = `reset_${Date.now()}_${Math.random().toString(36).substring(7)}`;
     const resetExpiry = new Date(Date.now() + 3600000).toISOString(); // 1 hour from now
     
@@ -4826,6 +4848,7 @@ app.post("/make-server-a1c55d7e/auth/forgot-password", async (c) => {
     const resetKey = `password_reset:${resetToken}`;
     await kv.set(resetKey, {
       email,
+      username: resetUsername,
       token: resetToken,
       expiresAt: resetExpiry,
       used: false,
@@ -4899,6 +4922,13 @@ app.post("/make-server-a1c55d7e/auth/reset-password", async (c) => {
     if (!resetData || resetData.used || new Date(resetData.expiresAt) < new Date()) {
       return c.json({ error: 'Invalid or expired reset token' }, 400);
     }
+
+    if (typeof resetData.username === 'string' && resetData.username.trim()) {
+      const tokenUsername = sanitizeUsername(resetData.username);
+      if (!tokenUsername || tokenUsername !== username) {
+        return c.json({ error: 'Token does not match username' }, 400);
+      }
+    }
     
     // Get user data
     const userKey = `user:${username}`;
@@ -4932,13 +4962,13 @@ app.post("/make-server-a1c55d7e/auth/reset-password", async (c) => {
 // Change password (authenticated user)
 app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
   try {
-    const { username: rawCpUsername, currentPassword, newPassword } = await c.req.json();
-    const identity = await resolveSessionBoundUsername(c, rawCpUsername, { required: false });
-    if ('response' in identity) {
-      return identity.response;
+    const { currentPassword, newPassword } = await c.req.json();
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
     }
 
-    const username = identity.username;
+    const username = sessionResult.session.username;
 
     if (!currentPassword || !newPassword) {
       return c.json({ error: 'All fields are required' }, 400);
@@ -4972,7 +5002,7 @@ app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
     await kv.set(userKey, userData);
 
     await revokeUserSessionsForUsername(canonicalUsername, {
-      preserveSessionId: identity.session.sessionId,
+      preserveSessionId: sessionResult.session.sessionId,
       preservedMustChangePassword: false,
     });
     
@@ -5394,11 +5424,11 @@ app.post('/make-server-a1c55d7e/referral/link-admin-invite', async (c) => {
     const body = await c.req.json();
     const code = sanitizeAdminInviteCode(body?.adminInviteCode);
 
-    const identity = await resolveSessionBoundUsername(c, body?.username, { required: false });
-    if ('response' in identity) {
-      return identity.response;
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
     }
-    const username = identity.username;
+    const username = sessionResult.session.username;
 
     if (!code) return c.json({ error: 'adminInviteCode is required' }, 400);
 

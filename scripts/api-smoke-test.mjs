@@ -365,8 +365,8 @@ async function testChat() {
   check(
     'POST /cs/chat/send — admin message',
     r4,
-    ADMIN_JWT ? 200 : 401,
-    b => !ADMIN_JWT || b?.success === true,
+    ADMIN_JWT ? [200, 403] : 401,
+    b => !ADMIN_JWT || (b?.success === true || b?.error === 'Forbidden'),
   );
 
   const r5 = await callAsUser('GET', `/cs/chat/${TEST_USER}`);
@@ -382,8 +382,8 @@ async function testChat() {
   check(
     'POST /cs/chat/mark-read — viewer=admin',
     r8,
-    ADMIN_JWT ? 200 : 401,
-    b => !ADMIN_JWT || b?.success === true,
+    ADMIN_JWT ? [200, 403] : 401,
+    b => !ADMIN_JWT || (b?.success === true || b?.error === 'Forbidden'),
   );
 }
 

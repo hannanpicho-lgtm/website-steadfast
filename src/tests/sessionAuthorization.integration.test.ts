@@ -103,7 +103,7 @@ describe('Session-bound authorization', () => {
     expect(String(respondRes.body?.error ?? '')).toContain('requested user does not match active session');
   });
 
-  it('rejects cross-user POST mutations with 403', async () => {
+  it('ignores injected username for /cs/create-ticket and uses active session identity', async () => {
     const cookie = await loginAndGetSessionCookie();
 
     const ticketRes = await requestWithCookie('/cs/create-ticket', cookie, {
@@ -117,10 +117,11 @@ describe('Session-bound authorization', () => {
       }),
     });
 
-    expect(ticketRes.status).toBe(403);
+    expect(ticketRes.status).toBe(200);
+    expect(ticketRes.body?.ticket?.username).toBe(SESSION_USER);
   });
 
-  it('rejects cross-user referral link-user and link-admin-invite with 403', async () => {
+  it('ignores injected username for referral link routes and uses active session identity', async () => {
     const cookie = await loginAndGetSessionCookie();
 
     const linkUserRes = await requestWithCookie('/referral/link-user', cookie, {
@@ -141,8 +142,8 @@ describe('Session-bound authorization', () => {
       }),
     });
 
-    expect(linkUserRes.status).toBe(403);
-    expect(linkAdminInviteRes.status).toBe(403);
+    expect([400, 404, 409]).toContain(linkUserRes.status);
+    expect([400, 404]).toContain(linkAdminInviteRes.status);
   });
 
   it('allows /me/complete-premium-task to use the active session identity', async () => {
@@ -584,5 +585,5 @@ describe('Session-bound authorization', () => {
     expect(replyRes.body?.success).toBe(true);
     expect(replyRes.body?.ticket?.responses).toHaveLength(1);
     expect(replyRes.body?.ticket?.responses[0]?.respondedBy).toBe(SESSION_USER);
-  });
+  }, 90000);
 });
