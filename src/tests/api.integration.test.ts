@@ -2130,6 +2130,43 @@ describe('Admin route success path', () => {
     expect(result.body.quality?.lastCriticalAt === null || typeof result.body.quality?.lastCriticalAt === 'string').toBe(true);
   });
 
+  it('GET /admin/observability/audit-log is role-gated and returns audit events', async () => {
+    if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
+      const { status } = await request('/admin/observability/audit-log');
+      expect(status).toBe(401);
+      return;
+    }
+
+    const result = await request('/admin/observability/audit-log?limit=10&sinceMinutes=1440', {
+      headers: adminHeaders(),
+    });
+
+    if (result.status === 403) {
+      expect(String(result.body.error ?? '')).toContain('super-admin');
+      return;
+    }
+
+    expect(result.status).toBe(200);
+    expect(typeof result.body.total).toBe('number');
+    expect(typeof result.body.filteredTotal).toBe('number');
+    expect(Array.isArray(result.body.items)).toBe(true);
+    expect(result.body.items.length <= 10).toBe(true);
+    expect(result.body.filters.limit).toBe(10);
+    expect(result.body.filters.sinceMinutes).toBe(1440);
+    expect(result.body.filters.action).toBe(null);
+
+    for (const item of result.body.items) {
+      expect(typeof item.id).toBe('string');
+      expect(typeof item.at).toBe('string');
+      expect(typeof item.action).toBe('string');
+      expect(typeof item.actor).toBe('string');
+      expect(typeof item.detail).toBe('string');
+    }
+  });
+
   it('GET/PUT /admin/observability/security-alert-config is role-gated and supports super-admin writes', async () => {
     if (!ADMIN_TEST_JWT) {
       if (REQUIRE_ADMIN_SUCCESS) {

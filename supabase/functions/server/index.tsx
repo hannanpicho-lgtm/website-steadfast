@@ -716,6 +716,8 @@ const ADMIN_SALARY_AUDIT_LOG_KEY = 'admin-salary:audit-log:primary';
 const ADMIN_PLATFORM_SETTINGS_KEY = 'admin-platform-settings:primary';
 const ADMIN_OBSERVABILITY_ALERT_CONFIG_KEY = 'admin-observability:security-alert-config:primary';
 const ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY = 'admin-observability:security-alert-history:primary';
+const ADMIN_OBSERVABILITY_AUDIT_LOG_KEY = 'admin-observability:audit-log:primary';
+const ADMIN_OBSERVABILITY_MAX_AUDIT_EVENTS = 100;
 const ADMIN_SALARY_MAX_RESTORE_POINTS = 10;
 const ADMIN_SALARY_MAX_AUDIT_EVENTS = 50;
 
@@ -1293,6 +1295,48 @@ function sanitizeAdminObservabilityAlertHistory(values: unknown): Record<string,
     .map((value) => sanitizeAdminObservabilityAlertHistoryEntry(value))
     .filter((entry): entry is Record<string, unknown> => entry !== null)
     .slice(-200);
+}
+
+function sanitizeAdminObservabilityAuditEvent(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const source = value as Record<string, unknown>;
+  if (typeof source.action !== 'string' || !source.action) {
+    return null;
+  }
+
+  return {
+    id: typeof source.id === 'string' ? source.id : `audit_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    at: typeof source.at === 'string' ? source.at : new Date().toISOString(),
+    action: source.action,
+    actor: typeof source.actor === 'string' ? source.actor : 'unknown',
+    detail: typeof source.detail === 'string' ? source.detail : '',
+  };
+}
+
+function sanitizeAdminObservabilityAuditLog(values: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value) => sanitizeAdminObservabilityAuditEvent(value))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .slice(-ADMIN_OBSERVABILITY_MAX_AUDIT_EVENTS);
+}
+
+async function recordObservabilityAuditEvent(action: string, actor: string, detail: string): Promise<void> {
+  const existing = sanitizeAdminObservabilityAuditLog(await kv.get(ADMIN_OBSERVABILITY_AUDIT_LOG_KEY));
+  existing.push({
+    id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    at: new Date().toISOString(),
+    action,
+    actor,
+    detail,
+  });
+  await kv.set(ADMIN_OBSERVABILITY_AUDIT_LOG_KEY, existing.slice(-ADMIN_OBSERVABILITY_MAX_AUDIT_EVENTS));
 }
 
 function sanitizeTaskStatus(value: unknown): 'Active' | 'Paused' {
@@ -4424,6 +4468,10 @@ app.delete('/make-server-a1c55d7e/admin/observability/security-alert-history', a
 
     const history = sanitizeAdminObservabilityAlertHistory(await kv.get(ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY));
     await kv.set(ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY, []);
+
+    const actorEmail = adminUser?.email ?? adminUser?.user_metadata?.email ?? 'unknown';
+    await recordObservabilityAuditEvent('alert-history-clear', actorEmail, `Cleared ${history.length} alert history entries`);
+
     return c.json({ success: true, clearedCount: history.length });
   } catch (error) {
     console.error('Error clearing admin observability security alert history:', error);
@@ -4720,10 +4768,79 @@ app.put('/make-server-a1c55d7e/admin/observability/security-alert-config', async
     const body = await c.req.json();
     const config = sanitizeAdminObservabilityAlertConfig((body as any)?.config ?? body);
     await kv.set(ADMIN_OBSERVABILITY_ALERT_CONFIG_KEY, config);
+
+    const actorEmail = adminUser?.email ?? adminUser?.user_metadata?.email ?? 'unknown';
+    await recordObservabilityAuditEvent('alert-config-update', actorEmail, `Updated alert config thresholds`);
+
     return c.json({ success: true, config });
   } catch (error) {
     console.error('Error saving admin observability security alert config:', error);
     return c.json({ error: 'Failed to save observability security alert config' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/observability/audit-log', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:observability-audit-log-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const requestedLimit = Number(c.req.query('limit') ?? 50);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(100, Math.max(1, Math.round(requestedLimit))) : 50;
+
+    const requestedSinceMinutes = c.req.query('sinceMinutes');
+    const sinceMinutes = requestedSinceMinutes != null
+      ? (Number.isFinite(Number(requestedSinceMinutes))
+          ? Math.min(43_200, Math.max(1, Math.round(Number(requestedSinceMinutes))))
+          : null)
+      : null;
+
+    const actionFilter = c.req.query('action') ?? null;
+
+    const allEvents = sanitizeAdminObservabilityAuditLog(await kv.get(ADMIN_OBSERVABILITY_AUDIT_LOG_KEY));
+
+    const now = Date.now();
+    let filtered = allEvents;
+
+    if (sinceMinutes != null) {
+      const cutoff = now - sinceMinutes * 60_000;
+      filtered = filtered.filter((entry) => {
+        const at = typeof entry.at === 'string' ? Date.parse(entry.at as string) : Number.NaN;
+        return Number.isFinite(at) && at >= cutoff;
+      });
+    }
+
+    if (actionFilter) {
+      filtered = filtered.filter((entry) => entry.action === actionFilter);
+    }
+
+    const sorted = filtered.sort((a, b) => Date.parse(String(b.at)) - Date.parse(String(a.at)));
+    const items = sorted.slice(0, limit);
+
+    return c.json({
+      total: allEvents.length,
+      filteredTotal: filtered.length,
+      items,
+      filters: {
+        limit,
+        sinceMinutes: sinceMinutes ?? null,
+        action: actionFilter,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching admin observability audit log:', error);
+    return c.json({ error: 'Failed to fetch observability audit log' }, 500);
   }
 });
 

@@ -444,6 +444,7 @@ async function testAdminAuth() {
         requestLatencyP95MsThreshold: 1300,
       },
     }],
+    ['GET', '/admin/observability/audit-log', undefined],
   ];
 
   for (const [method, path, body] of routes) {
@@ -607,6 +608,22 @@ async function testAdminSuccess() {
       securityAlertConfigGet.status === 403
         ? typeof b?.error === 'string'
         : typeof b?.config === 'object' && typeof b?.config?.errorRate5xxPctThreshold === 'number',
+  );
+
+  const auditLog = await call('GET', '/admin/observability/audit-log?limit=10&sinceMinutes=1440', undefined, headers);
+  check(
+    'GET /admin/observability/audit-log → 200 or 403 (admin JWT)',
+    auditLog,
+    [200, 403],
+    b =>
+      auditLog.status === 403
+        ? typeof b?.error === 'string'
+        : typeof b?.total === 'number' &&
+          typeof b?.filteredTotal === 'number' &&
+          Array.isArray(b?.items) &&
+          b?.items.length <= 10 &&
+          b?.filters?.limit === 10 &&
+          b?.filters?.sinceMinutes === 1440,
   );
 }
 
