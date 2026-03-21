@@ -4338,6 +4338,16 @@ app.put('/make-server-a1c55d7e/admin/salary/project', async (c) => {
     }
 
     await kv.set(ADMIN_SALARY_PROJECT_KEY, normalized);
+
+    const salaryProjectActorEmail = typeof adminUser?.email === 'string' && adminUser.email
+      ? adminUser.email
+      : String(adminUser?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-salary-project-update',
+      salaryProjectActorEmail,
+      `Updated admin salary project (version ${normalized?.version ?? 'unknown'}, savedAt ${normalized?.savedAt ?? 'unknown'})`,
+    ).catch((e) => console.error('Failed to record admin-salary-project-update audit event:', e));
+
     return c.json({ success: true, project: normalized });
   } catch (error) {
     console.error('Error saving admin salary project:', error);
@@ -4390,6 +4400,16 @@ app.put('/make-server-a1c55d7e/admin/salary/audit-log', async (c) => {
     const body = await c.req.json();
     const events = sanitizeAdminSalaryAuditLog((body as any)?.events ?? body);
     await kv.set(ADMIN_SALARY_AUDIT_LOG_KEY, events);
+
+    const salaryAuditActorEmail = typeof adminUser?.email === 'string' && adminUser.email
+      ? adminUser.email
+      : String(adminUser?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-salary-audit-log-update',
+      salaryAuditActorEmail,
+      `Updated admin salary audit log — ${Array.isArray(events) ? events.length : 0} entries saved`,
+    ).catch((e) => console.error('Failed to record admin-salary-audit-log-update audit event:', e));
+
     return c.json({ success: true, events });
   } catch (error) {
     console.error('Error saving admin salary audit log:', error);
@@ -4434,6 +4454,17 @@ app.put('/make-server-a1c55d7e/admin/platform-settings', async (c) => {
     const body = await c.req.json();
     const settings = sanitizeAdminPlatformSettings((body as any)?.settings ?? body);
     await kv.set(ADMIN_PLATFORM_SETTINGS_KEY, settings);
+
+    const platformSettingsActor = c.get('adminUser');
+    const platformSettingsActorEmail = typeof platformSettingsActor?.email === 'string' && platformSettingsActor.email
+      ? platformSettingsActor.email
+      : String(platformSettingsActor?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-platform-settings-update',
+      platformSettingsActorEmail,
+      `Updated platform settings`,
+    ).catch((e) => console.error('Failed to record admin-platform-settings-update audit event:', e));
+
     return c.json({ success: true, settings });
   } catch (error) {
     console.error('Error saving admin platform settings:', error);
@@ -5305,6 +5336,15 @@ app.put('/make-server-a1c55d7e/admin/rewards-config', async (c) => {
     const config = normalizeRewardsConfigRecord(merged);
     config.updatedAt = new Date().toISOString();
     await kv.set(REWARDS_CONFIG_KEY, config);
+
+    const rewardsActorEmail = typeof adminUser?.email === 'string' && adminUser.email
+      ? adminUser.email
+      : String(adminUser?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-rewards-config-update',
+      rewardsActorEmail,
+      `Updated rewards config (workday tiers: ${Array.isArray(merged?.workday) ? merged.workday.length : 0}, reset tiers: ${Array.isArray(merged?.reset) ? merged.reset.length : 0})`,
+    ).catch((e) => console.error('Failed to record admin-rewards-config-update audit event:', e));
 
     return c.json({ success: true, config });
   } catch (error) {

@@ -2392,6 +2392,66 @@ describe('Admin route success path', () => {
     }
   });
 
+  it('Platform config audit events are queryable via audit-log action filter', async () => {
+    if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
+      const { status } = await request('/admin/observability/audit-log');
+      expect(status).toBe(401);
+      return;
+    }
+
+    // Trigger a platform-settings update so there is at least one audit event to find
+    const putSettingsResult = await request('/admin/platform-settings', {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({ settings: {} }),
+    });
+
+    if (putSettingsResult.status === 403) {
+      // Non-super-admin: confirm the audit-log query at least succeeds
+      const auditResult = await request(
+        '/admin/observability/audit-log?action=admin-platform-settings-update&limit=5&sinceMinutes=1440',
+        { headers: adminHeaders() },
+      );
+      if (auditResult.status === 403) {
+        expect(String(auditResult.body.error ?? '')).toContain('super-admin');
+      }
+      return;
+    }
+
+    expect([200]).toContain(putSettingsResult.status);
+
+    const configActions = [
+      'admin-salary-project-update',
+      'admin-salary-audit-log-update',
+      'admin-platform-settings-update',
+      'admin-rewards-config-update',
+    ];
+
+    for (const action of configActions) {
+      const auditResult = await request(
+        `/admin/observability/audit-log?action=${action}&limit=10&sinceMinutes=1440`,
+        { headers: adminHeaders() },
+      );
+
+      if (auditResult.status === 403) {
+        expect(String(auditResult.body.error ?? '')).toContain('super-admin');
+        return;
+      }
+
+      expect(auditResult.status).toBe(200);
+      expect(auditResult.body.filters?.action).toBe(action);
+      // If this action was triggered by earlier test runs the items array may have entries
+      for (const item of auditResult.body.items) {
+        expect(item.action).toBe(action);
+        expect(typeof item.actor).toBe('string');
+        expect(typeof item.detail).toBe('string');
+      }
+    }
+  });
+
   it('GET/PUT /admin/observability/security-alert-config is role-gated and supports super-admin writes', async () => {
     if (!ADMIN_TEST_JWT) {
       if (REQUIRE_ADMIN_SUCCESS) {
