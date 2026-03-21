@@ -1,6 +1,7 @@
 import { AlertTriangle, Eye, EyeOff, Lock, ShieldAlert } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { projectId, publicAnonKey } from '@utils/supabase/info';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { getAdminCredentials, getDemoCredentials } from '../services/referralSystem';
 import { signInAdmin } from '../services/supabaseAuth';
@@ -142,6 +143,22 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [errorText, setErrorText] = useState('');
   const [loginTarget, setLoginTarget] = useState('/starting');
+  const [telegramUrl, setTelegramUrl] = useState('https://t.me/steadfastdigital');
+
+  useEffect(() => {
+    const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+    fetch(`${serverUrl}/cs/support-links`, {
+      headers: { Authorization: `Bearer ${publicAnonKey}` },
+    })
+      .then((r) => r.json())
+      .then((payload) => {
+        if (typeof payload?.telegramUsername === 'string' && payload.telegramUsername) {
+          const u = payload.telegramUsername;
+          setTelegramUrl(u.startsWith('http') ? u : `https://t.me/${u}`);
+        }
+      })
+      .catch(() => {});
+  }, []);
   const loginState = (location.state as LoginLocationState | null) ?? null;
   const adminRequired = Boolean(loginState?.adminRequired);
   const routeNotice = buildRouteNotice(loginState);
@@ -274,9 +291,14 @@ export default function Login() {
 
           {/* Forgot Password & Remember Password */}
           <div className="flex items-center justify-between">
-            <Link to="/forgot-password" className="text-sm text-[#005a87] hover:underline">
+            <a
+              href={telegramUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-sm text-[#005a87] hover:underline"
+            >
               Forgot your password?
-            </Link>
+            </a>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -330,13 +352,14 @@ export default function Login() {
           {/* Support Link */}
           <p className="text-center text-sm text-[#3d4551]">
             Can't sign in?{' '}
-            <button 
-              type="button"
-              onClick={() => window.open('https://steadfastdigital.com', '_blank')}
+            <a
+              href={telegramUrl}
+              target="_blank"
+              rel="noreferrer"
               className="text-[#005a87] font-semibold hover:underline"
             >
               Contact our user support
-            </button>
+            </a>
           </p>
         </form>
       </div>

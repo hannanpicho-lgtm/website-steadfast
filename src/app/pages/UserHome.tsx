@@ -76,18 +76,6 @@ export default function UserHome() {
           </div>
         </section>
 
-        <section className="rounded-xl bg-[#2a3146] border border-white/5 p-2 sm:p-3 shadow-[0_10px_28px_rgba(5,12,24,0.22)]">
-          <div className="mb-1.5 sm:mb-3 text-center">
-            <p className="text-[#9fb4d1] text-[11px] sm:text-sm">Quick access</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
-            {quickLinks.map((item) => (
-              <QuickLinkCard key={item.title} item={item} />
-            ))}
-          </div>
-        </section>
-
         {/* Welcome Section */}
         <section className="mt-5 sm:mt-7 bg-gradient-to-br from-[#1a1f2e] to-[#2d3a56] py-6 sm:py-8 rounded-2xl border border-white/5">
           <div className="px-4 sm:px-5">
@@ -109,6 +97,19 @@ export default function UserHome() {
                 <p className="text-[11px] sm:text-sm text-gray-200 leading-relaxed">Performance-led growth for startups and brands across paid media.</p>
               </div>
             </div>
+          </div>
+        </section>
+
+        {/* Quick Access */}
+        <section className="mt-5 rounded-xl bg-[#2a3146] border border-white/5 p-2 sm:p-3 shadow-[0_10px_28px_rgba(5,12,24,0.22)]">
+          <div className="mb-1.5 sm:mb-3 text-center">
+            <p className="text-[#9fb4d1] text-[11px] sm:text-sm">Quick access</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
+            {quickLinks.map((item) => (
+              <QuickLinkCard key={item.title} item={item} />
+            ))}
           </div>
         </section>
 

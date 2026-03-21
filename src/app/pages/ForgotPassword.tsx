@@ -1,4 +1,4 @@
-import { ArrowLeft, MessageCircle, Send } from 'lucide-react';
+import { ArrowLeft, Send } from 'lucide-react';
 import { Link } from 'react-router';
 import { useEffect, useState } from 'react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
@@ -6,7 +6,6 @@ import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 export default function ForgotPassword() {
   const [supportLinks, setSupportLinks] = useState({
-    whatsappNumber: '1234567890',
     telegramUsername: 'steadfastdigital',
   });
 
@@ -27,7 +26,6 @@ export default function ForgotPassword() {
         }
 
         setSupportLinks({
-          whatsappNumber: typeof payload?.whatsappNumber === 'string' ? payload.whatsappNumber : '1234567890',
           telegramUsername: typeof payload?.telegramUsername === 'string' ? payload.telegramUsername : 'steadfastdigital',
         });
       } catch {
@@ -38,7 +36,6 @@ export default function ForgotPassword() {
     void loadLinks();
   }, [serverUrl]);
 
-  const whatsappUrl = `https://wa.me/${supportLinks.whatsappNumber}`;
   const telegramUrl = supportLinks.telegramUsername.startsWith('http')
     ? supportLinks.telegramUsername
     : `https://t.me/${supportLinks.telegramUsername}`;
@@ -54,16 +51,6 @@ export default function ForgotPassword() {
 
         <div className="bg-white rounded-2xl shadow-2xl p-8">
           <div className="space-y-3">
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="btn-mobile-accent-block text-white"
-            >
-              <MessageCircle size={20} />
-              Contact via WhatsApp
-            </a>
-
             <a
               href={telegramUrl}
               target="_blank"
@@ -86,7 +73,7 @@ export default function ForgotPassword() {
         {/* Help Section */}
         <div className="mt-6 text-center">
           <p className="text-gray-400 text-sm">
-            Support channels: WhatsApp and Telegram only.
+            Support channel: Telegram only.
           </p>
         </div>
       </div>
