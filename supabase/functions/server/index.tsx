@@ -18,6 +18,57 @@ const REFERRAL_PARENT_RATE = 0.2;
 const ROOT_REFERRAL_USERNAME = 'steadfast_root';
 const ROOT_REFERRAL_INVITE_CODE = 'STF01';
 
+const CORS_ALLOWED_ORIGINS = (Deno.env.get('CORS_ALLOWED_ORIGINS') ?? '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter((value) => value.length > 0);
+
+const configuredCorsAllowedOrigins = new Set(CORS_ALLOWED_ORIGINS);
+
+function resolveCorsOrigin(origin: string | undefined): string {
+  if (!origin) {
+    return '*';
+  }
+
+  if (configuredCorsAllowedOrigins.size === 0) {
+    return origin;
+  }
+
+  return configuredCorsAllowedOrigins.has(origin) ? origin : '';
+}
+
+function resolveRequestId(c: any): string {
+  const forwarded = c.req.header('x-request-id');
+  if (typeof forwarded === 'string' && forwarded.trim().length > 0) {
+    return forwarded.trim().slice(0, 128);
+  }
+
+  if (typeof crypto?.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function applySecurityHeaders(c: any): void {
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('X-Frame-Options', 'DENY');
+  c.header('Referrer-Policy', 'no-referrer');
+  c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  c.header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+  c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
+}
+
+app.use('*', async (c, next) => {
+  const requestId = resolveRequestId(c);
+  c.set('requestId', requestId);
+  c.header('X-Request-Id', requestId);
+  applySecurityHeaders(c);
+  await next();
+  c.header('X-Request-Id', requestId);
+  applySecurityHeaders(c);
+});
+
 // Enable logger
 app.use('*', logger(console.log));
 
@@ -26,11 +77,11 @@ app.use('*', logger(console.log));
 app.use(
   "/*",
   cors({
-    origin: (origin) => origin ?? '*',
+    origin: (origin) => resolveCorsOrigin(origin),
     credentials: true,
     allowHeaders: ["Content-Type", "Authorization", "apikey", "x-admin-secret", "x-user-jwt"],
     allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    exposeHeaders: ["Content-Length"],
+    exposeHeaders: ["Content-Length", "X-Request-Id"],
     maxAge: 600,
   }),
 );
@@ -77,6 +128,7 @@ function adminRequestContext(c: any) {
   const source = forwardedFor.split(',')[0].trim();
   const adminUser = c.get('adminUser');
   return {
+    requestId: c.get('requestId') ?? null,
     path: c.req.path,
     method: c.req.method,
     source,

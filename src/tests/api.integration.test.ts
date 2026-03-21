@@ -45,6 +45,20 @@ async function request(path: string, init?: RequestInit) {
   return { status: res.status, body };
 }
 
+async function requestRaw(path: string, init?: RequestInit) {
+  const mergedHeaders = {
+    'Content-Type': 'application/json',
+    apikey: ANON_KEY,
+    Authorization: `Bearer ${ANON_KEY}`,
+    ...(init?.headers ?? {}),
+  } as Record<string, string>;
+
+  return fetch(`${BASE}${path}`, {
+    ...init,
+    headers: mergedHeaders,
+  });
+}
+
 function post(path: string, payload: unknown, extraHeaders: Record<string, string> = {}) {
   return request(path, {
     method: 'POST',
@@ -200,6 +214,21 @@ describe('Health check', () => {
     const { status, body } = await request('/health');
     expect(status).toBe(200);
     expect(body.status).toBe('ok');
+  });
+
+  it('GET /health includes request-id and security headers', async () => {
+    const response = await requestRaw('/health');
+    expect(response.status).toBe(200);
+
+    const requestId = response.headers.get('x-request-id');
+    expect(typeof requestId).toBe('string');
+    expect((requestId ?? '').length).toBeGreaterThan(8);
+
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('x-frame-options')).toBe('DENY');
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(response.headers.get('strict-transport-security')).toContain('max-age=31536000');
+    expect(response.headers.get('content-security-policy')).toContain("default-src 'none'");
   });
 });
 
