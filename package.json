@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "backup:project": "powershell -ExecutionPolicy Bypass -File ../Backup-Project.ps1 -ProjectPath $(powershell -NoProfile -Command \"(Get-Location).Path\") -Description",
     "build": "vite build",
     "dev": "vite",
     "preview": "vite preview",
