@@ -434,6 +434,7 @@ async function testAdminAuth() {
     ['DELETE', '/admin/observability/security-alert-history', undefined],
     ['GET', '/admin/observability/security-alert-history/stats', undefined],
     ['GET', '/admin/observability/security-alert-history/trends', undefined],
+    ['GET', '/admin/observability/security-alert-history/quality', undefined],
     ['GET', '/admin/observability/security-alert-config', undefined],
     ['PUT', '/admin/observability/security-alert-config', {
       config: {
@@ -556,6 +557,27 @@ async function testAdminSuccess() {
           typeof b?.totals?.buckets === 'number' &&
           typeof b?.totals?.events === 'number' &&
           Array.isArray(b?.buckets),
+  );
+
+  const securityAlertHistoryQuality = await call('GET', '/admin/observability/security-alert-history/quality?sinceMinutes=120', undefined, headers);
+  check(
+    'GET /admin/observability/security-alert-history/quality → 200 or 403 (admin JWT)',
+    securityAlertHistoryQuality,
+    [200, 403],
+    b =>
+      securityAlertHistoryQuality.status === 403
+        ? typeof b?.error === 'string'
+        : typeof b?.generatedAt === 'string' &&
+          b?.sinceMinutes === 120 &&
+          typeof b?.totals?.total === 'number' &&
+          typeof b?.totals?.ok === 'number' &&
+          typeof b?.totals?.warning === 'number' &&
+          typeof b?.totals?.critical === 'number' &&
+          typeof b?.quality?.healthyRatioPct === 'number' &&
+          typeof b?.quality?.noisyRatioPct === 'number' &&
+          typeof b?.quality?.longestNonOkStreak === 'number' &&
+          typeof b?.quality?.currentNonOkStreak === 'number' &&
+          (b?.quality?.lastCriticalAt === null || typeof b?.quality?.lastCriticalAt === 'string'),
   );
 
   const securityAlertConfigPut = await call('PUT', '/admin/observability/security-alert-config', {

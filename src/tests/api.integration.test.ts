@@ -1122,6 +1122,11 @@ describe('Admin route authentication', () => {
     expect(status).toBe(401);
   });
 
+  it('GET /admin/observability/security-alert-history/quality → 401 with anon token only', async () => {
+    const { status } = await request('/admin/observability/security-alert-history/quality');
+    expect(status).toBe(401);
+  });
+
   it('GET /admin/observability/security-alert-config → 401 with anon token only', async () => {
     const { status } = await request('/admin/observability/security-alert-config');
     expect(status).toBe(401);
@@ -2090,6 +2095,39 @@ describe('Admin route success path', () => {
       expect(typeof bucket.byStatus?.warning).toBe('number');
       expect(typeof bucket.byStatus?.critical).toBe('number');
     }
+  });
+
+  it('GET /admin/observability/security-alert-history/quality is role-gated and returns quality metrics', async () => {
+    if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
+      const { status } = await request('/admin/observability/security-alert-history/quality');
+      expect(status).toBe(401);
+      return;
+    }
+
+    const result = await request('/admin/observability/security-alert-history/quality?sinceMinutes=120', {
+      headers: adminHeaders(),
+    });
+
+    if (result.status === 403) {
+      expect(String(result.body.error ?? '')).toContain('super-admin');
+      return;
+    }
+
+    expect(result.status).toBe(200);
+    expect(typeof result.body.generatedAt).toBe('string');
+    expect(result.body.sinceMinutes).toBe(120);
+    expect(typeof result.body.totals?.total).toBe('number');
+    expect(typeof result.body.totals?.ok).toBe('number');
+    expect(typeof result.body.totals?.warning).toBe('number');
+    expect(typeof result.body.totals?.critical).toBe('number');
+    expect(typeof result.body.quality?.healthyRatioPct).toBe('number');
+    expect(typeof result.body.quality?.noisyRatioPct).toBe('number');
+    expect(typeof result.body.quality?.longestNonOkStreak).toBe('number');
+    expect(typeof result.body.quality?.currentNonOkStreak).toBe('number');
+    expect(result.body.quality?.lastCriticalAt === null || typeof result.body.quality?.lastCriticalAt === 'string').toBe(true);
   });
 
   it('GET/PUT /admin/observability/security-alert-config is role-gated and supports super-admin writes', async () => {
