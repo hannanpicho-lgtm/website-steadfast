@@ -1340,6 +1340,8 @@ async function recordObservabilityAuditEvent(action: string, actor: string, deta
     detail,
   });
   await kv.set(ADMIN_OBSERVABILITY_AUDIT_LOG_KEY, existing.slice(-ADMIN_OBSERVABILITY_MAX_AUDIT_EVENTS));
+}
+
 function sanitizeAdminObservabilityRateLimitViolation(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== 'object') {
     return null;
@@ -1384,8 +1386,6 @@ async function recordRateLimitViolation(bucket: string, userId: string, sourceIp
     retryAfterSeconds,
   });
   await kv.set(ADMIN_OBSERVABILITY_RATE_LIMIT_VIOLATIONS_KEY, existing.slice(-ADMIN_OBSERVABILITY_MAX_RATE_LIMIT_VIOLATIONS));
-}
-
 }
 
 function sanitizeTaskStatus(value: unknown): 'Active' | 'Paused' {
@@ -2416,6 +2416,11 @@ app.delete("/make-server-a1c55d7e/admin/users/:adminId", async (c) => {
       return c.json({ error: 'You cannot delete your own admin account' }, 400);
     }
 
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    if (!callerIsSuperAdmin) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
     const { data: targetData, error: targetError } = await authClient.auth.admin.getUserById(adminId);
     if (targetError || !targetData?.user) {
       return c.json({ error: 'Admin user not found' }, 404);
@@ -2425,7 +2430,6 @@ app.delete("/make-server-a1c55d7e/admin/users/:adminId", async (c) => {
       return c.json({ error: 'Target user is not an admin account' }, 400);
     }
 
-    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
     const targetIsSuperAdmin = isSuperAdmin(targetData.user);
 
     if (targetIsSuperAdmin && !callerIsSuperAdmin) {
@@ -2466,6 +2470,19 @@ app.delete("/make-server-a1c55d7e/admin/users/:adminId", async (c) => {
       await kv.del(`admin:invite:code:${existingCode}`);
     }
     await kv.del(adminInviteKey);
+
+    const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    const targetEmail = typeof targetData.user.email === 'string' && targetData.user.email
+      ? targetData.user.email
+      : adminId;
+    const targetRole = targetIsSuperAdmin ? 'super-admin' : 'admin';
+    await recordObservabilityAuditEvent(
+      'admin-user-delete',
+      actorEmail,
+      `Deleted ${targetRole} account ${targetEmail} (${adminId})`,
+    );
 
     return c.json({ success: true, deletedAdminId: adminId });
   } catch (error) {

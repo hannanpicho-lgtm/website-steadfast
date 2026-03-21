@@ -435,6 +435,7 @@ async function testAdminAuth() {
   const routes = [
     ['POST', '/admin/assign-premium-bundle', { username: TEST_USER, premiumProductValue: 500, bundledProductCount: 1 }],
     ['DELETE', `/admin/cancel-premium/${TEST_USER}/premium-fake`, undefined],
+    ['DELETE', '/admin/users/admin_fake', undefined],
     ['GET', '/cs/admin/tickets', undefined],
     ['GET', '/cs/admin/chats', undefined],
     ['GET', '/admin/observability/security-summary', undefined],
@@ -476,6 +477,17 @@ async function testAdminSuccess() {
 
   const chats = await call('GET', '/cs/admin/chats', undefined, headers);
   check('GET /cs/admin/chats → 200 (admin JWT)', chats, 200, b => Array.isArray(b));
+
+  const deleteAdmin = await call('DELETE', '/admin/users/admin_fake', undefined, headers);
+  check(
+    'DELETE /admin/users/:adminId → 404 or 403 (admin JWT)',
+    deleteAdmin,
+    [404, 403],
+    b =>
+      deleteAdmin.status === 403
+        ? typeof b?.error === 'string' && b.error.includes('super-admin')
+        : typeof b?.error === 'string',
+  );
 
   const securitySummary = await call('GET', '/admin/observability/security-summary?windowMinutes=15', undefined, headers);
   check(
