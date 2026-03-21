@@ -64,6 +64,10 @@ export const router = createBrowserRouter([
             lazy: lazyRoute(() => import("./pages/Withdrawal")),
           },
           {
+            path: "withdrawal-history",
+            lazy: lazyRoute(() => import("./pages/WithdrawalHistory")),
+          },
+          {
             path: "deposit",
             lazy: lazyRoute(() => import("./pages/Deposit")),
           },

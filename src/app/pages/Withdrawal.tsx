@@ -204,7 +204,7 @@ export default function Withdrawal() {
             </button>
             <h1 className="text-2xl font-bold text-[#0066b3]">Withdrawal</h1>
           </div>
-          <button onClick={() => navigate('/records')} className="btn-mobile-primary self-start sm:self-auto">
+          <button onClick={() => navigate('/withdrawal-history')} className="btn-mobile-primary self-start sm:self-auto">
             <ScrollText size={20} />
             <span className="font-semibold">History</span>
           </button>
