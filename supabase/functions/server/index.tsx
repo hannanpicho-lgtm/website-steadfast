@@ -7091,6 +7091,70 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials
   }
 });
 
+app.delete('/make-server-a1c55d7e/admin/platform-users/:username', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-platform-users:delete');
+    if (limited) return limited;
+
+    const requestedUsername = sanitizeUsername(c.req.param('username'));
+    if (!requestedUsername) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const canonicalUsername = await resolveCanonicalUsername(requestedUsername);
+    if (!canonicalUsername) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    if (canonicalUsername === ROOT_REFERRAL_USERNAME) {
+      return c.json({ error: 'Root referral account cannot be deleted' }, 400);
+    }
+
+    const userKey = `user:${canonicalUsername}`;
+    const existingUser = await kv.get(userKey);
+    if (!existingUser) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const normalizedUser = await syncUserWithVipConfig(existingUser, canonicalUsername);
+    if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const userTicketsKey = `user:${canonicalUsername}:tickets`;
+    const ticketIndex = await kv.get(userTicketsKey);
+    const ticketIds = Array.isArray(ticketIndex) ? ticketIndex : [];
+    for (const ticketId of ticketIds) {
+      if (typeof ticketId === 'string' && ticketId.trim().length > 0) {
+        await kv.del(`ticket:${ticketId}`);
+      }
+    }
+
+    await kv.del(userTicketsKey);
+    await kv.del(`user:lookup:${canonicalUsername.toLowerCase()}`);
+    await kv.del(userKey);
+
+    const deleteActorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-platform-user-delete',
+      deleteActorEmail,
+      `Deleted platform user '${canonicalUsername}' and associated ticket index`,
+    ).catch((e) => console.error('Failed to record admin-platform-user-delete audit event:', e));
+
+    return c.json({ success: true, username: canonicalUsername });
+  } catch (err) {
+    console.error('admin/platform-users/delete error:', err);
+    return c.json({ error: 'Failed to delete platform user' }, 500);
+  }
+});
+
 // ==================== SESSION-NATIVE /me/support ENDPOINTS ====================
 
 // GET /me/support – fetch tickets for the session-authenticated user (no username in request)

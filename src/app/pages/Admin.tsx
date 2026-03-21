@@ -160,7 +160,7 @@ type TaskDraftState = {
 };
 
 // Mock products data
-const mockProducts = [
+const initialMockProducts = [
   { id: 1, name: 'Wireless Bluetooth Headphones', description: 'Premium noise-canceling headphones with 30-hour battery life', category: 'Electronics', merchant: 'Amazon', price: 89.99, commission: 0.015, imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400', status: 'Active', sku: 'WBH-001', stock: 250, createdDate: '2024-02-15', source: 'Manual' },
   { id: 2, name: 'Smart Fitness Watch', description: 'Advanced fitness tracker with heart rate monitor and GPS', category: 'Wearables', merchant: 'Walmart', price: 199.99, commission: 0.020, imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400', status: 'Active', sku: 'SFW-002', stock: 180, createdDate: '2024-02-18', source: 'AI Generated' },
   { id: 3, name: 'Ergonomic Laptop Stand', description: 'Adjustable aluminum laptop stand for better posture', category: 'Office', merchant: 'Target', price: 45.50, commission: 0.012, imageUrl: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400', status: 'Active', sku: 'ELS-003', stock: 320, createdDate: '2024-02-20', source: 'Manual' },
@@ -181,7 +181,7 @@ const initialSalaryPayments: SalaryPayment[] = [
 ];
 
 // Admin Roles with Permissions
-const adminRoles = [
+const initialAdminRoles = [
   { id: 1, name: 'Super Admin', description: 'Full system access with all permissions', color: 'red', permissions: { dashboard: true, financials: true, rewardsSystem: true, productManagement: true, userManagement: true, transactions: true, taskManagement: true, vipConfig: true, withdrawals: true, deposits: true, notifications: true, settings: true, adminUsers: true, deleteUsers: true, editRoles: true, processPayments: true, viewReports: true }, createdDate: '2024-01-01', isDefault: true },
   { id: 2, name: 'Finance Manager', description: 'Manage financial operations, withdrawals, and deposits', color: 'green', permissions: { dashboard: true, financials: true, rewardsSystem: true, productManagement: false, userManagement: true, transactions: true, taskManagement: false, vipConfig: false, withdrawals: true, deposits: true, notifications: true, settings: false, adminUsers: false, deleteUsers: false, editRoles: false, processPayments: true, viewReports: true }, createdDate: '2024-01-15', isDefault: false },
   { id: 3, name: 'Product Manager', description: 'Manage products, tasks, and user submissions', color: 'blue', permissions: { dashboard: true, financials: false, rewardsSystem: false, productManagement: true, userManagement: true, transactions: false, taskManagement: true, vipConfig: false, withdrawals: false, deposits: false, notifications: true, settings: false, adminUsers: false, deleteUsers: false, editRoles: false, processPayments: false, viewReports: true }, createdDate: '2024-02-01', isDefault: false },
@@ -390,6 +390,9 @@ export default function Admin() {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [taskDraft, setTaskDraft] = useState<TaskDraftState | null>(null);
+  const [productCatalog, setProductCatalog] = useState(initialMockProducts);
+  const [roleDefinitions, setRoleDefinitions] = useState(initialAdminRoles);
+  const [deletingPlatformUser, setDeletingPlatformUser] = useState(false);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
@@ -1299,7 +1302,7 @@ export default function Admin() {
       return;
     }
 
-    const selectedRole = adminRoles.find((role) => role.id === roleId);
+    const selectedRole = roleDefinitions.find((role) => role.id === roleId);
     if (!selectedRole) {
       toast.error('Please select a valid role.');
       return;
@@ -1428,6 +1431,161 @@ export default function Admin() {
     } catch (error) {
       handleAdminRequestError(error, 'Failed to delete admin user');
     }
+  };
+
+  const handleDeletePlatformUser = async () => {
+    const username = typeof selectedItem?.username === 'string' ? selectedItem.username.trim() : '';
+    if (!username) {
+      toast.error('Unable to delete user: missing username.');
+      return;
+    }
+
+    setDeletingPlatformUser(true);
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/platform-users/${encodeURIComponent(username)}`, {
+        method: 'DELETE',
+        headers,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to delete user');
+      }
+
+      await loadPlatformUsers();
+      toast.success(`User ${username} deleted successfully.`);
+      setModalType(null);
+      setSelectedItem(null);
+    } catch (error) {
+      handleAdminRequestError(error, `Failed to delete user ${username}`);
+    } finally {
+      setDeletingPlatformUser(false);
+    }
+  };
+
+  const handleDeleteSelectedProduct = () => {
+    if (!selectedItem?.id) {
+      toast.error('Unable to delete product: missing identifier.');
+      return;
+    }
+
+    const productId = selectedItem.id;
+    setProductCatalog((current) => current.filter((product) => product.id !== productId));
+    setModalType(null);
+    setSelectedItem(null);
+    toast.success('Product deleted successfully.');
+  };
+
+  const handleUpdateAdminDetails = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedItem?.id) {
+      toast.error('Unable to update admin: missing identifier.');
+      return;
+    }
+
+    const formData = new FormData(event.currentTarget);
+    const roleId = Number(formData.get('roleId'));
+    const role = roleDefinitions.find((item) => item.id === roleId);
+
+    const nextAdmin = {
+      ...selectedItem,
+      email: String(formData.get('email') ?? '').trim(),
+      phone: String(formData.get('phone') ?? '').trim(),
+      department: String(formData.get('department') ?? '').trim(),
+      status: String(formData.get('status') ?? 'Active').trim(),
+      roleId: Number.isFinite(roleId) ? roleId : selectedItem.roleId,
+      roleName: role?.name ?? selectedItem.roleName,
+      roleColor: role?.color ?? selectedItem.roleColor,
+      twoFactorEnabled: String(formData.get('twoFactorEnabled') ?? 'disabled') === 'enabled',
+    };
+
+    setAdminUsers((current) => current.map((admin) => (String(admin.id) === String(selectedItem.id) ? nextAdmin : admin)));
+    setSelectedItem(nextAdmin);
+    setModalType(null);
+    toast.success('Admin updated successfully.');
+  };
+
+  const rolePermissionKeys = Object.keys((initialAdminRoles[0]?.permissions ?? {}) as Record<string, boolean>);
+
+  const buildRolePermissionsFromForm = (formData: FormData) => {
+    return rolePermissionKeys.reduce<Record<string, boolean>>((acc, key) => {
+      acc[key] = formData.get(`perm_${key}`) === 'on';
+      return acc;
+    }, {});
+  };
+
+  const handleCreateRole = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const name = String(formData.get('name') ?? '').trim();
+    if (!name) {
+      toast.error('Role name is required.');
+      return;
+    }
+
+    const nextRole = {
+      id: Math.max(0, ...roleDefinitions.map((role) => Number(role.id) || 0)) + 1,
+      name,
+      description: String(formData.get('description') ?? '').trim() || 'Custom role',
+      color: String(formData.get('color') ?? 'blue').trim(),
+      permissions: buildRolePermissionsFromForm(formData),
+      createdDate: new Date().toISOString().slice(0, 10),
+      isDefault: false,
+    };
+
+    setRoleDefinitions((current) => [...current, nextRole]);
+    setModalType(null);
+    toast.success('Role created successfully.');
+  };
+
+  const handleUpdateRole = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedItem?.id) {
+      toast.error('Unable to update role: missing identifier.');
+      return;
+    }
+
+    const formData = new FormData(event.currentTarget);
+    const updatedRole = {
+      ...selectedItem,
+      name: String(formData.get('name') ?? selectedItem.name).trim(),
+      description: String(formData.get('description') ?? selectedItem.description).trim(),
+      color: String(formData.get('color') ?? selectedItem.color).trim(),
+      permissions: buildRolePermissionsFromForm(formData),
+    };
+
+    setRoleDefinitions((current) => current.map((role) => (role.id === selectedItem.id ? updatedRole : role)));
+    setAdminUsers((current) => current.map((admin) => (
+      admin.roleId === selectedItem.id
+        ? { ...admin, roleName: updatedRole.name, roleColor: updatedRole.color }
+        : admin
+    )));
+    setSelectedItem(updatedRole);
+    setModalType(null);
+    toast.success('Role updated successfully.');
+  };
+
+  const handleDeleteRole = () => {
+    if (!selectedItem?.id) {
+      toast.error('Unable to delete role: missing identifier.');
+      return;
+    }
+
+    if (selectedItem.isDefault) {
+      toast.error('Default roles cannot be deleted.');
+      return;
+    }
+
+    const assignedAdmins = adminUsers.filter((admin) => admin.roleId === selectedItem.id).length;
+    if (assignedAdmins > 0) {
+      toast.error('Reassign admins before deleting this role.');
+      return;
+    }
+
+    setRoleDefinitions((current) => current.filter((role) => role.id !== selectedItem.id));
+    setModalType(null);
+    setSelectedItem(null);
+    toast.success('Role deleted successfully.');
   };
 
   const handleCreateManualProduct = (event: React.FormEvent<HTMLFormElement>) => {
@@ -2220,8 +2378,8 @@ export default function Admin() {
                 <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => { toast.error('User deleted'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
-                  Delete User
+                <button onClick={() => void handleDeletePlatformUser()} disabled={deletingPlatformUser} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                  {deletingPlatformUser ? 'Deleting...' : 'Delete User'}
                 </button>
               </div>
             </div>
@@ -2693,7 +2851,7 @@ export default function Admin() {
                 <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => { toast.error('Product deleted'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
+                <button onClick={() => void handleDeleteSelectedProduct()} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
                   Delete Product
                 </button>
               </div>
@@ -3161,7 +3319,7 @@ export default function Admin() {
                     <label className="block text-sm font-medium text-gray-300 mb-2">Role *</label>
                     <select name="roleId" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required>
                       <option value="">Select Role</option>
-                      {adminRoles.map(role => (
+                      {roleDefinitions.map(role => (
                         <option key={role.id} value={role.id}>{role.name}</option>
                       ))}
                     </select>
@@ -3220,7 +3378,7 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4">
+              <form onSubmit={handleUpdateAdminDetails} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
@@ -3244,15 +3402,15 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Role</label>
-                    <select defaultValue={selectedItem.roleId} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
-                      {adminRoles.map(role => (
+                    <select name="roleId" defaultValue={selectedItem.roleId} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                      {roleDefinitions.map(role => (
                         <option key={role.id} value={role.id}>{role.name}</option>
                       ))}
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
-                    <select defaultValue={selectedItem.status} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select name="status" defaultValue={selectedItem.status} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option value="Active">Active</option>
                       <option value="Suspended">Suspended</option>
                       <option value="Inactive">Inactive</option>
@@ -3260,14 +3418,14 @@ export default function Admin() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Two-Factor Auth</label>
-                    <select defaultValue={selectedItem.twoFactorEnabled ? 'enabled' : 'disabled'} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select name="twoFactorEnabled" defaultValue={selectedItem.twoFactorEnabled ? 'enabled' : 'disabled'} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option value="enabled">Enabled</option>
                       <option value="disabled">Disabled</option>
                     </select>
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
-                  <button type="submit" onClick={(e) => { e.preventDefault(); toast.success('Admin updated!'); setModalType(null); }} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
+                  <button type="submit" className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
                     Save Changes
                   </button>
                   <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
@@ -3498,15 +3656,15 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4">
+              <form onSubmit={handleCreateRole} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Role Name *</label>
-                    <input type="text" placeholder="e.g. Marketing Manager" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required />
+                    <input type="text" name="name" placeholder="e.g. Marketing Manager" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Color Theme</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select name="color" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option value="blue">Blue</option>
                       <option value="green">Green</option>
                       <option value="purple">Purple</option>
@@ -3516,84 +3674,22 @@ export default function Admin() {
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
-                    <textarea className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" rows={2} placeholder="Brief description of this role..."></textarea>
+                    <textarea name="description" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" rows={2} placeholder="Brief description of this role..."></textarea>
                   </div>
                 </div>
                 <div>
                   <h4 className="text-white font-bold mb-3">Permissions</h4>
                   <div className="grid grid-cols-2 gap-3">
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Dashboard</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Financials</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Rewards System</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Product Management</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">User Management</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Transactions</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Task Management</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">VIP Config</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Withdrawals</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Deposits</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Notifications</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Settings</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Admin Users</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Delete Users</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Edit Roles</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">Process Payments</span>
-                    </label>
-                    <label className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                      <input type="checkbox" className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
-                      <span className="text-white text-sm">View Reports</span>
-                    </label>
+                    {(rolePermissionKeys || []).map((key) => (
+                      <label key={key} className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
+                        <input type="checkbox" name={`perm_${key}`} className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
+                        <span className="text-white text-sm capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
-                  <button type="submit" onClick={(e) => { e.preventDefault(); toast.success('Role created!'); setModalType(null); }} className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 rounded-lg transition-colors">
+                  <button type="submit" className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 rounded-lg transition-colors">
                     Create Role
                   </button>
                   <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
@@ -3630,15 +3726,15 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4">
+              <form onSubmit={handleUpdateRole} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Role Name</label>
-                    <input type="text" defaultValue={selectedItem.name} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+                    <input type="text" name="name" defaultValue={selectedItem.name} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Color Theme</label>
-                    <select defaultValue={selectedItem.color} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+                    <select name="color" defaultValue={selectedItem.color} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
                       <option value="blue">Blue</option>
                       <option value="green">Green</option>
                       <option value="purple">Purple</option>
@@ -3648,7 +3744,7 @@ export default function Admin() {
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
-                    <textarea defaultValue={selectedItem.description} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" rows={2}></textarea>
+                    <textarea name="description" defaultValue={selectedItem.description} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" rows={2}></textarea>
                   </div>
                 </div>
                 <div>
@@ -3656,14 +3752,14 @@ export default function Admin() {
                   <div className="grid grid-cols-2 gap-3">
                     {Object.entries(selectedItem.permissions).map(([key, value]) => (
                       <label key={key} className="flex items-center gap-2 bg-[#1a1f2e] p-3 rounded-lg cursor-pointer hover:bg-[#252b3d]">
-                        <input type="checkbox" defaultChecked={value as boolean} className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
+                        <input type="checkbox" name={`perm_${key}`} defaultChecked={value as boolean} className="w-4 h-4 rounded bg-[#1a1f2e] border-gray-600 text-[#00D9FF] focus:ring-[#00D9FF]" />
                         <span className="text-white text-sm capitalize">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
                       </label>
                     ))}
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
-                  <button type="submit" onClick={(e) => { e.preventDefault(); toast.success('Role updated!'); setModalType(null); }} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
+                  <button type="submit" className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
                     Save Changes
                   </button>
                   <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
@@ -3694,7 +3790,7 @@ export default function Admin() {
                 <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => { toast.error('Role deleted!'); setModalType(null); }} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
+                <button onClick={() => void handleDeleteRole()} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
                   Delete Role
                 </button>
               </div>
@@ -3764,7 +3860,7 @@ export default function Admin() {
               activeAdminTab={activeAdminTab}
               setActiveAdminTab={setActiveAdminTab}
               adminUsers={adminUsers}
-              adminRoles={adminRoles}
+              adminRoles={roleDefinitions}
               adminUsersLoading={adminUsersLoading}
               adminUsersError={adminUsersError}
               showAdminVisibilityNotice={showAdminVisibilityNotice}
@@ -3832,7 +3928,7 @@ export default function Admin() {
         return (
           <Suspense fallback={<AdminPanelFallback label="Loading product management..." />}>
             <ProductManagement
-              mockProducts={mockProducts}
+              mockProducts={productCatalog}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               filterStatus={filterStatus}
