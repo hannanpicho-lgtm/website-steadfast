@@ -36,6 +36,7 @@ interface ChatSummary {
 export default function LiveChatAdmin() {
   const navigate = useNavigate();
   const adminAuthRedirectedRef = useRef(false);
+  const hasLoadedChatsRef = useRef(false);
   const [chatSummaries, setChatSummaries] = useState<ChatSummary[]>([]);
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -77,7 +78,10 @@ export default function LiveChatAdmin() {
 
   const fetchChats = async () => {
     try {
-      setLoading(true);
+      if (!hasLoadedChatsRef.current) {
+        setLoading(true);
+      }
+
       const response = await fetch(`${serverUrl}/cs/admin/chats`, {
         headers: await buildAdminAuthHeaders(false),
       });
@@ -89,6 +93,7 @@ export default function LiveChatAdmin() {
 
       const data = await response.json();
       setChatSummaries(data);
+      hasLoadedChatsRef.current = true;
     } catch (error) {
       handleAdminAuthError({
         errorValue: error,
@@ -98,7 +103,9 @@ export default function LiveChatAdmin() {
         suppressToast: true,
       });
     } finally {
-      setLoading(false);
+      if (!hasLoadedChatsRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -142,7 +149,10 @@ export default function LiveChatAdmin() {
         throw new Error((payload as { error?: string }).error || 'Failed to mark messages as read');
       }
 
-      await fetchChats();
+      const payload = await response.json().catch(() => ({} as { updated?: number }));
+      if (typeof payload.updated === 'number' && payload.updated > 0) {
+        await fetchChats();
+      }
     } catch (error) {
       handleAdminAuthError({
         errorValue: error,

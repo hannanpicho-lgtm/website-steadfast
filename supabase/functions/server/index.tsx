@@ -6011,6 +6011,7 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
     const newMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
       message,
+      conversationUsername: username,
       sender: isAdmin
         ? (mapAuthUserToAdminRecord(c.get('adminUser') ?? {}).username || c.get('adminUser')?.email || c.get('adminUser')?.id || 'support')
         : username,
@@ -6163,12 +6164,21 @@ app.get("/make-server-a1c55d7e/cs/admin/chats", async (c) => {
     // Transform to get username and last message
     const chatSummaries = allChats
       .filter(chat => Array.isArray(chat) && chat.length > 0)
-      .map((messages, index) => {
+      .map((messages) => {
         const lastMessage = messages[messages.length - 1];
         const unreadCount = messages.filter(msg => !msg.read && !msg.isAdmin).length;
+        const conversationUsername =
+          (typeof lastMessage?.conversationUsername === 'string' ? sanitizeUsername(lastMessage.conversationUsername) : null)
+          || (typeof messages.find((m) => m && !m.isAdmin && typeof m.sender === 'string')?.sender === 'string'
+            ? sanitizeUsername(messages.find((m) => m && !m.isAdmin && typeof m.sender === 'string')?.sender)
+            : null)
+          || (typeof messages.find((m) => m && typeof m.conversationUsername === 'string')?.conversationUsername === 'string'
+            ? sanitizeUsername(messages.find((m) => m && typeof m.conversationUsername === 'string')?.conversationUsername)
+            : null)
+          || 'unknown';
         
         return {
-          username: lastMessage.sender === 'support' ? messages.find(m => m.sender !== 'support')?.sender || 'Unknown' : lastMessage.sender,
+          username: conversationUsername,
           lastMessage: lastMessage.message,
           lastMessageTime: lastMessage.timestamp,
           unreadCount,
