@@ -454,6 +454,7 @@ async function testAdminAuth() {
       },
     }],
     ['GET', '/admin/observability/audit-log', undefined],
+    ['GET', '/admin/observability/rate-limit-status', undefined],
   ];
 
   for (const [method, path, body] of routes) {
@@ -633,6 +634,26 @@ async function testAdminSuccess() {
           b?.items.length <= 10 &&
           b?.filters?.limit === 10 &&
           b?.filters?.sinceMinutes === 1440,
+  );
+
+  const rateLimitStatus = await call('GET', '/admin/observability/rate-limit-status?limit=10&sinceMinutes=60', undefined, headers);
+  check(
+    'GET /admin/observability/rate-limit-status → 200 or 403 (admin JWT)',
+    rateLimitStatus,
+    [200, 403],
+    b =>
+      rateLimitStatus.status === 403
+        ? typeof b?.error === 'string'
+        : typeof b?.total === 'number' &&
+          typeof b?.filteredTotal === 'number' &&
+          typeof b?.stats === 'object' &&
+          typeof b?.stats?.byBucket === 'object' &&
+          typeof b?.stats?.byUser === 'object' &&
+          typeof b?.stats?.byIp === 'object' &&
+          Array.isArray(b?.items) &&
+          b?.items.length <= 10 &&
+          b?.filters?.limit === 10 &&
+          b?.filters?.sinceMinutes === 60,
   );
 }
 
