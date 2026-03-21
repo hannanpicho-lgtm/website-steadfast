@@ -4431,6 +4431,70 @@ app.delete('/make-server-a1c55d7e/admin/observability/security-alert-history', a
   }
 });
 
+app.get('/make-server-a1c55d7e/admin/observability/security-alert-history/stats', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:observability-security-alert-history-stats-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const requestedSinceMinutes = Number(c.req.query('sinceMinutes') ?? 1440);
+    const sinceMinutes = Number.isFinite(requestedSinceMinutes)
+      ? Math.min(10_080, Math.max(1, Math.round(requestedSinceMinutes)))
+      : 1440;
+
+    const now = Date.now();
+    const cutoff = now - sinceMinutes * 60_000;
+    const history = sanitizeAdminObservabilityAlertHistory(await kv.get(ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY));
+    const windowItems = history.filter((entry) => {
+      const generatedAt = typeof entry.generatedAt === 'string' ? Date.parse(entry.generatedAt) : Number.NaN;
+      return Number.isFinite(generatedAt) && generatedAt >= cutoff;
+    });
+
+    const byStatus = {
+      ok: 0,
+      warning: 0,
+      critical: 0,
+    };
+
+    windowItems.forEach((entry) => {
+      const status = entry.overallStatus;
+      if (status === 'ok' || status === 'warning' || status === 'critical') {
+        byStatus[status] += 1;
+      }
+    });
+
+    const total = windowItems.length;
+    return c.json({
+      generatedAt: new Date(now).toISOString(),
+      sinceMinutes,
+      totals: {
+        total,
+        byStatus,
+      },
+      rates: {
+        okPct: total > 0 ? roundMoney((byStatus.ok / total) * 100) : 0,
+        warningPct: total > 0 ? roundMoney((byStatus.warning / total) * 100) : 0,
+        criticalPct: total > 0 ? roundMoney((byStatus.critical / total) * 100) : 0,
+      },
+      latest: windowItems.length > 0 ? windowItems[windowItems.length - 1] : null,
+    });
+  } catch (error) {
+    console.error('Error fetching admin observability security alert history stats:', error);
+    return c.json({ error: 'Failed to fetch observability security alert history stats' }, 500);
+  }
+});
+
 app.get('/make-server-a1c55d7e/admin/observability/security-alert-config', async (c) => {
   try {
     const unauthorized = await requireAdmin(c);

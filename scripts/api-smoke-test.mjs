@@ -432,6 +432,7 @@ async function testAdminAuth() {
     ['GET', '/admin/observability/security-alerts', undefined],
     ['GET', '/admin/observability/security-alert-history', undefined],
     ['DELETE', '/admin/observability/security-alert-history', undefined],
+    ['GET', '/admin/observability/security-alert-history/stats', undefined],
     ['GET', '/admin/observability/security-alert-config', undefined],
     ['PUT', '/admin/observability/security-alert-config', {
       config: {
@@ -518,6 +519,26 @@ async function testAdminSuccess() {
       securityAlertHistoryDelete.status === 403
         ? typeof b?.error === 'string'
         : b?.success === true && typeof b?.clearedCount === 'number',
+  );
+
+  const securityAlertHistoryStats = await call('GET', '/admin/observability/security-alert-history/stats?sinceMinutes=60', undefined, headers);
+  check(
+    'GET /admin/observability/security-alert-history/stats → 200 or 403 (admin JWT)',
+    securityAlertHistoryStats,
+    [200, 403],
+    b =>
+      securityAlertHistoryStats.status === 403
+        ? typeof b?.error === 'string'
+        : typeof b?.generatedAt === 'string' &&
+          b?.sinceMinutes === 60 &&
+          typeof b?.totals?.total === 'number' &&
+          typeof b?.totals?.byStatus?.ok === 'number' &&
+          typeof b?.totals?.byStatus?.warning === 'number' &&
+          typeof b?.totals?.byStatus?.critical === 'number' &&
+          typeof b?.rates?.okPct === 'number' &&
+          typeof b?.rates?.warningPct === 'number' &&
+          typeof b?.rates?.criticalPct === 'number' &&
+          (b?.latest === null || typeof b?.latest === 'object'),
   );
 
   const securityAlertConfigPut = await call('PUT', '/admin/observability/security-alert-config', {
