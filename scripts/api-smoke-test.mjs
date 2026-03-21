@@ -433,6 +433,7 @@ async function testAdminAuth() {
     ['GET', '/admin/observability/security-alert-history', undefined],
     ['DELETE', '/admin/observability/security-alert-history', undefined],
     ['GET', '/admin/observability/security-alert-history/stats', undefined],
+    ['GET', '/admin/observability/security-alert-history/trends', undefined],
     ['GET', '/admin/observability/security-alert-config', undefined],
     ['PUT', '/admin/observability/security-alert-config', {
       config: {
@@ -539,6 +540,22 @@ async function testAdminSuccess() {
           typeof b?.rates?.warningPct === 'number' &&
           typeof b?.rates?.criticalPct === 'number' &&
           (b?.latest === null || typeof b?.latest === 'object'),
+  );
+
+  const securityAlertHistoryTrends = await call('GET', '/admin/observability/security-alert-history/trends?sinceMinutes=120&bucketMinutes=30', undefined, headers);
+  check(
+    'GET /admin/observability/security-alert-history/trends → 200 or 403 (admin JWT)',
+    securityAlertHistoryTrends,
+    [200, 403],
+    b =>
+      securityAlertHistoryTrends.status === 403
+        ? typeof b?.error === 'string'
+        : typeof b?.generatedAt === 'string' &&
+          b?.sinceMinutes === 120 &&
+          b?.bucketMinutes === 30 &&
+          typeof b?.totals?.buckets === 'number' &&
+          typeof b?.totals?.events === 'number' &&
+          Array.isArray(b?.buckets),
   );
 
   const securityAlertConfigPut = await call('PUT', '/admin/observability/security-alert-config', {

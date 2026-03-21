@@ -4495,6 +4495,90 @@ app.get('/make-server-a1c55d7e/admin/observability/security-alert-history/stats'
   }
 });
 
+app.get('/make-server-a1c55d7e/admin/observability/security-alert-history/trends', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:observability-security-alert-history-trends-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const requestedSinceMinutes = Number(c.req.query('sinceMinutes') ?? 1440);
+    const sinceMinutes = Number.isFinite(requestedSinceMinutes)
+      ? Math.min(10_080, Math.max(10, Math.round(requestedSinceMinutes)))
+      : 1440;
+
+    const requestedBucketMinutes = Number(c.req.query('bucketMinutes') ?? 60);
+    const bucketMinutes = Number.isFinite(requestedBucketMinutes)
+      ? Math.min(1440, Math.max(5, Math.round(requestedBucketMinutes)))
+      : 60;
+
+    const now = Date.now();
+    const cutoff = now - sinceMinutes * 60_000;
+    const history = sanitizeAdminObservabilityAlertHistory(await kv.get(ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY));
+    const windowItems = history.filter((entry) => {
+      const generatedAt = typeof entry.generatedAt === 'string' ? Date.parse(entry.generatedAt) : Number.NaN;
+      return Number.isFinite(generatedAt) && generatedAt >= cutoff;
+    });
+
+    const bucketMap = new Map<number, { ok: number; warning: number; critical: number; total: number }>();
+
+    windowItems.forEach((entry) => {
+      const atMs = typeof entry.generatedAt === 'string' ? Date.parse(entry.generatedAt) : Number.NaN;
+      if (!Number.isFinite(atMs)) {
+        return;
+      }
+
+      const bucketStartMs = Math.floor(atMs / (bucketMinutes * 60_000)) * bucketMinutes * 60_000;
+      const bucket = bucketMap.get(bucketStartMs) ?? { ok: 0, warning: 0, critical: 0, total: 0 };
+
+      const status = entry.overallStatus;
+      if (status === 'ok' || status === 'warning' || status === 'critical') {
+        bucket[status] += 1;
+        bucket.total += 1;
+      }
+
+      bucketMap.set(bucketStartMs, bucket);
+    });
+
+    const buckets = Array.from(bucketMap.entries())
+      .sort((a, b) => a[0] - b[0])
+      .map(([startMs, counts]) => ({
+        startAt: new Date(startMs).toISOString(),
+        endAt: new Date(startMs + bucketMinutes * 60_000).toISOString(),
+        total: counts.total,
+        byStatus: {
+          ok: counts.ok,
+          warning: counts.warning,
+          critical: counts.critical,
+        },
+      }));
+
+    return c.json({
+      generatedAt: new Date(now).toISOString(),
+      sinceMinutes,
+      bucketMinutes,
+      totals: {
+        buckets: buckets.length,
+        events: windowItems.length,
+      },
+      buckets,
+    });
+  } catch (error) {
+    console.error('Error fetching admin observability security alert history trends:', error);
+    return c.json({ error: 'Failed to fetch observability security alert history trends' }, 500);
+  }
+});
+
 app.get('/make-server-a1c55d7e/admin/observability/security-alert-config', async (c) => {
   try {
     const unauthorized = await requireAdmin(c);
