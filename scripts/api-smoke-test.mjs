@@ -435,6 +435,7 @@ async function testAdminAuth() {
   const routes = [
     ['POST', '/admin/assign-premium-bundle', { username: TEST_USER, premiumProductValue: 500, bundledProductCount: 1 }],
     ['DELETE', `/admin/cancel-premium/${TEST_USER}/premium-fake`, undefined],
+    ['POST', '/admin/withdrawals/withdrawal_fake/review', { action: 'approve', txHash: 'smoke_hash' }],
     ['DELETE', '/admin/users/admin_fake', undefined],
     ['POST', '/admin/users', { fullName: 'Test Admin', username: 'smokeadmin', email: 'smokeadmin@example.com', roleName: 'Admin', password: 'password123' }],
     ['GET', '/cs/admin/tickets', undefined],

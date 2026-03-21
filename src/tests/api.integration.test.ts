@@ -2337,6 +2337,61 @@ describe('Admin route success path', () => {
     }
   });
 
+  it('Financial audit events are queryable via audit-log action filter', async () => {
+    if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
+      const { status } = await request('/admin/observability/audit-log');
+      expect(status).toBe(401);
+      return;
+    }
+
+    const auditResult = await request(
+      '/admin/observability/audit-log?limit=50&sinceMinutes=1440',
+      { headers: adminHeaders() },
+    );
+
+    if (auditResult.status === 403) {
+      expect(String(auditResult.body.error ?? '')).toContain('super-admin');
+      return;
+    }
+
+    expect(auditResult.status).toBe(200);
+    expect(Array.isArray(auditResult.body.items)).toBe(true);
+
+    const financialActions = new Set([
+      'admin-premium-bundle-assign',
+      'admin-premium-cancel',
+      'admin-withdrawal-approve',
+      'admin-withdrawal-reject',
+    ]);
+
+    // Every financial audit event returned must have the required shape
+    for (const item of auditResult.body.items) {
+      if (financialActions.has(item.action)) {
+        expect(typeof item.id).toBe('string');
+        expect(typeof item.at).toBe('string');
+        expect(typeof item.actor).toBe('string');
+        expect(typeof item.detail).toBe('string');
+      }
+    }
+
+    // If withdrawal-approve events exist in the log, validate structure specifically
+    const withdrawalApproveResult = await request(
+      '/admin/observability/audit-log?action=admin-withdrawal-approve&limit=10&sinceMinutes=1440',
+      { headers: adminHeaders() },
+    );
+    if (withdrawalApproveResult.status === 200) {
+      expect(withdrawalApproveResult.body.filters?.action).toBe('admin-withdrawal-approve');
+      for (const item of withdrawalApproveResult.body.items) {
+        expect(item.action).toBe('admin-withdrawal-approve');
+        expect(typeof item.actor).toBe('string');
+        expect(typeof item.detail).toBe('string');
+      }
+    }
+  });
+
   it('GET/PUT /admin/observability/security-alert-config is role-gated and supports super-admin writes', async () => {
     if (!ADMIN_TEST_JWT) {
       if (REQUIRE_ADMIN_SUCCESS) {

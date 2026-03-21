@@ -3904,7 +3904,16 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     // Save premium assignment record
     const premiumKey = `premium:${canonicalUsername}:${premiumAssignment.id}`;
     await kv.set(premiumKey, premiumAssignment);
-    
+
+    const assignActorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-premium-bundle-assign',
+      assignActorEmail,
+      `Assigned premium bundle ($${premiumProductValue}, ${bundledProductCount} bundled product${bundledProductCount !== 1 ? 's' : ''}) to user '${canonicalUsername}' — total value $${totalBundleValue}`,
+    ).catch((e) => console.error('Failed to record admin-premium-bundle-assign audit event:', e));
+
     return c.json({
       success: true,
       premiumAssignment,
@@ -3916,7 +3925,7 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     console.error('Error assigning premium bundle:', error);
     return c.json({ error: 'Failed to assign premium bundle' }, 500);
   }
-});
+})
 
 async function completePremiumTaskForUser(c: any, username: string, productPrice: number) {
   if (typeof productPrice !== 'number' || !Number.isFinite(productPrice) || productPrice <= 0) {
@@ -4146,13 +4155,22 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
     // Update premium record
     const premiumKey = `premium:${username}:${premiumId}`;
     await kv.set(premiumKey, cancelledPremium);
-    
+
+    const cancelActorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-premium-cancel',
+      cancelActorEmail,
+      `Cancelled premium assignment '${premiumId}' ($${cancelledPremium.totalBundleValue ?? 0}) for user '${username}'`,
+    ).catch((e) => console.error('Failed to record admin-premium-cancel audit event:', e));
+
     return c.json({ success: true, message: 'Premium assignment cancelled' });
   } catch (error) {
     console.error('Error cancelling premium assignment:', error);
     return c.json({ error: 'Failed to cancel premium assignment' }, 500);
   }
-});
+})
 
 app.get('/make-server-a1c55d7e/admin/transactions', async (c) => {
   try {
@@ -5436,6 +5454,19 @@ app.post('/make-server-a1c55d7e/admin/withdrawals/:withdrawalId/review', async (
     await kv.set(withdrawalKey, withdrawal);
     await kv.set(userKey, normalizedUserData);
 
+    const reviewActorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    const reviewAuditAction = action === 'approve' ? 'admin-withdrawal-approve' : 'admin-withdrawal-reject';
+    const reviewAuditDetail = action === 'approve'
+      ? `Approved withdrawal '${withdrawalId}' ($${withdrawal.amount}) for user '${withdrawal.username}'${txHash ? ` — txHash: ${txHash}` : ''}`
+      : `Rejected withdrawal '${withdrawalId}' ($${withdrawal.amount}) for user '${withdrawal.username}'${rejectionReason ? ` — reason: ${rejectionReason}` : ''}`;
+    await recordObservabilityAuditEvent(
+      reviewAuditAction,
+      reviewActorEmail,
+      reviewAuditDetail,
+    ).catch((e) => console.error('Failed to record withdrawal-review audit event:', e));
+
     return c.json({
       success: true,
       withdrawal,
@@ -5447,7 +5478,7 @@ app.post('/make-server-a1c55d7e/admin/withdrawals/:withdrawalId/review', async (
     console.error('Error reviewing withdrawal request:', error);
     return c.json({ error: 'Failed to review withdrawal request' }, 500);
   }
-});
+})
 
 // Get premium assignments for the session-authenticated user
 app.get('/make-server-a1c55d7e/me/premium', async (c) => {
