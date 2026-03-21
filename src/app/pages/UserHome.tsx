@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
 import { Award, Calendar, Gift, HelpCircle, Info, ScrollText, Wallet, ArrowDownToLine } from 'lucide-react';
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -37,8 +37,22 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
   );
 }
 
+const clients = [
+  { name: 'GIADZY', color: 'text-red-600' },
+  { name: 'Owlet', color: 'text-teal-400' },
+  { name: 'UBS', color: 'text-red-600' },
+];
+
 export default function UserHome() {
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [clientIndex, setClientIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setClientIndex(i => (i + 1) % clients.length);
+    }, 2500);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#1f2638] pb-[calc(9rem+env(safe-area-inset-bottom))] sm:pb-32">
@@ -77,50 +91,22 @@ export default function UserHome() {
         {/* Welcome Section */}
         <section className="mt-5 sm:mt-7 bg-gradient-to-br from-[#1a1f2e] to-[#2d3a56] py-6 sm:py-8 rounded-2xl border border-white/5">
           <div className="px-4 sm:px-5">
-            <div className="relative w-full h-50 sm:h-62 md:h-72 rounded-xl border border-[#00D9FF]/45 overflow-hidden shadow-[0_16px_38px_rgba(0,217,255,0.24)]">
+            <div className="relative w-full h-[240px] sm:h-[340px] md:h-[440px] rounded-xl border border-[#00D9FF]/45 overflow-hidden shadow-[0_16px_38px_rgba(0,217,255,0.24)]">
               <video
                 src="/banner-cdc94d47.mp4"
                 autoPlay
                 muted
                 loop
                 playsInline
-                preload="metadata"
-                className="absolute inset-0 h-full w-full object-cover brightness-[1.34] saturate-[1.24] contrast-[1.1] scale-[1.03]"
+                preload="auto"
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{ filter: 'contrast(1.35) saturate(1.45) brightness(1.12)', transform: 'translateZ(0)', willChange: 'transform' }}
                 aria-label="Steadfast Digital background video"
               />
               <div className="absolute inset-0 bg-gradient-to-tr from-[#0f172a59] via-[#0f172a1f] to-transparent" />
               <div className="absolute left-3 sm:left-5 bottom-3 sm:bottom-5 text-white max-w-[88%]">
                 <h2 className="text-[1.35rem] sm:text-3xl font-bold text-[#00D9FF] mb-1">Welcome to Steadfast Digital</h2>
                 <p className="text-[11px] sm:text-sm text-gray-200 leading-relaxed">Performance-led growth for startups and brands across paid media.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Strategic Insights Section */}
-        <section className="mt-5 bg-gradient-to-br from-[#2d3a56] to-[#1a1f2e] py-6 sm:py-8 rounded-2xl border border-white/5">
-          <div className="px-4 sm:px-5">
-            <div className="grid md:grid-cols-[1.05fr_0.95fr] gap-3 sm:gap-6 items-center">
-              <div className="order-2 md:order-1">
-                <div className="relative w-full h-36 sm:h-52 md:h-56 rounded-xl border border-[#00D9FF]/35 overflow-hidden shadow-[0_12px_30px_rgba(0,217,255,0.18)]">
-                  <video
-                    src="/banner-cdc94d47.mp4"
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    preload="metadata"
-                    className="absolute inset-0 h-full w-full object-cover brightness-[1.22] saturate-[1.18] contrast-[1.05]"
-                    aria-label="Strategic insights background video"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-r from-[#0f172a40] to-transparent" />
-                </div>
-              </div>
-              <div className="order-1 md:order-2 text-white">
-                <h2 className="text-[1.4rem] sm:text-3xl font-bold mb-2 text-[#00D9FF]">Strategic Insights</h2>
-                <p className="text-[13px] sm:text-base text-gray-300 leading-relaxed">
-                  One integrated strategy across Google, Meta, and TikTok keeps spend efficient as platforms evolve.
-                </p>
               </div>
             </div>
           </div>
@@ -159,19 +145,29 @@ export default function UserHome() {
         <section className="mt-5 bg-gradient-to-br from-[#2d3a56] to-[#1a1f2e] py-6 sm:py-8 rounded-2xl border border-white/5">
           <div className="px-4 sm:px-5">
             <h2 className="text-[1.4rem] sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-[#00D9FF]">Our Clients</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-              {[
-                { name: 'GIADZY', color: 'text-red-600' },
-                { name: 'Owlet', color: 'text-teal-400' },
-                { name: 'UBS', color: 'text-red-600' }
-              ].map((client) => (
-                <div
-                  key={client.name}
-                  className="bg-white rounded-lg p-3 sm:p-5 flex items-center justify-center min-h-[78px] sm:min-h-[98px] border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <span className={`text-xl sm:text-2xl font-bold ${client.color}`}>{client.name}</span>
-                </div>
-              ))}
+            <div className="overflow-hidden">
+              <div
+                className="flex transition-transform duration-500 ease-in-out"
+                style={{ transform: `translateX(-${clientIndex * 100}%)` }}
+              >
+                {clients.map((client) => (
+                  <div key={client.name} className="min-w-full flex justify-center px-4">
+                    <div className="bg-white rounded-lg p-5 sm:p-8 flex items-center justify-center w-full min-h-[100px] sm:min-h-[130px] border border-gray-200 shadow-sm">
+                      <span className={`text-2xl sm:text-3xl font-bold ${client.color}`}>{client.name}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-center gap-2 mt-4">
+                {clients.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setClientIndex(i)}
+                    className={`w-2 h-2 rounded-full transition-colors duration-300 ${i === clientIndex ? 'bg-[#00D9FF]' : 'bg-white/30'}`}
+                    aria-label={`Show client ${i + 1}`}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </section>
