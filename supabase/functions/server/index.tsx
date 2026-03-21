@@ -715,6 +715,7 @@ const ADMIN_SALARY_PROJECT_KEY = 'admin-salary:project:primary';
 const ADMIN_SALARY_AUDIT_LOG_KEY = 'admin-salary:audit-log:primary';
 const ADMIN_PLATFORM_SETTINGS_KEY = 'admin-platform-settings:primary';
 const ADMIN_OBSERVABILITY_ALERT_CONFIG_KEY = 'admin-observability:security-alert-config:primary';
+const ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY = 'admin-observability:security-alert-history:primary';
 const ADMIN_SALARY_MAX_RESTORE_POINTS = 10;
 const ADMIN_SALARY_MAX_AUDIT_EVENTS = 50;
 
@@ -1258,6 +1259,40 @@ function sanitizeAdminObservabilityAlertConfig(value: unknown) {
       : defaults.requestLatencyP95MsThreshold,
     savedAt: typeof source.savedAt === 'string' && source.savedAt ? source.savedAt : new Date().toISOString(),
   };
+}
+
+function sanitizeAdminObservabilityAlertHistoryEntry(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const source = value as Record<string, unknown>;
+  if (typeof source.generatedAt !== 'string' || typeof source.windowMinutes !== 'number') {
+    return null;
+  }
+
+  const overallStatus = source.overallStatus;
+  if (overallStatus !== 'ok' && overallStatus !== 'warning' && overallStatus !== 'critical') {
+    return null;
+  }
+
+  return {
+    generatedAt: source.generatedAt,
+    windowMinutes: source.windowMinutes,
+    overallStatus,
+    rules: Array.isArray(source.rules) ? source.rules : [],
+  };
+}
+
+function sanitizeAdminObservabilityAlertHistory(values: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value) => sanitizeAdminObservabilityAlertHistoryEntry(value))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .slice(-200);
 }
 
 function sanitizeTaskStatus(value: unknown): 'Active' | 'Paused' {
@@ -4283,8 +4318,18 @@ app.get('/make-server-a1c55d7e/admin/observability/security-alerts', async (c) =
       requestLatencyP95MsThreshold: alertConfig.requestLatencyP95MsThreshold,
     });
 
-    return c.json({
+    const historyEntry = {
       generatedAt: new Date(now).toISOString(),
+      windowMinutes,
+      overallStatus: alertEvaluation.overallStatus,
+      rules: alertEvaluation.rules,
+    };
+    const existingHistory = sanitizeAdminObservabilityAlertHistory(await kv.get(ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY));
+    existingHistory.push(historyEntry);
+    await kv.set(ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY, existingHistory.slice(-200));
+
+    return c.json({
+      generatedAt: historyEntry.generatedAt,
       windowMinutes,
       thresholds: alertConfig,
       overallStatus: alertEvaluation.overallStatus,
@@ -4293,6 +4338,39 @@ app.get('/make-server-a1c55d7e/admin/observability/security-alerts', async (c) =
   } catch (error) {
     console.error('Error fetching admin observability security alerts:', error);
     return c.json({ error: 'Failed to fetch observability security alerts' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/observability/security-alert-history', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:observability-security-alert-history-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const requestedLimit = Number(c.req.query('limit') ?? 20);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(100, Math.max(1, Math.round(requestedLimit)))
+      : 20;
+
+    const history = sanitizeAdminObservabilityAlertHistory(await kv.get(ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY));
+    return c.json({
+      total: history.length,
+      items: history.slice(-limit),
+    });
+  } catch (error) {
+    console.error('Error fetching admin observability security alert history:', error);
+    return c.json({ error: 'Failed to fetch observability security alert history' }, 500);
   }
 });
 

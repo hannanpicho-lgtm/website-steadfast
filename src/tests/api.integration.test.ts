@@ -1100,6 +1100,11 @@ describe('Admin route authentication', () => {
     expect(status).toBe(401);
   });
 
+  it('GET /admin/observability/security-alert-history → 401 with anon token only', async () => {
+    const { status } = await request('/admin/observability/security-alert-history');
+    expect(status).toBe(401);
+  });
+
   it('GET /admin/observability/security-alert-config → 401 with anon token only', async () => {
     const { status } = await request('/admin/observability/security-alert-config');
     expect(status).toBe(401);
@@ -1938,6 +1943,37 @@ describe('Admin route success path', () => {
     expect(typeof result.body.windowMinutes).toBe('number');
     expect(['ok', 'warning', 'critical']).toContain(result.body.overallStatus);
     expect(Array.isArray(result.body.rules)).toBe(true);
+  });
+
+  it('GET /admin/observability/security-alert-history is role-gated and returns history', async () => {
+    if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
+      const { status } = await request('/admin/observability/security-alert-history');
+      expect(status).toBe(401);
+      return;
+    }
+
+    const result = await request('/admin/observability/security-alert-history?limit=5', {
+      headers: adminHeaders(),
+    });
+
+    if (result.status === 403) {
+      expect(String(result.body.error ?? '')).toContain('super-admin');
+      return;
+    }
+
+    expect(result.status).toBe(200);
+    expect(typeof result.body.total).toBe('number');
+    expect(Array.isArray(result.body.items)).toBe(true);
+    expect(result.body.items.length).toBeLessThanOrEqual(5);
+    for (const entry of result.body.items) {
+      expect(typeof entry.generatedAt).toBe('string');
+      expect(typeof entry.windowMinutes).toBe('number');
+      expect(['ok', 'warning', 'critical']).toContain(entry.overallStatus);
+      expect(Array.isArray(entry.rules)).toBe(true);
+    }
   });
 
   it('GET/PUT /admin/observability/security-alert-config is role-gated and supports super-admin writes', async () => {

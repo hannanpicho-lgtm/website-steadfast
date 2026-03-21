@@ -430,6 +430,7 @@ async function testAdminAuth() {
     ['GET', '/cs/admin/chats', undefined],
     ['GET', '/admin/observability/security-summary', undefined],
     ['GET', '/admin/observability/security-alerts', undefined],
+    ['GET', '/admin/observability/security-alert-history', undefined],
     ['GET', '/admin/observability/security-alert-config', undefined],
     ['PUT', '/admin/observability/security-alert-config', {
       config: {
@@ -488,6 +489,19 @@ async function testAdminSuccess() {
           typeof b?.thresholds === 'object' &&
           ['ok', 'warning', 'critical'].includes(b?.overallStatus) &&
           Array.isArray(b?.rules),
+  );
+
+  const securityAlertHistory = await call('GET', '/admin/observability/security-alert-history?limit=5', undefined, headers);
+  check(
+    'GET /admin/observability/security-alert-history → 200 or 403 (admin JWT)',
+    securityAlertHistory,
+    [200, 403],
+    b =>
+      securityAlertHistory.status === 403
+        ? typeof b?.error === 'string'
+        : typeof b?.total === 'number' &&
+          Array.isArray(b?.items) &&
+          b.items.length <= 5,
   );
 
   const securityAlertConfigPut = await call('PUT', '/admin/observability/security-alert-config', {
