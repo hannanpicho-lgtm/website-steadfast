@@ -1262,6 +1262,288 @@ describe('Tier 1 critical identity enforcement', () => {
   });
 });
 
+describe('Tier 2 admin authorization hardening', () => {
+  it('GET /admin/salary/project requires super-admin', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await request('/admin/salary/project');
+      expect(status).toBe(401);
+      return;
+    }
+
+    const scopeProbe = await getAdminScopeProbe();
+    if (!scopeProbe) {
+      return;
+    }
+
+    const superAdminResult = await request('/admin/salary/project', {
+      headers: adminHeaders(),
+    });
+
+    if (scopeProbe.scoped) {
+      expect(superAdminResult.status).toBe(403);
+    } else {
+      expect(superAdminResult.status).toBe(200);
+      expect(superAdminResult.body.project).toBeTruthy();
+    }
+  });
+
+  it('PUT /admin/salary/project requires super-admin', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await request('/admin/salary/project', {
+        method: 'PUT',
+        body: JSON.stringify({
+          project: {
+            version: 1,
+            savedAt: new Date().toISOString(),
+            checksum: 'test',
+            uiState: { activeRewardTab: 'salary-payments', selectedBulkOption: 'all', autoBackupEnabled: true, autoBackupIntervalMinutes: 1, backupRetentionDays: 30 },
+            payments: [],
+            points: [],
+          },
+        }),
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const scopeProbe = await getAdminScopeProbe();
+    if (!scopeProbe) {
+      return;
+    }
+
+    const superAdminResult = await request('/admin/salary/project', {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        project: {
+          version: 1,
+          savedAt: new Date().toISOString(),
+          checksum: 'test',
+          uiState: { activeRewardTab: 'salary-payments', selectedBulkOption: 'all', autoBackupEnabled: true, autoBackupIntervalMinutes: 1, backupRetentionDays: 30 },
+          payments: [],
+          points: [],
+        },
+      }),
+    });
+
+    if (scopeProbe.scoped) {
+      expect(superAdminResult.status).toBe(403);
+    } else {
+      expect(superAdminResult.status).toBe(200);
+      expect(superAdminResult.body.success).toBe(true);
+    }
+  });
+
+  it('GET /admin/salary/audit-log requires super-admin', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await request('/admin/salary/audit-log');
+      expect(status).toBe(401);
+      return;
+    }
+
+    const scopeProbe = await getAdminScopeProbe();
+    if (!scopeProbe) {
+      return;
+    }
+
+    const superAdminResult = await request('/admin/salary/audit-log', {
+      headers: adminHeaders(),
+    });
+
+    if (scopeProbe.scoped) {
+      expect(superAdminResult.status).toBe(403);
+    } else {
+      expect(superAdminResult.status).toBe(200);
+      expect(Array.isArray(superAdminResult.body.events)).toBe(true);
+    }
+  });
+
+  it('PUT /admin/salary/audit-log requires super-admin', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await request('/admin/salary/audit-log', {
+        method: 'PUT',
+        body: JSON.stringify({
+          events: [{ id: Date.now(), at: new Date().toISOString(), action: 'manual-backup', detail: 'integration test event' }],
+        }),
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const scopeProbe = await getAdminScopeProbe();
+    if (!scopeProbe) {
+      return;
+    }
+
+    const superAdminResult = await request('/admin/salary/audit-log', {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({
+        events: [{ id: Date.now(), at: new Date().toISOString(), action: 'manual-backup', detail: 'integration test event' }],
+      }),
+    });
+
+    if (scopeProbe.scoped) {
+      expect(superAdminResult.status).toBe(403);
+    } else {
+      expect(superAdminResult.status).toBe(200);
+      expect(superAdminResult.body.success).toBe(true);
+    }
+  });
+
+  it('PUT /admin/rewards-config requires super-admin', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await request('/admin/rewards-config', {
+        method: 'PUT',
+        body: JSON.stringify({ productSystem: { rewardFallbackValue: 100 } }),
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const scopeProbe = await getAdminScopeProbe();
+    if (!scopeProbe) {
+      return;
+    }
+
+    const superAdminResult = await request('/admin/rewards-config', {
+      method: 'PUT',
+      headers: adminHeaders(),
+      body: JSON.stringify({ productSystem: { rewardFallbackValue: 100 } }),
+    });
+
+    if (scopeProbe.scoped) {
+      expect(superAdminResult.status).toBe(403);
+    } else {
+      expect(superAdminResult.status).toBe(200);
+      expect(superAdminResult.body.success).toBe(true);
+    }
+  });
+
+  it('POST /cs/update-status enforces ticket-to-user scope validation', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await post('/cs/update-status', {
+        ticketId: 'ticket_fake',
+        status: 'open',
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const scopeProbe = await getAdminScopeProbe();
+    if (!scopeProbe || scopeProbe.users.length === 0) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('No scoped admin users available for Tier 2 cs/update-status test');
+      }
+      return;
+    }
+
+    const sessionUpdateResult = await postAsUser('/cs/create-ticket', {
+      subject: 'Tier2 scope test ticket',
+      message: 'Ticket for Tier2 scope checks',
+      category: 'general',
+      priority: 'low',
+    });
+    expect(sessionUpdateResult.status).toBe(200);
+    const sessionTicketId = String(sessionUpdateResult.body.ticket?.id ?? '');
+    expect(sessionTicketId.length > 0).toBe(true);
+
+    const scopedUpdateResult = await post('/cs/update-status', {
+      ticketId: sessionTicketId,
+      status: 'in-progress',
+    }, adminHeaders());
+
+    expect([200, 403]).toContain(scopedUpdateResult.status);
+    if (scopedUpdateResult.status === 200) {
+      expect(scopedUpdateResult.body.success).toBe(true);
+    }
+
+    const { outsiderUsername, outsiderPassword } = await ensureOutOfScopeUser();
+    const outsiderCookie = await loginAndGetSessionCookie(outsiderUsername, outsiderPassword);
+    const outsiderTicketCreate = await postWithCookie('/cs/create-ticket', outsiderCookie, {
+      subject: 'Tier2 outsider ticket',
+      message: 'Ticket from out-of-scope user',
+      category: 'general',
+      priority: 'low',
+    });
+    expect(outsiderTicketCreate.status).toBe(200);
+
+    const outsiderTicketId = String(outsiderTicketCreate.body.ticket?.id ?? '');
+    const outsiderUpdateResult = await post('/cs/update-status', {
+      ticketId: outsiderTicketId,
+      status: 'in-progress',
+    }, adminHeaders());
+
+    if (scopeProbe.scoped) {
+      expect(outsiderUpdateResult.status).toBe(403);
+    } else {
+      expect(outsiderUpdateResult.status).toBe(200);
+    }
+  });
+
+  it('/admin/withdrawals/:withdrawalId/review enforces scope validation', async () => {
+    if (!ADMIN_TEST_JWT) {
+      const { status } = await request('/admin/withdrawals/withdrawal_fake/review', {
+        method: 'POST',
+        body: JSON.stringify({ action: 'approve', txHash: 'test' }),
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const scopeProbe = await getAdminScopeProbe();
+    if (!scopeProbe || scopeProbe.users.length === 0) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('No scoped admin users available for Tier 2 withdrawal review test');
+      }
+      return;
+    }
+
+    const targetUsername = String(scopeProbe.users[0].username);
+    const financeSessionCookie = await loginAndGetSessionCookie(targetUsername);
+    const withdrawalRequestResult = await postWithCookie('/me/withdrawals/request', financeSessionCookie, {
+      amount: 100,
+      walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+    });
+
+    if (withdrawalRequestResult.status !== 200) {
+      return;
+    }
+
+    const withdrawalId = String(withdrawalRequestResult.body.withdrawal?.id ?? '');
+    expect(withdrawalId.length > 0).toBe(true);
+
+    const scopedReviewResult = await post(`/admin/withdrawals/${withdrawalId}/review`, {
+      action: 'approve',
+      txHash: 'test_tx_hash_123',
+    }, adminHeaders());
+
+    expect(scopedReviewResult.status).toBe(200);
+    expect(scopedReviewResult.body.success).toBe(true);
+
+    const { outsiderUsername, outsiderPassword } = await ensureOutOfScopeUser();
+    const outsiderCookie = await loginAndGetSessionCookie(outsiderUsername, outsiderPassword);
+    const outsiderWithdrawalRequest = await postWithCookie('/me/withdrawals/request', outsiderCookie, {
+      amount: 100,
+      walletAddress: '0xabcd567890abcdef1234567890abcdef12345678',
+    });
+
+    if (outsiderWithdrawalRequest.status === 200) {
+      const outsiderWithdrawalId = String(outsiderWithdrawalRequest.body.withdrawal?.id ?? '');
+      const outsiderReviewResult = await post(`/admin/withdrawals/${outsiderWithdrawalId}/review`, {
+        action: 'approve',
+        txHash: 'test_tx_hash_456',
+      }, adminHeaders());
+
+      if (scopeProbe.scoped) {
+        expect(outsiderReviewResult.status).toBe(403);
+      } else {
+        expect(outsiderReviewResult.status).toBe(200);
+      }
+    }
+  });
+});
+
 describe('Admin route success path', () => {
   it('GET /cs/admin/tickets → 200 array with valid admin JWT', async () => {
     if (!ADMIN_TEST_JWT) {

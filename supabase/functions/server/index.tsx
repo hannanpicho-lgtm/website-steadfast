@@ -3691,6 +3691,12 @@ app.get('/make-server-a1c55d7e/admin/rewards-config', async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
     const rateLimited = enforceAdminRateLimit(c, 'admin:rewards-config-read');
     if (rateLimited) {
       return rateLimited;
@@ -3710,6 +3716,12 @@ app.get('/make-server-a1c55d7e/admin/salary/project', async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
     const rateLimited = enforceAdminRateLimit(c, 'admin:salary-project-read');
     if (rateLimited) {
       return rateLimited;
@@ -3729,6 +3741,12 @@ app.put('/make-server-a1c55d7e/admin/salary/project', async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
     const rateLimited = enforceAdminRateLimit(c, 'admin:salary-project-write');
     if (rateLimited) {
       return rateLimited;
@@ -3754,6 +3772,12 @@ app.get('/make-server-a1c55d7e/admin/salary/audit-log', async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
     const rateLimited = enforceAdminRateLimit(c, 'admin:salary-audit-read');
     if (rateLimited) {
       return rateLimited;
@@ -3773,6 +3797,12 @@ app.put('/make-server-a1c55d7e/admin/salary/audit-log', async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
     const rateLimited = enforceAdminRateLimit(c, 'admin:salary-audit-write');
     if (rateLimited) {
       return rateLimited;
@@ -4001,6 +4031,12 @@ app.put('/make-server-a1c55d7e/admin/rewards-config', async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
     const rateLimited = enforceAdminRateLimit(c, 'admin:rewards-config-update');
     if (rateLimited) {
       return rateLimited;
@@ -4497,6 +4533,10 @@ app.post("/make-server-a1c55d7e/cs/update-status", async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
+
+    const adminUser = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(adminUser);
+
     const rateLimited = enforceAdminRateLimit(c, 'admin:cs-update-status');
     if (rateLimited) {
       return rateLimited;
@@ -4518,6 +4558,22 @@ app.post("/make-server-a1c55d7e/cs/update-status", async (c) => {
     
     if (!ticket) {
       return c.json({ error: 'Ticket not found' }, 404);
+    }
+
+    const ticketUsername = sanitizeUsername(ticket.username);
+    if (!ticketUsername) {
+      return c.json({ error: 'Ticket owner is invalid' }, 400);
+    }
+
+    const canonicalTicketUsername = (await resolveCanonicalUsername(ticketUsername)) ?? ticketUsername;
+    const targetUserData = await kv.get(`user:${canonicalTicketUsername}`);
+    if (!targetUserData) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const normalizedTargetUser = normalizeUserRecord(targetUserData, canonicalTicketUsername);
+    if (!callerIsSuperAdmin && normalizedTargetUser.referredByAdminId !== adminUser?.id) {
+      return c.json({ error: 'Forbidden' }, 403);
     }
     
     ticket.status = status;
