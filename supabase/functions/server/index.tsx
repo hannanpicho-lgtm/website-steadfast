@@ -25,6 +25,18 @@ const CORS_ALLOWED_ORIGINS = (Deno.env.get('CORS_ALLOWED_ORIGINS') ?? '')
 
 const configuredCorsAllowedOrigins = new Set(CORS_ALLOWED_ORIGINS);
 
+function isCorsOriginAllowed(origin: string | undefined): boolean {
+  if (!origin) {
+    return true;
+  }
+
+  if (configuredCorsAllowedOrigins.size === 0) {
+    return true;
+  }
+
+  return configuredCorsAllowedOrigins.has(origin);
+}
+
 function resolveCorsOrigin(origin: string | undefined): string {
   if (!origin) {
     return '*';
@@ -133,6 +145,19 @@ app.use('*', async (c, next) => {
   }
   c.header('X-Request-Id', requestId);
   applySecurityHeaders(c);
+});
+
+app.use('*', async (c, next) => {
+  const origin = c.req.header('origin');
+  if (!isCorsOriginAllowed(origin)) {
+    logStructuredEvent(c, 'cors_origin_rejected', 'warn', {
+      origin,
+      allowlistConfigured: configuredCorsAllowedOrigins.size > 0,
+    });
+    return c.json({ error: 'Origin not allowed' }, 403);
+  }
+
+  await next();
 });
 
 // Enable logger
