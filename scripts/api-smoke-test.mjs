@@ -251,6 +251,26 @@ async function testMeReads() {
     typeof b?.walletProfile === 'object',
   );
 
+  const walletUpdateNoSession = await call('PUT', '/me/wallet', {
+    type: 'crypto',
+    walletType: 'usdt',
+    walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+    network: 'trc20',
+  });
+  check('PUT /me/wallet — no session → 401', walletUpdateNoSession, 401);
+
+  const walletUpdate = await callAsUser('PUT', '/me/wallet', {
+    type: 'crypto',
+    walletType: 'usdt',
+    walletAddress: '0x1234567890abcdef1234567890abcdef12345678',
+    network: 'trc20',
+  });
+  check('PUT /me/wallet — session user update → 200', walletUpdate, 200, b =>
+    b?.success === true &&
+    b?.username === TEST_USER &&
+    typeof b?.walletProfile === 'object',
+  );
+
   // ── /me/withdrawals ────────────────────────────────────────────────────────
   const withdrawalsNoSession = await call('GET', '/me/withdrawals');
   check('GET /me/withdrawals — no session → 401', withdrawalsNoSession, 401);
@@ -427,6 +447,22 @@ async function testAuth() {
     newPassword: 'abc',
   });
   check('POST /auth/change-password — password too short → 400', r7, 400);
+
+  const r8 = await call('POST', '/auth/change-credentials', {
+    currentLoginPassword: LOGIN_PASSWORD,
+    newTransactionPassword: 'smoke99999',
+  });
+  check('POST /auth/change-credentials — no session → 401', r8, 401);
+
+  const r9 = await callAsUser('POST', '/auth/change-credentials', {
+    currentLoginPassword: LOGIN_PASSWORD,
+    newTransactionPassword: 'smoke99999',
+  });
+  check('POST /auth/change-credentials — session user update → 200', r9, 200, b =>
+    b?.ok === true &&
+    b?.username === TEST_USER &&
+    b?.updated?.transactionPassword === true,
+  );
 }
 
 async function testAdminAuth() {

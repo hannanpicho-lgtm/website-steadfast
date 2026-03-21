@@ -51,11 +51,18 @@ curl https://{projectId}.supabase.co/functions/v1/make-server-a1c55d7e/health
 {"status": "ok"}
 ```
 
-#### Step 2: Test User Endpoint
+#### Step 2: Test Session User Endpoint
 ```bash
-# Test user data retrieval
-curl https://{projectId}.supabase.co/functions/v1/make-server-a1c55d7e/user/ugreen \
-  -H "Authorization: Bearer {publicAnonKey}"
+# 1) Login to establish a session cookie
+curl -i -X POST https://{projectId}.supabase.co/functions/v1/make-server-a1c55d7e/auth/login \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {publicAnonKey}" \
+  -d '{"username":"ugreen","loginPassword":"{password}"}'
+
+# 2) Use the returned steadfast_user_session cookie to read session-scoped user data
+curl https://{projectId}.supabase.co/functions/v1/make-server-a1c55d7e/me/user \
+  -H "Authorization: Bearer {publicAnonKey}" \
+  -H "Cookie: steadfast_user_session={sessionId}"
 ```
 
 **Expected Response:**
@@ -199,7 +206,7 @@ Visit each page and verify it loads:
 #### API Response Time
 1. Open Network tab
 2. Perform task submission
-3. Check API request to `/submit-task`
+3. Check API request to `/me/submit-task`
 4. Verify response time < 500ms
 
 #### Chat Performance
@@ -242,7 +249,7 @@ Visit each page and verify it loads:
 4. Check console for proper error handling
 
 **B. Invalid Data**
-1. Try accessing `/user/nonexistent`
+1. Try accessing `/me/user` without a session cookie (expect 401)
 2. Verify graceful handling
 
 **C. Server Error Simulation**
@@ -358,10 +365,11 @@ Visit each page and verify it loads:
 echo "Testing backend health..."
 curl https://{projectId}.supabase.co/functions/v1/make-server-a1c55d7e/health
 
-# 2. Test user endpoint
-echo "Testing user endpoint..."
-curl https://{projectId}.supabase.co/functions/v1/make-server-a1c55d7e/user/ugreen \
-  -H "Authorization: Bearer {publicAnonKey}"
+# 2. Test session user endpoint (requires session cookie from auth/login)
+echo "Testing session user endpoint..."
+curl https://{projectId}.supabase.co/functions/v1/make-server-a1c55d7e/me/user \
+  -H "Authorization: Bearer {publicAnonKey}" \
+  -H "Cookie: steadfast_user_session={sessionId}"
 
 # 3. Test chat endpoint
 echo "Testing chat endpoint..."

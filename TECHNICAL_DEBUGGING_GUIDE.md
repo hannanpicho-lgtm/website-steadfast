@@ -116,9 +116,9 @@ GET /health
 
 ### 2. User Management
 
-#### Get User Data
+#### Get Session User Data
 ```http
-GET /user/:username
+GET /me/user
 ```
 
 **Response:**
@@ -145,13 +145,12 @@ GET /user/:username
 
 #### Submit Task
 ```http
-POST /submit-task
+POST /me/submit-task
 ```
 
 **Request Body:**
 ```json
 {
-  "username": "testuser",
   "productPrice": 299.99
 }
 ```
@@ -834,19 +833,20 @@ interface PasswordReset {
 
 2. **Verify API call:**
    ```bash
-   curl -X POST https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e/submit-task \
+   curl -X POST https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e/me/submit-task \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer ${ANON_KEY}" \
-     -d '{"username":"testuser","productPrice":299.99}'
+     -H "Cookie: steadfast_user_session=${SESSION_ID}" \
+     -d '{"productPrice":299.99}'
    ```
 
 3. **Check server logs:**
    - Go to Supabase Dashboard → Edge Functions → Logs
-   - Look for errors in `/submit-task` endpoint
+  - Look for errors in `/me/submit-task` endpoint
 
 4. **Verify user data:**
    ```bash
-   curl https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e/user/testuser \
+   curl https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e/me/user \
      -H "Authorization: Bearer ${ANON_KEY}"
    ```
 
@@ -878,7 +878,7 @@ interface PasswordReset {
 
 2. **Verify user data:**
    ```bash
-   curl https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e/user/testuser \
+   curl https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e/me/user \
      -H "Authorization: Bearer ${ANON_KEY}"
    ```
    
@@ -1200,14 +1200,16 @@ curl https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e/
 
 # Test with authentication
 curl -H "Authorization: Bearer ${ANON_KEY}" \
-     https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e/user/testuser
+  -H "Cookie: steadfast_user_session=${SESSION_ID}" \
+  https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e/me/user
 
 # Test POST request
 curl -X POST \
      -H "Content-Type: application/json" \
      -H "Authorization: Bearer ${ANON_KEY}" \
-     -d '{"username":"testuser","productPrice":299.99}' \
-     https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e/submit-task
+  -H "Cookie: steadfast_user_session=${SESSION_ID}" \
+  -d '{"productPrice":299.99}' \
+  https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e/me/submit-task
 ```
 
 ### KV Store Direct Access
@@ -1291,14 +1293,15 @@ const allTasks = await kv.getByPrefix("task:testuser:");
    // Cache frequently accessed data
    const cache = new Map();
    
-   app.get("/user/:username", async (c) => {
-     const cached = cache.get(username);
+   app.get("/me/user", async (c) => {
+     const sessionUsername = c.get('session')?.username;
+     const cached = cache.get(sessionUsername);
      if (cached && Date.now() - cached.timestamp < 60000) {
        return c.json(cached.data);
      }
      
-     const data = await kv.get(`user:${username}`);
-     cache.set(username, { data, timestamp: Date.now() });
+     const data = await kv.get(`user:${sessionUsername}`);
+     cache.set(sessionUsername, { data, timestamp: Date.now() });
      return c.json(data);
    });
    ```
