@@ -448,6 +448,7 @@ function enforceAdminRateLimit(c: any, bucket: string) {
     const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
     c.header('Retry-After', String(retryAfterSeconds));
     logAdminRateLimit(c, bucket, retryAfterSeconds);
+    recordRateLimitViolation(bucket, userId, source, retryAfterSeconds).catch(err => console.error('Failed to record rate limit violation:', err));
     return c.json({ error: 'Rate limit exceeded. Please retry shortly.' }, 429);
   }
 
@@ -718,6 +719,8 @@ const ADMIN_OBSERVABILITY_ALERT_CONFIG_KEY = 'admin-observability:security-alert
 const ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY = 'admin-observability:security-alert-history:primary';
 const ADMIN_OBSERVABILITY_AUDIT_LOG_KEY = 'admin-observability:audit-log:primary';
 const ADMIN_OBSERVABILITY_MAX_AUDIT_EVENTS = 100;
+const ADMIN_OBSERVABILITY_RATE_LIMIT_VIOLATIONS_KEY = 'admin-observability:rate-limit-violations:primary';
+const ADMIN_OBSERVABILITY_MAX_RATE_LIMIT_VIOLATIONS = 200;
 const ADMIN_SALARY_MAX_RESTORE_POINTS = 10;
 const ADMIN_SALARY_MAX_AUDIT_EVENTS = 50;
 
@@ -1337,6 +1340,52 @@ async function recordObservabilityAuditEvent(action: string, actor: string, deta
     detail,
   });
   await kv.set(ADMIN_OBSERVABILITY_AUDIT_LOG_KEY, existing.slice(-ADMIN_OBSERVABILITY_MAX_AUDIT_EVENTS));
+function sanitizeAdminObservabilityRateLimitViolation(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const source = value as Record<string, unknown>;
+  if (!(typeof source.bucket === 'string' && typeof source.userId === 'string' && typeof source.sourceIp === 'string')) {
+    return null;
+  }
+
+  return {
+    id: typeof source.id === 'string' ? source.id : `violation_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    at: typeof source.at === 'string' ? source.at : new Date().toISOString(),
+    bucket: source.bucket,
+    userId: source.userId,
+    sourceIp: source.sourceIp,
+    actionAttempt: typeof source.actionAttempt === 'string' ? source.actionAttempt : 'rate-limit-exceeded',
+    retryAfterSeconds: typeof source.retryAfterSeconds === 'number' ? Math.round(source.retryAfterSeconds) : 0,
+  };
+}
+
+function sanitizeAdminObservabilityRateLimitViolations(values: unknown): Record<string, unknown>[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value) => sanitizeAdminObservabilityRateLimitViolation(value))
+    .filter((entry): entry is Record<string, unknown> => entry !== null)
+    .slice(-ADMIN_OBSERVABILITY_MAX_RATE_LIMIT_VIOLATIONS);
+}
+
+async function recordRateLimitViolation(bucket: string, userId: string, sourceIp: string, retryAfterSeconds: number): Promise<void> {
+  const existing = sanitizeAdminObservabilityRateLimitViolations(await kv.get(ADMIN_OBSERVABILITY_RATE_LIMIT_VIOLATIONS_KEY));
+  existing.push({
+    id: `violation_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    at: new Date().toISOString(),
+    bucket,
+    userId,
+    sourceIp,
+    actionAttempt: 'rate-limit-exceeded',
+    retryAfterSeconds,
+  });
+  await kv.set(ADMIN_OBSERVABILITY_RATE_LIMIT_VIOLATIONS_KEY, existing.slice(-ADMIN_OBSERVABILITY_MAX_RATE_LIMIT_VIOLATIONS));
+}
+
 }
 
 function sanitizeTaskStatus(value: unknown): 'Active' | 'Paused' {
@@ -4889,6 +4938,101 @@ app.get('/make-server-a1c55d7e/admin/observability/audit-log', async (c) => {
   } catch (error) {
     console.error('Error fetching admin observability audit log:', error);
     return c.json({ error: 'Failed to fetch observability audit log' }, 500);
+  app.get('/make-server-a1c55d7e/admin/observability/rate-limit-status', async (c) => {
+    try {
+      const unauthorized = await requireAdmin(c);
+      if (unauthorized) {
+        return unauthorized;
+      }
+
+      const adminUser = c.get('adminUser');
+      if (!isSuperAdmin(adminUser)) {
+        return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+      }
+
+      const rateLimited = enforceAdminRateLimit(c, 'admin:observability-rate-limit-status-read');
+      if (rateLimited) {
+        return rateLimited;
+      }
+
+      const requestedLimit = Number(c.req.query('limit') ?? 50);
+      const limit = Number.isFinite(requestedLimit) ? Math.min(100, Math.max(1, Math.round(requestedLimit))) : 50;
+
+      const requestedSinceMinutes = c.req.query('sinceMinutes');
+      const sinceMinutes = requestedSinceMinutes != null
+        ? (Number.isFinite(Number(requestedSinceMinutes))
+            ? Math.min(43_200, Math.max(1, Math.round(Number(requestedSinceMinutes))))
+            : null)
+        : null;
+
+      const bucketFilter = c.req.query('bucket') ?? null;
+      const userIdFilter = c.req.query('userId') ?? null;
+      const sourceIpFilter = c.req.query('sourceIp') ?? null;
+
+      const allViolations = sanitizeAdminObservabilityRateLimitViolations(await kv.get(ADMIN_OBSERVABILITY_RATE_LIMIT_VIOLATIONS_KEY));
+
+      const now = Date.now();
+      let filtered = allViolations;
+
+      if (sinceMinutes != null) {
+        const cutoff = now - sinceMinutes * 60_000;
+        filtered = filtered.filter((entry) => {
+          const at = typeof entry.at === 'string' ? Date.parse(entry.at as string) : Number.NaN;
+          return Number.isFinite(at) && at >= cutoff;
+        });
+      }
+
+      if (bucketFilter) {
+        filtered = filtered.filter((entry) => entry.bucket === bucketFilter);
+      }
+
+      if (userIdFilter) {
+        filtered = filtered.filter((entry) => entry.userId === userIdFilter);
+      }
+
+      if (sourceIpFilter) {
+        filtered = filtered.filter((entry) => entry.sourceIp === sourceIpFilter);
+      }
+
+      const sorted = filtered.sort((a, b) => Date.parse(String(b.at)) - Date.parse(String(a.at)));
+      const items = sorted.slice(0, limit);
+
+      const byBucket: Record<string, number> = {};
+      const byUser: Record<string, number> = {};
+      const byIp: Record<string, number> = {};
+    
+      filtered.forEach((v) => {
+        const bucket = String(v.bucket);
+        const userId = String(v.userId);
+        const ip = String(v.sourceIp);
+        byBucket[bucket] = (byBucket[bucket] ?? 0) + 1;
+        byUser[userId] = (byUser[userId] ?? 0) + 1;
+        byIp[ip] = (byIp[ip] ?? 0) + 1;
+      });
+
+      return c.json({
+        total: allViolations.length,
+        filteredTotal: filtered.length,
+        items,
+        stats: {
+          byBucket,
+          byUser,
+          byIp,
+        },
+        filters: {
+          limit,
+          sinceMinutes: sinceMinutes ?? null,
+          bucket: bucketFilter,
+          userId: userIdFilter,
+          sourceIp: sourceIpFilter,
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching admin observability rate limit status:', error);
+      return c.json({ error: 'Failed to fetch observability rate limit status' }, 500);
+    }
+  });
+
   }
 });
 

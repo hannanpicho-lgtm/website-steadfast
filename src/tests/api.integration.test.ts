@@ -2144,6 +2144,48 @@ describe('Admin route success path', () => {
     expect(typeof result.body.quality?.longestNonOkStreak).toBe('number');
     expect(typeof result.body.quality?.currentNonOkStreak).toBe('number');
     expect(result.body.quality?.lastCriticalAt === null || typeof result.body.quality?.lastCriticalAt === 'string').toBe(true);
+    it('GET /admin/observability/rate-limit-status is role-gated and returns violations', async () => {
+      if (!ADMIN_TEST_JWT) {
+        if (REQUIRE_ADMIN_SUCCESS) {
+          throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+        }
+        const { status } = await request('/admin/observability/rate-limit-status');
+        expect(status).toBe(401);
+        return;
+      }
+
+      const result = await request('/admin/observability/rate-limit-status?limit=10&sinceMinutes=1440', {
+        headers: adminHeaders(),
+      });
+
+      if (result.status === 403) {
+        expect(String(result.body.error ?? '')).toContain('super-admin');
+        return;
+      }
+
+      expect(result.status).toBe(200);
+      expect(typeof result.body.total).toBe('number');
+      expect(typeof result.body.filteredTotal).toBe('number');
+      expect(Array.isArray(result.body.items)).toBe(true);
+      expect(result.body.items.length <= 10).toBe(true);
+      expect(typeof result.body.stats).toBe('object');
+      expect(typeof result.body.stats.byBucket).toBe('object');
+      expect(typeof result.body.stats.byUser).toBe('object');
+      expect(typeof result.body.stats.byIp).toBe('object');
+      expect(result.body.filters.limit).toBe(10);
+      expect(result.body.filters.sinceMinutes).toBe(1440);
+
+      for (const item of result.body.items) {
+        expect(typeof item.id).toBe('string');
+        expect(typeof item.at).toBe('string');
+        expect(typeof item.bucket).toBe('string');
+        expect(typeof item.userId).toBe('string');
+        expect(typeof item.sourceIp).toBe('string');
+        expect(typeof item.actionAttempt).toBe('string');
+        expect(typeof item.retryAfterSeconds).toBe('number');
+      }
+    });
+
   });
 
   it('GET /admin/observability/audit-log is role-gated and returns audit events', async () => {
@@ -2180,6 +2222,48 @@ describe('Admin route success path', () => {
       expect(typeof item.action).toBe('string');
       expect(typeof item.actor).toBe('string');
       expect(typeof item.detail).toBe('string');
+      it('GET /admin/observability/rate-limit-status is role-gated and returns violations', async () => {
+        if (!ADMIN_TEST_JWT) {
+          if (REQUIRE_ADMIN_SUCCESS) {
+            throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+          }
+          const { status } = await request('/admin/observability/rate-limit-status');
+          expect(status).toBe(401);
+          return;
+        }
+
+        const result = await request('/admin/observability/rate-limit-status?limit=10&sinceMinutes=1440', {
+          headers: adminHeaders(),
+        });
+
+        if (result.status === 403) {
+          expect(String(result.body.error ?? '')).toContain('super-admin');
+          return;
+        }
+
+        expect(result.status).toBe(200);
+        expect(typeof result.body.total).toBe('number');
+        expect(typeof result.body.filteredTotal).toBe('number');
+        expect(Array.isArray(result.body.items)).toBe(true);
+        expect(result.body.items.length <= 10).toBe(true);
+        expect(typeof result.body.stats).toBe('object');
+        expect(typeof result.body.stats.byBucket).toBe('object');
+        expect(typeof result.body.stats.byUser).toBe('object');
+        expect(typeof result.body.stats.byIp).toBe('object');
+        expect(result.body.filters.limit).toBe(10);
+        expect(result.body.filters.sinceMinutes).toBe(1440);
+
+        for (const item of result.body.items) {
+          expect(typeof item.id).toBe('string');
+          expect(typeof item.at).toBe('string');
+          expect(typeof item.bucket).toBe('string');
+          expect(typeof item.userId).toBe('string');
+          expect(typeof item.sourceIp).toBe('string');
+          expect(typeof item.actionAttempt).toBe('string');
+          expect(typeof item.retryAfterSeconds).toBe('number');
+        }
+      });
+
     }
   });
 
