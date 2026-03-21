@@ -428,6 +428,7 @@ async function testAdminAuth() {
     ['DELETE', `/admin/cancel-premium/${TEST_USER}/premium-fake`, undefined],
     ['GET', '/cs/admin/tickets', undefined],
     ['GET', '/cs/admin/chats', undefined],
+    ['GET', '/admin/observability/security-summary', undefined],
   ];
 
   for (const [method, path, body] of routes) {
@@ -449,6 +450,20 @@ async function testAdminSuccess() {
 
   const chats = await call('GET', '/cs/admin/chats', undefined, headers);
   check('GET /cs/admin/chats → 200 (admin JWT)', chats, 200, b => Array.isArray(b));
+
+  const securitySummary = await call('GET', '/admin/observability/security-summary?windowMinutes=15', undefined, headers);
+  check(
+    'GET /admin/observability/security-summary → 200 or 403 (admin JWT)',
+    securitySummary,
+    [200, 403],
+    b =>
+      securitySummary.status === 403
+        ? typeof b?.error === 'string'
+        : typeof b?.generatedAt === 'string' &&
+          typeof b?.windowMinutes === 'number' &&
+          typeof b?.totals?.events === 'number' &&
+          Array.isArray(b?.recent),
+  );
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
