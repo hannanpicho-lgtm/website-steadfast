@@ -431,6 +431,7 @@ async function testAdminAuth() {
     ['GET', '/admin/observability/security-summary', undefined],
     ['GET', '/admin/observability/security-alerts', undefined],
     ['GET', '/admin/observability/security-alert-history', undefined],
+    ['DELETE', '/admin/observability/security-alert-history', undefined],
     ['GET', '/admin/observability/security-alert-config', undefined],
     ['PUT', '/admin/observability/security-alert-config', {
       config: {
@@ -491,7 +492,7 @@ async function testAdminSuccess() {
           Array.isArray(b?.rules),
   );
 
-  const securityAlertHistory = await call('GET', '/admin/observability/security-alert-history?limit=5', undefined, headers);
+  const securityAlertHistory = await call('GET', '/admin/observability/security-alert-history?limit=5&status=warning&sinceMinutes=60', undefined, headers);
   check(
     'GET /admin/observability/security-alert-history → 200 or 403 (admin JWT)',
     securityAlertHistory,
@@ -500,8 +501,23 @@ async function testAdminSuccess() {
       securityAlertHistory.status === 403
         ? typeof b?.error === 'string'
         : typeof b?.total === 'number' &&
+          typeof b?.filteredTotal === 'number' &&
           Array.isArray(b?.items) &&
-          b.items.length <= 5,
+          b.items.length <= 5 &&
+          b?.filters?.limit === 5 &&
+          b?.filters?.status === 'warning' &&
+          b?.filters?.sinceMinutes === 60,
+  );
+
+  const securityAlertHistoryDelete = await call('DELETE', '/admin/observability/security-alert-history', undefined, headers);
+  check(
+    'DELETE /admin/observability/security-alert-history → 200 or 403 (admin JWT)',
+    securityAlertHistoryDelete,
+    [200, 403],
+    b =>
+      securityAlertHistoryDelete.status === 403
+        ? typeof b?.error === 'string'
+        : b?.success === true && typeof b?.clearedCount === 'number',
   );
 
   const securityAlertConfigPut = await call('PUT', '/admin/observability/security-alert-config', {

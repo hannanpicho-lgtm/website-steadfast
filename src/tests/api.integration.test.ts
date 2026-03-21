@@ -1105,6 +1105,13 @@ describe('Admin route authentication', () => {
     expect(status).toBe(401);
   });
 
+  it('DELETE /admin/observability/security-alert-history → 401 with anon token only', async () => {
+    const { status } = await request('/admin/observability/security-alert-history', {
+      method: 'DELETE',
+    });
+    expect(status).toBe(401);
+  });
+
   it('GET /admin/observability/security-alert-config → 401 with anon token only', async () => {
     const { status } = await request('/admin/observability/security-alert-config');
     expect(status).toBe(401);
@@ -1955,7 +1962,7 @@ describe('Admin route success path', () => {
       return;
     }
 
-    const result = await request('/admin/observability/security-alert-history?limit=5', {
+    const result = await request('/admin/observability/security-alert-history?limit=5&status=warning&sinceMinutes=60', {
       headers: adminHeaders(),
     });
 
@@ -1966,14 +1973,45 @@ describe('Admin route success path', () => {
 
     expect(result.status).toBe(200);
     expect(typeof result.body.total).toBe('number');
+    expect(typeof result.body.filteredTotal).toBe('number');
     expect(Array.isArray(result.body.items)).toBe(true);
     expect(result.body.items.length).toBeLessThanOrEqual(5);
+    expect(result.body.filters?.limit).toBe(5);
+    expect(result.body.filters?.status).toBe('warning');
+    expect(result.body.filters?.sinceMinutes).toBe(60);
     for (const entry of result.body.items) {
       expect(typeof entry.generatedAt).toBe('string');
       expect(typeof entry.windowMinutes).toBe('number');
       expect(['ok', 'warning', 'critical']).toContain(entry.overallStatus);
       expect(Array.isArray(entry.rules)).toBe(true);
     }
+  });
+
+  it('DELETE /admin/observability/security-alert-history is role-gated and clears history for super-admin', async () => {
+    if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
+      const { status } = await request('/admin/observability/security-alert-history', {
+        method: 'DELETE',
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const result = await request('/admin/observability/security-alert-history', {
+      method: 'DELETE',
+      headers: adminHeaders(),
+    });
+
+    if (result.status === 403) {
+      expect(String(result.body.error ?? '')).toContain('super-admin');
+      return;
+    }
+
+    expect(result.status).toBe(200);
+    expect(result.body.success).toBe(true);
+    expect(typeof result.body.clearedCount).toBe('number');
   });
 
   it('GET/PUT /admin/observability/security-alert-config is role-gated and supports super-admin writes', async () => {

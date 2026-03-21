@@ -4363,14 +4363,71 @@ app.get('/make-server-a1c55d7e/admin/observability/security-alert-history', asyn
       ? Math.min(100, Math.max(1, Math.round(requestedLimit)))
       : 20;
 
+    const requestedSinceMinutes = Number(c.req.query('sinceMinutes'));
+    const sinceMinutes = Number.isFinite(requestedSinceMinutes)
+      ? Math.min(10_080, Math.max(1, Math.round(requestedSinceMinutes)))
+      : null;
+
+    const requestedStatus = (c.req.query('status') ?? '').toLowerCase();
+    const statusFilter = requestedStatus === 'ok' || requestedStatus === 'warning' || requestedStatus === 'critical'
+      ? requestedStatus
+      : null;
+
     const history = sanitizeAdminObservabilityAlertHistory(await kv.get(ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY));
+    const now = Date.now();
+    const filtered = history.filter((entry) => {
+      const entryStatus = typeof entry.overallStatus === 'string' ? entry.overallStatus : '';
+      if (statusFilter && entryStatus !== statusFilter) {
+        return false;
+      }
+
+      if (sinceMinutes === null) {
+        return true;
+      }
+
+      const generatedAt = typeof entry.generatedAt === 'string' ? Date.parse(entry.generatedAt) : Number.NaN;
+      return Number.isFinite(generatedAt) && generatedAt >= (now - sinceMinutes * 60_000);
+    });
+
     return c.json({
       total: history.length,
-      items: history.slice(-limit),
+      filteredTotal: filtered.length,
+      items: filtered.slice(-limit),
+      filters: {
+        limit,
+        sinceMinutes,
+        status: statusFilter,
+      },
     });
   } catch (error) {
     console.error('Error fetching admin observability security alert history:', error);
     return c.json({ error: 'Failed to fetch observability security alert history' }, 500);
+  }
+});
+
+app.delete('/make-server-a1c55d7e/admin/observability/security-alert-history', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:observability-security-alert-history-write');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const history = sanitizeAdminObservabilityAlertHistory(await kv.get(ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY));
+    await kv.set(ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY, []);
+    return c.json({ success: true, clearedCount: history.length });
+  } catch (error) {
+    console.error('Error clearing admin observability security alert history:', error);
+    return c.json({ error: 'Failed to clear observability security alert history' }, 500);
   }
 });
 
