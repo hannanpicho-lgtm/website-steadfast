@@ -4938,6 +4938,9 @@ app.get('/make-server-a1c55d7e/admin/observability/audit-log', async (c) => {
   } catch (error) {
     console.error('Error fetching admin observability audit log:', error);
     return c.json({ error: 'Failed to fetch observability audit log' }, 500);
+  }
+});
+
   app.get('/make-server-a1c55d7e/admin/observability/rate-limit-status', async (c) => {
     try {
       const unauthorized = await requireAdmin(c);
@@ -5032,9 +5035,6 @@ app.get('/make-server-a1c55d7e/admin/observability/audit-log', async (c) => {
       return c.json({ error: 'Failed to fetch observability rate limit status' }, 500);
     }
   });
-
-  }
-});
 
 app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
   try {
