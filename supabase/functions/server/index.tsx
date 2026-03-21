@@ -2407,32 +2407,49 @@ app.delete("/make-server-a1c55d7e/admin/users/:adminId", async (c) => {
     }
 
     const callingAdmin = c.get('adminUser');
+    const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    const recordDeniedDeleteAttempt = async (detail: string): Promise<void> => {
+      try {
+        await recordObservabilityAuditEvent('admin-user-delete-denied', actorEmail, detail);
+      } catch (auditError) {
+        console.error('Failed to record denied admin deletion attempt:', auditError);
+      }
+    };
+
     const adminId = String(c.req.param('adminId') ?? '').trim();
     if (!adminId) {
+      await recordDeniedDeleteAttempt('Denied admin deletion: missing adminId parameter');
       return c.json({ error: 'adminId is required' }, 400);
     }
 
     if (callingAdmin?.id === adminId) {
+      await recordDeniedDeleteAttempt(`Denied admin deletion: self-delete attempt for ${adminId}`);
       return c.json({ error: 'You cannot delete your own admin account' }, 400);
     }
 
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
     if (!callerIsSuperAdmin) {
+      await recordDeniedDeleteAttempt(`Denied admin deletion: non-super-admin attempted to delete ${adminId}`);
       return c.json({ error: 'Forbidden: super-admin access required' }, 403);
     }
 
     const { data: targetData, error: targetError } = await authClient.auth.admin.getUserById(adminId);
     if (targetError || !targetData?.user) {
+      await recordDeniedDeleteAttempt(`Denied admin deletion: target admin ${adminId} not found`);
       return c.json({ error: 'Admin user not found' }, 404);
     }
 
     if (!hasAdminRole(targetData.user)) {
+      await recordDeniedDeleteAttempt(`Denied admin deletion: target ${adminId} is not an admin account`);
       return c.json({ error: 'Target user is not an admin account' }, 400);
     }
 
     const targetIsSuperAdmin = isSuperAdmin(targetData.user);
 
     if (targetIsSuperAdmin && !callerIsSuperAdmin) {
+      await recordDeniedDeleteAttempt(`Denied admin deletion: non-super-admin attempted to delete super-admin ${adminId}`);
       return c.json({ error: 'Only a super-admin can delete a super-admin account' }, 403);
     }
 
@@ -2455,12 +2472,14 @@ app.delete("/make-server-a1c55d7e/admin/users/:adminId", async (c) => {
 
       const superAdminCount = users.filter((user) => hasAdminRole(user) && isSuperAdmin(user)).length;
       if (superAdminCount <= 1) {
+        await recordDeniedDeleteAttempt(`Denied admin deletion: attempted deletion of last remaining super-admin ${adminId}`);
         return c.json({ error: 'Cannot delete the last remaining super-admin account' }, 400);
       }
     }
 
     const { error: deleteError } = await authClient.auth.admin.deleteUser(adminId);
     if (deleteError) {
+      await recordDeniedDeleteAttempt(`Denied admin deletion: provider delete failure for ${adminId} (${deleteError.message ?? 'unknown error'})`);
       return c.json({ error: deleteError.message ?? 'Failed to delete admin user' }, 400);
     }
 
@@ -2471,9 +2490,6 @@ app.delete("/make-server-a1c55d7e/admin/users/:adminId", async (c) => {
     }
     await kv.del(adminInviteKey);
 
-    const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
-      ? callingAdmin.email
-      : String(callingAdmin?.id ?? 'unknown');
     const targetEmail = typeof targetData.user.email === 'string' && targetData.user.email
       ? targetData.user.email
       : adminId;

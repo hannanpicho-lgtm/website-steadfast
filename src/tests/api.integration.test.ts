@@ -2255,6 +2255,46 @@ describe('Admin route success path', () => {
     }
   });
 
+  it('Denied admin delete attempts are queryable via audit-log action filter', async () => {
+    if (!ADMIN_TEST_JWT) {
+      if (REQUIRE_ADMIN_SUCCESS) {
+        throw new Error('REQUIRE_ADMIN_SUCCESS=true but SUPABASE_ADMIN_TEST_JWT is missing');
+      }
+      const { status } = await request('/admin/users/admin_fake', {
+        method: 'DELETE',
+      });
+      expect(status).toBe(401);
+      return;
+    }
+
+    const deleteAttempt = await request('/admin/users/admin_fake', {
+      method: 'DELETE',
+      headers: adminHeaders(),
+    });
+    expect([403, 404]).toContain(deleteAttempt.status);
+
+    const result = await request('/admin/observability/audit-log?action=admin-user-delete-denied&limit=10&sinceMinutes=1440', {
+      headers: adminHeaders(),
+    });
+
+    if (result.status === 403) {
+      expect(String(result.body.error ?? '')).toContain('super-admin');
+      return;
+    }
+
+    expect(result.status).toBe(200);
+    expect(result.body.filters?.action).toBe('admin-user-delete-denied');
+    expect(typeof result.body.filteredTotal).toBe('number');
+    expect(result.body.filteredTotal).toBeGreaterThan(0);
+    expect(Array.isArray(result.body.items)).toBe(true);
+
+    for (const item of result.body.items) {
+      expect(item.action).toBe('admin-user-delete-denied');
+      expect(typeof item.actor).toBe('string');
+      expect(typeof item.detail).toBe('string');
+    }
+  });
+
   it('GET/PUT /admin/observability/security-alert-config is role-gated and supports super-admin writes', async () => {
     if (!ADMIN_TEST_JWT) {
       if (REQUIRE_ADMIN_SUCCESS) {
