@@ -102,21 +102,10 @@ export default function Certificate() {
     return `${mm} ${dd} ${yy}`;
   };
 
-  const usernameSeed = (userData?.username ?? sessionUsername ?? 'steadfast')
-    .split('')
-    .reduce((sum, ch, index) => sum + (ch.charCodeAt(0) * (index + 7)), 0);
-  const uniqueIdNumber = String(7000000000 + (usernameSeed % 2999999999));
-  const controlNumber = String(1000000 + (usernameSeed % 8999999));
-  const effectiveDateRaw = userData?.createdAt || new Date().toISOString();
-  const expirationDateRaw = (() => {
-    const base = new Date(effectiveDateRaw);
-    if (Number.isNaN(base.getTime())) {
-      return new Date().toISOString();
-    }
-    const expiry = new Date(base);
-    expiry.setFullYear(expiry.getFullYear() + 2);
-    return expiry.toISOString();
-  })();
+  const uniqueIdNumber = '070320000444';
+  const controlNumber = '1759124';
+  const effectiveDateRaw = '1993-09-23T00:00:00.000Z';
+  const expirationDateRaw = '2025-09-30T00:00:00.000Z';
 
   return (
     <div className="size-full overflow-auto bg-gray-50 pb-20">
@@ -148,7 +137,13 @@ export default function Certificate() {
           <>
             {/* Official Certificate */}
             <div className="mb-6 rounded-lg border border-gray-300 bg-[#dcdcdc] p-4 shadow-sm">
-              <div className="border border-gray-500 bg-[#efefef] p-4 text-gray-800">
+              <div
+                className="border border-gray-500 bg-[#efefef] p-4 text-gray-800"
+                style={{
+                  backgroundImage: 'radial-gradient(circle at 20px 20px, rgba(255,255,255,0.45) 0 2px, transparent 2.5px)',
+                  backgroundSize: '28px 28px',
+                }}
+              >
                 <div className="grid grid-cols-2 gap-4 text-xs">
                   <div>
                     <p className="tracking-wide">UNIQUE ID NUMBER</p>
@@ -169,7 +164,7 @@ export default function Certificate() {
 
                 <div className="mt-6 text-center">
                   <p className="text-lg font-bold tracking-widest">ARTICLE 203 OF THE LLC LIMITED LIABILITY COMPANY LAW</p>
-                  <p className="mt-5 text-3xl font-extrabold tracking-wide">STEADFAST DIGITAL, INC.</p>
+                  <p className="mt-5 text-3xl font-extrabold tracking-wide">STEADFAST, INC.</p>
                   <p className="text-lg font-bold tracking-wide">425 E 53RD ST, NEW YORK</p>
                   <p className="text-lg font-bold tracking-wide">NY 10022</p>
                 </div>
@@ -178,8 +173,6 @@ export default function Certificate() {
                   <div>
                     <p>HAS BEEN DULY LICENSED TO TRANSACT BUSINESS AS A</p>
                     <p>DOMESTIC BUSINESS CORPORATION</p>
-                    <p className="mt-4 text-xs font-medium">Issued to account: {userData.username}</p>
-                    <p className="mt-2 text-xs font-medium">VIP Level: {vipName}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-xs">EFFECTIVE DATE</p>
@@ -188,23 +181,14 @@ export default function Certificate() {
                     <p className="text-lg tracking-[0.2em]">{formatLicenseDate(expirationDateRaw)}</p>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Additional Info */}
-            <div className="bg-white rounded-xl shadow-sm p-5 space-y-3">
-              <h4 className="font-semibold text-gray-700">Account Summary</h4>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Current Balance</span>
-                <span className="font-bold text-green-600">${userData.balance.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Today's Commission</span>
-                <span className="font-bold text-blue-600">${userData.todayCommission.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Referral Earnings</span>
-                <span className="font-bold text-purple-600">${referralEarnings.toFixed(2)}</span>
+                <div className="mt-8 flex items-end justify-between text-[11px] text-gray-700">
+                  <p>DOS-099 (Rev. 4/03)</p>
+                  <div className="text-right">
+                    <p>WALTER T. MOSLEY</p>
+                    <p>SECRETARY OF STATE</p>
+                  </div>
+                </div>
               </div>
             </div>
           </>
