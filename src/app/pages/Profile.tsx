@@ -20,7 +20,6 @@ export default function Profile() {
   const [languageOpen, setLanguageOpen] = useState(false);
   const [todayProfit, setTodayProfit] = useState<number>(0);
   const [totalCommission, setTotalCommission] = useState<number>(0);
-  const [memberSince, setMemberSince] = useState<string>('');
   const [referralCode, setReferralCode] = useState('STF01');
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [currentLoginPassword, setCurrentLoginPassword] = useState('');
@@ -29,33 +28,6 @@ export default function Profile() {
   const [updatingCredentials, setUpdatingCredentials] = useState(false);
 
   const username = getCurrentUsername();
-
-  const formatLicenseDate = (dateValue: string): string => {
-    const parsed = new Date(dateValue);
-    if (Number.isNaN(parsed.getTime())) {
-      return '-- -- --';
-    }
-    const mm = String(parsed.getMonth() + 1).padStart(2, '0');
-    const dd = String(parsed.getDate()).padStart(2, '0');
-    const yy = String(parsed.getFullYear()).slice(-2);
-    return `${mm} ${dd} ${yy}`;
-  };
-
-  const usernameSeed = (username ?? 'steadfast')
-    .split('')
-    .reduce((sum, ch, index) => sum + (ch.charCodeAt(0) * (index + 7)), 0);
-  const uniqueIdNumber = String(7000000000 + (usernameSeed % 2999999999));
-  const controlNumber = String(1000000 + (usernameSeed % 8999999));
-  const effectiveDateRaw = memberSince || new Date().toISOString();
-  const expirationDateRaw = (() => {
-    const base = new Date(effectiveDateRaw);
-    if (Number.isNaN(base.getTime())) {
-      return new Date().toISOString();
-    }
-    const expiry = new Date(base);
-    expiry.setFullYear(expiry.getFullYear() + 2);
-    return expiry.toISOString();
-  })();
 
   useEffect(() => {
     const forceFromQuery = new URLSearchParams(window.location.search).get('forcePasswordChange') === '1';
@@ -75,7 +47,6 @@ export default function Profile() {
         const data = userRes;
         setTodayProfit(Number(data.todayCommission ?? 0));
         setTotalCommission(Number(referralSummary.referralEarnings ?? 0));
-        setMemberSince(typeof data.createdAt === 'string' ? data.createdAt : '');
         setReferralCode(String(referralSummary.invitationCode ?? 'STF01'));
       } catch {
         // silently ignore — values stay at 0
@@ -175,67 +146,44 @@ export default function Profile() {
           </button>
         </div>
 
-        {/* Official Certificate Information */}
-        <div className="mb-6 rounded-lg border border-gray-300 bg-[#dcdcdc] p-4 shadow-sm">
-          <div className="border border-gray-500 bg-[#efefef] p-4 text-gray-800">
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <p className="tracking-wide">UNIQUE ID NUMBER</p>
-                <p className="text-xl font-bold tracking-wider">{uniqueIdNumber}</p>
-              </div>
-              <div className="text-right">
-                <p className="tracking-wide">FOR OFFICE USE ONLY</p>
-                <p className="text-sm">Control No.</p>
-                <p className="text-3xl font-bold tracking-wider">{controlNumber}</p>
-              </div>
-            </div>
-
-            <div className="mt-4 text-center">
-              <p className="text-2xl font-semibold italic">State of New York</p>
-              <p className="text-3xl font-semibold italic">Department of State</p>
-              <p className="text-xl font-bold tracking-wide">DIVISION OF LICENSING SERVICES</p>
-            </div>
-
-            <div className="mt-6 text-center">
-              <p className="text-lg font-bold tracking-widest">ARTICLE 203 OF THE LLC LIMITED LIABILITY COMPANY LAW</p>
-              <p className="mt-5 text-3xl font-extrabold tracking-wide">STEADFAST DIGITAL, INC.</p>
-              <p className="text-lg font-bold tracking-wide">425 E 53RD ST, NEW YORK</p>
-              <p className="text-lg font-bold tracking-wide">NY 10022</p>
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-4 text-sm font-semibold">
-              <div>
-                <p>HAS BEEN DULY LICENSED TO TRANSACT BUSINESS AS A</p>
-                <p>DOMESTIC BUSINESS CORPORATION</p>
-                <p className="mt-4 text-xs font-medium">Issued to account: {username ?? 'User'}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs">EFFECTIVE DATE</p>
-                <p className="text-lg tracking-[0.2em]">{formatLicenseDate(effectiveDateRaw)}</p>
-                <p className="mt-3 text-xs">EXPIRATION DATE</p>
-                <p className="text-lg tracking-[0.2em]">{formatLicenseDate(expirationDateRaw)}</p>
-              </div>
-            </div>
+        {/* Profile Card */}
+        <div className="bg-gradient-to-r from-[#0066cc] to-[#0088ee] rounded-lg p-6 text-white mb-6 shadow-md">
+          <div className="mb-4">
+            <p className="text-sm opacity-90 mb-1">Hello,</p>
+            <h2 className="text-2xl font-bold">{username ?? 'User'}</h2>
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-3 rounded bg-[#0066cc] p-3 text-white">
-            <div className="text-center">
-              <p className="text-[11px] opacity-80">Referral Code</p>
-              <div className="flex items-center justify-center gap-1">
-                <p className="text-sm font-bold">{referralCode}</p>
-                <button onClick={handleCopyReferral} className="hover:opacity-80" title="Copy referral code">
-                  <Copy size={14} />
+          <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="flex flex-col items-center">
+              <p className="text-xs opacity-90 mb-1">My Referral Code</p>
+              <div className="flex items-center gap-2">
+                <p className="text-lg font-bold">{referralCode}</p>
+                <button onClick={handleCopyReferral} className="hover:opacity-80">
+                  <Copy size={16} />
                 </button>
               </div>
             </div>
-            <div className="text-center border-x border-white/30">
-              <p className="text-[11px] opacity-80">Today's Profit</p>
-              <p className="text-sm font-bold">{todayProfit.toFixed(2)} USD</p>
+            <div className="flex flex-col items-center border-l border-r border-white/30">
+              <p className="text-xs opacity-90 mb-1">Today's Profit (USD)</p>
+              <p className="text-lg font-bold">{todayProfit.toFixed(2)}</p>
             </div>
-            <div className="text-center">
-              <p className="text-[11px] opacity-80">Total Commission</p>
-              <p className="text-sm font-bold">{totalCommission.toFixed(2)} USD</p>
+            <div className="flex flex-col items-center">
+              <p className="text-xs opacity-90 mb-1">Total Commission (USD)</p>
+              <p className="text-lg font-bold">{totalCommission.toFixed(2)}</p>
             </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold">Credit Score:</span>
+            <div className="flex-1 mx-4 bg-white/20 rounded-full h-2 overflow-hidden">
+              <div className="bg-white h-full rounded-full" style={{ width: '100%' }}></div>
+            </div>
+            <span className="text-sm font-bold flex items-center gap-1">
+              100%
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-orange-400">
+                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+              </svg>
+            </span>
           </div>
         </div>
 
