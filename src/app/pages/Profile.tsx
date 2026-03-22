@@ -467,7 +467,7 @@ export default function Profile() {
 
         {/* Footer */}
         <div className="text-center text-xs text-gray-500 mt-8 mb-4">
-          <p>© 2026 FigsFlash, Lnc. All right reserved</p>
+          <p>© 2026 Steadfast Digital, Inc. All rights reserved</p>
         </div>
       </div>
 
