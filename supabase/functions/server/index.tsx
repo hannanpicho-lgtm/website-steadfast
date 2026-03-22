@@ -7388,6 +7388,89 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials
   }
 });
 
+app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustment', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-platform-users:balance-adjustment');
+    if (limited) return limited;
+
+    const requestedUsername = sanitizeUsername(c.req.param('username'));
+    if (!requestedUsername) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const canonicalUsername = await resolveCanonicalUsername(requestedUsername);
+    if (!canonicalUsername) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const userKey = `user:${canonicalUsername}`;
+    const existingUser = await kv.get(userKey);
+    if (!existingUser) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const normalizedUser = await syncUserWithVipConfig(existingUser, canonicalUsername);
+    if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const body = await c.req.json();
+    const mode = body?.mode === 'debit' ? 'debit' : 'credit';
+    const amount = roundMoney(Number(body?.amount ?? 0));
+    const reason = typeof body?.reason === 'string' ? body.reason.trim().slice(0, 200) : '';
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return c.json({ error: 'Amount must be greater than 0' }, 400);
+    }
+
+    if (!reason) {
+      return c.json({ error: 'Reason is required' }, 400);
+    }
+
+    if (mode === 'debit' && normalizedUser.balance < amount) {
+      return c.json({ error: 'User balance is too low for this deduction' }, 400);
+    }
+
+    normalizedUser.balance = roundMoney(normalizedUser.balance + (mode === 'credit' ? amount : -amount));
+    await kv.set(userKey, normalizedUser);
+
+    const adjustmentReferenceId = createFinanceId('adj');
+    const transaction = await createTransactionRecord({
+      username: canonicalUsername,
+      type: mode === 'credit' ? 'Deposit' : 'Withdrawal',
+      amount,
+      status: 'Completed',
+      method: 'Admin Adjustment',
+      source: 'admin-adjustment',
+      description: `${mode === 'credit' ? 'Admin top-up' : 'Admin deduction'}: ${reason}`,
+      referenceId: adjustmentReferenceId,
+    });
+
+    const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-user-balance-adjustment',
+      actorEmail,
+      `${mode === 'credit' ? 'Credited' : 'Debited'} $${amount.toFixed(2)} for user '${canonicalUsername}' (new balance: $${normalizedUser.balance.toFixed(2)}; reason: ${reason})`,
+    ).catch((e) => console.error('Failed to record admin-user-balance-adjustment audit event:', e));
+
+    return c.json({
+      success: true,
+      user: normalizedUser,
+      transaction,
+    });
+  } catch (err) {
+    console.error('admin/platform-users/balance-adjustment error:', err);
+    return c.json({ error: 'Failed to adjust user balance' }, 500);
+  }
+});
+
 app.delete('/make-server-a1c55d7e/admin/platform-users/:username', async (c) => {
   try {
     const unauthorized = await requireAdmin(c);

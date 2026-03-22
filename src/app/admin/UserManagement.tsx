@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Search, Download, Eye, Edit, Key, Check, X, Trash2, RefreshCw, Shield } from 'lucide-react';
+import { Plus, Search, Download, Eye, Edit, Key, Check, X, Trash2, RefreshCw, Shield, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface UserManagementProps {
@@ -210,6 +210,13 @@ export default function UserManagement({
                         title="Edit User"
                       >
                         <Edit size={16} className="text-gray-400 hover:text-blue-400" />
+                      </button>
+                      <button
+                        onClick={() => { setSelectedItem(user); setModalType('adjust-user-balance'); }}
+                        className="p-1 hover:bg-[#1a1f2e] rounded transition-colors"
+                        title="Top Up / Adjust Balance"
+                      >
+                        <DollarSign size={16} className="text-gray-400 hover:text-green-400" />
                       </button>
                       <button 
                         onClick={() => { if (confirm(`Reset login and transaction passwords for ${user.username}?`)) { void onResetCredentials(user); } }}

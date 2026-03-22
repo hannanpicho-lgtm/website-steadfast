@@ -249,6 +249,12 @@ type UserTaskControlDraft = {
   tasksPerSet: string;
 };
 
+type UserBalanceAdjustmentDraft = {
+  mode: 'credit' | 'debit';
+  amount: string;
+  reason: string;
+};
+
 type TransactionRecord = {
   id: string;
   username: string;
@@ -313,7 +319,7 @@ function formatRelativeTime(timestamp: string): string {
 
   return formatter.format(diffInSeconds, 'second');
 }
-type ModalType = 'add-user' | 'edit-user' | 'view-user' | 'delete-user' | 'view-transaction' | 'approve-withdrawal' | 'reject-withdrawal' | 'add-task' | 'edit-vip' | 'notification' | 'add-product-manual' | 'add-product-ai' | 'edit-product' | 'view-product' | 'delete-product' | 'edit-workday-reward' | 'edit-reset-reward' | 'edit-accumulated-reward' | 'edit-product-system' | 'pay-salary' | 'pay-salary-bulk' | 'add-admin' | 'edit-admin' | 'view-admin' | 'delete-admin' | 'admin-invitation-code' | 'add-role' | 'edit-role' | 'view-role-permissions' | 'delete-role' | null;
+type ModalType = 'add-user' | 'edit-user' | 'view-user' | 'delete-user' | 'adjust-user-balance' | 'view-transaction' | 'approve-withdrawal' | 'reject-withdrawal' | 'add-task' | 'edit-vip' | 'notification' | 'add-product-manual' | 'add-product-ai' | 'edit-product' | 'view-product' | 'delete-product' | 'edit-workday-reward' | 'edit-reset-reward' | 'edit-accumulated-reward' | 'edit-product-system' | 'pay-salary' | 'pay-salary-bulk' | 'add-admin' | 'edit-admin' | 'view-admin' | 'delete-admin' | 'admin-invitation-code' | 'add-role' | 'edit-role' | 'view-role-permissions' | 'delete-role' | null;
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -326,6 +332,8 @@ export default function Admin() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [userTaskControlDraft, setUserTaskControlDraft] = useState<UserTaskControlDraft | null>(null);
   const [userTaskControlSaving, setUserTaskControlSaving] = useState(false);
+  const [userBalanceAdjustmentDraft, setUserBalanceAdjustmentDraft] = useState<UserBalanceAdjustmentDraft | null>(null);
+  const [userBalanceAdjustmentSaving, setUserBalanceAdjustmentSaving] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   const [activeAdminTab, setActiveAdminTab] = useState('admins');
   const [activeRewardTab, setActiveRewardTab] = useState<RewardTab>('workday');
@@ -456,6 +464,19 @@ export default function Admin() {
     });
   }, [modalType, selectedItem]);
 
+  useEffect(() => {
+    if (modalType !== 'adjust-user-balance' || !selectedItem) {
+      setUserBalanceAdjustmentDraft(null);
+      return;
+    }
+
+    setUserBalanceAdjustmentDraft({
+      mode: 'credit',
+      amount: '',
+      reason: '',
+    });
+  }, [modalType, selectedItem]);
+
   const mergePlatformUser = (nextUser: PlatformUser) => {
     setPlatformUsers((current) => current.map((user) => (
       user.username === nextUser.username ? { ...user, ...nextUser } : user
@@ -578,6 +599,60 @@ export default function Admin() {
       toast.success(`Credentials set by admin for ${user.username}. User must change password at next login.`);
     } catch (error) {
       handleAdminRequestError(error, `Failed to reset credentials for ${user.username}`);
+    }
+  };
+
+  const handleAdjustPlatformUserBalance = async () => {
+    if (!selectedItem?.username || !userBalanceAdjustmentDraft) {
+      return;
+    }
+
+    const amount = Number(userBalanceAdjustmentDraft.amount);
+    const reason = userBalanceAdjustmentDraft.reason.trim();
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error('Adjustment amount must be greater than 0.');
+      return;
+    }
+
+    if (!reason) {
+      toast.error('Please provide a reason for this balance adjustment.');
+      return;
+    }
+
+    setUserBalanceAdjustmentSaving(true);
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/platform-users/${encodeURIComponent(selectedItem.username)}/balance-adjustment`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          mode: userBalanceAdjustmentDraft.mode,
+          amount,
+          reason,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Failed to adjust balance (${response.status})`);
+      }
+
+      if (payload?.user) {
+        mergePlatformUser(payload.user as PlatformUser);
+      } else {
+        await loadPlatformUsers();
+      }
+
+      toast.success(
+        userBalanceAdjustmentDraft.mode === 'credit'
+          ? `Balance topped up for ${selectedItem.username}`
+          : `Balance adjusted for ${selectedItem.username}`,
+      );
+      setModalType(null);
+    } catch (error) {
+      handleAdminRequestError(error, `Failed to adjust balance for ${selectedItem.username}`);
+    } finally {
+      setUserBalanceAdjustmentSaving(false);
     }
   };
 
@@ -2255,9 +2330,92 @@ export default function Admin() {
                   <p className="text-white font-semibold mt-1">{selectedItem.pendingTaskReset ? 'Yes' : 'No'}</p>
                 </div>
               </div>
-              <button onClick={() => setModalType(null)} className="w-full bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg mt-6 transition-colors">
-                Close
-              </button>
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setModalType('adjust-user-balance')}
+                  className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors"
+                >
+                  Top Up / Adjust Balance
+                </button>
+                <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+
+          {modalType === 'adjust-user-balance' && selectedItem && userBalanceAdjustmentDraft && (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-white">Adjust User Balance</h3>
+                <button onClick={() => setModalType(null)} className="text-gray-400 hover:text-white">
+                  <X size={24} />
+                </button>
+              </div>
+              <div className="space-y-4">
+                <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                  <p className="text-gray-400 text-sm">Username</p>
+                  <p className="text-white font-semibold mt-1">{selectedItem.username}</p>
+                </div>
+                <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                  <p className="text-gray-400 text-sm">Current Balance</p>
+                  <p className="text-[#00D9FF] font-bold text-xl mt-1">${Number(selectedItem.balance ?? 0).toFixed(2)}</p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <label className="bg-[#1a1f2e] p-4 rounded-lg block">
+                    <p className="text-gray-400 text-sm">Action</p>
+                    <select
+                      value={userBalanceAdjustmentDraft.mode}
+                      onChange={(event) => setUserBalanceAdjustmentDraft((current) => current ? { ...current, mode: event.target.value as 'credit' | 'debit' } : current)}
+                      className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white mt-2 focus:border-[#00D9FF] focus:outline-none"
+                    >
+                      <option value="credit">Top Up / Credit</option>
+                      <option value="debit">Debit / Deduct</option>
+                    </select>
+                  </label>
+                  <label className="bg-[#1a1f2e] p-4 rounded-lg block">
+                    <p className="text-gray-400 text-sm">Amount</p>
+                    <input
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={userBalanceAdjustmentDraft.amount}
+                      onChange={(event) => setUserBalanceAdjustmentDraft((current) => current ? { ...current, amount: event.target.value } : current)}
+                      className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white mt-2 focus:border-[#00D9FF] focus:outline-none"
+                      placeholder="0.00"
+                    />
+                  </label>
+                </div>
+                <label className="bg-[#1a1f2e] p-4 rounded-lg block">
+                  <p className="text-gray-400 text-sm">Reason</p>
+                  <textarea
+                    value={userBalanceAdjustmentDraft.reason}
+                    onChange={(event) => setUserBalanceAdjustmentDraft((current) => current ? { ...current, reason: event.target.value } : current)}
+                    className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white mt-2 focus:border-[#00D9FF] focus:outline-none"
+                    rows={4}
+                    placeholder="Why are you adjusting this balance?"
+                  />
+                </label>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => void handleAdjustPlatformUserBalance()}
+                  disabled={userBalanceAdjustmentSaving}
+                  className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {userBalanceAdjustmentSaving ? 'Saving...' : 'Save Balance Adjustment'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalType(null)}
+                  disabled={userBalanceAdjustmentSaving}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
 

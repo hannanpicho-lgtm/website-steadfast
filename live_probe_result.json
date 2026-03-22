@@ -1,0 +1,43 @@
+{
+  "jwtMint": {
+    "status": 200,
+    "ok": true
+  },
+  "step2_createTask": {
+    "status": 201,
+    "success": true,
+    "taskId": "task_1774207976889_912bc4da",
+    "product": "Live Probe Task 1774207976387"
+  },
+  "step2_verifyCatalog": {
+    "status": 200,
+    "found": true,
+    "taskId": "task_1774207978956_daef2384"
+  },
+  "step1_syncAllUsersVip": {
+    "status": 500,
+    "success": false,
+    "message": "Failed to sync users"
+  },
+  "balanceProbe": {
+    "preferredUsername": "ugreen",
+    "actualUsername": "ugreen",
+    "preferredVisible": true,
+    "usersVisibleCount": 371,
+    "beforeBalance": 562.65,
+    "afterCreditBalance": 565.15,
+    "afterDebitBalance": 564.05,
+    "credit": {
+      "status": 200,
+      "success": true,
+      "transactionId": "tx_1774208016789_e2765a6d",
+      "referenceId": "adj_1774208016789_98eec4d9"
+    },
+    "debit": {
+      "status": 200,
+      "success": true,
+      "transactionId": "tx_1774208021066_c2bc0f81",
+      "referenceId": "adj_1774208021066_2db45f9c"
+    }
+  }
+}
