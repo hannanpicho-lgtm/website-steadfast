@@ -118,25 +118,25 @@ export default function UserHome() {
           <div className="px-4 sm:px-5">
             <h2 className="text-[1.4rem] sm:text-3xl font-bold text-center mb-4 sm:mb-6 text-[#00D9FF]">Areas of Focus</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5 sm:gap-3">
-              <div className="bg-[#00D9FF] text-[#1a1f2e] rounded-lg p-2.5 min-h-[76px]">
-                <h3 className="text-[0.9rem] font-bold mb-0.5">Search</h3>
-                <p className="text-[10px] leading-relaxed">Google and Bing built for efficient ROAS.</p>
+              <div className="group bg-[#252b3d] text-white rounded-lg p-2.5 min-h-[76px] border border-[#00D9FF]/30 transition-colors duration-200 hover:bg-[#00D9FF] hover:text-[#1a1f2e]">
+                <h3 className="text-[0.9rem] font-bold mb-0.5 text-[#00D9FF] transition-colors duration-200 group-hover:text-[#1a1f2e]">Search</h3>
+                <p className="text-[10px] leading-relaxed text-gray-300 transition-colors duration-200 group-hover:text-[#1a1f2e]">Google and Bing built for efficient ROAS.</p>
               </div>
-              <div className="bg-[#252b3d] text-white rounded-lg p-2.5 min-h-[76px] border border-[#00D9FF]/30">
-                <h3 className="text-[0.9rem] font-bold mb-0.5 text-[#00D9FF]">Paid Social</h3>
-                <p className="text-[10px] leading-relaxed text-gray-300">Meta, TikTok, and LinkedIn for conversion lift.</p>
+              <div className="group bg-[#252b3d] text-white rounded-lg p-2.5 min-h-[76px] border border-[#00D9FF]/30 transition-colors duration-200 hover:bg-[#00D9FF] hover:text-[#1a1f2e]">
+                <h3 className="text-[0.9rem] font-bold mb-0.5 text-[#00D9FF] transition-colors duration-200 group-hover:text-[#1a1f2e]">Paid Social</h3>
+                <p className="text-[10px] leading-relaxed text-gray-300 transition-colors duration-200 group-hover:text-[#1a1f2e]">Meta, TikTok, and LinkedIn for conversion lift.</p>
               </div>
-              <div className="bg-[#252b3d] text-white rounded-lg p-2.5 min-h-[76px] border border-[#00D9FF]/30">
-                <h3 className="text-[0.9rem] font-bold mb-0.5 text-[#00D9FF]">Paid Content</h3>
-                <p className="text-[10px] leading-relaxed text-gray-300">Native placements that expand qualified reach.</p>
+              <div className="group bg-[#252b3d] text-white rounded-lg p-2.5 min-h-[76px] border border-[#00D9FF]/30 transition-colors duration-200 hover:bg-[#00D9FF] hover:text-[#1a1f2e]">
+                <h3 className="text-[0.9rem] font-bold mb-0.5 text-[#00D9FF] transition-colors duration-200 group-hover:text-[#1a1f2e]">Paid Content</h3>
+                <p className="text-[10px] leading-relaxed text-gray-300 transition-colors duration-200 group-hover:text-[#1a1f2e]">Native placements that expand qualified reach.</p>
               </div>
-              <div className="bg-[#252b3d] text-white rounded-lg p-2.5 min-h-[76px] border border-[#00D9FF]/30">
-                <h3 className="text-[0.9rem] font-bold mb-0.5 text-[#00D9FF]">Affiliate</h3>
-                <p className="text-[10px] leading-relaxed text-gray-300">Partnership channels aligned to core buyers.</p>
+              <div className="group bg-[#252b3d] text-white rounded-lg p-2.5 min-h-[76px] border border-[#00D9FF]/30 transition-colors duration-200 hover:bg-[#00D9FF] hover:text-[#1a1f2e]">
+                <h3 className="text-[0.9rem] font-bold mb-0.5 text-[#00D9FF] transition-colors duration-200 group-hover:text-[#1a1f2e]">Affiliate</h3>
+                <p className="text-[10px] leading-relaxed text-gray-300 transition-colors duration-200 group-hover:text-[#1a1f2e]">Partnership channels aligned to core buyers.</p>
               </div>
-              <div className="bg-[#252b3d] text-white rounded-lg p-2.5 min-h-[76px] border border-[#00D9FF]/30">
-                <h3 className="text-[0.9rem] font-bold mb-0.5 text-[#00D9FF]">Strategy</h3>
-                <p className="text-[10px] leading-relaxed text-gray-300">Unified data guiding budget and growth pace.</p>
+              <div className="group bg-[#252b3d] text-white rounded-lg p-2.5 min-h-[76px] border border-[#00D9FF]/30 transition-colors duration-200 hover:bg-[#00D9FF] hover:text-[#1a1f2e]">
+                <h3 className="text-[0.9rem] font-bold mb-0.5 text-[#00D9FF] transition-colors duration-200 group-hover:text-[#1a1f2e]">Strategy</h3>
+                <p className="text-[10px] leading-relaxed text-gray-300 transition-colors duration-200 group-hover:text-[#1a1f2e]">Unified data guiding budget and growth pace.</p>
               </div>
             </div>
           </div>
