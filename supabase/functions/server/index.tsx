@@ -7159,6 +7159,7 @@ app.delete('/make-server-a1c55d7e/admin/platform-users/:username', async (c) => 
       return c.json({ error: 'Forbidden' }, 403);
     }
 
+    // Delete all support tickets belonging to this user
     const userTicketsKey = `user:${canonicalUsername}:tickets`;
     const ticketIndex = await kv.get(userTicketsKey);
     const ticketIds = Array.isArray(ticketIndex) ? ticketIndex : [];
@@ -7167,8 +7168,32 @@ app.delete('/make-server-a1c55d7e/admin/platform-users/:username', async (c) => 
         await kv.del(`ticket:${ticketId}`);
       }
     }
-
     await kv.del(userTicketsKey);
+
+    // Delete the user's own referral invite code so it can no longer be used
+    const userInvitationCode = typeof normalizedUser.invitationCode === 'string' && normalizedUser.invitationCode
+      ? normalizedUser.invitationCode
+      : null;
+    if (userInvitationCode) {
+      await kv.del(`referral:invite:${userInvitationCode}`).catch(() => {/* non-critical */});
+    }
+
+    // Remove user from parent's children array
+    const invitedByCode = typeof normalizedUser.invitedByCode === 'string' && normalizedUser.invitedByCode
+      ? normalizedUser.invitedByCode
+      : null;
+    if (invitedByCode) {
+      const parentUsername = await kv.get(`referral:invite:${invitedByCode}`);
+      if (typeof parentUsername === 'string' && parentUsername) {
+        const parentData = await kv.get(`user:${parentUsername}`);
+        if (parentData && Array.isArray(parentData.children)) {
+          parentData.children = parentData.children.filter((c: string) => c !== canonicalUsername);
+          await kv.set(`user:${parentUsername}`, parentData).catch(() => {/* non-critical */});
+        }
+      }
+    }
+
+    // Delete lookup key and user record last
     await kv.del(`user:lookup:${canonicalUsername.toLowerCase()}`);
     await kv.del(userKey);
 
@@ -7178,7 +7203,7 @@ app.delete('/make-server-a1c55d7e/admin/platform-users/:username', async (c) => 
     await recordObservabilityAuditEvent(
       'admin-platform-user-delete',
       deleteActorEmail,
-      `Deleted platform user '${canonicalUsername}' and associated ticket index`,
+      `Deleted platform user '${canonicalUsername}' and all associated data (tickets, referral code, parent tree)`,
     ).catch((e) => console.error('Failed to record admin-platform-user-delete audit event:', e));
 
     return c.json({ success: true, username: canonicalUsername });
