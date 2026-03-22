@@ -63,7 +63,7 @@ export default function Deposits({
                 <tr>
                   <td colSpan={7} className="px-6 py-10 text-center text-gray-400">No deposit records available.</td>
                 </tr>
-              ) : deposits.map((deposit) => (
+              ) : [...deposits].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((deposit) => (
                 <tr key={deposit.id} className="hover:bg-[#2c3e50] transition-colors">
                   <td className="px-6 py-4 text-sm text-gray-300">{deposit.id}</td>
                   <td className="px-6 py-4 text-sm font-medium text-white">{deposit.username}</td>

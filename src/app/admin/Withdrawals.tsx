@@ -71,7 +71,7 @@ export default function Withdrawals({
                 <tr>
                   <td colSpan={8} className="px-6 py-10 text-center text-gray-400">No withdrawal requests submitted yet.</td>
                 </tr>
-              ) : withdrawalRequests.map((withdrawal) => (
+              ) : [...withdrawalRequests].sort((a, b) => new Date(b.requestedDate).getTime() - new Date(a.requestedDate).getTime()).map((withdrawal) => (
                 <tr key={withdrawal.id} className="hover:bg-[#2c3e50] transition-colors">
                   <td className="px-6 py-4 text-sm text-gray-300">{withdrawal.id}</td>
                   <td className="px-6 py-4 text-sm font-medium text-white">{withdrawal.username}</td>

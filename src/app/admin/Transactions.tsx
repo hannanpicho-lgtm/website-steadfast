@@ -64,7 +64,7 @@ export default function Transactions({
                 <tr>
                   <td colSpan={8} className="px-6 py-10 text-center text-gray-400">No transactions recorded yet.</td>
                 </tr>
-              ) : transactions.map((tx) => (
+              ) : [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((tx) => (
                 <tr key={tx.id} className="hover:bg-[#2c3e50] transition-colors">
                   <td className="px-6 py-4 text-sm text-gray-300">{tx.id}</td>
                   <td className="px-6 py-4 text-sm font-medium text-white">{tx.username}</td>
