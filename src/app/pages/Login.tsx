@@ -3,7 +3,6 @@ import { Link, useNavigate, useLocation } from 'react-router';
 import { useState, useEffect } from 'react';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
-import { getAdminCredentials, getDemoCredentials } from '../services/referralSystem';
 import { signInAdmin } from '../services/supabaseAuth';
 import { serverLogin } from '../services/serverAuth';
 import { type LoginLocationState } from '../services/loginRedirect';
@@ -331,12 +330,6 @@ export default function Login() {
             </div>
           ) : null}
 
-          <p className="text-center text-xs text-gray-500">
-            Demo login: {getDemoCredentials().username} / {getDemoCredentials().password}
-          </p>
-          <p className="text-center text-xs text-gray-500">
-            Local admin demo: {getAdminCredentials().username} / {getAdminCredentials().password}
-          </p>
           <p className="text-center text-xs text-gray-500">
             Secure admin access requires a real Supabase Auth admin email with app_metadata.role = admin or super_admin.
           </p>

@@ -2,9 +2,6 @@ import { clearSessionToken, getSessionUsername, serverLogout } from './serverAut
 
 const SYSTEM_ROOT_USERNAME = 'steadfast_root';
 const SYSTEM_ROOT_INVITE_CODE = 'STF01';
-const DEMO_USERNAME = 'ugreen';
-const DEMO_INVITE_CODE = 'UGR01';
-const DEMO_PASSWORD = 'demo123';
 const ADMIN_USERNAME = 'admin';
 const ADMIN_INVITE_CODE = 'ADM01';
 const ADMIN_PASSWORD = 'admin123';
@@ -12,14 +9,6 @@ const LEGACY_CURRENT_USER_KEY = 'steadfast_current_user_v1';
 
 export function getSystemInviteCode(): string {
   return SYSTEM_ROOT_INVITE_CODE;
-}
-
-export function getDemoCredentials(): { username: string; password: string; inviteCode: string } {
-  return {
-    username: DEMO_USERNAME,
-    password: DEMO_PASSWORD,
-    inviteCode: DEMO_INVITE_CODE,
-  };
 }
 
 export function getAdminCredentials(): { username: string; password: string; inviteCode: string } {

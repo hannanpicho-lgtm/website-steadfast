@@ -6,7 +6,6 @@ import {
   isAuthenticated,
   isCurrentUserAdmin,
   getSystemInviteCode,
-  getDemoCredentials,
   getAdminCredentials,
 } from '../app/services/referralSystem';
 import { clearSessionToken, storeSessionToken } from '../app/services/serverAuth';
@@ -25,15 +24,6 @@ function seedSessionFor(username: string) {
 describe('getSystemInviteCode', () => {
   it('returns STF01', () => {
     expect(getSystemInviteCode()).toBe('STF01');
-  });
-});
-
-describe('getDemoCredentials', () => {
-  it('returns the static demo credentials', () => {
-    const creds = getDemoCredentials();
-    expect(creds.username).toBe('ugreen');
-    expect(creds.password).toBe('demo123');
-    expect(creds.inviteCode).toBe('UGR01');
   });
 });
 

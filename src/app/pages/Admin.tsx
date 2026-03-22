@@ -159,17 +159,7 @@ type TaskDraftState = {
   productUrl: string;
 };
 
-// Mock products data
-const initialMockProducts = [
-  { id: 1, name: 'Wireless Bluetooth Headphones', description: 'Premium noise-canceling headphones with 30-hour battery life', category: 'Electronics', merchant: 'Amazon', price: 89.99, commission: 0.015, imageUrl: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400', status: 'Active', sku: 'WBH-001', stock: 250, createdDate: '2024-02-15', source: 'Manual' },
-  { id: 2, name: 'Smart Fitness Watch', description: 'Advanced fitness tracker with heart rate monitor and GPS', category: 'Wearables', merchant: 'Walmart', price: 199.99, commission: 0.020, imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400', status: 'Active', sku: 'SFW-002', stock: 180, createdDate: '2024-02-18', source: 'AI Generated' },
-  { id: 3, name: 'Ergonomic Laptop Stand', description: 'Adjustable aluminum laptop stand for better posture', category: 'Office', merchant: 'Target', price: 45.50, commission: 0.012, imageUrl: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400', status: 'Active', sku: 'ELS-003', stock: 320, createdDate: '2024-02-20', source: 'Manual' },
-  { id: 4, name: 'USB-C Fast Charging Cable 6ft', description: 'Durable braided USB-C cable with fast charging support', category: 'Accessories', merchant: 'Amazon', price: 12.99, commission: 0.010, imageUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400', status: 'Inactive', sku: 'USC-004', stock: 0, createdDate: '2024-02-22', source: 'Manual' },
-  { id: 5, name: 'RGB Gaming Mouse', description: 'High-precision gaming mouse with customizable RGB lighting', category: 'Gaming', merchant: 'Best Buy', price: 79.99, commission: 0.018, imageUrl: 'https://images.unsplash.com/photo-1527814050087-3793815479db?w=400', status: 'Active', sku: 'RGM-005', stock: 156, createdDate: '2024-02-25', source: 'AI Generated' },
-  { id: 6, name: 'Portable Power Bank 20000mAh', description: 'High-capacity power bank with dual USB ports', category: 'Electronics', merchant: 'Amazon', price: 34.99, commission: 0.015, imageUrl: 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400', status: 'Active', sku: 'PPB-006', stock: 290, createdDate: '2024-03-01', source: 'Manual' },
-  { id: 7, name: '4K Webcam with Microphone', description: 'Professional 4K webcam with built-in noise-canceling mic', category: 'Electronics', merchant: 'Best Buy', price: 129.99, commission: 0.020, imageUrl: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=400', status: 'Active', sku: 'WEB-007', stock: 95, createdDate: '2024-03-03', source: 'AI Generated' },
-  { id: 8, name: 'Mechanical Keyboard RGB', description: 'Premium mechanical keyboard with RGB backlighting', category: 'Gaming', merchant: 'Walmart', price: 159.99, commission: 0.018, imageUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?w=400', status: 'Active', sku: 'MKB-008', stock: 145, createdDate: '2024-03-05', source: 'AI Generated' },
-];
+const initialProductCatalog: any[] = [];
 
 // Salary Payment System
 const initialSalaryPayments: SalaryPayment[] = [
@@ -390,7 +380,7 @@ export default function Admin() {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [taskDraft, setTaskDraft] = useState<TaskDraftState | null>(null);
-  const [productCatalog, setProductCatalog] = useState(initialMockProducts);
+  const [productCatalog, setProductCatalog] = useState(initialProductCatalog);
   const [roleDefinitions, setRoleDefinitions] = useState(initialAdminRoles);
   const [deletingPlatformUser, setDeletingPlatformUser] = useState(false);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
@@ -3928,7 +3918,7 @@ export default function Admin() {
         return (
           <Suspense fallback={<AdminPanelFallback label="Loading product management..." />}>
             <ProductManagement
-              mockProducts={productCatalog}
+              products={productCatalog}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               filterStatus={filterStatus}

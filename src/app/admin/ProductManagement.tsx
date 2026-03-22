@@ -2,7 +2,7 @@ import React from 'react';
 import { Upload, Search, Download, Eye, Edit, Trash2, Package, Tag, Sparkles } from 'lucide-react';
 
 interface ProductManagementProps {
-  mockProducts: any[];
+  products: any[];
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   filterStatus: string;
@@ -16,7 +16,7 @@ interface ProductManagementProps {
 }
 
 export default function ProductManagement({
-  mockProducts,
+  products,
   searchTerm,
   setSearchTerm,
   filterStatus,
@@ -28,7 +28,7 @@ export default function ProductManagement({
   setModalType,
   handleExport,
 }: ProductManagementProps) {
-  const filteredProducts = mockProducts.filter(product => {
+  const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          product.merchant.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -36,6 +36,12 @@ export default function ProductManagement({
     const matchesFilter = filterStatus === 'all' || product.status.toLowerCase() === filterStatus;
     return matchesSearch && matchesFilter;
   });
+  const totalProducts = products.length;
+  const activeProducts = products.filter((product) => product.status === 'Active').length;
+  const aiGeneratedProducts = products.filter((product) => product.source === 'AI Generated').length;
+  const manualProducts = products.filter((product) => product.source === 'Manual').length;
+  const aiGeneratedPercent = totalProducts > 0 ? ((aiGeneratedProducts / totalProducts) * 100).toFixed(0) : '0';
+  const manualPercent = totalProducts > 0 ? ((manualProducts / totalProducts) * 100).toFixed(0) : '0';
   const totalProductPages = Math.max(1, Math.ceil(filteredProducts.length / productsPerPage));
   const safeProductPage = Math.min(productPage, totalProductPages);
   const productStartIndex = (safeProductPage - 1) * productsPerPage;
@@ -68,15 +74,15 @@ export default function ProductManagement({
             <Package className="text-blue-400" size={18} />
             <p className="text-gray-400 text-xs">Total Products</p>
           </div>
-          <p className="text-2xl font-bold text-white">{mockProducts.length}</p>
-          <p className="text-gray-400 text-xs mt-1">{mockProducts.filter(p => p.status === 'Active').length} active</p>
+          <p className="text-2xl font-bold text-white">{totalProducts}</p>
+          <p className="text-gray-400 text-xs mt-1">{activeProducts} active</p>
         </div>
         <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-2">
             <Tag className="text-green-400" size={18} />
             <p className="text-gray-400 text-xs">Total Value</p>
           </div>
-          <p className="text-2xl font-bold text-white">${mockProducts.reduce((sum, p) => sum + (p.price * p.stock), 0).toLocaleString()}</p>
+          <p className="text-2xl font-bold text-white">${products.reduce((sum, p) => sum + (p.price * p.stock), 0).toLocaleString()}</p>
           <p className="text-gray-400 text-xs mt-1">Inventory value</p>
         </div>
         <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
@@ -84,16 +90,16 @@ export default function ProductManagement({
             <Sparkles className="text-purple-400" size={18} />
             <p className="text-gray-400 text-xs">AI Generated</p>
           </div>
-          <p className="text-2xl font-bold text-white">{mockProducts.filter(p => p.source === 'AI Generated').length}</p>
-          <p className="text-gray-400 text-xs mt-1">{((mockProducts.filter(p => p.source === 'AI Generated').length / mockProducts.length) * 100).toFixed(0)}% of total</p>
+          <p className="text-2xl font-bold text-white">{aiGeneratedProducts}</p>
+          <p className="text-gray-400 text-xs mt-1">{aiGeneratedPercent}% of total</p>
         </div>
         <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-2">
             <Upload className="text-blue-400" size={18} />
             <p className="text-gray-400 text-xs">Manual Upload</p>
           </div>
-          <p className="text-2xl font-bold text-white">{mockProducts.filter(p => p.source === 'Manual').length}</p>
-          <p className="text-gray-400 text-xs mt-1">{((mockProducts.filter(p => p.source === 'Manual').length / mockProducts.length) * 100).toFixed(0)}% of total</p>
+          <p className="text-2xl font-bold text-white">{manualProducts}</p>
+          <p className="text-gray-400 text-xs mt-1">{manualPercent}% of total</p>
         </div>
       </div>
 

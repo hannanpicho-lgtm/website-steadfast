@@ -38,9 +38,9 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
 }
 
 const clients = [
-  { name: 'GIADZY', color: 'text-red-600' },
-  { name: 'Owlet', color: 'text-teal-400' },
-  { name: 'UBS', color: 'text-red-600' },
+  { name: 'Steadfast Growth Partners', color: 'text-[#005a87]' },
+  { name: 'Performance Commerce Network', color: 'text-teal-600' },
+  { name: 'Enterprise Media Group', color: 'text-[#0f172a]' },
 ];
 
 export default function UserHome() {
