@@ -164,6 +164,7 @@ export default function Starting() {
     } catch (error) {
       console.error('Error fetching user data:', error);
       toast.error('Failed to load your account data. Please refresh and try again.');
+      navigate('/', { replace: true });
     } finally {
       setLoading(false);
     }
@@ -207,6 +208,9 @@ export default function Starting() {
         const errorPayload = await response.json().catch(() => ({}));
         if (response.status === 409 && (errorPayload?.code === 'premium_task_encountered' || errorPayload?.code === 'task_set_reset_required') && errorPayload?.user) {
           setUserData(errorPayload.user);
+        }
+        if (response.status === 401) {
+          navigate('/', { replace: true });
         }
         throw new Error(errorPayload?.error || 'Failed to submit task');
       }

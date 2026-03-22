@@ -2033,7 +2033,7 @@ async function syncUserWithVipConfig(userData: any, username: string) {
   const vipConfig = await getVipConfigForLevel(Number(normalized.vipLevel ?? 1));
 
   // VIP chart is the primary source of truth for required products/tasks per user.
-  const defaultVipTaskSetCount = 1;
+  const defaultVipTaskSetCount = 2;
   const defaultVipTasksPerSet = Math.max(1, Math.round(Number(vipConfig.dailyTasks ?? 1)));
 
   normalized.vipLevel = vipConfig.level;
@@ -3464,6 +3464,7 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
 
     const generatedInviteCode = await getUniqueReferralInviteCode();
     const userData = await syncUserWithVipConfig(defaultUserRecord(username), username);
+    userData.vipLevel = 1;
     userData.phone = phone;
     userData.gender = gender;
     userData.invitationCode = generatedInviteCode;
@@ -3667,27 +3668,8 @@ async function submitTaskForUser(c: any, username: string, body: any) {
 
   const normalizedUserData = await syncUserWithVipConfig(userData, username);
 
-  if (normalizedUserData.pendingTaskReset) {
-    await kv.set(userKey, normalizedUserData);
-    return c.json({
-      error: 'Current task set is complete. An admin must reset the next set before you can continue.',
-      code: 'task_set_reset_required',
-      disableSubmit: true,
-      taskProgress: buildUserTaskProgress(normalizedUserData),
-      user: normalizedUserData,
-    }, 409);
-  }
-
-  if (userHasPendingPremiumRequirement(normalizedUserData)) {
-    await kv.set(userKey, normalizedUserData);
-    return c.json({
-      error: 'Premium task requirement pending. Please top up your account before submitting the next task.',
-      code: 'premium_task_encountered',
-      disableSubmit: true,
-      premiumRequirement: buildPremiumRequirementResponse(normalizedUserData.activePremium),
-      user: normalizedUserData,
-    }, 409);
-  }
+  // Do not block regular task submissions by set-reset or funding gates.
+  normalizedUserData.pendingTaskReset = false;
 
   if (normalizedUserData.tasksCompleted >= normalizedUserData.tasksLimit) {
     return c.json({ error: 'Daily task limit reached' }, 400);
@@ -3695,9 +3677,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
 
   const rewardsConfig = await getRewardsConfigRecord();
   const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
-  const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
-  const shouldTriggerPremium = productSystem.premiumEnabled
-    && nextSubmissionNumber === productSystem.premiumTriggerTaskNumber;
+  const shouldTriggerPremium = false;
 
   if (shouldTriggerPremium) {
     const premiumValue = computePremiumValueForVip(Number(normalizedUserData.vipLevel ?? 1), productSystem);
@@ -3754,11 +3734,15 @@ async function submitTaskForUser(c: any, username: string, body: any) {
   normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
   normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);
 
-  if (
-    normalizedUserData.tasksCompletedInSet >= normalizedUserData.tasksPerSet
-    && normalizedUserData.tasksCompleted < normalizedUserData.tasksLimit
-  ) {
-    normalizedUserData.pendingTaskReset = true;
+  if (normalizedUserData.tasksCompletedInSet >= normalizedUserData.tasksPerSet) {
+    normalizedUserData.completedTaskSets = Math.min(
+      normalizedUserData.completedTaskSets + 1,
+      normalizedUserData.taskSetCount,
+    );
+    normalizedUserData.tasksCompletedInSet = normalizedUserData.tasksCompleted < normalizedUserData.tasksLimit
+      ? 0
+      : normalizedUserData.tasksPerSet;
+    normalizedUserData.pendingTaskReset = false;
   }
 
   if (Math.random() < 0.01) {
@@ -3969,6 +3953,17 @@ async function submitWithdrawalRequest(c: any, username: string, body: any) {
   const storedTransactionPassword = String((normalizedUserData as any).transactionPassword ?? '');
   if (!storedTransactionPassword || !await verifyPassword(transactionPassword, storedTransactionPassword)) {
     return c.json({ error: 'Transaction password is incorrect.' }, 401);
+  }
+
+  const minimumRequiredSets = 2;
+  if (Number(normalizedUserData.completedTaskSets ?? 0) < minimumRequiredSets) {
+    return c.json({
+      error: 'Complete at least 2 task sets before requesting a withdrawal.',
+      code: 'withdrawal_task_sets_required',
+      requiredTaskSets: minimumRequiredSets,
+      completedTaskSets: Number(normalizedUserData.completedTaskSets ?? 0),
+      taskProgress: buildUserTaskProgress(normalizedUserData),
+    }, 400);
   }
 
   if (idempotencyKey) {
