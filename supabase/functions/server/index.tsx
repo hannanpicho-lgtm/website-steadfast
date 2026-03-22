@@ -1947,6 +1947,11 @@ function defaultUserRecord(username: string) {
     invitedByCode: null,
     referralEarnings: 0,
     children: [],
+    workdayQualifiedDays: 0,
+    lastQualifiedWorkdayDate: null as string | null,
+    claimedWorkdayRewardIds: [] as number[],
+    claimedResetRewardIds: [] as number[],
+    accumulatedRewardClaims: {} as Record<string, { tierId: number; depositTotal: number; rewardCredited: number; creditedAt: string }> ,
     referredByAdminId: null as string | null,
     walletProfile: null as WalletProfile | null,
     createdAt: new Date().toISOString(),
@@ -1987,6 +1992,31 @@ function normalizeUserRecord(userData: any, username: string) {
   normalized.pendingTaskReset = Boolean(normalized.pendingTaskReset);
   normalized.referralEarnings = Number.isFinite(Number(normalized.referralEarnings)) ? Number(normalized.referralEarnings) : 0;
   normalized.children = Array.isArray(normalized.children) ? normalized.children : [];
+  normalized.workdayQualifiedDays = Number.isFinite(Number(normalized.workdayQualifiedDays))
+    ? Math.max(0, Math.round(Number(normalized.workdayQualifiedDays)))
+    : 0;
+  normalized.lastQualifiedWorkdayDate = typeof normalized.lastQualifiedWorkdayDate === 'string' && normalized.lastQualifiedWorkdayDate
+    ? normalized.lastQualifiedWorkdayDate
+    : null;
+  normalized.claimedWorkdayRewardIds = Array.isArray(normalized.claimedWorkdayRewardIds)
+    ? Array.from(new Set(
+      normalized.claimedWorkdayRewardIds
+        .map((value: any) => Number(value))
+        .filter((value: number) => Number.isFinite(value) && value > 0)
+        .map((value: number) => Math.round(value)),
+    ))
+    : [];
+  normalized.claimedResetRewardIds = Array.isArray(normalized.claimedResetRewardIds)
+    ? Array.from(new Set(
+      normalized.claimedResetRewardIds
+        .map((value: any) => Number(value))
+        .filter((value: number) => Number.isFinite(value) && value > 0)
+        .map((value: number) => Math.round(value)),
+    ))
+    : [];
+  if (!normalized.accumulatedRewardClaims || typeof normalized.accumulatedRewardClaims !== 'object') {
+    normalized.accumulatedRewardClaims = {};
+  }
   normalized.referredByAdminId = typeof normalized.referredByAdminId === 'string' && normalized.referredByAdminId
     ? normalized.referredByAdminId
     : null;
@@ -2001,11 +2031,14 @@ function normalizeUserRecord(userData: any, username: string) {
 async function syncUserWithVipConfig(userData: any, username: string) {
   const normalized = normalizeUserRecord(userData, username);
   const vipConfig = await getVipConfigForLevel(Number(normalized.vipLevel ?? 1));
-  const rewardsConfig = await getRewardsConfigRecord();
-  const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
+
+  // VIP chart is the primary source of truth for required products/tasks per user.
+  const defaultVipTaskSetCount = 1;
+  const defaultVipTasksPerSet = Math.max(1, Math.round(Number(vipConfig.dailyTasks ?? 1)));
+
   normalized.vipLevel = vipConfig.level;
-  normalized.taskSetCount = normalized.taskSetCountOverride ?? productSystem.maxSetsPerDay;
-  normalized.tasksPerSet = normalized.tasksPerSetOverride ?? productSystem.productsPerSet;
+  normalized.taskSetCount = normalized.taskSetCountOverride ?? defaultVipTaskSetCount;
+  normalized.tasksPerSet = normalized.tasksPerSetOverride ?? defaultVipTasksPerSet;
   normalized.tasksLimit = normalized.taskSetCount * normalized.tasksPerSet;
   normalized.completedTaskSets = Math.min(
     Math.max(0, normalized.completedTaskSets),
@@ -2027,6 +2060,194 @@ async function syncUserWithVipConfig(userData: any, username: string) {
   }
 
   return normalized;
+}
+
+function extractIsoDatePrefix(value: string): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return /^\d{4}-\d{2}-\d{2}/.test(trimmed) ? trimmed.slice(0, 10) : null;
+}
+
+async function applyAutomaticRewardsForUser(username: string, userData: any) {
+  const normalizedUser = normalizeUserRecord(userData, username);
+  const rewardsConfig = await getRewardsConfigRecord();
+  const today = new Date().toISOString().split('T')[0];
+  const rewardsApplied: Array<{ category: 'workday' | 'reset' | 'accumulated'; amount: number; reference: string }> = [];
+
+  const creditReward = async (
+    category: 'workday' | 'reset' | 'accumulated',
+    amount: number,
+    source: string,
+    description: string,
+    reference: string,
+  ) => {
+    const safeAmount = roundMoney(Number(amount));
+    if (!Number.isFinite(safeAmount) || safeAmount <= 0) {
+      return;
+    }
+
+    normalizedUser.balance = roundMoney(Number(normalizedUser.balance ?? 0) + safeAmount);
+    normalizedUser.todayCommission = roundMoney(Number(normalizedUser.todayCommission ?? 0) + safeAmount);
+    rewardsApplied.push({ category, amount: safeAmount, reference });
+
+    await createTransactionRecord({
+      username,
+      type: 'Commission',
+      amount: safeAmount,
+      method: 'Auto Reward',
+      source,
+      description,
+      referenceId: reference,
+    });
+  };
+
+  if (Number(normalizedUser.tasksLimit ?? 0) > 0 && Number(normalizedUser.tasksCompleted ?? 0) >= Number(normalizedUser.tasksLimit ?? 0)) {
+    if (normalizedUser.lastQualifiedWorkdayDate !== today) {
+      normalizedUser.workdayQualifiedDays = Math.max(0, Number(normalizedUser.workdayQualifiedDays ?? 0)) + 1;
+      normalizedUser.lastQualifiedWorkdayDate = today;
+    }
+  }
+
+  const workdayRewards = Array.isArray(rewardsConfig.workday)
+    ? rewardsConfig.workday
+      .filter((reward: any) => reward?.enabled)
+      .sort((left: any, right: any) => Number(left?.days ?? 0) - Number(right?.days ?? 0))
+    : [];
+
+  for (const reward of workdayRewards) {
+    const rewardId = Math.round(Number(reward?.id ?? 0));
+    const requiredDays = Math.max(1, Math.round(Number(reward?.days ?? 0)));
+    const salary = roundMoney(Number(reward?.salary ?? 0));
+    if (!rewardId || salary <= 0) {
+      continue;
+    }
+
+    const alreadyClaimed = normalizedUser.claimedWorkdayRewardIds.includes(rewardId);
+    if (!alreadyClaimed && Number(normalizedUser.workdayQualifiedDays ?? 0) >= requiredDays) {
+      await creditReward(
+        'workday',
+        salary,
+        'workday_reward',
+        `Workday reward milestone credited (${requiredDays} days)`,
+        `workday:${rewardId}:${requiredDays}`,
+      );
+      normalizedUser.claimedWorkdayRewardIds.push(rewardId);
+    }
+  }
+
+  const transactions = await listTransactionRecords(username);
+  const completedDeposits = transactions.filter((transaction) => transaction.type === 'Deposit' && transaction.status === 'Completed');
+  const lifetimeDepositTotal = roundMoney(
+    completedDeposits.reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0),
+  );
+
+  const resetRewards = Array.isArray(rewardsConfig.reset)
+    ? rewardsConfig.reset
+      .filter((reward: any) => reward?.enabled)
+      .sort((left: any, right: any) => Number(left?.deposit ?? 0) - Number(right?.deposit ?? 0))
+    : [];
+
+  for (const reward of resetRewards) {
+    const rewardId = Math.round(Number(reward?.id ?? 0));
+    const requiredDeposit = roundMoney(Number(reward?.deposit ?? 0));
+    const bonus = roundMoney(Number(reward?.reward ?? 0));
+    if (!rewardId || requiredDeposit <= 0 || bonus <= 0) {
+      continue;
+    }
+
+    const alreadyClaimed = normalizedUser.claimedResetRewardIds.includes(rewardId);
+    if (!alreadyClaimed && lifetimeDepositTotal >= requiredDeposit) {
+      await creditReward(
+        'reset',
+        bonus,
+        'reset_advance_reward',
+        `Reset advance reward credited (deposit threshold: $${requiredDeposit})`,
+        `reset:${rewardId}:${requiredDeposit}`,
+      );
+      normalizedUser.claimedResetRewardIds.push(rewardId);
+    }
+  }
+
+  const todayDepositTotal = roundMoney(
+    completedDeposits
+      .filter((transaction) => extractIsoDatePrefix(String(transaction.date ?? transaction.createdAt ?? '')) === today)
+      .reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0),
+  );
+
+  const accumulatedRewards = Array.isArray(rewardsConfig.accumulated)
+    ? rewardsConfig.accumulated
+      .filter((reward: any) => reward?.enabled)
+      .sort((left: any, right: any) => Number(left?.minDeposit ?? 0) - Number(right?.minDeposit ?? 0))
+    : [];
+
+  const claimsSource = normalizedUser.accumulatedRewardClaims && typeof normalizedUser.accumulatedRewardClaims === 'object'
+    ? normalizedUser.accumulatedRewardClaims
+    : {};
+
+  const normalizedClaims: Record<string, { tierId: number; depositTotal: number; rewardCredited: number; creditedAt: string }> = {};
+  for (const [claimDate, claimValue] of Object.entries(claimsSource)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(claimDate) || !claimValue || typeof claimValue !== 'object') {
+      continue;
+    }
+    normalizedClaims[claimDate] = {
+      tierId: Math.max(1, Math.round(Number((claimValue as any).tierId ?? 1))),
+      depositTotal: roundMoney(Number((claimValue as any).depositTotal ?? 0)),
+      rewardCredited: roundMoney(Number((claimValue as any).rewardCredited ?? 0)),
+      creditedAt: typeof (claimValue as any).creditedAt === 'string' && (claimValue as any).creditedAt
+        ? String((claimValue as any).creditedAt)
+        : new Date().toISOString(),
+    };
+  }
+
+  if (todayDepositTotal > 0 && accumulatedRewards.length > 0) {
+    const eligibleTier = [...accumulatedRewards].reverse().find((reward: any) => {
+      const minDeposit = roundMoney(Number(reward?.minDeposit ?? 0));
+      const maxDeposit = reward?.maxDeposit == null ? null : roundMoney(Number(reward.maxDeposit));
+      if (todayDepositTotal < minDeposit) {
+        return false;
+      }
+      if (maxDeposit != null && todayDepositTotal > maxDeposit) {
+        return false;
+      }
+      return true;
+    });
+
+    if (eligibleTier) {
+      const tierId = Math.round(Number(eligibleTier?.id ?? 0));
+      const rate = Number(eligibleTier?.rate ?? 0);
+      const targetReward = roundMoney(todayDepositTotal * rate);
+      const existingClaim = normalizedClaims[today];
+      const alreadyCredited = roundMoney(Number(existingClaim?.rewardCredited ?? 0));
+      const incrementalReward = roundMoney(targetReward - alreadyCredited);
+
+      if (tierId > 0 && Number.isFinite(rate) && rate > 0 && incrementalReward > 0) {
+        await creditReward(
+          'accumulated',
+          incrementalReward,
+          'accumulated_deposit_reward',
+          `Accumulated daily deposit reward credited (${(rate * 100).toFixed(2)}%)`,
+          `accumulated:${today}:${tierId}`,
+        );
+      }
+
+      normalizedClaims[today] = {
+        tierId: tierId > 0 ? tierId : existingClaim?.tierId ?? 1,
+        depositTotal: todayDepositTotal,
+        rewardCredited: roundMoney(alreadyCredited + Math.max(0, incrementalReward)),
+        creditedAt: new Date().toISOString(),
+      };
+    }
+  }
+
+  normalizedUser.accumulatedRewardClaims = normalizedClaims;
+
+  return {
+    normalizedUser,
+    rewardsApplied,
+  };
 }
 
 function buildUserTaskProgress(userData: any) {
@@ -2697,22 +2918,29 @@ async function buildReferralSummaryResponse(username: string) {
 
 async function buildFinancialSummaryResponse(username: string) {
   const { canonicalUsername, normalizedUserData } = await getUserRecordWithDailyReset(username);
+  const userKey = `user:${canonicalUsername}`;
+  const rewardResult = await applyAutomaticRewardsForUser(canonicalUsername, normalizedUserData);
+  const hydratedUserData = rewardResult.normalizedUser;
 
-  const balance = roundMoney(Number(normalizedUserData.balance ?? 0));
-  const holdAmount = roundMoney(Number(normalizedUserData.holdAmount ?? 0));
+  if (rewardResult.rewardsApplied.length > 0) {
+    await kv.set(userKey, hydratedUserData);
+  }
+
+  const balance = roundMoney(Number(hydratedUserData.balance ?? 0));
+  const holdAmount = roundMoney(Number(hydratedUserData.holdAmount ?? 0));
   const availableAmount = roundMoney(balance - holdAmount);
 
   return {
-    ...normalizedUserData,
+    ...hydratedUserData,
     username: canonicalUsername,
     balance,
     holdAmount,
     availableAmount,
-    taskProgress: buildUserTaskProgress(normalizedUserData),
+    taskProgress: buildUserTaskProgress(hydratedUserData),
     summary: {
       availableAmount,
       totalBalance: roundMoney(balance + holdAmount),
-      isFrozen: Boolean(normalizedUserData.isFrozen),
+      isFrozen: Boolean(hydratedUserData.isFrozen),
     },
   };
 }
@@ -3518,7 +3746,6 @@ async function submitTaskForUser(c: any, username: string, body: any) {
   }
 
   const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
-  normalizedUserData.tasksLimit = vipConfig.dailyTasks;
   const commissionRate = vipConfig.commission;
   const commission = roundMoney(productPrice * commissionRate);
 
@@ -3549,9 +3776,12 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     });
   }
 
+  const rewardResult = await applyAutomaticRewardsForUser(username, normalizedUserData);
+  const rewardedUserData = rewardResult.normalizedUser;
+
   const referralPayout = await creditParentReferralFromChildCommission(username, commission);
 
-  await kv.set(userKey, normalizedUserData);
+  await kv.set(userKey, rewardedUserData);
 
   const taskKey = `task:${username}:${Date.now()}`;
   const taskRecord = {
@@ -3566,7 +3796,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     rating: selectedTask.rating,
     productUrl: selectedTask.productUrl,
     timestamp: new Date().toISOString(),
-    tasksCompleted: normalizedUserData.tasksCompleted,
+    tasksCompleted: rewardedUserData.tasksCompleted,
   };
   await kv.set(taskKey, taskRecord);
 
@@ -3584,14 +3814,14 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     success: true,
     commission,
     isPremium: false,
-    tasksCompleted: normalizedUserData.tasksCompleted,
-    tasksLimit: normalizedUserData.tasksLimit,
-    balance: normalizedUserData.balance,
-    todayCommission: normalizedUserData.todayCommission,
-    luckyBonus: normalizedUserData.luckyBonus,
+    tasksCompleted: rewardedUserData.tasksCompleted,
+    tasksLimit: rewardedUserData.tasksLimit,
+    balance: rewardedUserData.balance,
+    todayCommission: rewardedUserData.todayCommission,
+    luckyBonus: rewardedUserData.luckyBonus,
     parentReferralCommission: referralPayout.rewarded ? referralPayout.parentReward : 0,
     parentReferralUsername: referralPayout.rewarded ? referralPayout.parentUsername : null,
-    taskProgress: buildUserTaskProgress(normalizedUserData),
+    taskProgress: buildUserTaskProgress(rewardedUserData),
     task: selectedTask,
   });
 }
@@ -3993,7 +4223,6 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
   const premium = normalizedUserData.activePremium;
 
   const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
-  normalizedUserData.tasksLimit = vipConfig.dailyTasks;
   const commissionRate = vipConfig.commission;
   const commission = roundMoney(productPrice * commissionRate);
 
@@ -4040,7 +4269,10 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
 
   const premiumReferralPayout = await creditParentReferralFromChildCommission(username, commission);
 
-  await kv.set(userKey, normalizedUserData);
+  const rewardResult = await applyAutomaticRewardsForUser(username, normalizedUserData);
+  const rewardedUserData = rewardResult.normalizedUser;
+
+  await kv.set(userKey, rewardedUserData);
 
   const premiumKey = `premium:${username}:${premium.id}`;
   await kv.set(premiumKey, premium);
@@ -4071,10 +4303,10 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
     commission,
     tasksCompleted: premium.tasksCompleted,
     totalTasks: premium.totalTasks,
-    balance: normalizedUserData.balance,
-    holdAmount: normalizedUserData.holdAmount,
+    balance: rewardedUserData.balance,
+    holdAmount: rewardedUserData.holdAmount,
     bundleCompleted: premium.status === 'completed',
-    nextInQueue: normalizedUserData.premiumQueue.length > 0,
+    nextInQueue: rewardedUserData.premiumQueue.length > 0,
     parentReferralCommission: premiumReferralPayout.rewarded ? premiumReferralPayout.parentReward : 0,
     parentReferralUsername: premiumReferralPayout.rewarded ? premiumReferralPayout.parentUsername : null,
   });
