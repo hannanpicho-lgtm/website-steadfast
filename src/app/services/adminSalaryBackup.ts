@@ -1,4 +1,4 @@
-export type RewardTab = 'workday' | 'reset' | 'accumulated' | 'product-system' | 'salary-payments';
+ export type RewardTab = 'workday' | 'reset' | 'accumulated' | 'product-system' | 'salary-payments';
 
 export type SalaryPayment = {
   id: number;

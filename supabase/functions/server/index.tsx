@@ -5622,6 +5622,43 @@ app.put('/make-server-a1c55d7e/admin/vip-config/:level', async (c) => {
   }
 });
 
+app.post('/make-server-a1c55d7e/admin/sync-all-users-vip', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:sync-all-users-vip');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    for (let level = 1; level <= 5; level += 1) {
+      await syncUsersForVipLevel(level);
+    }
+
+    const actorEmail = typeof adminUser?.email === 'string' && adminUser.email
+      ? adminUser.email
+      : String(adminUser?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-sync-all-users-vip',
+      actorEmail,
+      'Bulk-synced all platform users to their VIP tier task configuration',
+    ).catch(() => {});
+
+    return c.json({ success: true, message: 'All users synced to their VIP tier task configuration.' });
+  } catch (error) {
+    console.error('Error syncing all users to VIP tiers:', error);
+    return c.json({ error: 'Failed to sync users' }, 500);
+  }
+});
+
 app.put('/make-server-a1c55d7e/admin/rewards-config', async (c) => {
   try {
     const unauthorized = await requireAdmin(c);

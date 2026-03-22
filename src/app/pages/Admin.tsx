@@ -384,6 +384,7 @@ export default function Admin() {
   const [roleDefinitions, setRoleDefinitions] = useState(initialAdminRoles);
   const [deletingPlatformUser, setDeletingPlatformUser] = useState(false);
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
+  const [syncingAllUsersVip, setSyncingAllUsersVip] = useState(false);
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
   const adminAuthRedirectedRef = useRef(false);
@@ -650,6 +651,22 @@ export default function Admin() {
       handleAdminRequestError(error, 'Failed to update VIP level');
     } finally {
       setSavingVipLevel(null);
+    }
+  };
+
+  const handleSyncAllUsersVip = async () => {
+    setSyncingAllUsersVip(true);
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/sync-all-users-vip`, { method: 'POST', headers });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error ?? 'Sync failed');
+      toast.success('All user task assignments updated to match their VIP tier.');
+      await loadPlatformUsers();
+    } catch (error) {
+      handleAdminRequestError(error, 'Failed to sync users to VIP tiers');
+    } finally {
+      setSyncingAllUsersVip(false);
     }
   };
 
@@ -1235,7 +1252,7 @@ export default function Admin() {
   }, [activeMenu, serverUrl]);
 
   useEffect(() => {
-    if (!['home', 'tasks'].includes(activeMenu)) {
+    if (!['home', 'tasks', 'product-management'].includes(activeMenu)) {
       return;
     }
 
@@ -2587,63 +2604,28 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={(e) => { void handleCreateTask(e); }}>
+                <input type="hidden" name="status" value="Active" />
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Product Name</label>
-                    <input type="text" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product name" />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
-                    <textarea className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" rows={3} placeholder="Enter product description"></textarea>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Category</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
-                      <option>Electronics</option>
-                      <option>Wearables</option>
-                      <option>Gaming</option>
-                      <option>Office</option>
-                      <option>Accessories</option>
-                    </select>
+                    <input type="text" name="product" required className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product name" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Merchant</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
-                      <option>Amazon</option>
-                      <option>Walmart</option>
-                      <option>Target</option>
-                      <option>Best Buy</option>
-                      <option>eBay</option>
-                    </select>
+                    <input type="text" name="merchant" required className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="e.g. Amazon" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Price ($)</label>
-                    <input type="number" step="0.01" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.00" />
+                    <input type="number" name="price" step="0.01" min="0.01" required className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.00" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">Commission Rate (%)</label>
-                    <input type="number" step="0.001" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.000" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">SKU</label>
-                    <input type="text" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="XXX-000" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Stock Quantity</label>
-                    <input type="number" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0" />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Product Image</label>
-                    <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-[#00D9FF] transition-colors cursor-pointer">
-                      <Upload className="mx-auto text-gray-400 mb-2" size={32} />
-                      <p className="text-gray-400 text-sm">Click to upload or drag and drop</p>
-                      <p className="text-gray-500 text-xs mt-1">PNG, JPG or WebP (max. 5MB)</p>
-                    </div>
+                    <input type="number" name="commissionPercent" step="0.001" min="0.001" required className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.000" />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Product URL (Optional)</label>
-                    <input type="url" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://..." />
+                    <input type="url" name="productUrl" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://..." />
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
@@ -3918,7 +3900,7 @@ export default function Admin() {
         return (
           <Suspense fallback={<AdminPanelFallback label="Loading product management..." />}>
             <ProductManagement
-              products={productCatalog}
+              products={taskConfigurations}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               filterStatus={filterStatus}
@@ -3993,19 +3975,32 @@ export default function Admin() {
 
       case 'vip-config':
         return (
-          <Suspense fallback={<AdminPanelFallback label="Loading VIP configuration..." />}>
-            <VipConfig
-              vipConfigurations={vipConfigurations}
-              vipConfigLoading={vipConfigLoading}
-              editingVipLevel={editingVipLevel}
-              vipDraft={vipDraft}
-              savingVipLevel={savingVipLevel}
-              setVipDraft={setVipDraft}
-              handleStartVipInlineEdit={handleStartVipInlineEdit}
-              handleCancelVipInlineEdit={handleCancelVipInlineEdit}
-              handleSaveVipInlineEdit={handleSaveVipInlineEdit}
-            />
-          </Suspense>
+          <>
+            <div className="mb-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => void handleSyncAllUsersVip()}
+                disabled={syncingAllUsersVip}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#00D9FF] px-4 py-2 text-sm font-semibold text-[#1a1f2e] transition-colors hover:bg-[#00c5e6] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <RefreshCw size={16} className={syncingAllUsersVip ? 'animate-spin' : ''} />
+                {syncingAllUsersVip ? 'Syncing Users...' : 'Sync All Users to VIP Tiers'}
+              </button>
+            </div>
+            <Suspense fallback={<AdminPanelFallback label="Loading VIP configuration..." />}>
+              <VipConfig
+                vipConfigurations={vipConfigurations}
+                vipConfigLoading={vipConfigLoading}
+                editingVipLevel={editingVipLevel}
+                vipDraft={vipDraft}
+                savingVipLevel={savingVipLevel}
+                setVipDraft={setVipDraft}
+                handleStartVipInlineEdit={handleStartVipInlineEdit}
+                handleCancelVipInlineEdit={handleCancelVipInlineEdit}
+                handleSaveVipInlineEdit={handleSaveVipInlineEdit}
+              />
+            </Suspense>
+          </>
         );
 
       case 'withdrawals':
