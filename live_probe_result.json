@@ -6,38 +6,38 @@
   "step2_createTask": {
     "status": 201,
     "success": true,
-    "taskId": "task_1774207976889_912bc4da",
-    "product": "Live Probe Task 1774207976387"
+    "taskId": "task_1774209250337_254a519a",
+    "product": "Live Probe Task 1774209249844"
   },
   "step2_verifyCatalog": {
     "status": 200,
     "found": true,
-    "taskId": "task_1774207978956_daef2384"
+    "taskId": "task_1774209251993_286e8769"
   },
   "step1_syncAllUsersVip": {
-    "status": 500,
+    "status": 546,
     "success": false,
-    "message": "Failed to sync users"
+    "message": "Function failed due to not having enough compute resources (please check logs)"
   },
   "balanceProbe": {
     "preferredUsername": "ugreen",
     "actualUsername": "ugreen",
     "preferredVisible": true,
-    "usersVisibleCount": 371,
-    "beforeBalance": 562.65,
-    "afterCreditBalance": 565.15,
-    "afterDebitBalance": 564.05,
+    "usersVisibleCount": 372,
+    "beforeBalance": 564.05,
+    "afterCreditBalance": 566.55,
+    "afterDebitBalance": 565.45,
     "credit": {
       "status": 200,
       "success": true,
-      "transactionId": "tx_1774208016789_e2765a6d",
-      "referenceId": "adj_1774208016789_98eec4d9"
+      "transactionId": "tx_1774209406426_3a856c93",
+      "referenceId": "adj_1774209406426_d5feace8"
     },
     "debit": {
       "status": 200,
       "success": true,
-      "transactionId": "tx_1774208021066_c2bc0f81",
-      "referenceId": "adj_1774208021066_2db45f9c"
+      "transactionId": "tx_1774209410690_041c5a49",
+      "referenceId": "adj_1774209410689_2285ce38"
     }
   }
 }

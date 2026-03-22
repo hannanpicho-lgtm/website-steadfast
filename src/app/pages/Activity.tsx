@@ -6,6 +6,7 @@ import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { defaultRewardsConfig, fetchPublicRewardsConfig } from '../services/rewardsConfig';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
+import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 const vipColorByTier: Record<string, string> = {
   bronze: 'bg-slate-300',
@@ -21,6 +22,21 @@ type ActivityVipLevel = {
   products: number;
   rate: string;
   color: string;
+};
+
+type FinancialSnapshot = {
+  balance: number;
+  holdAmount: number;
+  availableAmount: number;
+  todayCommission: number;
+};
+
+type ActivityLogItem = {
+  id: string;
+  label: string;
+  amount: number;
+  status: string;
+  at: string;
 };
 
 const fallbackVipLevels: ActivityVipLevel[] = [
@@ -57,6 +73,10 @@ export default function Activity() {
   const [resetRewards, setResetRewards] = useState(defaultRewardsConfig.reset);
   const [accumulatedRewards, setAccumulatedRewards] = useState(defaultRewardsConfig.accumulated);
   const [vipLevels, setVipLevels] = useState<ActivityVipLevel[]>(fallbackVipLevels);
+  const [financialSnapshot, setFinancialSnapshot] = useState<FinancialSnapshot | null>(null);
+  const [recentActivity, setRecentActivity] = useState<ActivityLogItem[]>([]);
+
+  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
   useEffect(() => {
     const loadActivityConfig = async () => {
@@ -79,6 +99,70 @@ export default function Activity() {
         setAccumulatedRewards(defaultRewardsConfig.accumulated);
         setVipLevels(fallbackVipLevels);
       }
+
+      try {
+        const headers = {
+          Authorization: `Bearer ${publicAnonKey}`,
+        };
+
+        const [financialsResponse, transactionsResponse, withdrawalsResponse] = await Promise.all([
+          fetch(`${serverUrl}/me/financials`, { credentials: 'include', headers }),
+          fetch(`${serverUrl}/me/transactions`, { credentials: 'include', headers }),
+          fetch(`${serverUrl}/me/withdrawals`, { credentials: 'include', headers }),
+        ]);
+
+        if (financialsResponse.ok) {
+          const financialsPayload = await financialsResponse.json().catch(() => ({}));
+          setFinancialSnapshot({
+            balance: Number(financialsPayload?.balance ?? 0),
+            holdAmount: Number(financialsPayload?.holdAmount ?? 0),
+            availableAmount: Number(financialsPayload?.availableAmount ?? 0),
+            todayCommission: Number(financialsPayload?.todayCommission ?? 0),
+          });
+        } else {
+          setFinancialSnapshot(null);
+        }
+
+        const transactionPayload = transactionsResponse.ok
+          ? await transactionsResponse.json().catch(() => [])
+          : [];
+        const withdrawalPayload = withdrawalsResponse.ok
+          ? await withdrawalsResponse.json().catch(() => [])
+          : [];
+
+        const transactionItems: ActivityLogItem[] = Array.isArray(transactionPayload)
+          ? transactionPayload.map((item: any, index: number) => ({
+            id: String(item?.id ?? `tx-${index}`),
+            label: typeof item?.description === 'string' && item.description.trim()
+              ? item.description
+              : String(item?.type ?? 'Transaction'),
+            amount: Number(item?.amount ?? 0),
+            status: String(item?.status ?? 'Completed'),
+            at: typeof item?.date === 'string' ? item.date : new Date().toISOString(),
+          }))
+          : [];
+
+        const withdrawalItems: ActivityLogItem[] = Array.isArray(withdrawalPayload)
+          ? withdrawalPayload.map((item: any, index: number) => ({
+            id: String(item?.id ?? `wd-${index}`),
+            label: 'Withdrawal Request',
+            amount: Number(item?.amount ?? 0),
+            status: String(item?.status ?? 'Pending'),
+            at: typeof item?.createdAt === 'string'
+              ? item.createdAt
+              : (typeof item?.requestedAt === 'string' ? item.requestedAt : new Date().toISOString()),
+          }))
+          : [];
+
+        const combined = [...transactionItems, ...withdrawalItems]
+          .sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime())
+          .slice(0, 8);
+
+        setRecentActivity(combined);
+      } catch {
+        setFinancialSnapshot(null);
+        setRecentActivity([]);
+      }
     };
 
     void loadActivityConfig();
@@ -98,6 +182,46 @@ export default function Activity() {
           </Link>
           <h1 className="text-xl sm:text-2xl font-bold text-[#0066b3] text-center">Activity</h1>
           <div className="w-9" aria-hidden="true"></div>
+        </div>
+
+        <div className="bg-[#0f172a] rounded-xl p-5 mb-8 border border-[#1f2937]">
+          <h2 className="text-white text-lg font-semibold mb-4">Live Account Snapshot</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div className="bg-[#111827] rounded-lg p-3">
+              <p className="text-gray-400 text-xs uppercase tracking-wide">Balance</p>
+              <p className="text-white text-xl font-bold">${(financialSnapshot?.balance ?? 0).toFixed(2)}</p>
+            </div>
+            <div className="bg-[#111827] rounded-lg p-3">
+              <p className="text-gray-400 text-xs uppercase tracking-wide">Available</p>
+              <p className="text-white text-xl font-bold">${(financialSnapshot?.availableAmount ?? 0).toFixed(2)}</p>
+            </div>
+            <div className="bg-[#111827] rounded-lg p-3">
+              <p className="text-gray-400 text-xs uppercase tracking-wide">Hold</p>
+              <p className="text-white text-xl font-bold">${(financialSnapshot?.holdAmount ?? 0).toFixed(2)}</p>
+            </div>
+            <div className="bg-[#111827] rounded-lg p-3">
+              <p className="text-gray-400 text-xs uppercase tracking-wide">Today Profit</p>
+              <p className="text-emerald-400 text-xl font-bold">${(financialSnapshot?.todayCommission ?? 0).toFixed(2)}</p>
+            </div>
+          </div>
+
+          <h3 className="text-white text-sm font-semibold mb-2">Recent Activity Log</h3>
+          <div className="space-y-2 max-h-56 overflow-auto pr-1">
+            {recentActivity.length === 0 ? (
+              <p className="text-gray-400 text-sm">No recent activity found for this session.</p>
+            ) : recentActivity.map((entry) => (
+              <div key={entry.id} className="bg-[#111827] rounded-lg px-3 py-2 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-white text-sm font-medium">{entry.label}</p>
+                  <p className="text-gray-400 text-xs">{new Date(entry.at).toLocaleString()}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-white text-sm font-semibold">${entry.amount.toFixed(2)}</p>
+                  <p className="text-gray-400 text-xs">{entry.status}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Workday Rewards Scheme Section */}
@@ -311,7 +435,11 @@ export default function Activity() {
                   <div className="flex items-center justify-between text-white">
                     <div>
                       <div className="text-sm">Advances On Day (USD)</div>
-                      <div className="text-2xl font-bold text-cyan-300">{reward.range}</div>
+                        <div className="text-2xl font-bold text-cyan-300">
+                          {reward.maxDeposit === null
+                            ? `${reward.minDeposit.toLocaleString()}+`
+                            : `${reward.minDeposit.toLocaleString()} - ${reward.maxDeposit.toLocaleString()}`}
+                        </div>
                     </div>
                     <div className="text-sm">
                       Will Get<br/>Advance Deposit Reward
@@ -319,7 +447,7 @@ export default function Activity() {
                   </div>
                 </div>
                 <div className="w-24 h-24 bg-yellow-300 rounded-full flex items-center justify-center border-4 border-[#0066b3]">
-                  <span className="text-3xl font-bold text-black">{reward.rate}</span>
+                    <span className="text-3xl font-bold text-black">{(reward.rate * 100).toFixed(1)}%</span>
                 </div>
               </div>
             ))}

@@ -391,6 +391,7 @@ export default function Admin() {
   const [productCatalog, setProductCatalog] = useState(initialProductCatalog);
   const [roleDefinitions, setRoleDefinitions] = useState(initialAdminRoles);
   const [deletingPlatformUser, setDeletingPlatformUser] = useState(false);
+  const [deletePlatformUserConfirmation, setDeletePlatformUserConfirmation] = useState('');
   const salaryPaymentsRef = useRef<SalaryPayment[]>(initialSalaryPayments);
   const [syncingAllUsersVip, setSyncingAllUsersVip] = useState(false);
   const lastAutoBackupSignatureRef = useRef<string>('');
@@ -475,6 +476,15 @@ export default function Admin() {
       amount: '',
       reason: '',
     });
+  }, [modalType, selectedItem]);
+
+  useEffect(() => {
+    if (modalType !== 'delete-user') {
+      setDeletePlatformUserConfirmation('');
+      return;
+    }
+
+    setDeletePlatformUserConfirmation('');
   }, [modalType, selectedItem]);
 
   const mergePlatformUser = (nextUser: PlatformUser) => {
@@ -1522,6 +1532,12 @@ export default function Admin() {
       return;
     }
 
+    const confirmedName = deletePlatformUserConfirmation.trim().toLowerCase();
+    if (confirmedName !== username.toLowerCase()) {
+      toast.error(`Type ${username} to confirm deletion.`);
+      return;
+    }
+
     setDeletingPlatformUser(true);
     try {
       const headers = await buildAdminAuthHeaders();
@@ -2538,12 +2554,29 @@ export default function Admin() {
                 <p className="text-white text-lg mb-2">Are you sure you want to delete this user?</p>
                 <p className="text-gray-400 mb-4">Username: <span className="text-white font-semibold">{selectedItem.username}</span></p>
                 <p className="text-red-400 text-sm">This action cannot be undone!</p>
+                <div className="mt-4 text-left">
+                  <label className="block text-sm text-gray-300 mb-2" htmlFor="delete-user-confirmation">
+                    Type <span className="font-semibold text-white">{selectedItem.username}</span> to confirm
+                  </label>
+                  <input
+                    id="delete-user-confirmation"
+                    type="text"
+                    value={deletePlatformUserConfirmation}
+                    onChange={(event) => setDeletePlatformUserConfirmation(event.target.value)}
+                    className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+                    placeholder={selectedItem.username}
+                  />
+                </div>
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
                 </button>
-                <button onClick={() => void handleDeletePlatformUser()} disabled={deletingPlatformUser} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed">
+                <button
+                  onClick={() => void handleDeletePlatformUser()}
+                  disabled={deletingPlatformUser || deletePlatformUserConfirmation.trim().toLowerCase() !== selectedItem.username.toLowerCase()}
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                >
                   {deletingPlatformUser ? 'Deleting...' : 'Delete User'}
                 </button>
               </div>

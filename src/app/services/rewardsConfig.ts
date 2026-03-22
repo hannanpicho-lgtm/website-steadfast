@@ -94,6 +94,75 @@ export const defaultRewardsConfig: RewardsConfig = {
   },
 };
 
+function normalizeVipPremiumAdjustments(rawAdjustments: unknown): ProductSystemConfig['vipPremiumAdjustments'] {
+  const fallback = defaultRewardsConfig.productSystem.vipPremiumAdjustments;
+  const parsed = Array.isArray(rawAdjustments) ? rawAdjustments : [];
+  const byLevel = new Map<number, ProductSystemConfig['vipPremiumAdjustments'][number]>();
+
+  for (const entry of parsed) {
+    if (!entry || typeof entry !== 'object') {
+      continue;
+    }
+
+    const candidate = entry as Partial<ProductSystemConfig['vipPremiumAdjustments'][number]>;
+    const vipLevel = Number.isFinite(Number(candidate.vipLevel))
+      ? Math.max(1, Math.round(Number(candidate.vipLevel)))
+      : NaN;
+
+    if (!Number.isFinite(vipLevel)) {
+      continue;
+    }
+
+    const fallbackForLevel = fallback.find((item) => item.vipLevel === vipLevel)
+      ?? fallback[fallback.length - 1]
+      ?? { vipLevel, multiplier: 1, minValue: 0, maxValue: 0 };
+
+    const minValue = Number.isFinite(Number(candidate.minValue))
+      ? Math.max(0, Number(candidate.minValue))
+      : fallbackForLevel.minValue;
+    const maxRaw = Number.isFinite(Number(candidate.maxValue))
+      ? Number(candidate.maxValue)
+      : fallbackForLevel.maxValue;
+
+    byLevel.set(vipLevel, {
+      vipLevel,
+      multiplier: Number.isFinite(Number(candidate.multiplier)) ? Math.max(0.1, Number(candidate.multiplier)) : fallbackForLevel.multiplier,
+      minValue,
+      maxValue: Math.max(minValue, maxRaw),
+    });
+  }
+
+  for (const entry of fallback) {
+    if (!byLevel.has(entry.vipLevel)) {
+      byLevel.set(entry.vipLevel, { ...entry });
+    }
+  }
+
+  return [...byLevel.values()].sort((left, right) => left.vipLevel - right.vipLevel);
+}
+
+function normalizeProductSystemConfig(rawProductSystem: unknown): ProductSystemConfig {
+  const fallback = defaultRewardsConfig.productSystem;
+  const source = rawProductSystem && typeof rawProductSystem === 'object'
+    ? (rawProductSystem as Partial<ProductSystemConfig>)
+    : {};
+
+  const premiumValueMode = source.premiumValueMode === 'range' ? 'range' : 'multiplier';
+
+  return {
+    productsPerSet: Number.isFinite(Number(source.productsPerSet)) ? Math.max(1, Math.round(Number(source.productsPerSet))) : fallback.productsPerSet,
+    maxSetsPerDay: Number.isFinite(Number(source.maxSetsPerDay)) ? Math.max(1, Math.round(Number(source.maxSetsPerDay))) : fallback.maxSetsPerDay,
+    minTimePerProduct: Number.isFinite(Number(source.minTimePerProduct)) ? Math.max(1, Math.round(Number(source.minTimePerProduct))) : fallback.minTimePerProduct,
+    autoApproveCommission: typeof source.autoApproveCommission === 'boolean' ? source.autoApproveCommission : fallback.autoApproveCommission,
+    requireProductConfirmation: typeof source.requireProductConfirmation === 'boolean' ? source.requireProductConfirmation : fallback.requireProductConfirmation,
+    premiumEnabled: typeof source.premiumEnabled === 'boolean' ? source.premiumEnabled : fallback.premiumEnabled,
+    premiumTriggerTaskNumber: Number.isFinite(Number(source.premiumTriggerTaskNumber)) ? Math.max(1, Math.round(Number(source.premiumTriggerTaskNumber))) : fallback.premiumTriggerTaskNumber,
+    premiumBaseValue: Number.isFinite(Number(source.premiumBaseValue)) ? Math.max(0, Number(source.premiumBaseValue)) : fallback.premiumBaseValue,
+    premiumValueMode,
+    vipPremiumAdjustments: normalizeVipPremiumAdjustments(source.vipPremiumAdjustments),
+  };
+}
+
 const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
 async function parseRewardsResponse(response: Response): Promise<RewardsConfig> {
@@ -107,7 +176,14 @@ async function parseRewardsResponse(response: Response): Promise<RewardsConfig> 
     return defaultRewardsConfig;
   }
 
-  return config;
+  return {
+    ...defaultRewardsConfig,
+    ...config,
+    workday: config.workday.length > 0 ? config.workday : defaultRewardsConfig.workday,
+    reset: config.reset.length > 0 ? config.reset : defaultRewardsConfig.reset,
+    accumulated: config.accumulated.length > 0 ? config.accumulated : defaultRewardsConfig.accumulated,
+    productSystem: normalizeProductSystemConfig(config.productSystem),
+  };
 }
 
 export async function fetchPublicRewardsConfig() {

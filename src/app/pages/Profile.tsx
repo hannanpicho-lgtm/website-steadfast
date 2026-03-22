@@ -8,7 +8,7 @@ import profileImage from '../../assets/3df251a778530e24e8d83eda03085a2dc309c248.
 import { getCurrentUsername, logoutCurrentUser } from '../services/referralSystem';
 import { changeUserCredentials, isPasswordChangeRequired } from '../services/serverAuth';
 import { fetchReferralSummary } from '../services/referralReadModel';
-import { fetchFinancialSummary } from '../services/financialReadModel';
+import { fetchFinancialSummary, type FinancialSummaryResponse } from '../services/financialReadModel';
 
 export default function Profile() {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -21,6 +21,7 @@ export default function Profile() {
   const [todayProfit, setTodayProfit] = useState<number>(0);
   const [totalCommission, setTotalCommission] = useState<number>(0);
   const [referralCode, setReferralCode] = useState('STF01');
+  const [financialSummary, setFinancialSummary] = useState<FinancialSummaryResponse | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [currentLoginPassword, setCurrentLoginPassword] = useState('');
   const [newLoginPassword, setNewLoginPassword] = useState('');
@@ -44,8 +45,8 @@ export default function Profile() {
           fetchReferralSummary(),
         ]);
 
-        const data = userRes;
-        setTodayProfit(Number(data.todayCommission ?? 0));
+        setFinancialSummary(userRes);
+        setTodayProfit(Number(userRes.todayCommission ?? 0));
         setTotalCommission(Number(referralSummary.referralEarnings ?? 0));
         setReferralCode(String(referralSummary.invitationCode ?? 'STF01'));
       } catch {
@@ -118,6 +119,14 @@ export default function Profile() {
     toast.success('Credentials updated successfully.');
   };
 
+  const vipLevel = Number(financialSummary?.vipLevel ?? 1);
+  const tasksCompleted = Number(financialSummary?.tasksCompleted ?? 0);
+  const tasksLimit = Math.max(1, Number(financialSummary?.tasksLimit ?? 1));
+  const progressRatio = Math.min(1, Math.max(0, tasksCompleted / tasksLimit));
+  const creditScore = financialSummary?.isFrozen
+    ? 30
+    : Math.min(100, Math.max(50, Math.round(50 + progressRatio * 50)));
+
   return (
     <div className="size-full overflow-auto pb-20 bg-gray-50">
       {/* Header */}
@@ -148,16 +157,26 @@ export default function Profile() {
 
         {/* Profile Card */}
         <div className="bg-gradient-to-r from-[#0066cc] to-[#0088ee] rounded-lg p-6 text-white mb-6 shadow-md">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="text-sm opacity-90">Hello,</p>
+              <h2 className="text-2xl font-bold">{username ?? 'User'}</h2>
+            </div>
+            <div className="bg-white/15 border border-white/30 rounded-full px-3 py-1 text-sm font-semibold">
+              VIP {vipLevel}
+            </div>
+          </div>
+
           <div className="mb-4">
-            <p className="text-sm opacity-90 mb-1">Hello,</p>
-            <h2 className="text-2xl font-bold">{username ?? 'User'}</h2>
+            <p className="text-xs opacity-90">Available Balance</p>
+            <p className="text-2xl font-bold">${Number(financialSummary?.availableAmount ?? 0).toFixed(2)}</p>
           </div>
 
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="flex flex-col items-center">
               <p className="text-xs opacity-90 mb-1">My Referral Code</p>
               <div className="flex items-center gap-2">
-                <p className="text-lg font-bold">{referralCode}</p>
+                <p className="text-lg font-bold">{referralCode || '—'}</p>
                 <button onClick={handleCopyReferral} className="hover:opacity-80">
                   <Copy size={16} />
                 </button>
@@ -176,10 +195,10 @@ export default function Profile() {
           <div className="flex items-center justify-between">
             <span className="text-sm font-semibold">Credit Score:</span>
             <div className="flex-1 mx-4 bg-white/20 rounded-full h-2 overflow-hidden">
-              <div className="bg-white h-full rounded-full" style={{ width: '100%' }}></div>
+              <div className="bg-white h-full rounded-full" style={{ width: `${creditScore}%` }}></div>
             </div>
             <span className="text-sm font-bold flex items-center gap-1">
-              100%
+              {creditScore}%
               <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-orange-400">
                 <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
               </svg>
@@ -258,8 +277,16 @@ export default function Profile() {
                   <p className="font-semibold">{username ?? 'ugreen'}</p>
                 </div>
                 <div className="py-2">
+                  <p className="text-sm text-gray-600 mb-1">VIP Level</p>
+                  <p className="font-semibold">VIP {vipLevel}</p>
+                </div>
+                <div className="py-2">
+                  <p className="text-sm text-gray-600 mb-1">Registration Date</p>
+                  <p className="font-semibold">{financialSummary?.createdAt ? new Date(financialSummary.createdAt).toLocaleDateString() : 'Not available'}</p>
+                </div>
+                <div className="py-2">
                   <p className="text-sm text-gray-600 mb-1">Email</p>
-                  <p className="font-semibold">ugreen@example.com</p>
+                  <p className="font-semibold">Not provided</p>
                 </div>
               </div>
             )}

@@ -2310,9 +2310,22 @@ function restoreUserToNaturalState(userData: any) {
   return restored;
 }
 
-async function syncUsersForVipLevel(level: number) {
-  const allUsers = await kv.getByPrefix('user:');
+async function syncUsersForVipLevels(levels: number[]) {
+  const targetLevels = new Set(levels.map((level) => Math.max(1, Math.round(level))));
+  const summaries = levels.map((level) => ({
+    level,
+    processed: 0,
+    succeeded: 0,
+    failed: 0,
+    errors: [] as string[],
+  }));
 
+  const summaryByLevel = new Map<number, typeof summaries[number]>();
+  for (const summary of summaries) {
+    summaryByLevel.set(summary.level, summary);
+  }
+
+  const allUsers = await kv.getByPrefix('user:');
   for (const rawUser of allUsers) {
     const username = sanitizeUsername(rawUser?.username);
     if (!username) {
@@ -2320,13 +2333,30 @@ async function syncUsersForVipLevel(level: number) {
     }
 
     const normalizedUser = normalizeUserRecord(rawUser, username);
-    if (Number(normalizedUser.vipLevel ?? 1) !== level) {
+    const level = Math.max(1, Math.round(Number(normalizedUser.vipLevel ?? 1)));
+    if (!targetLevels.has(level)) {
       continue;
     }
 
-    const syncedUser = await syncUserWithVipConfig(normalizedUser, username);
-    await kv.set(`user:${username}`, syncedUser);
+    const summary = summaryByLevel.get(level);
+    if (!summary) {
+      continue;
+    }
+
+    summary.processed += 1;
+    try {
+      const syncedUser = await syncUserWithVipConfig(normalizedUser, username);
+      await kv.set(`user:${username}`, syncedUser);
+      summary.succeeded += 1;
+    } catch (error) {
+      summary.failed += 1;
+      const message = error instanceof Error ? error.message : String(error);
+      summary.errors.push(`${username}: ${message}`);
+      console.error(`Failed VIP sync for user ${username} at level ${level}:`, error);
+    }
   }
+
+  return summaries;
 }
 
 async function getOrCreateUserRecord(username: string) {
@@ -5639,9 +5669,12 @@ app.post('/make-server-a1c55d7e/admin/sync-all-users-vip', async (c) => {
       return rateLimited;
     }
 
-    for (let level = 1; level <= 5; level += 1) {
-      await syncUsersForVipLevel(level);
-    }
+    const levels = [1, 2, 3, 4, 5];
+    const summaries = await syncUsersForVipLevels(levels);
+
+    const processed = summaries.reduce((total, entry) => total + entry.processed, 0);
+    const succeeded = summaries.reduce((total, entry) => total + entry.succeeded, 0);
+    const failed = summaries.reduce((total, entry) => total + entry.failed, 0);
 
     const actorEmail = typeof adminUser?.email === 'string' && adminUser.email
       ? adminUser.email
@@ -5649,10 +5682,27 @@ app.post('/make-server-a1c55d7e/admin/sync-all-users-vip', async (c) => {
     await recordObservabilityAuditEvent(
       'admin-sync-all-users-vip',
       actorEmail,
-      'Bulk-synced all platform users to their VIP tier task configuration',
+      `Bulk VIP sync completed (processed: ${processed}, succeeded: ${succeeded}, failed: ${failed})`,
     ).catch(() => {});
 
-    return c.json({ success: true, message: 'All users synced to their VIP tier task configuration.' });
+    return c.json({
+      success: true,
+      message: failed > 0
+        ? 'VIP sync completed with warnings. See summary for failed users.'
+        : 'All users synced to their VIP tier task configuration.',
+      summary: {
+        processed,
+        succeeded,
+        failed,
+        levels: summaries.map((entry) => ({
+          level: entry.level,
+          processed: entry.processed,
+          succeeded: entry.succeeded,
+          failed: entry.failed,
+          errors: entry.errors.slice(0, 20),
+        })),
+      },
+    });
   } catch (error) {
     console.error('Error syncing all users to VIP tiers:', error);
     return c.json({ error: 'Failed to sync users' }, 500);
