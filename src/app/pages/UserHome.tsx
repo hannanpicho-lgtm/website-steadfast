@@ -29,10 +29,10 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
   return (
     <Link
       to={item.to}
-      className="rounded-lg bg-[#1ec9ee] min-h-[72px] sm:min-h-[90px] flex flex-col items-center justify-center gap-1 sm:gap-2 px-2 text-[#162033] shadow-[0_8px_18px_rgba(30,201,238,0.14)] border border-white/10 transition-transform duration-200 hover:-translate-y-0.5"
+      className="rounded-md bg-[#005f98] h-[72px] sm:h-[88px] flex flex-col items-center justify-center gap-1 px-1 text-white shadow-[0_8px_18px_rgba(0,38,69,0.28)] border border-[#0a78b9] transition-transform duration-200 hover:-translate-y-0.5"
     >
-      <Icon size={20} strokeWidth={2.15} className="sm:h-6 sm:w-6" />
-      <span className="text-[0.82rem] sm:text-[1rem] font-semibold tracking-tight text-center leading-tight px-1 break-words">{item.title}</span>
+      <Icon size={18} strokeWidth={2.2} className="sm:h-5 sm:w-5" />
+      <span className="text-[0.68rem] sm:text-[0.8rem] font-semibold tracking-tight text-center leading-tight px-1 break-words">{item.title}</span>
     </Link>
   );
 }
@@ -106,7 +106,7 @@ export default function UserHome() {
             <p className="text-[#9fb4d1] text-[11px] sm:text-sm">Quick access</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
+          <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
             {quickLinks.map((item) => (
               <QuickLinkCard key={item.title} item={item} />
             ))}

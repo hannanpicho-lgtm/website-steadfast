@@ -141,7 +141,7 @@ export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errorText, setErrorText] = useState('');
-  const [loginTarget, setLoginTarget] = useState('/starting');
+  const [loginTarget, setLoginTarget] = useState('/home');
   const [telegramUrl, setTelegramUrl] = useState('https://t.me/steadfastdigital');
 
   useEffect(() => {
@@ -188,7 +188,7 @@ export default function Login() {
     // 1. Try server-backed authentication (works cross-domain, survives cache clears)
     const serverResult = await serverLogin(username, password);
     if (serverResult.ok) {
-      setLoginTarget(serverResult.mustChangePassword ? '/profile?forcePasswordChange=1' : (from && from !== '/login' ? from : '/starting'));
+      setLoginTarget(serverResult.mustChangePassword ? '/profile?forcePasswordChange=1' : (from && from !== '/login' ? from : '/home'));
       setShowWelcome(true);
       return;
     }

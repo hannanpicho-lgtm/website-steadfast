@@ -18,6 +18,7 @@ export default function Profile() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
+  const [securityCredentialsOpen, setSecurityCredentialsOpen] = useState(false);
   const [todayProfit, setTodayProfit] = useState<number>(0);
   const [totalCommission, setTotalCommission] = useState<number>(0);
   const [referralCode, setReferralCode] = useState('STF01');
@@ -34,6 +35,12 @@ export default function Profile() {
     const forceFromQuery = new URLSearchParams(window.location.search).get('forcePasswordChange') === '1';
     setMustChangePassword(forceFromQuery || isPasswordChangeRequired());
   }, []);
+
+  useEffect(() => {
+    if (mustChangePassword) {
+      setSecurityCredentialsOpen(true);
+    }
+  }, [mustChangePassword]);
 
   useEffect(() => {
     if (!username) return;
@@ -217,44 +224,6 @@ export default function Profile() {
             </div>
           ) : null}
 
-          <div className="bg-white rounded-lg mb-3 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-gray-100">
-              <h4 className="font-semibold text-[#0066cc]">Security Credentials</h4>
-              <p className="text-xs text-gray-500 mt-1">Update login and transaction passwords from your profile.</p>
-            </div>
-            <form onSubmit={handleCredentialsUpdate} className="p-4 space-y-3">
-              <input
-                type="password"
-                value={currentLoginPassword}
-                onChange={(e) => setCurrentLoginPassword(e.target.value)}
-                placeholder="Current login password"
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[#0066cc] focus:outline-none"
-                required
-              />
-              <input
-                type="password"
-                value={newLoginPassword}
-                onChange={(e) => setNewLoginPassword(e.target.value)}
-                placeholder="New login password (optional)"
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[#0066cc] focus:outline-none"
-              />
-              <input
-                type="password"
-                value={newTransactionPassword}
-                onChange={(e) => setNewTransactionPassword(e.target.value)}
-                placeholder="New transaction password (optional)"
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-[#0066cc] focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={updatingCredentials}
-                className="w-full rounded bg-[#0066cc] px-3 py-2 text-sm font-semibold text-white hover:bg-[#0055aa] disabled:opacity-60"
-              >
-                {updatingCredentials ? 'Updating...' : 'Update Credentials'}
-              </button>
-            </form>
-          </div>
-          
           {/* Account Info */}
           <div className="bg-white rounded-lg mb-3 shadow-sm overflow-hidden">
             <button 
@@ -423,10 +392,7 @@ export default function Profile() {
                 <MessageSquare size={20} className="text-blue-500" />
                 <span className="font-semibold">Customer Support</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">24/7</span>
-                <ChevronDown size={20} className="rotate-[-90deg]" />
-              </div>
+              <ChevronDown size={20} className="rotate-[-90deg]" />
             </Link>
           </div>
 

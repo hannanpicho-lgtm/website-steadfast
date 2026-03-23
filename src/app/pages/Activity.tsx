@@ -47,6 +47,14 @@ const fallbackVipLevels: ActivityVipLevel[] = [
   { level: 5, range: '10,000', products: 60, rate: '2.5%', color: 'bg-orange-500' },
 ];
 
+const screenshotWorkdayRewards = [
+  { days: 2, salary: 120 },
+  { days: 5, salary: 1000 },
+  { days: 10, salary: 1400 },
+  { days: 20, salary: 1600 },
+  { days: 30, salary: 2000 },
+];
+
 function mapVipConfigToActivity(tiers: VipConfig[]): ActivityVipLevel[] {
   const formatAmount = (value: number) => Math.round(value).toLocaleString('en-US');
   const sorted = [...tiers].sort((a, b) => a.level - b.level);
@@ -225,47 +233,38 @@ export default function Activity() {
         </div>
 
         {/* Workday Rewards Scheme Section */}
-        <div className="bg-[#0d7fb8] rounded-lg p-4 sm:p-8 mb-8 relative overflow-hidden">
-          {/* Background pattern */}
-          <div className="absolute inset-0 opacity-20">
-            <div className="absolute top-10 left-10 w-32 h-32 bg-[#0b6fa3] rounded-full"></div>
-            <div className="absolute bottom-10 right-10 w-40 h-40 bg-[#0b6fa3] rounded-full"></div>
-          </div>
-          
-          <div className="relative z-10">
-            {/* Logo */}
-            <div className="flex items-center gap-3 mb-6 sm:mb-8">
-              <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M24 4 L40 12 L38 26 L24 34 L10 26 L8 12 Z" fill="white" />
-              </svg>
-              <span className="text-2xl sm:text-3xl text-white font-bold">Steadfast</span>
-            </div>
+        <div className="mb-8">
+          <div
+            className="mx-auto w-full max-w-[380px] rounded-none p-4 sm:p-5"
+            style={{
+              background:
+                'linear-gradient(150deg, #0f7fc0 0%, #0a63a3 55%, #0a5a96 100%), repeating-linear-gradient(145deg, rgba(255,255,255,0.08) 0, rgba(255,255,255,0.08) 10px, transparent 10px, transparent 22px)',
+            }}
+          >
+            <h2 className="text-[2rem] sm:text-[2.25rem] font-bold text-[#ffd85a] leading-tight text-center">Workday Rewards Scheme</h2>
+            <p className="text-[1.2rem] sm:text-[1.35rem] text-white text-center mb-4">Check In. Show Up. Get Paid</p>
 
-            {/* Title */}
-            <h2 className="text-2xl sm:text-4xl font-bold text-yellow-300 mb-2 text-center">Workday Rewards Scheme</h2>
-            <p className="text-sm sm:text-xl text-white mb-6 sm:mb-8 text-center">Check In. Show Up. Get Paid</p>
-
-            {/* Rewards Grid */}
-            <div className="space-y-4">
-              {workdayRewards.map((reward) => (
-                <div key={reward.days} className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-                  {/* Days Worked */}
-                  <div className="bg-cyan-100 rounded-full px-6 py-3 sm:px-8 sm:py-4 w-full sm:w-auto sm:min-w-[160px] text-center">
-                    <div className="text-3xl sm:text-4xl font-bold text-black">{reward.days}</div>
-                    <div className="text-sm text-black">Days Worked</div>
+            <div className="space-y-3">
+              {screenshotWorkdayRewards.map((reward) => (
+                <div key={reward.days} className="flex items-center gap-2.5">
+                  <div className="w-[94px] h-[66px] sm:w-[104px] sm:h-[72px] bg-[#d5fff7] rounded-[999px] flex flex-col items-center justify-center shrink-0">
+                    <div className="text-[2rem] sm:text-[2.2rem] leading-none font-bold text-[#0f172a]">{reward.days}</div>
+                    <div className="text-[0.72rem] sm:text-[0.78rem] text-[#0f172a] leading-none mt-0.5">Days Worked</div>
                   </div>
 
-                  {/* Salary Earned */}
-                  <div className="w-full sm:flex-1 bg-cyan-100 rounded-full px-5 py-3 sm:px-8 sm:py-4 flex items-center gap-3 sm:gap-4">
-                    <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                  <div className="h-[66px] sm:h-[72px] flex-1 bg-[#d5fff7] rounded-[999px] pl-2.5 pr-3 sm:pl-3.5 sm:pr-4 flex items-center gap-2.5">
+                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#5ccb5f] flex items-center justify-center shrink-0">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" fill="#6be06d" />
+                        <path d="M7 12.5L10.2 15.4L17 8.6" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </div>
-                    <div className="text-xs sm:text-sm text-black">Salary Earned</div>
-                    <div className="flex-1 text-right">
-                      <span className="text-2xl sm:text-4xl font-bold text-black">{reward.salary.toLocaleString()}</span>
-                      <span className="text-sm text-black ml-1">USD</span>
+
+                    <div className="text-[0.8rem] sm:text-[0.86rem] text-[#213547] leading-none">Salary Earned</div>
+
+                    <div className="ml-auto flex items-end gap-1 text-[#0f172a]">
+                      <span className="text-[2rem] sm:text-[2.2rem] leading-none font-bold">{reward.salary.toLocaleString()}</span>
+                      <span className="text-[0.95rem] sm:text-[1rem] leading-none mb-1">USD</span>
                     </div>
                   </div>
                 </div>
