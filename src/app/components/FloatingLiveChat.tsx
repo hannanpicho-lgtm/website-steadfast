@@ -77,6 +77,7 @@ export function FloatingLiveChat() {
       try {
         setLoadingMessages(true);
         const response = await fetch(`${serverUrl}/cs/chat/${currentUsername}`, {
+          credentials: 'include',
           headers: { Authorization: `Bearer ${publicAnonKey}` },
         });
         const payload = await response.json().catch(() => ([]));

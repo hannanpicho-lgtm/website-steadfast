@@ -6458,11 +6458,50 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
 // Get chat messages
 app.get("/make-server-a1c55d7e/cs/chat/:username", async (c) => {
   try {
-    const identity = await resolveSessionBoundUsername(c, c.req.param('username'));
-    if ('response' in identity) {
-      return identity.response;
+    const requestedUsername = sanitizeUsername(c.req.param('username'));
+    if (!requestedUsername) {
+      return c.json({ error: 'Invalid username' }, 400);
     }
-    const username = identity.username;
+
+    let username = '';
+    const forwardedUserJwt = c.req.header('x-user-jwt') ?? '';
+
+    if (forwardedUserJwt.trim().length > 0) {
+      const unauthorized = await requireAdmin(c);
+      if (unauthorized) {
+        return unauthorized;
+      }
+      const rateLimited = enforceAdminRateLimit(c, 'admin:cs-chat-read-thread');
+      if (rateLimited) {
+        return rateLimited;
+      }
+
+      const canonicalRequestedUsername = await resolveCanonicalUsername(requestedUsername);
+      if (!canonicalRequestedUsername) {
+        return c.json({ error: 'User not found' }, 404);
+      }
+
+      const adminUser = c.get('adminUser');
+      const callerIsSuperAdmin = isSuperAdmin(adminUser);
+      const userData = await kv.get(`user:${canonicalRequestedUsername}`);
+      if (!userData) {
+        return c.json({ error: 'User not found' }, 404);
+      }
+
+      const normalizedUser = normalizeUserRecord(userData, canonicalRequestedUsername);
+      if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== adminUser?.id) {
+        return c.json({ error: 'Forbidden' }, 403);
+      }
+
+      username = canonicalRequestedUsername;
+    } else {
+      const identity = await resolveSessionBoundUsername(c, requestedUsername);
+      if ('response' in identity) {
+        return identity.response;
+      }
+      username = identity.username;
+    }
+
     const chatKey = `chat:${username}`;
 
     const messages = await kv.get(chatKey) || [];

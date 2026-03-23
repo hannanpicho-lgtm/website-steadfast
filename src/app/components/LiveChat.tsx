@@ -51,6 +51,7 @@ export function LiveChat({ isOpen, onClose, username }: LiveChatProps) {
     try {
       setLoading(true);
       const response = await fetch(`${serverUrl}/cs/chat/${username}`, {
+        credentials: 'include',
         headers: {
           'Authorization': `Bearer ${publicAnonKey}`,
         },
