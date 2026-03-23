@@ -246,7 +246,6 @@ type PlatformUser = {
 
 type UserTaskControlDraft = {
   taskSetCount: string;
-  tasksPerSet: string;
 };
 
 type UserBalanceAdjustmentDraft = {
@@ -461,7 +460,6 @@ export default function Admin() {
 
     setUserTaskControlDraft({
       taskSetCount: String(selectedItem.taskSetCount ?? 1),
-      tasksPerSet: String(selectedItem.tasksPerSet ?? 1),
     });
   }, [modalType, selectedItem]);
 
@@ -543,17 +541,15 @@ export default function Admin() {
     }
 
     const taskSetCount = Math.max(1, Number.parseInt(userTaskControlDraft.taskSetCount, 10) || 1);
-    const tasksPerSet = Math.max(1, Number.parseInt(userTaskControlDraft.tasksPerSet, 10) || 1);
     const result = await updatePlatformUserTaskControls(
       selectedItem.username,
-      { taskSetCount, tasksPerSet },
+      { taskSetCount },
       'User task controls updated',
     );
 
     if (result?.user) {
       setUserTaskControlDraft({
         taskSetCount: String(result.user.taskSetCount ?? taskSetCount),
-        tasksPerSet: String(result.user.tasksPerSet ?? tasksPerSet),
       });
     }
   };
@@ -2464,16 +2460,10 @@ export default function Admin() {
                       className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white mt-2 focus:border-[#00D9FF] focus:outline-none"
                     />
                   </label>
-                  <label className="bg-[#1a1f2e] p-4 rounded-lg block">
+                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
                     <p className="text-gray-400 text-sm">Tasks Per Set</p>
-                    <input
-                      type="number"
-                      min={1}
-                      value={userTaskControlDraft.tasksPerSet}
-                      onChange={(event) => setUserTaskControlDraft((current) => current ? { ...current, tasksPerSet: event.target.value } : current)}
-                      className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white mt-2 focus:border-[#00D9FF] focus:outline-none"
-                    />
-                  </label>
+                    <p className="text-white font-semibold mt-1">{selectedItem.tasksPerSet ?? 0} (Auto from VIP {selectedItem.vipLevel ?? 1})</p>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-[#1a1f2e] p-4 rounded-lg">

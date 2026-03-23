@@ -2038,7 +2038,9 @@ async function syncUserWithVipConfig(userData: any, username: string) {
 
   normalized.vipLevel = vipConfig.level;
   normalized.taskSetCount = normalized.taskSetCountOverride ?? defaultVipTaskSetCount;
-  normalized.tasksPerSet = normalized.tasksPerSetOverride ?? defaultVipTasksPerSet;
+  // Tasks per set is always derived from VIP tier dailyTasks.
+  normalized.tasksPerSetOverride = null;
+  normalized.tasksPerSet = defaultVipTasksPerSet;
   normalized.tasksLimit = normalized.taskSetCount * normalized.tasksPerSet;
   normalized.completedTaskSets = Math.min(
     Math.max(0, normalized.completedTaskSets),
@@ -7306,15 +7308,14 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
     const nextTaskSetCount = Number.isFinite(Number(body?.taskSetCount))
       ? Math.max(1, Math.round(Number(body.taskSetCount)))
       : normalizedUser.taskSetCount;
-    const nextTasksPerSet = Number.isFinite(Number(body?.tasksPerSet))
-      ? Math.max(1, Math.round(Number(body.tasksPerSet)))
-      : normalizedUser.tasksPerSet;
+    const vipConfig = await getVipConfigForLevel(Number(normalizedUser.vipLevel ?? 1));
+    const nextTasksPerSet = Math.max(1, Math.round(Number(vipConfig.dailyTasks ?? normalizedUser.tasksPerSet ?? 1)));
     const shouldResetCurrentSet = body?.resetCurrentSet === true;
     const shouldRestoreNaturalState = body?.restoreNaturalState === true;
     const shouldSuspendAccount = body?.suspendAccount === true;
 
     normalizedUser.taskSetCountOverride = nextTaskSetCount;
-    normalizedUser.tasksPerSetOverride = nextTasksPerSet;
+    normalizedUser.tasksPerSetOverride = null;
     normalizedUser.taskSetCount = nextTaskSetCount;
     normalizedUser.tasksPerSet = nextTasksPerSet;
     normalizedUser.tasksLimit = nextTaskSetCount * nextTasksPerSet;
@@ -7355,7 +7356,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
     await recordObservabilityAuditEvent(
       'admin-user-task-controls-update',
       taskCtrlActorEmail,
-      `Modified task controls for user '${username}' (taskSetCount: ${nextTaskSetCount}, tasksPerSet: ${nextTasksPerSet}, action: ${ctrlAction})`,
+      `Modified task controls for user '${username}' (taskSetCount: ${nextTaskSetCount}, vipTasksPerSet: ${nextTasksPerSet}, action: ${ctrlAction})`,
     ).catch((e) => console.error('Failed to record admin-user-task-controls-update audit event:', e));
 
     return c.json({

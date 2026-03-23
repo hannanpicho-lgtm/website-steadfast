@@ -302,6 +302,9 @@ export default function Activity() {
 
             <h2 className="text-2xl sm:text-4xl font-bold text-yellow-300 mb-2 text-center">VIP Level Chart</h2>
             <p className="text-sm sm:text-xl text-white mb-6 sm:mb-8 text-center">The More You Recharge, The Higher You Rise</p>
+            <p className="text-xs sm:text-sm text-cyan-100 mb-6 text-center">
+              Tasks per set are assigned automatically by VIP tier.
+            </p>
 
             {/* Table Header */}
             <div className="hidden sm:grid grid-cols-4 gap-2 mb-4 text-white text-center text-sm">
@@ -336,7 +339,7 @@ export default function Activity() {
                     {/* Daily Work */}
                     <div className="sm:text-center font-bold">
                       <p className="text-xs text-gray-300 sm:hidden mb-1">Daily Work</p>
-                      {vip.products} products/ Set
+                      {vip.products} tasks / set
                     </div>
 
                     {/* Profit Rate */}
