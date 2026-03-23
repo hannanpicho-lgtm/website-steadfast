@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 import { useLocation, useNavigate } from 'react-router';
 import { Header } from '../components/Header';
 import { BottomNavigation } from '../components/BottomNavigation';
-import { LiveChat } from '../components/LiveChat';
 import { 
   MessageSquare, 
   Clock, 
@@ -53,7 +52,6 @@ const defaultSupportLinks: SupportLinks = {
 export default function Support() {
   const location = useLocation();
   const navigate = useNavigate();
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -347,7 +345,7 @@ export default function Support() {
 
   return (
     <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
-      <Header onContactClick={() => setIsChatOpen(true)} />
+      <Header />
       
       <div className="max-w-4xl mx-auto px-6 py-6">
         {/* Page Header */}
@@ -358,14 +356,6 @@ export default function Support() {
 
         {/* Contact Methods */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <button
-            onClick={() => setIsChatOpen(true)}
-            className="bg-gradient-to-r from-purple-600 to-purple-700 text-white p-4 rounded-lg flex items-center justify-center gap-3 hover:from-purple-700 hover:to-purple-800 transition-all"
-          >
-            <MessageSquare size={24} />
-            <span className="font-semibold">Live Chat</span>
-          </button>
-
           <a
             href={supportLinks.telegramUsername.startsWith('http') ? supportLinks.telegramUsername : `https://t.me/${supportLinks.telegramUsername}`}
             target="_blank"
@@ -531,7 +521,6 @@ export default function Support() {
         </div>
       </div>
 
-      <LiveChat isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} username={username} />
       <BottomNavigation />
     </div>
   );

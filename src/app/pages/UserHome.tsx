@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
 import { Award, Calendar, Gift, HelpCircle, Info, ScrollText, Wallet, ArrowDownToLine } from 'lucide-react';
 import { BottomNavigation } from '../components/BottomNavigation';
-import { FloatingLiveChat } from '../components/FloatingLiveChat';
 import { Header } from '../components/Header';
 import { LiveChatBox } from '../components/LiveChatBox';
 
@@ -159,7 +158,6 @@ export default function UserHome() {
 
       <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
       <BottomNavigation />
-      <FloatingLiveChat />
     </div>
   );
 }

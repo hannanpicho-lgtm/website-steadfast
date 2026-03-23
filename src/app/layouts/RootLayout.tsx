@@ -1,14 +1,9 @@
-import { Outlet, useLocation } from 'react-router';
-import { FloatingLiveChat } from '../components/FloatingLiveChat';
+import { Outlet } from 'react-router';
 
 export default function RootLayout() {
-  const location = useLocation();
-  const isHomePage = location.pathname === '/';
-
   return (
     <>
       <Outlet />
-      {!isHomePage && <FloatingLiveChat />}
     </>
   );
 }
