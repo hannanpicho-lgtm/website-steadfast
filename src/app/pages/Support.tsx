@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import { useLocation, useNavigate } from 'react-router';
 import { Header } from '../components/Header';
 import { BottomNavigation } from '../components/BottomNavigation';
-import { LiveChatBox } from '../components/LiveChatBox';
+import { UserLiveChat } from '../components/UserLiveChat';
 import { 
   MessageSquare, 
   Clock, 
@@ -531,8 +531,7 @@ export default function Support() {
         </div>
       </div>
 
-      {/* Live Chat Box */}
-      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <UserLiveChat isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
       <BottomNavigation />
     </div>
