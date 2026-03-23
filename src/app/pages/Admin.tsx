@@ -1452,6 +1452,8 @@ export default function Admin() {
     const productUrl = String(formData.get('productUrl') ?? '').trim();
     const status = String(formData.get('status') ?? 'Active').trim();
 
+    console.log('[DEBUG] Form submission:', { merchant, product, price, commissionPercent, productUrl, status });
+
     if (!merchant || !product) {
       toast.error('Merchant and product are required.');
       return;
@@ -1466,6 +1468,7 @@ export default function Admin() {
     }
 
     try {
+      toast.loading('Creating product...');
       const headers = await buildAdminAuthHeaders();
       const response = await fetch(`${serverUrl}/admin/tasks`, {
         method: 'POST',
@@ -1481,14 +1484,16 @@ export default function Admin() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(payload?.error ?? 'Failed to create task');
+        throw new Error(payload?.error ?? `Failed to create task (${response.status})`);
       }
 
+      console.log('[DEBUG] Product created successfully:', payload);
       await loadTaskConfigurations();
-      toast.success('Task created.');
+      toast.success('Product created successfully!');
       setModalType(null);
     } catch (error) {
-      handleAdminRequestError(error, 'Failed to create task');
+      console.error('[DEBUG] Error creating task:', error);
+      handleAdminRequestError(error, 'Failed to create product');
     }
   };
 

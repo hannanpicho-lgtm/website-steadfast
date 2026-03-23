@@ -59,23 +59,6 @@ export default function UserHome() {
       <Header onContactClick={() => setIsChatOpen(true)} />
 
       <main className="max-w-5xl mx-auto px-3 sm:px-6 pt-2.5 sm:pt-5">
-        <section className="relative h-[136px] sm:h-[184px] rounded-2xl overflow-hidden border border-white/10 shadow-[0_16px_40px_rgba(0,0,0,0.3)] mb-3.5 sm:mb-5">
-          <video
-            src="/banner-cdc94d47.mp4"
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="metadata"
-            className="absolute inset-0 h-full w-full object-cover brightness-[1.14]"
-            aria-label="Steadfast Digital banner video"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0f172acc] via-[#0f172a99] to-transparent" />
-          <div className="relative z-10 h-full flex items-end p-3 sm:p-4">
-            <p className="text-[#d7f6ff] text-[13px] sm:text-base font-medium">Steadfast Digital</p>
-          </div>
-        </section>
-
         {/* Welcome Section */}
         <section className="mt-5 sm:mt-7 bg-gradient-to-br from-[#1a1f2e] to-[#2d3a56] py-6 sm:py-8 rounded-2xl border border-white/5">
           <div className="px-4 sm:px-5">

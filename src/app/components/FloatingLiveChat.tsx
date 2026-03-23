@@ -102,7 +102,10 @@ export function FloatingLiveChat() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${publicAnonKey}`,
           },
-          body: JSON.stringify({ viewer: 'user' }),
+          body: JSON.stringify({ 
+            viewer: 'user',
+            username: currentUsername,
+          }),
         });
       } catch {
         // Keep last known messages if polling fails.
@@ -139,7 +142,11 @@ export function FloatingLiveChat() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${publicAnonKey}`,
         },
-        body: JSON.stringify({ message: trimmedMessage }),
+        body: JSON.stringify({ 
+          message: trimmedMessage,
+          username: currentUsername,
+          isAdmin: false,
+        }),
       });
 
       const payload = await response.json().catch(() => ({}));
