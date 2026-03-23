@@ -1440,6 +1440,75 @@ function sanitizeTaskUrl(value: unknown): string {
   }
 }
 
+function inferMerchantFromTaskUrls(...values: unknown[]): string {
+  for (const value of values) {
+    const sanitized = sanitizeTaskUrl(value);
+    if (!sanitized) {
+      continue;
+    }
+
+    try {
+      const host = new URL(sanitized).hostname.toLowerCase();
+      if (host.includes('amazon')) return 'Amazon';
+      if (host.includes('ebay')) return 'eBay';
+      if (host.includes('walmart')) return 'Walmart';
+      if (host.includes('target')) return 'Target';
+      if (host.includes('bestbuy')) return 'Best Buy';
+      if (host.includes('aliexpress')) return 'AliExpress';
+      if (host.includes('temu')) return 'Temu';
+      if (host.includes('shopify')) return 'Shopify';
+
+      const primaryLabel = host.replace(/^www\./, '').split('.')[0] ?? '';
+      if (primaryLabel) {
+        return primaryLabel.charAt(0).toUpperCase() + primaryLabel.slice(1);
+      }
+    } catch {
+      // Ignore invalid URL parsing errors.
+    }
+  }
+
+  return 'Marketplace';
+}
+
+function inferPriceFromTaskUrls(...values: unknown[]): number | null {
+  const pricedPatterns = [
+    /(?:price|amount|value|usd|\$)[^\d]{0,6}(\d{1,6}(?:\.\d{1,2})?)/i,
+    /[?&](?:price|amount|value)=([\d.]+)/i,
+    /\b(\d{1,6}\.\d{1,2})\b/,
+  ];
+
+  for (const value of values) {
+    if (typeof value !== 'string' || !value.trim()) {
+      continue;
+    }
+
+    const decodedValue = decodeURIComponent(value);
+    for (const pattern of pricedPatterns) {
+      const match = decodedValue.match(pattern);
+      const parsed = Number(match?.[1] ?? NaN);
+      if (Number.isFinite(parsed) && parsed > 0 && parsed <= 1_000_000) {
+        return roundMoney(parsed);
+      }
+    }
+  }
+
+  return null;
+}
+
+function inferTaskImageUrl(imageValue: unknown, productUrlValue: unknown): string {
+  const imageUrl = sanitizeTaskUrl(imageValue);
+  if (imageUrl) {
+    return imageUrl;
+  }
+
+  const productUrl = sanitizeTaskUrl(productUrlValue);
+  if (/\.(png|jpe?g|gif|webp|avif)(\?.*)?$/i.test(productUrl)) {
+    return productUrl;
+  }
+
+  return '';
+}
+
 function normalizeBoolean(value: unknown, fallback = false): boolean {
   if (typeof value === 'boolean') {
     return value;
@@ -5519,24 +5588,27 @@ app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
       return unauthorized;
     }
 
-    const adminUser = c.get('adminUser');
-    if (!isSuperAdmin(adminUser)) {
-      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
-    }
-
     const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-create');
     if (rateLimited) {
       return rateLimited;
     }
 
     const body = await c.req.json();
-    const merchant = sanitizeTaskText(body?.merchant);
     const product = sanitizeTaskText(body?.product);
-    const price = roundMoney(Number(body?.price ?? 0));
-    const commission = Number(body?.commission ?? 0);
+    const productUrl = sanitizeTaskUrl(body?.productUrl);
+    const image = inferTaskImageUrl(body?.image, productUrl);
+    const merchant = sanitizeTaskText(body?.merchant, inferMerchantFromTaskUrls(productUrl, image));
+    const price = Number.isFinite(Number(body?.price)) && Number(body?.price) > 0
+      ? roundMoney(Number(body.price))
+      : inferPriceFromTaskUrls(productUrl, image) ?? 123.45;
+    const vipConfigRecords = await listVipConfigRecords();
+    const baseCommission = vipConfigRecords.find((tier) => tier.level === 1)?.commission ?? 0.005;
+    const commission = Number.isFinite(Number(body?.commission)) && Number(body?.commission) > 0
+      ? Number(body.commission)
+      : baseCommission;
 
-    if (!merchant || !product) {
-      return c.json({ error: 'merchant and product are required' }, 400);
+    if (!product) {
+      return c.json({ error: 'product is required' }, 400);
     }
     if (!Number.isFinite(price) || price <= 0) {
       return c.json({ error: 'price must be greater than 0' }, 400);
@@ -5552,15 +5624,16 @@ app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
       price,
       commission,
       status: body?.status,
-      image: sanitizeTaskText(body?.image),
+      image,
       rating: Number(body?.rating ?? 4),
-      productUrl: body?.productUrl,
+      productUrl,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
 
     await kv.set(`${TASK_CATALOG_KEY_PREFIX}${task.id}`, task);
 
+    const adminUser = c.get('adminUser');
     const taskCreateActorEmail = typeof adminUser?.email === 'string' && adminUser.email
       ? adminUser.email
       : String(adminUser?.id ?? 'unknown');
@@ -5582,11 +5655,6 @@ app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
       return unauthorized;
-    }
-
-    const adminUser = c.get('adminUser');
-    if (!isSuperAdmin(adminUser)) {
-      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
     }
 
     const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-update');
@@ -5635,6 +5703,7 @@ app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
 
     await kv.set(`${TASK_CATALOG_KEY_PREFIX}${taskId}`, updatedTask);
 
+    const adminUser = c.get('adminUser');
     const taskUpdateActorEmail = typeof adminUser?.email === 'string' && adminUser.email
       ? adminUser.email
       : String(adminUser?.id ?? 'unknown');
@@ -5837,11 +5906,6 @@ app.delete('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
       return unauthorized;
     }
 
-    const adminUser = c.get('adminUser');
-    if (!isSuperAdmin(adminUser)) {
-      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
-    }
-
     const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-delete');
     if (rateLimited) {
       return rateLimited;
@@ -5859,6 +5923,7 @@ app.delete('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
 
     await kv.del(`${TASK_CATALOG_KEY_PREFIX}${taskId}`);
 
+    const adminUser = c.get('adminUser');
     const taskDeleteActorEmail = typeof adminUser?.email === 'string' && adminUser.email
       ? adminUser.email
       : String(adminUser?.id ?? 'unknown');

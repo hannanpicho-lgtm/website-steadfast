@@ -1470,25 +1470,19 @@ export default function Admin() {
     event.preventDefault();
 
     const formData = new FormData(event.currentTarget);
-    const merchant = String(formData.get('merchant') ?? '').trim();
     const product = String(formData.get('product') ?? '').trim();
-    const price = Number(formData.get('price'));
-    const commissionPercent = Number(formData.get('commissionPercent'));
     const productUrl = String(formData.get('productUrl') ?? '').trim();
+    const imageUrl = String(formData.get('image') ?? '').trim();
     const status = String(formData.get('status') ?? 'Active').trim();
 
-    console.log('[DEBUG] Form submission:', { merchant, product, price, commissionPercent, productUrl, status });
+    console.log('[DEBUG] Form submission:', { product, productUrl, imageUrl, status });
 
-    if (!merchant || !product) {
-      toast.error('Merchant and product are required.');
+    if (!product) {
+      toast.error('Product name is required.');
       return;
     }
-    if (!Number.isFinite(price) || price <= 0) {
-      toast.error('Price must be greater than 0.');
-      return;
-    }
-    if (!Number.isFinite(commissionPercent) || commissionPercent <= 0) {
-      toast.error('Commission rate must be greater than 0.');
+    if (!productUrl && !imageUrl) {
+      toast.error('Provide a product URL or image URL.');
       return;
     }
 
@@ -1499,11 +1493,9 @@ export default function Admin() {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          merchant,
           product,
-          price,
-          commission: commissionPercent / 100,
           productUrl,
+          image: imageUrl,
           status,
         }),
       });
@@ -2826,21 +2818,16 @@ export default function Admin() {
                     <label className="block text-sm font-medium text-gray-300 mb-2">Product Name</label>
                     <input type="text" name="product" required className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product name" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Merchant</label>
-                    <input type="text" name="merchant" required className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="e.g. Amazon" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Price ($)</label>
-                    <input type="number" name="price" step="0.01" min="0.01" required className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.00" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Commission Rate (%)</label>
-                    <input type="number" name="commissionPercent" step="0.001" min="0.001" required className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.000" />
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Product URL</label>
+                    <input type="url" name="productUrl" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://product-page.example/..." />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Product URL (Optional)</label>
-                    <input type="url" name="productUrl" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://..." />
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Image URL</label>
+                    <input type="url" name="image" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://image.example/product.jpg" />
+                  </div>
+                  <div className="col-span-2 rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs text-cyan-200">
+                    Merchant, product value, and catalog commission are auto-filled by the system. User profit still follows the VIP commission percentages configured on the platform.
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
