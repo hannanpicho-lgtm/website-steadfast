@@ -2034,7 +2034,16 @@ async function syncUserWithVipConfig(userData: any, username: string) {
 
   // VIP chart is the primary source of truth for required products/tasks per user.
   const defaultVipTaskSetCount = 2;
-  const defaultVipTasksPerSet = Math.max(1, Math.round(Number(vipConfig.dailyTasks ?? 1)));
+  const vipTaskBaselineByLevel: Record<number, number> = {
+    1: 40,
+    2: 45,
+    3: 50,
+    4: 55,
+    5: 60,
+  };
+  const configuredTasksPerSet = Math.max(1, Math.round(Number(vipConfig.dailyTasks ?? 1)));
+  const baselineTasksPerSet = vipTaskBaselineByLevel[vipConfig.level] ?? configuredTasksPerSet;
+  const defaultVipTasksPerSet = Math.max(configuredTasksPerSet, baselineTasksPerSet);
 
   normalized.vipLevel = vipConfig.level;
   normalized.taskSetCount = normalized.taskSetCountOverride ?? defaultVipTaskSetCount;
