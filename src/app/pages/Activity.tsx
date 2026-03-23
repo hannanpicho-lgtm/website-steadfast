@@ -174,7 +174,7 @@ export default function Activity() {
       <Header onContactClick={() => setIsChatOpen(true)} />
 
       {/* Main Content */}
-      <div className="max-w-3xl mx-auto px-6 py-6">
+      <div className="max-w-3xl mx-auto px-3 sm:px-6 py-6">
         {/* Back Button and Title */}
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 mb-6">
           <Link to="/starting" className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors justify-self-start">
@@ -225,7 +225,7 @@ export default function Activity() {
         </div>
 
         {/* Workday Rewards Scheme Section */}
-        <div className="bg-[#0d7fb8] rounded-lg p-8 mb-8 relative overflow-hidden">
+        <div className="bg-[#0d7fb8] rounded-lg p-4 sm:p-8 mb-8 relative overflow-hidden">
           {/* Background pattern */}
           <div className="absolute inset-0 opacity-20">
             <div className="absolute top-10 left-10 w-32 h-32 bg-[#0b6fa3] rounded-full"></div>
@@ -234,16 +234,16 @@ export default function Activity() {
           
           <div className="relative z-10">
             {/* Logo */}
-            <div className="flex items-center gap-3 mb-8">
+            <div className="flex items-center gap-3 mb-6 sm:mb-8">
               <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M24 4 L40 12 L38 26 L24 34 L10 26 L8 12 Z" fill="white" />
               </svg>
-              <span className="text-3xl text-white font-bold">Steadfast</span>
+              <span className="text-2xl sm:text-3xl text-white font-bold">Steadfast</span>
             </div>
 
             {/* Title */}
             <h2 className="text-2xl sm:text-4xl font-bold text-yellow-300 mb-2 text-center">Workday Rewards Scheme</h2>
-            <p className="text-base sm:text-xl text-white mb-8 text-center">Check In. Show Up. Get Paid</p>
+            <p className="text-sm sm:text-xl text-white mb-6 sm:mb-8 text-center">Check In. Show Up. Get Paid</p>
 
             {/* Rewards Grid */}
             <div className="space-y-4">
@@ -285,7 +285,7 @@ export default function Activity() {
         </div>
 
         {/* VIP Level Chart Section */}
-        <div className="bg-[#0d7fb8] rounded-lg p-8 mb-8 relative overflow-hidden">
+        <div className="bg-[#0d7fb8] rounded-lg p-4 sm:p-8 mb-8 relative overflow-hidden">
           {/* Background pattern */}
           <div className="absolute inset-0 opacity-20">
             <div className="absolute top-10 right-10 w-32 h-32 bg-[#0b6fa3] rounded-full"></div>
@@ -298,14 +298,14 @@ export default function Activity() {
               <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M24 4 L40 12 L38 26 L24 34 L10 26 L8 12 Z" fill="white" />
               </svg>
-              <span className="text-3xl text-white font-bold">Steadfast</span>
+              <span className="text-2xl sm:text-3xl text-white font-bold">Steadfast</span>
             </div>
 
-            <h2 className="text-4xl font-bold text-yellow-300 mb-2 text-center">VIP Level Chart</h2>
-            <p className="text-xl text-white mb-8 text-center">The More You Recharge, The Higher You Rise</p>
+            <h2 className="text-2xl sm:text-4xl font-bold text-yellow-300 mb-2 text-center">VIP Level Chart</h2>
+            <p className="text-sm sm:text-xl text-white mb-6 sm:mb-8 text-center">The More You Recharge, The Higher You Rise</p>
 
             {/* Table Header */}
-            <div className="grid grid-cols-4 gap-2 mb-4 text-white text-center text-sm">
+            <div className="hidden sm:grid grid-cols-4 gap-2 mb-4 text-white text-center text-sm">
               <div>VIP Levels</div>
               <div>Unlock Condition/<br/>First Deposit Amount</div>
               <div>Daily Work<br/>Opportunities</div>
@@ -315,8 +315,8 @@ export default function Activity() {
             {/* VIP Levels */}
             <div className="space-y-3">
               {vipLevels.map((vip) => (
-                <div key={vip.level} className="bg-gray-700 rounded-lg p-4 border-4 border-yellow-400">
-                  <div className="grid grid-cols-4 gap-2 items-center text-white">
+                <div key={vip.level} className="bg-gray-700 rounded-lg p-3 sm:p-4 border-4 border-yellow-400">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-2 items-start sm:items-center text-white">
                     {/* VIP Badge */}
                     <div className="flex items-center gap-2">
                       <div className={`${vip.color} w-12 h-12 rounded-lg flex items-center justify-center`}>
@@ -328,16 +328,23 @@ export default function Activity() {
                     </div>
 
                     {/* Unlock Condition */}
-                    <div className="text-center">
-                      <span className="text-cyan-300 font-bold text-lg">{vip.range}</span>
+                    <div className="sm:text-center">
+                      <p className="text-xs text-gray-300 sm:hidden mb-1">Unlock Condition</p>
+                      <span className="text-cyan-300 font-bold text-base sm:text-lg">{vip.range}</span>
                       <span className="text-gray-300 ml-1 text-sm">{vip.level === 5 ? 'USD or Above' : 'USD'}</span>
                     </div>
 
                     {/* Daily Work */}
-                    <div className="text-center font-bold">{vip.products} products/ Set</div>
+                    <div className="sm:text-center font-bold">
+                      <p className="text-xs text-gray-300 sm:hidden mb-1">Daily Work</p>
+                      {vip.products} products/ Set
+                    </div>
 
                     {/* Profit Rate */}
-                    <div className="text-center font-bold text-xl">{vip.rate}</div>
+                    <div className="sm:text-center font-bold text-lg sm:text-xl">
+                      <p className="text-xs text-gray-300 sm:hidden mb-1">Profit Rate</p>
+                      {vip.rate}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -377,7 +384,7 @@ export default function Activity() {
         </div>
 
         {/* 3rd Anniversary Section */}
-        <div className="bg-[#0d7fb8] rounded-lg p-8 mb-8 relative overflow-hidden">
+        <div className="bg-[#0d7fb8] rounded-lg p-4 sm:p-8 mb-8 relative overflow-hidden">
           {/* Background pattern */}
           <div className="absolute inset-0 opacity-20">
             <div className="absolute top-10 left-10 w-32 h-32 bg-[#0b6fa3] rounded-full"></div>
@@ -390,29 +397,29 @@ export default function Activity() {
               <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M24 4 L40 12 L38 26 L24 34 L10 26 L8 12 Z" fill="white" />
               </svg>
-              <span className="text-3xl text-white font-bold">Steadfast</span>
+              <span className="text-2xl sm:text-3xl text-white font-bold">Steadfast</span>
             </div>
 
             <div className="text-right mb-6">
-              <h2 className="text-4xl font-bold text-yellow-300">3<sup>rd</sup> Anniversary</h2>
-              <h2 className="text-4xl font-bold text-yellow-300">Thanksgiving Feedback</h2>
-              <p className="text-xl text-white">Steadfast Advances Activities</p>
+              <h2 className="text-2xl sm:text-4xl font-bold text-yellow-300">3<sup>rd</sup> Anniversary</h2>
+              <h2 className="text-2xl sm:text-4xl font-bold text-yellow-300">Thanksgiving Feedback</h2>
+              <p className="text-sm sm:text-xl text-white">Steadfast Advances Activities</p>
             </div>
 
-            <h3 className="text-2xl font-bold text-white italic mb-6 underline">Reset Advance Rewards</h3>
+            <h3 className="text-xl sm:text-2xl font-bold text-white italic mb-6 underline">Reset Advance Rewards</h3>
 
             {/* Rewards Grid */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {resetRewards.map((reward, index) => (
-                <div key={index} className={`${reward.color} rounded-3xl p-6 text-center relative overflow-hidden`}>
+                <div key={index} className={`${reward.color} rounded-3xl p-4 sm:p-6 text-center relative overflow-hidden`}>
                   <div className="mb-3">
                     <div className="text-sm text-black mb-1">Deposit with</div>
-                    <div className="text-3xl font-bold text-black">{reward.deposit.toLocaleString()}</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-black">{reward.deposit.toLocaleString()}</div>
                     <div className="text-sm text-black">USD</div>
                   </div>
                   <div className="mb-3">
                     <div className="text-sm text-black mb-1">Get Extra Reward</div>
-                    <div className="text-4xl font-bold text-black">{reward.reward.toLocaleString()}</div>
+                    <div className="text-3xl sm:text-4xl font-bold text-black">{reward.reward.toLocaleString()}</div>
                     <div className="text-sm text-black">USD</div>
                   </div>
                   <div className={`${reward.labelColor} text-white font-bold py-2 px-4 rounded-full text-xs mt-2`}>
@@ -426,28 +433,28 @@ export default function Activity() {
 
         {/* Accumulated Deposit Rewards Section */}
         <div className="bg-white mb-8 px-4">
-          <h3 className="text-2xl font-bold text-[#0066b3] italic mb-6 underline">Accumulated Deposit Rewards For The Day</h3>
+          <h3 className="text-xl sm:text-2xl font-bold text-[#0066b3] italic mb-6 underline">Accumulated Deposit Rewards For The Day</h3>
           
           <div className="space-y-4">
             {accumulatedRewards.map((reward, index) => (
-              <div key={index} className="flex items-center gap-4">
+              <div key={index} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
                 <div className="flex-1 bg-gray-700 rounded-lg p-4 border-4 border-yellow-400">
-                  <div className="flex items-center justify-between text-white">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-white">
                     <div>
                       <div className="text-sm">Advances On Day (USD)</div>
-                        <div className="text-2xl font-bold text-cyan-300">
-                          {reward.maxDeposit === null
-                            ? `${reward.minDeposit.toLocaleString()}+`
-                            : `${reward.minDeposit.toLocaleString()} - ${reward.maxDeposit.toLocaleString()}`}
-                        </div>
+                      <div className="text-xl sm:text-2xl font-bold text-cyan-300">
+                        {reward.maxDeposit === null
+                          ? `${reward.minDeposit.toLocaleString()}+`
+                          : `${reward.minDeposit.toLocaleString()} - ${reward.maxDeposit.toLocaleString()}`}
+                      </div>
                     </div>
                     <div className="text-sm">
                       Will Get<br/>Advance Deposit Reward
                     </div>
                   </div>
                 </div>
-                <div className="w-24 h-24 bg-yellow-300 rounded-full flex items-center justify-center border-4 border-[#0066b3]">
-                    <span className="text-3xl font-bold text-black">{(reward.rate * 100).toFixed(1)}%</span>
+                <div className="self-center sm:self-auto w-20 h-20 sm:w-24 sm:h-24 bg-yellow-300 rounded-full flex items-center justify-center border-4 border-[#0066b3]">
+                  <span className="text-2xl sm:text-3xl font-bold text-black">{(reward.rate * 100).toFixed(1)}%</span>
                 </div>
               </div>
             ))}
