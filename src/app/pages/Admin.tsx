@@ -1466,7 +1466,8 @@ export default function Admin() {
   const handleCreateTask = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const formData = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const formData = new FormData(formElement);
     const product = String(formData.get('product') ?? '').trim();
     const imageUrl = String(formData.get('image') ?? '').trim();
     const status = String(formData.get('status') ?? 'Active').trim();
@@ -1500,8 +1501,13 @@ export default function Admin() {
       }
 
       console.log('[DEBUG] Product created successfully:', payload);
+      
+      // Reset form and close modal immediately
+      formElement.reset();
       toast.success('Product created successfully!');
       setModalType(null);
+      
+      // Update the list in background
       setTaskConfigurations((current) => {
         const createdTask = payload?.task;
         if (!createdTask || typeof createdTask !== 'object' || typeof createdTask.id !== 'string') {
@@ -1519,7 +1525,8 @@ export default function Admin() {
       void loadTaskConfigurations({ suppressToast: true });
     } catch (error) {
       console.error('[DEBUG] Error creating task:', error);
-      handleAdminRequestError(error, 'Failed to create product');
+      // Don't close the modal on error - let user try again or must close manually
+      handleAdminRequestError(error, 'Failed to create product', { suppressToast: false });
     }
   };
 
