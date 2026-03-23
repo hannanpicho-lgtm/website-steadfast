@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { Header } from '../components/Header';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { UserLiveChat } from '../components/UserLiveChat';
+import { SupportContactMethods } from '../components/SupportContactMethods';
 import { 
   MessageSquare, 
   Clock, 
@@ -357,24 +358,12 @@ export default function Support() {
         </div>
 
         {/* Contact Methods */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <a
-            href={supportLinks.telegramUsername.startsWith('http') ? supportLinks.telegramUsername : `https://t.me/${supportLinks.telegramUsername}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-lg flex items-center justify-center gap-3 hover:from-blue-600 hover:to-blue-700 transition-all group"
-          >
-            <Send size={24} className="group-hover:scale-110 transition-transform" />
-            <span className="font-semibold">Expert Team</span>
-          </a>
-          
-          <button
-            onClick={() => setIsChatOpen(true)}
-            className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white p-4 rounded-lg flex items-center justify-center gap-3 hover:from-cyan-600 hover:to-blue-600 transition-all group"
-          >
-            <MessageSquare size={24} className="group-hover:scale-110 transition-transform" />
-            <span className="font-semibold">Steadfast online CS</span>
-          </button>
+        <div className="mb-6">
+          <SupportContactMethods
+            telegramUsername={supportLinks.telegramUsername}
+            onOpenLiveChat={() => setIsChatOpen(true)}
+            layout="grid"
+          />
         </div>
 
         {/* Tickets List */}
