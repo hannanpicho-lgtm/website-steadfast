@@ -85,6 +85,16 @@ export default function Activity() {
   const [recentActivity, setRecentActivity] = useState<ActivityLogItem[]>([]);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const resetDisplayOrder = [100, 1000, 5500, 500, 1600, 10000];
+  const resetBadgeByDeposit: Record<number, string> = {
+    500: 'HOT PICKS',
+    1600: 'LIMITED OFFER',
+    10000: 'BEST DEAL',
+  };
+
+  const orderedResetRewards = resetDisplayOrder
+    .map((deposit) => resetRewards.find((reward) => Number(reward.deposit) === deposit))
+    .filter((reward): reward is typeof resetRewards[number] => Boolean(reward));
 
   useEffect(() => {
     const loadActivityConfig = async () => {
@@ -411,24 +421,32 @@ export default function Activity() {
             <h3 className="text-xl sm:text-2xl font-bold text-white italic mb-6 underline">Reset Advance Rewards</h3>
 
             {/* Rewards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {resetRewards.map((reward, index) => (
-                <div key={index} className={`${reward.color} rounded-3xl p-4 sm:p-6 text-center relative overflow-hidden`}>
-                  <div className="mb-3">
-                    <div className="text-sm text-black mb-1">Deposit with</div>
-                    <div className="text-2xl sm:text-3xl font-bold text-black">{reward.deposit.toLocaleString()}</div>
-                    <div className="text-sm text-black">USD</div>
+            <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
+              {orderedResetRewards.map((reward) => {
+                const badge = resetBadgeByDeposit[Number(reward.deposit)] ?? '';
+
+                return (
+                  <div key={reward.id} className="relative">
+                    {badge ? (
+                      <div className={`${reward.labelColor} text-white text-[10px] sm:text-xs font-bold text-center rounded-full px-2 py-1 mb-1 shadow-sm`}>
+                        {badge}
+                      </div>
+                    ) : (
+                      <div className="h-6 mb-1" aria-hidden="true"></div>
+                    )}
+
+                    <div className="bg-cyan-100 rounded-2xl px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-cyan-200 min-h-[132px] sm:min-h-[156px] flex flex-col justify-center">
+                      <p className="text-[9px] sm:text-xs text-slate-700 leading-tight">Deposit with</p>
+                      <p className="text-xl sm:text-3xl font-extrabold text-slate-900 leading-none mt-1">{reward.deposit.toLocaleString()}</p>
+                      <p className="text-[10px] sm:text-xs text-slate-700">USD</p>
+
+                      <p className="text-[9px] sm:text-xs text-slate-700 leading-tight mt-2">Get Extra Reward</p>
+                      <p className="text-2xl sm:text-4xl font-extrabold text-slate-900 leading-none mt-1">{reward.reward.toLocaleString()}</p>
+                      <p className="text-[10px] sm:text-xs text-slate-700">USD</p>
+                    </div>
                   </div>
-                  <div className="mb-3">
-                    <div className="text-sm text-black mb-1">Get Extra Reward</div>
-                    <div className="text-3xl sm:text-4xl font-bold text-black">{reward.reward.toLocaleString()}</div>
-                    <div className="text-sm text-black">USD</div>
-                  </div>
-                  <div className={`${reward.labelColor} text-white font-bold py-2 px-4 rounded-full text-xs mt-2`}>
-                    {reward.label}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

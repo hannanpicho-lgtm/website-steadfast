@@ -61,12 +61,12 @@ export const defaultRewardsConfig: RewardsConfig = {
     { id: 5, days: 30, salary: 6120, enabled: true },
   ],
   reset: [
-    { id: 1, deposit: 100, reward: 28, label: 'Bronze', color: 'bg-orange-300', labelColor: 'bg-orange-600', enabled: true },
-    { id: 2, deposit: 500, reward: 158, label: 'Silver', color: 'bg-gray-300', labelColor: 'bg-gray-600', enabled: true },
-    { id: 3, deposit: 1600, reward: 688, label: 'Gold', color: 'bg-yellow-300', labelColor: 'bg-yellow-600', enabled: true },
-    { id: 4, deposit: 5500, reward: 1788, label: 'Platinum', color: 'bg-blue-300', labelColor: 'bg-blue-600', enabled: true },
-    { id: 5, deposit: 10000, reward: 3888, label: 'Diamond', color: 'bg-purple-300', labelColor: 'bg-purple-600', enabled: true },
-    { id: 6, deposit: 30000, reward: 12888, label: 'Crown', color: 'bg-red-300', labelColor: 'bg-red-600', enabled: true },
+    { id: 1, deposit: 100, reward: 10, label: 'Starter', color: 'bg-cyan-100', labelColor: 'bg-cyan-600', enabled: true },
+    { id: 2, deposit: 500, reward: 60, label: 'Hot Picks', color: 'bg-cyan-100', labelColor: 'bg-[#f0a23a]', enabled: true },
+    { id: 3, deposit: 1000, reward: 120, label: 'Value', color: 'bg-cyan-100', labelColor: 'bg-cyan-600', enabled: true },
+    { id: 4, deposit: 1600, reward: 200, label: 'Limited Offer', color: 'bg-cyan-100', labelColor: 'bg-[#e3b23c]', enabled: true },
+    { id: 5, deposit: 5500, reward: 1200, label: 'Growth', color: 'bg-cyan-100', labelColor: 'bg-cyan-600', enabled: true },
+    { id: 6, deposit: 10000, reward: 2400, label: 'Best Deal', color: 'bg-cyan-100', labelColor: 'bg-[#cf4d64]', enabled: true },
   ],
   accumulated: [
     { id: 1, minDeposit: 1000, maxDeposit: 4999, rate: 0.003, enabled: true },
