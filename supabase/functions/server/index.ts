@@ -6628,26 +6628,20 @@ app.get("/make-server-a1c55d7e/cs/admin/chats", async (c) => {
     }
 
     const chatPrefix = 'chat:';
-    const allChats = await kv.getByPrefix(chatPrefix);
-    
-    // Transform to get username and last message
-    const chatSummaries = allChats
-      .filter(chat => Array.isArray(chat) && chat.length > 0)
-      .map((messages) => {
+    // Query key+value directly so username can be derived from the KV key
+    const { data: kvRows, error: kvError } = await authClient!
+      .from('kv_store_a1c55d7e')
+      .select('key, value')
+      .like('key', `${chatPrefix}%`);
+    if (kvError) throw new Error(kvError.message);
+    const chatSummaries = (kvRows ?? [])
+      .filter(row => Array.isArray(row.value) && row.value.length > 0)
+      .map(({ key, value: messages }) => {
+        const usernameFromKey = sanitizeUsername(key.slice(chatPrefix.length)) || 'unknown';
         const lastMessage = messages[messages.length - 1];
-        const unreadCount = messages.filter(msg => !msg.read && !msg.isAdmin).length;
-        const conversationUsername =
-          (typeof lastMessage?.conversationUsername === 'string' ? sanitizeUsername(lastMessage.conversationUsername) : null)
-          || (typeof messages.find((m) => m && !m.isAdmin && typeof m.sender === 'string')?.sender === 'string'
-            ? sanitizeUsername(messages.find((m) => m && !m.isAdmin && typeof m.sender === 'string')?.sender)
-            : null)
-          || (typeof messages.find((m) => m && typeof m.conversationUsername === 'string')?.conversationUsername === 'string'
-            ? sanitizeUsername(messages.find((m) => m && typeof m.conversationUsername === 'string')?.conversationUsername)
-            : null)
-          || 'unknown';
-        
+        const unreadCount = messages.filter((msg: any) => !msg.read && !msg.isAdmin).length;
         return {
-          username: conversationUsername,
+          username: usernameFromKey,
           lastMessage: lastMessage.message,
           lastMessageTime: lastMessage.timestamp,
           unreadCount,

@@ -43,6 +43,7 @@ export default function LiveChatAdmin() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -94,7 +95,11 @@ export default function LiveChatAdmin() {
       const data = await response.json();
       setChatSummaries(data);
       hasLoadedChatsRef.current = true;
+      setLoadError(null);
     } catch (error) {
+      if (!hasLoadedChatsRef.current) {
+        setLoadError('Failed to connect to chat server. Please refresh and try again.');
+      }
       handleAdminAuthError({
         errorValue: error,
         fallbackMessage: 'Failed to load chats',
@@ -103,9 +108,7 @@ export default function LiveChatAdmin() {
         suppressToast: true,
       });
     } finally {
-      if (!hasLoadedChatsRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   };
 
@@ -151,7 +154,9 @@ export default function LiveChatAdmin() {
 
       const payload = await response.json().catch(() => ({} as { updated?: number }));
       if (typeof payload.updated === 'number' && payload.updated > 0) {
-        await fetchChats();
+        setChatSummaries(prev =>
+          prev.map(chat => chat.username === username ? { ...chat, unreadCount: 0 } : chat)
+        );
       }
     } catch (error) {
       handleAdminAuthError({
@@ -226,6 +231,12 @@ export default function LiveChatAdmin() {
           {loading ? (
             <div className="flex justify-center items-center h-full">
               <Loader2 className="animate-spin text-blue-500" size={32} />
+            </div>
+          ) : loadError ? (
+            <div className="flex flex-col items-center justify-center h-full p-4 text-center">
+              <MessageSquare className="text-red-300 mb-3" size={48} />
+              <p className="text-red-500 text-sm font-medium">Failed to load chats</p>
+              <p className="text-gray-400 text-xs mt-1">{loadError}</p>
             </div>
           ) : filteredChats.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-4 text-center">
