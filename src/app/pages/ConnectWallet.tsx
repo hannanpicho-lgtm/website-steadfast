@@ -1,25 +1,12 @@
-import { ChevronLeft, Building2, Bitcoin, Check, Copy, CreditCard, Landmark } from 'lucide-react';
+import { ChevronLeft, Bitcoin } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { getCurrentUsername } from '../services/referralSystem';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { buildLoginRedirectState } from '../services/loginRedirect';
-
-type WalletType = 'banking' | 'crypto' | null;
-
-type BankingWalletProfile = {
-  type: 'banking';
-  accountName: string;
-  accountNumber: string;
-  bankName: string;
-  swiftCode: string;
-  routingNumber: string;
-  country: string;
-};
 
 type CryptoWalletProfile = {
   type: 'crypto';
@@ -28,28 +15,16 @@ type CryptoWalletProfile = {
   network: string;
 };
 
-type WalletProfile = BankingWalletProfile | CryptoWalletProfile;
+type WalletProfile = CryptoWalletProfile;
 
 export default function ConnectWallet() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [selectedType, setSelectedType] = useState<WalletType>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const username = getCurrentUsername();
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
-
-  // Banking form state
-  const [bankingForm, setBankingForm] = useState({
-    accountName: '',
-    accountNumber: '',
-    bankName: '',
-    swiftCode: '',
-    routingNumber: '',
-    country: '',
-  });
 
   // Crypto form state
   const [cryptoForm, setCryptoForm] = useState({
@@ -71,20 +46,6 @@ export default function ConnectWallet() {
     }
 
     const hydrateFromProfile = (profile: WalletProfile) => {
-      if (profile.type === 'banking') {
-        setSelectedType('banking');
-        setBankingForm({
-          accountName: profile.accountName,
-          accountNumber: profile.accountNumber,
-          bankName: profile.bankName,
-          swiftCode: profile.swiftCode,
-          routingNumber: profile.routingNumber,
-          country: profile.country,
-        });
-        return;
-      }
-
-      setSelectedType('crypto');
       setCryptoForm({
         walletType: profile.walletType,
         walletAddress: profile.walletAddress,
@@ -149,11 +110,6 @@ export default function ConnectWallet() {
     }
   };
 
-  const handleBankingSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await saveWalletProfile({ type: 'banking', ...bankingForm }, 'Banking account connected successfully!');
-  };
-
   const handleCryptoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!cryptoForm.walletAddress.trim()) {
@@ -185,209 +141,17 @@ export default function ConnectWallet() {
           <h1 className="text-2xl font-bold text-[#1a1f2e] flex-1 text-center mr-10">Connect Wallet</h1>
         </div>
 
-        {/* Wallet Type Selection */}
-        {!selectedType && (
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Banking Card */}
-            <button
-              onClick={() => setSelectedType('banking')}
-              className="group relative overflow-hidden bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 rounded-2xl p-8 text-left transition-all duration-300 hover:scale-105 hover:shadow-2xl"
-            >
-              {/* Background Pattern */}
-              <div className="absolute inset-0 opacity-10">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white rounded-full blur-3xl"></div>
-                <div className="absolute bottom-0 left-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
-              </div>
 
-              {/* Content */}
-              <div className="relative z-10">
-                <div className="bg-white/20 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <Landmark size={32} className="text-white" />
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-3">Banking Account</h2>
-                <p className="text-blue-100 mb-6">
-                  Connect your traditional bank account for deposits and withdrawals
-                </p>
-                <div className="flex items-center gap-2 text-white font-semibold">
-                  <span>Connect Banking</span>
-                  <svg className="w-5 h-5 group-hover:translate-x-2 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
-                </div>
-              </div>
-            </button>
 
-            {/* Crypto Card */}
-            <button
-              onClick={() => setSelectedType('crypto')}
-              className="group relative overflow-hidden bg-gradient-to-br from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 rounded-2xl p-8 text-left transition-all duration-300 hover:scale-105 hover:shadow-2xl"
-            >
-              {/* Background Pattern */}
-              <div className="absolute inset-0 opacity-10">
-                <div className="absolute top-0 left-0 w-32 h-32 bg-white rounded-full blur-3xl"></div>
-                <div className="absolute bottom-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
-              </div>
 
-              {/* Content */}
-              <div className="relative z-10">
-                <div className="bg-white/20 w-16 h-16 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                  <Bitcoin size={32} className="text-white" />
-                </div>
-                <h2 className="text-2xl font-bold text-white mb-3">Crypto Wallet</h2>
-                <p className="text-purple-100 mb-6">
-                  Connect your cryptocurrency wallet for secure digital transactions
-                </p>
-                <div className="flex items-center gap-2 text-white font-semibold">
-                  <span>Connect Crypto</span>
-                  <svg className="w-5 h-5 group-hover:translate-x-2 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
-                </div>
-              </div>
-            </button>
-          </div>
-        )}
-
-        {/* Banking Form */}
-        {selectedType === 'banking' && (
-          <div className="bg-white rounded-xl shadow-lg p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-[#1a1f2e] flex items-center gap-3">
-                <Landmark size={24} className="text-blue-600" />
-                Banking Account Details
-              </h2>
-              <button
-                onClick={() => setSelectedType(null)}
-                className="text-sm text-gray-600 hover:text-gray-800"
-              >
-                ← Back
-              </button>
-            </div>
-
-            <form onSubmit={handleBankingSubmit} className="space-y-6">
-              {/* Account Name */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Account Holder Name *
-                </label>
-                <input
-                  type="text"
-                  value={bankingForm.accountName}
-                  onChange={(e) => setBankingForm({ ...bankingForm, accountName: e.target.value })}
-                  placeholder="John Doe"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              {/* Account Number */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Account Number *
-                </label>
-                <input
-                  type="text"
-                  value={bankingForm.accountNumber}
-                  onChange={(e) => setBankingForm({ ...bankingForm, accountNumber: e.target.value })}
-                  placeholder="1234567890"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              {/* Bank Name */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Bank Name *
-                </label>
-                <input
-                  type="text"
-                  value={bankingForm.bankName}
-                  onChange={(e) => setBankingForm({ ...bankingForm, bankName: e.target.value })}
-                  placeholder="Chase Bank"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                />
-              </div>
-
-              {/* Row: SWIFT & Routing */}
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    SWIFT/BIC Code
-                  </label>
-                  <input
-                    type="text"
-                    value={bankingForm.swiftCode}
-                    onChange={(e) => setBankingForm({ ...bankingForm, swiftCode: e.target.value })}
-                    placeholder="CHASUS33"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Routing Number
-                  </label>
-                  <input
-                    type="text"
-                    value={bankingForm.routingNumber}
-                    onChange={(e) => setBankingForm({ ...bankingForm, routingNumber: e.target.value })}
-                    placeholder="021000021"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Country */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Country *
-                </label>
-                <select
-                  value={bankingForm.country}
-                  onChange={(e) => setBankingForm({ ...bankingForm, country: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  required
-                >
-                  <option value="">Select Country</option>
-                  <option value="US">United States</option>
-                  <option value="UK">United Kingdom</option>
-                  <option value="CA">Canada</option>
-                  <option value="AU">Australia</option>
-                  <option value="DE">Germany</option>
-                  <option value="FR">France</option>
-                  <option value="JP">Japan</option>
-                  <option value="SG">Singapore</option>
-                </select>
-              </div>
-
-              {/* Submit Button */}
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-4 rounded-lg transition-all duration-300 hover:shadow-lg flex items-center justify-center gap-2"
-              >
-                <CreditCard size={20} />
-                {submitting ? 'Saving...' : 'Connect Banking Account'}
-              </button>
-            </form>
-          </div>
-        )}
 
         {/* Crypto Form */}
-        {selectedType === 'crypto' && (
-          <div className="bg-white rounded-xl shadow-lg p-8">
+        <div className="bg-white rounded-xl shadow-lg p-8">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-[#1a1f2e] flex items-center gap-3">
                 <Bitcoin size={24} className="text-purple-600" />
-                Crypto Wallet Details
+                Connect Crypto Wallet
               </h2>
-              <button
-                onClick={() => setSelectedType(null)}
-                className="text-sm text-gray-600 hover:text-gray-800"
-              >
-                ← Back
-              </button>
             </div>
 
             <form onSubmit={handleCryptoSubmit} className="space-y-6">
@@ -405,11 +169,6 @@ export default function ConnectWallet() {
                   <option value="bitcoin">Bitcoin (BTC)</option>
                   <option value="ethereum">Ethereum (ETH)</option>
                   <option value="usdt">Tether (USDT)</option>
-                  <option value="usdc">USD Coin (USDC)</option>
-                  <option value="bnb">Binance Coin (BNB)</option>
-                  <option value="cardano">Cardano (ADA)</option>
-                  <option value="solana">Solana (SOL)</option>
-                  <option value="ripple">Ripple (XRP)</option>
                 </select>
               </div>
 
@@ -477,75 +236,8 @@ export default function ConnectWallet() {
                 {submitting ? 'Saving...' : 'Connect Crypto Wallet'}
               </button>
             </form>
-          </div>
-        )}
-
-        {/* Info Cards */}
-        {!selectedType && (
-          <div className="mt-8 grid md:grid-cols-2 gap-6">
-            {/* Why Connect */}
-            <div className="bg-gradient-to-br from-[#1a1f2e] to-[#252b3d] rounded-xl p-6 text-white">
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <div className="w-8 h-8 bg-[#00D9FF] rounded-full flex items-center justify-center">
-                  <Check size={16} className="text-[#1a1f2e]" />
-                </div>
-                Why Connect a Wallet?
-              </h3>
-              <ul className="space-y-3 text-sm text-gray-300">
-                <li className="flex items-start gap-2">
-                  <span className="text-[#00D9FF] mt-1">•</span>
-                  <span>Receive commission payments instantly</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#00D9FF] mt-1">•</span>
-                  <span>Withdraw earnings anytime</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#00D9FF] mt-1">•</span>
-                  <span>Make deposits for VIP level upgrades</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#00D9FF] mt-1">•</span>
-                  <span>Secure and encrypted transactions</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* Security */}
-            <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl p-6 text-white">
-              <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                  <svg className="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                Secure & Private
-              </h3>
-              <ul className="space-y-3 text-sm text-emerald-50">
-                <li className="flex items-start gap-2">
-                  <span className="text-white mt-1">•</span>
-                  <span>256-bit SSL encryption</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-white mt-1">•</span>
-                  <span>Your data is never shared</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-white mt-1">•</span>
-                  <span>PCI DSS compliant</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-white mt-1">•</span>
-                  <span>Two-factor authentication available</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-        )}
+        </div>
       </div>
-
-      {/* Live Chat */}
-      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
       {/* Bottom Navigation */}
       <BottomNavigation />
