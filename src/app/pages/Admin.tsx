@@ -408,6 +408,17 @@ export default function Admin() {
     }
 
     const message = result.message ?? 'Unable to save backup data to browser storage.';
+    const normalized = message.trim().toLowerCase();
+    const isSuperAdminScopeMessage = normalized.includes('super-admin access required')
+      || normalized.includes('forbidden');
+
+    // Limited admins should not see global toast noise from super-admin-only salary sync endpoints.
+    if (!isSuperAdmin && isSuperAdminScopeMessage) {
+      setStorageWarning(null);
+      lastStorageErrorRef.current = null;
+      return;
+    }
+
     setStorageWarning(message);
     if (lastStorageErrorRef.current !== message) {
       toast.error(message);
@@ -1341,7 +1352,9 @@ export default function Admin() {
     } catch (error) {
       setTransactions([]);
       setWithdrawalRequests([]);
-      handleAdminRequestError(error, 'Failed to load finance data');
+      handleAdminRequestError(error, 'Failed to load finance data', {
+        suppressToast: isPermissionDeniedError(error),
+      });
     } finally {
       setFinanceLoaded(true);
       setFinanceLoading(false);
@@ -1382,8 +1395,14 @@ export default function Admin() {
       return;
     }
 
+    if (!isSuperAdmin) {
+      setRewardsConfig(defaultRewardsConfig);
+      setRewardsConfigLoading(false);
+      return;
+    }
+
     void loadRewardsConfigurations();
-  }, [activeMenu]);
+  }, [activeMenu, isSuperAdmin]);
 
   const handleCreateAdminUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1814,6 +1833,10 @@ export default function Admin() {
     lastAutoBackupSignatureRef.current = JSON.stringify(initialSalaryPayments);
     setIsSalaryStateHydrated(true);
 
+    if (!isSuperAdmin) {
+      return;
+    }
+
     void (async () => {
       try {
         const headers = await buildAdminAuthHeaders();
@@ -1846,14 +1869,14 @@ export default function Admin() {
         });
       }
     })();
-  }, []);
+  }, [isSuperAdmin]);
 
   useEffect(() => {
     salaryPaymentsRef.current = salaryPayments;
   }, [salaryPayments]);
 
   useEffect(() => {
-    if (!isSalaryStateHydrated) {
+    if (!isSalaryStateHydrated || !isSuperAdmin) {
       return;
     }
 
@@ -1885,6 +1908,7 @@ export default function Admin() {
     setAutoSavedAt(new Date().toISOString());
   }, [
     isSalaryStateHydrated,
+    isSuperAdmin,
     activeRewardTab,
     selectedBulkOption,
     autoBackupEnabled,
@@ -1904,7 +1928,7 @@ export default function Admin() {
   }, [activeMenu, searchTerm, filterStatus]);
 
   useEffect(() => {
-    if (!isSalaryStateHydrated) {
+    if (!isSalaryStateHydrated || !isSuperAdmin) {
       return;
     }
 
@@ -1924,7 +1948,7 @@ export default function Admin() {
         });
       }
     })();
-  }, [isSalaryStateHydrated, salaryAuditLog]);
+  }, [isSalaryStateHydrated, isSuperAdmin, salaryAuditLog]);
 
   const appendSalaryAudit = (event: SalaryAuditEvent) => {
     setSalaryAuditLog((prev) => [event, ...prev].slice(0, MAX_AUDIT_EVENTS));

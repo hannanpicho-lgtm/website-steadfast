@@ -5673,13 +5673,18 @@ app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
     }
 
     const body = await c.req.json();
-    const merchant = sanitizeTaskText(body?.merchant, existingTask.merchant);
+    const productUrl = sanitizeTaskUrl(body?.productUrl) || existingTask.productUrl;
+    const image = inferTaskImageUrl(body?.image, productUrl || existingTask.image);
+    const merchant = sanitizeTaskText(
+      body?.merchant,
+      existingTask.merchant || inferMerchantFromTaskUrls(productUrl, image) || 'General',
+    );
     const product = sanitizeTaskText(body?.product, existingTask.product);
     const price = Number.isFinite(Number(body?.price)) ? roundMoney(Number(body.price)) : existingTask.price;
     const commission = Number.isFinite(Number(body?.commission)) ? Number(body.commission) : existingTask.commission;
 
-    if (!merchant || !product) {
-      return c.json({ error: 'merchant and product are required' }, 400);
+    if (!product) {
+      return c.json({ error: 'product is required' }, 400);
     }
     if (!Number.isFinite(price) || price <= 0) {
       return c.json({ error: 'price must be greater than 0' }, 400);
@@ -5695,9 +5700,9 @@ app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
       price,
       commission,
       status: body?.status ?? existingTask.status,
-      image: body?.image ?? existingTask.image,
+      image,
       rating: Number.isFinite(Number(body?.rating)) ? Number(body.rating) : existingTask.rating,
-      productUrl: body?.productUrl ?? existingTask.productUrl,
+      productUrl,
       updatedAt: new Date().toISOString(),
     });
 
