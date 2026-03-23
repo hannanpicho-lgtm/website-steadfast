@@ -3742,6 +3742,21 @@ async function submitTaskForUser(c: any, username: string, body: any) {
   }
 
   const normalizedUserData = await syncUserWithVipConfig(userData, username);
+  const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
+  const requiredFunds = roundMoney(Number(vipConfig.investment ?? 0));
+  const availableFunds = roundMoney(Number(normalizedUserData.balance ?? 0) - Number(normalizedUserData.holdAmount ?? 0));
+
+  if (availableFunds < requiredFunds) {
+    return c.json({
+      error: `Insufficient funds for VIP${normalizedUserData.vipLevel}. Minimum required: $${requiredFunds.toFixed(2)}.`,
+      code: 'insufficient_vip_funding',
+      requiredFunds,
+      availableFunds,
+      vipLevel: Number(normalizedUserData.vipLevel ?? 1),
+      user: normalizedUserData,
+      taskProgress: buildUserTaskProgress(normalizedUserData),
+    }, 409);
+  }
 
   // Do not block regular task submissions by set-reset or funding gates.
   normalizedUserData.pendingTaskReset = false;
@@ -3800,7 +3815,6 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     }, 409);
   }
 
-  const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
   const commissionRate = vipConfig.commission;
   const commission = roundMoney(productPrice * commissionRate);
 
@@ -7531,7 +7545,6 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
     }
 
     normalizedUser.balance = roundMoney(normalizedUser.balance + (mode === 'credit' ? amount : -amount));
-    await kv.set(userKey, normalizedUser);
 
     const adjustmentReferenceId = createFinanceId('adj');
     const transaction = await createTransactionRecord({
@@ -7545,19 +7558,26 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
       referenceId: adjustmentReferenceId,
     });
 
+    const rewardSyncResult = mode === 'credit'
+      ? await applyAutomaticRewardsForUser(canonicalUsername, normalizedUser)
+      : { normalizedUser, rewardsApplied: [] as Array<{ category: 'workday' | 'reset' | 'accumulated'; amount: number; reference: string }> };
+    const finalUser = rewardSyncResult.normalizedUser;
+    await kv.set(userKey, finalUser);
+
     const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
       ? callingAdmin.email
       : String(callingAdmin?.id ?? 'unknown');
     await recordObservabilityAuditEvent(
       'admin-user-balance-adjustment',
       actorEmail,
-      `${mode === 'credit' ? 'Credited' : 'Debited'} $${amount.toFixed(2)} for user '${canonicalUsername}' (new balance: $${normalizedUser.balance.toFixed(2)}; reason: ${reason})`,
+      `${mode === 'credit' ? 'Credited' : 'Debited'} $${amount.toFixed(2)} for user '${canonicalUsername}' (new balance: $${finalUser.balance.toFixed(2)}; reason: ${reason})`,
     ).catch((e) => console.error('Failed to record admin-user-balance-adjustment audit event:', e));
 
     return c.json({
       success: true,
-      user: normalizedUser,
+      user: finalUser,
       transaction,
+      rewardsApplied: rewardSyncResult.rewardsApplied,
     });
   } catch (err) {
     console.error('admin/platform-users/balance-adjustment error:', err);

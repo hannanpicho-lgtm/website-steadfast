@@ -16,6 +16,7 @@ interface UserData {
   username: string;
   vipLevel: number;
   balance: number;
+  availableAmount?: number;
   todayCommission: number;
   holdAmount: number;
   luckyBonus: number;
@@ -107,6 +108,11 @@ export default function Starting() {
   const premiumTriggerTaskNumber = Number(taskRuleConfig?.premiumTriggerTaskNumber ?? rewardsConfig.productSystem.premiumTriggerTaskNumber ?? 10);
   const premiumTopUpRequired = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
   const premiumSubmissionBlocked = Boolean(userData?.activePremium) && premiumTopUpRequired > 0;
+  const requiredFundsForVip = userData
+    ? Number(vipConfigurations.find((tier) => tier.level === userData.vipLevel)?.investment ?? 100)
+    : 100;
+  const availableFundsForSubmit = roundMoney(Number(userData?.availableAmount ?? ((userData?.balance ?? 0) - (userData?.holdAmount ?? 0))));
+  const vipFundingBlocked = Boolean(userData) && availableFundsForSubmit < requiredFundsForVip;
   const taskSetResetRequired = Boolean(userData?.pendingTaskReset);
   const nextSubmissionNumber = Number(userData?.tasksCompleted ?? 0) + 1;
   const premiumTriggerIncoming = !premiumSubmissionBlocked
@@ -173,6 +179,11 @@ export default function Starting() {
   const handleSubmitTask = async () => {
     if (!userData || !currentProduct || submitting) return;
 
+    if (vipFundingBlocked) {
+      toast.error(`VIP${userData.vipLevel} requires at least $${requiredFundsForVip.toFixed(2)} available before submitting tasks.`);
+      return;
+    }
+
     if (premiumSubmissionBlocked) {
       toast.error(`Premium task requirement pending: -$${premiumTopUpRequired.toFixed(2)} must be topped up before submitting.`);
       return;
@@ -206,7 +217,13 @@ export default function Starting() {
 
       if (!response.ok) {
         const errorPayload = await response.json().catch(() => ({}));
-        if (response.status === 409 && (errorPayload?.code === 'premium_task_encountered' || errorPayload?.code === 'task_set_reset_required') && errorPayload?.user) {
+        if (
+          response.status === 409
+          && (errorPayload?.code === 'premium_task_encountered'
+            || errorPayload?.code === 'task_set_reset_required'
+            || errorPayload?.code === 'insufficient_vip_funding')
+          && errorPayload?.user
+        ) {
           setUserData(errorPayload.user);
         }
         if (response.status === 401) {
@@ -575,6 +592,14 @@ export default function Starting() {
           </div>
         ) : (
           <>
+            {vipFundingBlocked && (
+              <div className="bg-amber-500/20 border border-amber-400/60 rounded-lg p-4 mb-4">
+                <p className="text-amber-300 text-sm font-semibold text-center">Minimum balance required to start</p>
+                <p className="text-amber-200 text-xs text-center mt-1">VIP{userData?.vipLevel ?? 1} minimum available amount:</p>
+                <p className="text-amber-300 text-3xl font-extrabold text-center mt-1">${requiredFundsForVip.toFixed(2)}</p>
+                <p className="text-amber-100 text-xs text-center mt-2">Current available: ${availableFundsForSubmit.toFixed(2)}. Ask admin to top up or adjust your balance.</p>
+              </div>
+            )}
             {premiumSubmissionBlocked && (
               <div className="bg-red-500/20 border border-red-400/60 rounded-lg p-4 mb-4">
                 <p className="text-red-300 text-sm font-semibold text-center">Premium requirement</p>
@@ -586,7 +611,7 @@ export default function Starting() {
             <button
               className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
               onClick={handleSubmitTask}
-              disabled={submitting || !currentProduct || premiumSubmissionBlocked || taskSetResetRequired}
+              disabled={submitting || !currentProduct || premiumSubmissionBlocked || vipFundingBlocked || taskSetResetRequired}
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
@@ -595,6 +620,8 @@ export default function Starting() {
                 </span>
               ) : taskSetResetRequired ? (
                 'Waiting For Admin Reset'
+              ) : vipFundingBlocked ? (
+                'Top-up Required Before Start'
               ) : premiumSubmissionBlocked ? (
                 'Top-up Required Before Submit'
               ) : (
