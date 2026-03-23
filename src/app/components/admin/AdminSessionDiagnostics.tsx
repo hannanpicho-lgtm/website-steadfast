@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import { supabase } from '../../services/supabaseAuth';
 
 const AUTO_HIDE_DELAY_MS = 10_000;
@@ -132,14 +132,24 @@ export default function AdminSessionDiagnostics() {
           <ShieldCheck className="text-[#00D9FF]" size={16} />
           <p className="text-white text-sm font-semibold">Admin Session Diagnostics</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void refreshDiagnostics()}
-          className="p-1 rounded text-gray-400 hover:text-white hover:bg-[#1a1f2e] transition-colors"
-          title="Refresh diagnostics"
-        >
-          <RefreshCw className={diagnostics.status === 'loading' ? 'animate-spin' : ''} size={14} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => void refreshDiagnostics()}
+            className="p-1 rounded text-gray-400 hover:text-white hover:bg-[#1a1f2e] transition-colors"
+            title="Refresh diagnostics"
+          >
+            <RefreshCw className={diagnostics.status === 'loading' ? 'animate-spin' : ''} size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsVisible(false)}
+            className="p-1 rounded text-gray-400 hover:text-white hover:bg-[#1a1f2e] transition-colors"
+            title="Close diagnostics"
+          >
+            <X size={14} />
+          </button>
+        </div>
       </div>
 
       <div className="mt-3 space-y-1 text-xs">
