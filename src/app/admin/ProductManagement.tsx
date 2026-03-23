@@ -1,6 +1,14 @@
 import React from 'react';
 import { Upload, Search, Download, Eye, Edit, Trash2, Package, Tag, Sparkles } from 'lucide-react';
 
+function normalizeText(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function normalizeNumber(value: unknown, fallback = 0): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
 interface ProductManagementProps {
   products: any[];
   searchTerm: string;
@@ -28,18 +36,25 @@ export default function ProductManagement({
   setModalType,
   handleExport,
 }: ProductManagementProps) {
+  const normalizedSearchTerm = searchTerm.toLowerCase();
   const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.category.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.merchant.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.sku.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterStatus === 'all' || product.status.toLowerCase() === filterStatus;
+    const productName = normalizeText(product?.name, 'Unnamed product');
+    const productCategory = normalizeText(product?.category, 'Uncategorized');
+    const productMerchant = normalizeText(product?.merchant, 'Unknown merchant');
+    const productSku = normalizeText(product?.sku, 'N/A');
+    const productStatus = normalizeText(product?.status, 'Inactive');
+
+    const matchesSearch = productName.toLowerCase().includes(normalizedSearchTerm) ||
+                         productCategory.toLowerCase().includes(normalizedSearchTerm) ||
+                         productMerchant.toLowerCase().includes(normalizedSearchTerm) ||
+                         productSku.toLowerCase().includes(normalizedSearchTerm);
+    const matchesFilter = filterStatus === 'all' || productStatus.toLowerCase() === filterStatus;
     return matchesSearch && matchesFilter;
   });
   const totalProducts = products.length;
-  const activeProducts = products.filter((product) => product.status === 'Active').length;
-  const aiGeneratedProducts = products.filter((product) => product.source === 'AI Generated').length;
-  const manualProducts = products.filter((product) => product.source === 'Manual').length;
+  const activeProducts = products.filter((product) => normalizeText(product?.status) === 'Active').length;
+  const aiGeneratedProducts = products.filter((product) => normalizeText(product?.source) === 'AI Generated').length;
+  const manualProducts = products.filter((product) => normalizeText(product?.source) === 'Manual').length;
   const aiGeneratedPercent = totalProducts > 0 ? ((aiGeneratedProducts / totalProducts) * 100).toFixed(0) : '0';
   const manualPercent = totalProducts > 0 ? ((manualProducts / totalProducts) * 100).toFixed(0) : '0';
   const totalProductPages = Math.max(1, Math.ceil(filteredProducts.length / productsPerPage));
@@ -82,7 +97,7 @@ export default function ProductManagement({
             <Tag className="text-green-400" size={18} />
             <p className="text-gray-400 text-xs">Total Value</p>
           </div>
-          <p className="text-2xl font-bold text-white">${products.reduce((sum, p) => sum + (p.price * p.stock), 0).toLocaleString()}</p>
+          <p className="text-2xl font-bold text-white">${products.reduce((sum, product) => sum + (normalizeNumber(product?.price) * normalizeNumber(product?.stock)), 0).toLocaleString()}</p>
           <p className="text-gray-400 text-xs mt-1">Inventory value</p>
         </div>
         <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
@@ -135,21 +150,21 @@ export default function ProductManagement({
         {paginatedProducts.map((product) => (
           <div key={product.id} className="bg-[#252b3d] rounded-lg overflow-hidden hover:ring-2 hover:ring-[#00D9FF] transition-all group">
             <div className="relative">
-              <img src={product.imageUrl} alt={product.name} className="w-full h-48 object-cover" />
+              <img src={normalizeText(product?.imageUrl, 'https://via.placeholder.com/400x300?text=Product')} alt={normalizeText(product?.name, 'Unnamed product')} className="w-full h-48 object-cover" />
               <div className="absolute top-2 right-2 flex gap-2">
-                {product.source === 'AI Generated' && (
+                {normalizeText(product?.source) === 'AI Generated' && (
                   <span className="px-2 py-1 bg-purple-500/90 backdrop-blur-sm text-white rounded text-xs font-semibold flex items-center gap-1">
                     <Sparkles size={12} />
                     AI
                   </span>
                 )}
                 <span className={`px-2 py-1 backdrop-blur-sm text-white rounded text-xs font-semibold ${
-                  product.status === 'Active' ? 'bg-green-500/90' : 'bg-gray-500/90'
+                  normalizeText(product?.status, 'Inactive') === 'Active' ? 'bg-green-500/90' : 'bg-gray-500/90'
                 }`}>
-                  {product.status}
+                  {normalizeText(product?.status, 'Inactive')}
                 </span>
               </div>
-              {product.stock === 0 && (
+              {normalizeNumber(product?.stock) === 0 && (
                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
                   <span className="text-red-400 font-bold text-lg">OUT OF STOCK</span>
                 </div>
@@ -157,25 +172,25 @@ export default function ProductManagement({
             </div>
             <div className="p-4">
               <div className="mb-3">
-                <h3 className="text-white font-semibold text-sm mb-1 line-clamp-2">{product.name}</h3>
-                <p className="text-gray-400 text-xs line-clamp-2">{product.description}</p>
+                <h3 className="text-white font-semibold text-sm mb-1 line-clamp-2">{normalizeText(product?.name, 'Unnamed product')}</h3>
+                <p className="text-gray-400 text-xs line-clamp-2">{normalizeText(product?.description, 'No description available')}</p>
               </div>
               <div className="flex items-center justify-between text-xs mb-3">
-                <span className="text-gray-400">{product.category}</span>
-                <span className="text-gray-500">SKU: {product.sku}</span>
+                <span className="text-gray-400">{normalizeText(product?.category, 'Uncategorized')}</span>
+                <span className="text-gray-500">SKU: {normalizeText(product?.sku, 'N/A')}</span>
               </div>
               <div className="flex items-center gap-2 mb-3 text-xs">
-                <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded">{product.merchant}</span>
-                <span className="px-2 py-1 bg-gray-700 text-gray-300 rounded">{product.stock} in stock</span>
+                <span className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded">{normalizeText(product?.merchant, 'Unknown merchant')}</span>
+                <span className="px-2 py-1 bg-gray-700 text-gray-300 rounded">{normalizeNumber(product?.stock)} in stock</span>
               </div>
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <p className="text-gray-400 text-xs">Price</p>
-                  <p className="text-[#00D9FF] font-bold text-lg">${product.price}</p>
+                  <p className="text-[#00D9FF] font-bold text-lg">${normalizeNumber(product?.price).toFixed(2)}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-gray-400 text-xs">Commission</p>
-                  <p className="text-green-400 font-bold text-lg">{(product.commission * 100).toFixed(1)}%</p>
+                  <p className="text-green-400 font-bold text-lg">{(normalizeNumber(product?.commission) * 100).toFixed(1)}%</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
