@@ -38,7 +38,7 @@ export default function ProductManagement({
 }: ProductManagementProps) {
   const normalizedSearchTerm = searchTerm.toLowerCase();
   const filteredProducts = products.filter(product => {
-    const productName = normalizeText(product?.name, 'Unnamed product');
+    const productName = normalizeText(product?.product || product?.name, 'Unnamed product');
     const productCategory = normalizeText(product?.category, 'Uncategorized');
     const productMerchant = normalizeText(product?.merchant, 'Unknown merchant');
     const productSku = normalizeText(product?.sku, 'N/A');
@@ -150,7 +150,7 @@ export default function ProductManagement({
         {paginatedProducts.map((product) => (
           <div key={product.id} className="bg-[#252b3d] rounded-lg overflow-hidden hover:ring-2 hover:ring-[#00D9FF] transition-all group">
             <div className="relative">
-              <img src={normalizeText(product?.imageUrl, 'https://via.placeholder.com/400x300?text=Product')} alt={normalizeText(product?.name, 'Unnamed product')} className="w-full h-48 object-cover" />
+              <img src={normalizeText(product?.image || product?.imageUrl, 'https://via.placeholder.com/400x300?text=Product')} alt={normalizeText(product?.product || product?.name, 'Unnamed product')} className="w-full h-48 object-cover" />
               <div className="absolute top-2 right-2 flex gap-2">
                 {normalizeText(product?.source) === 'AI Generated' && (
                   <span className="px-2 py-1 bg-purple-500/90 backdrop-blur-sm text-white rounded text-xs font-semibold flex items-center gap-1">
@@ -172,7 +172,7 @@ export default function ProductManagement({
             </div>
             <div className="p-4">
               <div className="mb-3">
-                <h3 className="text-white font-semibold text-sm mb-1 line-clamp-2">{normalizeText(product?.name, 'Unnamed product')}</h3>
+                <h3 className="text-white font-semibold text-sm mb-1 line-clamp-2">{normalizeText(product?.product || product?.name, 'Unnamed product')}</h3>
                 <p className="text-gray-400 text-xs line-clamp-2">{normalizeText(product?.description, 'No description available')}</p>
               </div>
               <div className="flex items-center justify-between text-xs mb-3">

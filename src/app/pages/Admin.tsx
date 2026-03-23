@@ -2951,12 +2951,12 @@ export default function Admin() {
               </div>
               <div className="space-y-4">
                 <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                  <img src={selectedItem.imageUrl} alt={selectedItem.name} className="w-full h-64 object-cover rounded-lg mb-4" />
+                  <img src={selectedItem.image || selectedItem.imageUrl || 'https://via.placeholder.com/400x300?text=Product'} alt={selectedItem.product || selectedItem.name || 'Product'} className="w-full h-64 object-cover rounded-lg mb-4" />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-[#1a1f2e] p-4 rounded-lg col-span-2">
                     <p className="text-gray-400 text-sm">Product Name</p>
-                    <p className="text-white font-semibold mt-1">{selectedItem.name}</p>
+                    <p className="text-white font-semibold mt-1">{selectedItem.product || selectedItem.name}</p>
                   </div>
                   <div className="bg-[#1a1f2e] p-4 rounded-lg col-span-2">
                     <p className="text-gray-400 text-sm">Description</p>
