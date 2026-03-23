@@ -1605,9 +1605,10 @@ export default function Admin() {
       return;
     }
 
-    const productId = selectedItem.id;
+    const productId = String(selectedItem.id).trim();
+    const loadingToastId = 'admin-delete-product';
     try {
-      toast.loading('Deleting product...');
+      toast.loading('Deleting product...', { id: loadingToastId });
       const headers = await buildAdminAuthHeaders();
       const response = await fetch(`${serverUrl}/admin/tasks/${productId}`, {
         method: 'DELETE',
@@ -1621,9 +1622,10 @@ export default function Admin() {
       setTaskConfigurations((current) => current.filter((task) => task.id !== productId));
       setModalType(null);
       setSelectedItem(null);
-      toast.success('Product deleted successfully.');
+      toast.success('Product deleted successfully.', { id: loadingToastId });
     } catch (error) {
       console.error('[DEBUG] Error deleting product:', error);
+      toast.dismiss(loadingToastId);
       handleAdminRequestError(error, 'Failed to delete product');
     }
   };
@@ -1649,10 +1651,13 @@ export default function Admin() {
       return;
     }
 
+    const productId = String(selectedItem.id).trim();
+    const loadingToastId = 'admin-update-product';
+
     try {
-      toast.loading('Updating product...');
+      toast.loading('Updating product...', { id: loadingToastId });
       const headers = await buildAdminAuthHeaders();
-      const response = await fetch(`${serverUrl}/admin/tasks/${selectedItem.id}`, {
+      const response = await fetch(`${serverUrl}/admin/tasks/${productId}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({
@@ -1667,13 +1672,14 @@ export default function Admin() {
       }
 
       setTaskConfigurations((current) => 
-        current.map((task) => task.id === selectedItem.id ? payload.task : task)
+        current.map((task) => task.id === productId ? payload.task : task)
       );
       setModalType(null);
       setSelectedItem(null);
-      toast.success('Product updated successfully.');
+      toast.success('Product updated successfully.', { id: loadingToastId });
     } catch (error) {
       console.error('[DEBUG] Error updating product:', error);
+      toast.dismiss(loadingToastId);
       handleAdminRequestError(error, 'Failed to update product');
     }
   };
@@ -3142,7 +3148,7 @@ export default function Admin() {
               <div className="text-center py-6">
                 <XCircle className="mx-auto text-red-400 mb-4" size={64} />
                 <p className="text-white text-lg mb-2">Are you sure you want to delete this product?</p>
-                <p className="text-gray-400 mb-4">Product: <span className="text-white font-semibold">{selectedItem.name}</span></p>
+                <p className="text-gray-400 mb-4">Product: <span className="text-white font-semibold">{selectedItem.product || selectedItem.name || 'Unknown product'}</span></p>
                 <p className="text-red-400 text-sm">This action cannot be undone!</p>
               </div>
               <div className="flex gap-3">
