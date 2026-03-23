@@ -1004,7 +1004,7 @@ export default function Admin() {
     setTaskDraft(null);
   };
 
-  const loadTaskConfigurations = async () => {
+  const loadTaskConfigurations = async (options?: { suppressToast?: boolean }) => {
     setTasksLoading(true);
     try {
       const headers = await buildAdminAuthHeaders(false);
@@ -1018,7 +1018,7 @@ export default function Admin() {
     } catch (error) {
       setTaskConfigurations([]);
       handleAdminRequestError(error, 'Failed to load tasks', {
-        suppressToast: isPermissionDeniedError(error),
+        suppressToast: options?.suppressToast ?? isPermissionDeniedError(error),
       });
     } finally {
       setTasksLoading(false);
@@ -1471,18 +1471,17 @@ export default function Admin() {
 
     const formData = new FormData(event.currentTarget);
     const product = String(formData.get('product') ?? '').trim();
-    const productUrl = String(formData.get('productUrl') ?? '').trim();
     const imageUrl = String(formData.get('image') ?? '').trim();
     const status = String(formData.get('status') ?? 'Active').trim();
 
-    console.log('[DEBUG] Form submission:', { product, productUrl, imageUrl, status });
+    console.log('[DEBUG] Form submission:', { product, imageUrl, status });
 
     if (!product) {
       toast.error('Product name is required.');
       return;
     }
-    if (!productUrl && !imageUrl) {
-      toast.error('Provide a product URL or image URL.');
+    if (!imageUrl) {
+      toast.error('Image URL is required.');
       return;
     }
 
@@ -1494,7 +1493,6 @@ export default function Admin() {
         headers,
         body: JSON.stringify({
           product,
-          productUrl,
           image: imageUrl,
           status,
         }),
@@ -1505,9 +1503,23 @@ export default function Admin() {
       }
 
       console.log('[DEBUG] Product created successfully:', payload);
-      await loadTaskConfigurations();
       toast.success('Product created successfully!');
       setModalType(null);
+      setTaskConfigurations((current) => {
+        const createdTask = payload?.task;
+        if (!createdTask || typeof createdTask !== 'object' || typeof createdTask.id !== 'string') {
+          return current;
+        }
+
+        const nextTask = {
+          assignedUsers: 0,
+          completedToday: 0,
+          ...createdTask,
+        } as TaskConfig;
+
+        return [nextTask, ...current.filter((task) => task.id !== nextTask.id)];
+      });
+      void loadTaskConfigurations({ suppressToast: true });
     } catch (error) {
       console.error('[DEBUG] Error creating task:', error);
       handleAdminRequestError(error, 'Failed to create product');
@@ -2819,15 +2831,11 @@ export default function Admin() {
                     <input type="text" name="product" required className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product name" />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Product URL</label>
-                    <input type="url" name="productUrl" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://product-page.example/..." />
-                  </div>
-                  <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-300 mb-2">Image URL</label>
-                    <input type="url" name="image" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://image.example/product.jpg" />
+                    <input type="url" name="image" required className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://image.example/product.jpg" />
                   </div>
                   <div className="col-span-2 rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs text-cyan-200">
-                    Merchant, product value, and catalog commission are auto-filled by the system. User profit still follows the VIP commission percentages configured on the platform.
+                    Merchant, product value, and catalog commission are auto-filled by the system from the product image. User profit still follows the VIP commission percentages configured on the platform.
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
