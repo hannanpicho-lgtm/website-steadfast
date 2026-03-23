@@ -296,7 +296,7 @@ export default function Records() {
             </div>
           ) : (
             filteredProducts.map((product, index) => {
-              const isCompleted = 'commission' in product;
+              const isCompleted = 'timestamp' in product;
               const isPending = 'estimatedCommission' in product;
               
               return (

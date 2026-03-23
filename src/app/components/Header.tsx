@@ -1,4 +1,4 @@
-import { ExternalLink, UserCircle, LogOut } from 'lucide-react';
+import { ExternalLink, UserCircle } from 'lucide-react';
 import { Link } from 'react-router';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { getCurrentUsername } from '../services/referralSystem';
@@ -64,36 +64,19 @@ export function Header({ onContactClick }: HeaderProps) {
             <ExternalLink size={14} className="group-hover:rotate-12 transition-transform" />
           </a>
 
-          {/* Profile & Logout Icons Container */}
-          <div className="flex flex-col items-center gap-1">
-            {/* Profile Icon */}
-            <Link 
-              to="/profile"
-              className="relative group/profile"
-            >
-              {/* Glow ring */}
-              <div className="absolute inset-0 bg-[#5dade2] rounded-full blur-md opacity-0 group-hover/profile:opacity-50 transition-opacity duration-300"></div>
-              
-              {/* Icon with border */}
-              <div className="relative z-10 p-1 rounded-full border-2 border-transparent group-hover/profile:border-[#5dade2] transition-all duration-300">
-                <UserCircle size={32} className="text-white group-hover/profile:text-[#5dade2] transition-colors" />
-              </div>
-            </Link>
-
-            {/* Logout Icon - Slightly Below */}
-            <Link 
-              to="/logout"
-              className="relative group/logout"
-            >
-              {/* Glow ring */}
-              <div className="absolute inset-0 bg-red-500 rounded-full blur-md opacity-0 group-hover/logout:opacity-50 transition-opacity duration-300"></div>
-              
-              {/* Icon with border */}
-              <div className="relative z-10 p-1 rounded-full border-2 border-transparent group-hover/logout:border-red-500 transition-all duration-300">
-                <LogOut size={28} className="text-red-500 group-hover/logout:text-red-400 transition-colors" />
-              </div>
-            </Link>
-          </div>
+          {/* Profile Icon */}
+          <Link 
+            to="/profile"
+            className="relative group/profile"
+          >
+            {/* Glow ring */}
+            <div className="absolute inset-0 bg-[#5dade2] rounded-full blur-md opacity-0 group-hover/profile:opacity-50 transition-opacity duration-300"></div>
+            
+            {/* Icon with border */}
+            <div className="relative z-10 p-1 rounded-full border-2 border-transparent group-hover/profile:border-[#5dade2] transition-all duration-300">
+              <UserCircle size={32} className="text-white group-hover/profile:text-[#5dade2] transition-colors" />
+            </div>
+          </Link>
         </div>
       </div>
     </header>
