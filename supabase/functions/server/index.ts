@@ -5597,7 +5597,7 @@ app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
     const product = sanitizeTaskText(body?.product);
     const productUrl = sanitizeTaskUrl(body?.productUrl);
     const image = inferTaskImageUrl(body?.image, productUrl);
-    const merchant = sanitizeTaskText(body?.merchant, inferMerchantFromTaskUrls(productUrl, image));
+    const merchant = sanitizeTaskText(body?.merchant, inferMerchantFromTaskUrls(productUrl, image) || 'General');
     const price = Number.isFinite(Number(body?.price)) && Number(body?.price) > 0
       ? roundMoney(Number(body.price))
       : inferPriceFromTaskUrls(productUrl, image) ?? 123.45;

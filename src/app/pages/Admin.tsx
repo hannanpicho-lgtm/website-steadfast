@@ -433,14 +433,23 @@ export default function Admin() {
       suppressToast?: boolean;
       onMessage?: (message: string) => void;
     },
-  ) => handleAdminAuthError({
-    errorValue: error,
-    fallbackMessage,
-    navigate,
-    redirectedRef: adminAuthRedirectedRef,
-    suppressToast: options?.suppressToast,
-    onMessage: options?.onMessage,
-  });
+  ) => {
+    const normalizedFallback = fallbackMessage.trim().toLowerCase();
+    const isBackgroundLoadOrSync = normalizedFallback.startsWith('failed to load')
+      || normalizedFallback.startsWith('failed to sync');
+    const suppressLimitedAdminScopeNoise = !isSuperAdmin
+      && isBackgroundLoadOrSync
+      && isPermissionDeniedError(error);
+
+    handleAdminAuthError({
+      errorValue: error,
+      fallbackMessage,
+      navigate,
+      redirectedRef: adminAuthRedirectedRef,
+      suppressToast: options?.suppressToast ?? suppressLimitedAdminScopeNoise,
+      onMessage: options?.onMessage,
+    });
+  };
 
   const isNotFoundError = (error: unknown): boolean => {
     if (!(error instanceof Error)) {
@@ -1200,10 +1209,7 @@ export default function Admin() {
   useEffect(() => {
     const resolveSuperAdmin = async () => {
       try {
-        const [{ data: userData }, { data: sessionData }] = await Promise.all([
-          supabase.auth.getUser(),
-          supabase.auth.getSession(),
-        ]);
+        const { data: userData } = await supabase.auth.getUser();
 
         const user = userData?.user;
         if (!user) {
@@ -1233,35 +1239,7 @@ export default function Admin() {
           if (Array.isArray(arr)) arr.forEach((r: any) => { const n = normalize(r); if (n) roles.add(n); });
         });
 
-        // Decode JWT access token
-        const accessToken = sessionData?.session?.access_token;
-        if (accessToken) {
-          try {
-            const parts = accessToken.split('.');
-            if (parts[1]) {
-              const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-              const jwtPayload = JSON.parse(atob(base64)) as any;
-              // Check JWT claims for role
-              [jwtPayload.role, jwtPayload.user_role].forEach((r) => {
-                const n = normalize(r);
-                if (n) roles.add(n);
-              });
-              // Check JWT app_metadata
-              if (jwtPayload.app_metadata?.role) {
-                const n = normalize(jwtPayload.app_metadata.role);
-                if (n) roles.add(n);
-              }
-              if (Array.isArray(jwtPayload.app_metadata?.roles)) {
-                jwtPayload.app_metadata.roles.forEach((r: any) => {
-                  const n = normalize(r);
-                  if (n) roles.add(n);
-                });
-              }
-            }
-          } catch (err) {
-            console.debug('JWT decode skipped');
-          }
-        }
+        // Only trust roles from Supabase user metadata to avoid stale token claims.
 
         const hasSuperAdmin = roles.has('super_admin');
         console.log('🔐 Admin roles detected:', { hasSuperAdmin, roles: Array.from(roles) });
