@@ -1,5 +1,5 @@
 import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
@@ -11,11 +11,9 @@ import { fetchReferralSummary } from '../services/referralReadModel';
 import { fetchFinancialSummary, type FinancialSummaryResponse } from '../services/financialReadModel';
 
 export default function Profile() {
+  const navigate = useNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [accountInfoOpen, setAccountInfoOpen] = useState(false);
-  const [bindWalletOpen, setBindWalletOpen] = useState(false);
-  const [depositOpen, setDepositOpen] = useState(false);
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
   const [securityCredentialsOpen, setSecurityCredentialsOpen] = useState(false);
@@ -264,29 +262,14 @@ export default function Profile() {
           {/* Bind Wallet */}
           <div className="bg-white rounded-lg mb-3 shadow-sm overflow-hidden">
             <button 
-              onClick={() => setBindWalletOpen(!bindWalletOpen)}
+              onClick={() => navigate('/connect-wallet')}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center gap-3">
                 <LinkIcon size={20} />
                 <span className="font-semibold">Bind Wallet</span>
               </div>
-              <ChevronDown 
-                size={20} 
-                className={`transition-transform ${bindWalletOpen ? 'rotate-180' : ''}`}
-              />
             </button>
-            {bindWalletOpen && (
-              <div className="px-4 pb-4 border-t border-gray-100">
-                <p className="text-sm text-gray-600">No wallet connected</p>
-                <Link 
-                  to="/connect-wallet"
-                  className="mt-2 inline-block text-[#0066cc] text-sm font-semibold hover:underline"
-                >
-                  Connect Wallet
-                </Link>
-              </div>
-            )}
           </div>
         </div>
 
@@ -297,7 +280,7 @@ export default function Profile() {
           {/* Deposit */}
           <div className="bg-white rounded-lg mb-3 shadow-sm overflow-hidden">
             <button 
-              onClick={() => setDepositOpen(!depositOpen)}
+              onClick={() => navigate('/deposit')}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -307,27 +290,13 @@ export default function Profile() {
                 </svg>
                 <span className="font-semibold">Deposit</span>
               </div>
-              <ChevronDown 
-                size={20} 
-                className={`transition-transform ${depositOpen ? 'rotate-180' : ''}`}
-              />
             </button>
-            {depositOpen && (
-              <div className="px-4 pb-4 border-t border-gray-100">
-                <Link 
-                  to="/deposit"
-                  className="block mt-2 text-[#0066cc] text-sm font-semibold hover:underline"
-                >
-                  Go to Deposit Page →
-                </Link>
-              </div>
-            )}
           </div>
 
           {/* Withdraw */}
           <div className="bg-white rounded-lg mb-3 shadow-sm overflow-hidden">
             <button 
-              onClick={() => setWithdrawOpen(!withdrawOpen)}
+              onClick={() => navigate('/withdrawal')}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -338,21 +307,7 @@ export default function Profile() {
                 </svg>
                 <span className="font-semibold">Withdraw</span>
               </div>
-              <ChevronDown 
-                size={20} 
-                className={`transition-transform ${withdrawOpen ? 'rotate-180' : ''}`}
-              />
             </button>
-            {withdrawOpen && (
-              <div className="px-4 pb-4 border-t border-gray-100">
-                <Link 
-                  to="/withdrawal"
-                  className="block mt-2 text-[#0066cc] text-sm font-semibold hover:underline"
-                >
-                  Go to Withdrawal Page →
-                </Link>
-              </div>
-            )}
           </div>
         </div>
 
