@@ -125,7 +125,7 @@ export function LiveChatBox({ isOpen, onClose, message }: LiveChatBoxProps) {
         {/* Footer */}
         <div className="bg-[#252b3d] p-3 rounded-b-lg border-t border-gray-700/30">
           <p className="text-xs text-gray-400 text-center">
-            Our support team is available 24/7
+            Our support team is available 9Am - 10PM EST
           </p>
         </div>
       </div>

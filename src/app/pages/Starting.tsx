@@ -652,7 +652,7 @@ export default function Starting() {
         {/* Important Notice */}
         <div className="bg-white rounded-lg p-6 text-center shadow-sm mb-6">
           <h3 className="text-xl font-bold mb-2">Important Notice</h3>
-          <p className="text-sm text-gray-700 mb-1">Online Support Hours: 9:00 - 23:00</p>
+          <p className="text-sm text-gray-700 mb-1">Online Support Hours: 9Am - 10PM EST</p>
           <p className="text-sm text-gray-700">Please contact online support for your assistance</p>
         </div>
 
