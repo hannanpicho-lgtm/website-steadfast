@@ -37,6 +37,8 @@ export default function LiveChatAdmin() {
   const navigate = useNavigate();
   const adminAuthRedirectedRef = useRef(false);
   const hasLoadedChatsRef = useRef(false);
+  const hasAutoScrolledRef = useRef(false);
+  const lastMessageSignatureRef = useRef('');
   const [chatSummaries, setChatSummaries] = useState<ChatSummary[]>([]);
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -51,20 +53,22 @@ export default function LiveChatAdmin() {
 
   useEffect(() => {
     fetchChats();
-    // Poll for updates every 3 seconds
-    const interval = setInterval(fetchChats, 3000);
+    // Poll for updates every 5 seconds to reduce UI churn
+    const interval = setInterval(fetchChats, 5000);
     return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     if (selectedChat) {
+      hasAutoScrolledRef.current = false;
+      lastMessageSignatureRef.current = '';
       fetchMessages(selectedChat);
       markMessagesAsRead(selectedChat);
       // Poll for new messages in the selected chat
       const interval = setInterval(() => {
         fetchMessages(selectedChat);
         markMessagesAsRead(selectedChat);
-      }, 3000);
+      }, 5000);
       return () => clearInterval(interval);
     }
   }, [selectedChat]);
@@ -73,8 +77,8 @@ export default function LiveChatAdmin() {
     scrollToBottom();
   }, [messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
+    messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
   const fetchChats = async () => {
@@ -124,7 +128,17 @@ export default function LiveChatAdmin() {
       }
 
       const data = await response.json();
-      setMessages(data);
+      const nextMessages = Array.isArray(data) ? data : [];
+      const signature = nextMessages.map((msg: ChatMessage) => `${msg.id}:${msg.read ? 1 : 0}`).join('|');
+
+      if (signature !== lastMessageSignatureRef.current) {
+        lastMessageSignatureRef.current = signature;
+        setMessages(nextMessages);
+        if (!hasAutoScrolledRef.current) {
+          scrollToBottom('auto');
+          hasAutoScrolledRef.current = true;
+        }
+      }
     } catch (error) {
       handleAdminAuthError({
         errorValue: error,
@@ -193,6 +207,7 @@ export default function LiveChatAdmin() {
       setNewMessage('');
       await fetchMessages(selectedChat);
       await fetchChats();
+      scrollToBottom('smooth');
     } catch (error) {
       handleAdminAuthError({
         errorValue: error,
@@ -210,9 +225,9 @@ export default function LiveChatAdmin() {
   );
 
   return (
-    <div className="grid grid-cols-3 gap-6 h-[700px]">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-210px)] min-h-[520px]">
       {/* Chat List */}
-      <div className="col-span-1 bg-white rounded-lg border border-gray-200 flex flex-col">
+      <div className="col-span-1 bg-white rounded-lg border border-gray-200 flex flex-col min-h-0">
         <div className="p-4 border-b border-gray-200">
           <h3 className="font-bold text-gray-900 mb-3">Active Chats</h3>
           <div className="relative">
@@ -282,7 +297,7 @@ export default function LiveChatAdmin() {
       </div>
 
       {/* Chat Window */}
-      <div className="col-span-2 bg-white rounded-lg border border-gray-200 flex flex-col">
+      <div className="col-span-1 lg:col-span-2 bg-white rounded-lg border border-gray-200 flex flex-col min-h-0">
         {selectedChat ? (
           <>
             {/* Chat Header */}
@@ -308,7 +323,7 @@ export default function LiveChatAdmin() {
             </div>
 
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 bg-gray-50">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <MessageSquare className="text-gray-300 mb-3" size={48} />
@@ -361,7 +376,7 @@ export default function LiveChatAdmin() {
             </div>
 
             {/* Input Area */}
-            <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-200">
+            <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-200 shrink-0">
               <div className="flex gap-2">
                 <input
                   type="text"
