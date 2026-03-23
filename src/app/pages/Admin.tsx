@@ -1599,17 +1599,83 @@ export default function Admin() {
     }
   };
 
-  const handleDeleteSelectedProduct = () => {
+  const handleDeleteSelectedProduct = async () => {
     if (!selectedItem?.id) {
       toast.error('Unable to delete product: missing identifier.');
       return;
     }
 
     const productId = selectedItem.id;
-    setProductCatalog((current) => current.filter((product) => product.id !== productId));
-    setModalType(null);
-    setSelectedItem(null);
-    toast.success('Product deleted successfully.');
+    try {
+      toast.loading('Deleting product...');
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/tasks/${productId}`, {
+        method: 'DELETE',
+        headers,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Failed to delete product (${response.status})`);
+      }
+
+      setTaskConfigurations((current) => current.filter((task) => task.id !== productId));
+      setModalType(null);
+      setSelectedItem(null);
+      toast.success('Product deleted successfully.');
+    } catch (error) {
+      console.error('[DEBUG] Error deleting product:', error);
+      handleAdminRequestError(error, 'Failed to delete product');
+    }
+  };
+
+  const handleSaveProductEdit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedItem?.id) {
+      toast.error('Unable to update product: missing identifier.');
+      return;
+    }
+
+    const formData = new FormData(event.currentTarget);
+    const product = String(formData.get('product') ?? '').trim();
+    const imageUrl = String(formData.get('image') ?? '').trim();
+    const status = String(formData.get('status') ?? 'Active').trim();
+
+    if (!product) {
+      toast.error('Product name is required.');
+      return;
+    }
+    if (!imageUrl) {
+      toast.error('Image URL is required.');
+      return;
+    }
+
+    try {
+      toast.loading('Updating product...');
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/tasks/${selectedItem.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          product,
+          image: imageUrl,
+          status,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Failed to update product (${response.status})`);
+      }
+
+      setTaskConfigurations((current) => 
+        current.map((task) => task.id === selectedItem.id ? payload.task : task)
+      );
+      setModalType(null);
+      setSelectedItem(null);
+      toast.success('Product updated successfully.');
+    } catch (error) {
+      console.error('[DEBUG] Error updating product:', error);
+      handleAdminRequestError(error, 'Failed to update product');
+    }
   };
 
   const handleUpdateAdminDetails = (event: React.FormEvent<HTMLFormElement>) => {
@@ -3023,7 +3089,48 @@ export default function Admin() {
             </div>
           )}
 
-          {/* Delete Product Modal */}
+            {/* Edit Product Modal */}
+            {modalType === 'edit-product' && selectedItem && (
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-500/20 rounded-lg">
+                      <Edit className="text-blue-400" size={24} />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white">Edit Product</h3>
+                  </div>
+                  <button onClick={() => setModalType(null)} className="text-gray-400 hover:text-white">
+                    <X size={24} />
+                  </button>
+                </div>
+                <form className="space-y-4" onSubmit={(e) => { void handleSaveProductEdit(e); }}>
+                  <input type="hidden" name="status" value="Active" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Product Name</label>
+                      <input type="text" name="product" required defaultValue={selectedItem.product || selectedItem.name || ''} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product name" />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Image URL</label>
+                      <input type="url" name="image" required defaultValue={selectedItem.image || selectedItem.imageUrl || ''} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://image.example/product.jpg" />
+                    </div>
+                    <div className="col-span-2 rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs text-cyan-200">
+                      Merchant, product value, and catalog commission are auto-filled by the system. Edit only the product name and image URL.
+                    </div>
+                  </div>
+                  <div className="flex gap-3 mt-6">
+                    <button type="submit" className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
+                      Save Changes
+                    </button>
+                    <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Delete Product Modal */}
           {modalType === 'delete-product' && selectedItem && (
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
