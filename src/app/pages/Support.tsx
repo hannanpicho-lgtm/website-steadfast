@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { useLocation, useNavigate } from 'react-router';
 import { Header } from '../components/Header';
 import { BottomNavigation } from '../components/BottomNavigation';
+import { LiveChatBox } from '../components/LiveChatBox';
 import { 
   MessageSquare, 
   Clock, 
@@ -52,6 +53,7 @@ const defaultSupportLinks: SupportLinks = {
 export default function Support() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const [showNewTicket, setShowNewTicket] = useState(false);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -363,8 +365,16 @@ export default function Support() {
             className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-lg flex items-center justify-center gap-3 hover:from-blue-600 hover:to-blue-700 transition-all group"
           >
             <Send size={24} className="group-hover:scale-110 transition-transform" />
-            <span className="font-semibold">Telegram Support</span>
+            <span className="font-semibold">Expert Team</span>
           </a>
+          
+          <button
+            onClick={() => setIsChatOpen(true)}
+            className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white p-4 rounded-lg flex items-center justify-center gap-3 hover:from-cyan-600 hover:to-blue-600 transition-all group"
+          >
+            <MessageSquare size={24} className="group-hover:scale-110 transition-transform" />
+            <span className="font-semibold">Steadfast online CS</span>
+          </button>
         </div>
 
         {/* Tickets List */}
@@ -520,6 +530,9 @@ export default function Support() {
           )}
         </div>
       </div>
+
+      {/* Live Chat Box */}
+      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
       <BottomNavigation />
     </div>
