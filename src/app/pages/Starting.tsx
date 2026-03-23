@@ -53,6 +53,56 @@ type TaskCatalogResponse = {
   };
 };
 
+const REQUEST_TIMEOUT_MS = 8000;
+
+function roundMoney(value: number): number {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function withRetry<T>(operation: () => Promise<T>, retries = 2, delayMs = 450): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries) {
+        await sleep(delayMs * (attempt + 1));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+async function fetchJsonWithTimeout(url: string, init: RequestInit): Promise<any> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error ?? 'Request failed');
+    }
+
+    return payload;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 function getPrimaryLabel(value: string | null | undefined, fallback = 'Product'): string {
   if (typeof value !== 'string') {
     return fallback;
@@ -83,6 +133,7 @@ export default function Starting() {
   const [vipConfigurations, setVipConfigurations] = useState<VipConfig[]>([]);
   const [rewardsConfig, setRewardsConfig] = useState<RewardsConfig>(defaultRewardsConfig);
   const [taskRuleConfig, setTaskRuleConfig] = useState<TaskCatalogResponse['ruleConfig'] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   
   const sessionUsername = getCurrentUsername();
   const username = sessionUsername;
@@ -152,21 +203,16 @@ export default function Starting() {
 
     try {
       setLoading(true);
+      setLoadError(null);
       const [data, tasksPayload, vipPayload, rewardsPayload] = await Promise.all([
-        fetchSessionUser(),
-        fetch(`${serverUrl}/tasks/catalog`, {
+        withRetry(() => fetchSessionUser(), 2),
+        withRetry(() => fetchJsonWithTimeout(`${serverUrl}/tasks/catalog`, {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,
           },
-        }).then(async (response) => {
-          const payload = await response.json().catch(() => ({}));
-          if (!response.ok) {
-            throw new Error(payload?.error ?? 'Failed to fetch tasks');
-          }
-          return payload;
-        }),
-        fetchPublicVipConfig(),
-        fetchPublicRewardsConfig(),
+        }), 2),
+        withRetry(() => fetchPublicVipConfig(), 2),
+        withRetry(() => fetchPublicRewardsConfig(), 2),
       ]);
 
       setUserData(data);
@@ -176,8 +222,8 @@ export default function Starting() {
       setRewardsConfig(rewardsPayload);
     } catch (error) {
       console.error('Error fetching user data:', error);
-      toast.error('Failed to load your account data. Please refresh and try again.');
-      navigate('/', { replace: true });
+      setLoadError('Connection is unstable. Please retry loading your data.');
+      toast.error('Connection issue detected. Retrying may help.');
     } finally {
       setLoading(false);
     }
@@ -284,6 +330,26 @@ export default function Starting() {
     return (
       <div className="size-full flex items-center justify-center bg-[#1a1f2e]">
         <Loader2 className="animate-spin text-[#00D9FF]" size={48} />
+      </div>
+    );
+  }
+
+  if (loadError && !userData) {
+    return (
+      <div className="size-full flex items-center justify-center bg-[#1a1f2e] p-6">
+        <div className="max-w-md w-full bg-[#252d42] border border-[#00D9FF]/30 rounded-xl p-6 text-center">
+          <p className="text-white font-semibold mb-2">Unable to load starting data</p>
+          <p className="text-gray-300 text-sm mb-5">{loadError}</p>
+          <button
+            type="button"
+            onClick={() => {
+              void fetchUserData();
+            }}
+            className="px-5 py-2 rounded-lg bg-[#00D9FF] text-[#1a1f2e] font-semibold hover:opacity-90 transition-opacity"
+          >
+            Retry
+          </button>
+        </div>
       </div>
     );
   }
