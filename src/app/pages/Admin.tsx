@@ -608,6 +608,35 @@ export default function Admin() {
     }
   };
 
+  const handleSetCreditScore = async (user: PlatformUser) => {
+    const rawInput = window.prompt(
+      `Set credit score for ${user.username} (0–100, current: ${typeof (user as any).creditScore === 'number' ? (user as any).creditScore : 100}):`,
+      String(typeof (user as any).creditScore === 'number' ? (user as any).creditScore : 100),
+    );
+    if (rawInput === null) return;
+    const newScore = Number(rawInput);
+    if (!Number.isFinite(newScore) || newScore < 0 || newScore > 100) {
+      toast.error('Credit score must be a number between 0 and 100.');
+      return;
+    }
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/platform-users/${encodeURIComponent(user.username)}/credit-score`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ creditScore: Math.round(newScore) }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Failed to set credit score (${response.status})`);
+      }
+      toast.success(`Credit score set to ${Math.round(newScore)} for ${user.username}.`);
+      void loadPlatformUsers();
+    } catch (error) {
+      handleAdminRequestError(error, `Failed to set credit score for ${user.username}`);
+    }
+  };
+
   const handleAdjustPlatformUserBalance = async () => {
     if (!selectedItem?.username || !userBalanceAdjustmentDraft) {
       return;
@@ -4123,6 +4152,7 @@ export default function Admin() {
               onResetTaskSet={handleResetUserTaskSet}
               onRestoreNaturalState={handleRestorePlatformUser}
               onResetCredentials={handleResetUserCredentials}
+              onSetCreditScore={handleSetCreditScore}
             />
           </Suspense>
         );

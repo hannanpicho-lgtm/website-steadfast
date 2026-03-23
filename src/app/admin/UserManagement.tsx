@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Search, Download, Eye, Edit, Key, Check, X, Trash2, RefreshCw, Shield, DollarSign } from 'lucide-react';
+import { Plus, Search, Download, Eye, Edit, Key, Check, X, Trash2, RefreshCw, Shield, DollarSign, Star } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface UserManagementProps {
@@ -21,6 +21,7 @@ interface UserManagementProps {
   onResetTaskSet: (user: any) => void | Promise<void>;
   onRestoreNaturalState: (user: any) => void | Promise<void>;
   onResetCredentials: (user: any) => void | Promise<void>;
+  onSetCreditScore: (user: any) => void | Promise<void>;
 }
 
 export default function UserManagement({
@@ -42,6 +43,7 @@ export default function UserManagement({
   onResetTaskSet,
   onRestoreNaturalState,
   onResetCredentials,
+  onSetCreditScore,
 }: UserManagementProps) {
   type DisplayUser = {
     id: number;
@@ -61,6 +63,7 @@ export default function UserManagement({
     pendingTaskReset?: boolean;
     holdAmount?: number;
     isFrozen?: boolean;
+    creditScore?: number;
   };
   const normalizedUsers: DisplayUser[] = platformUsersLoaded
     ? [...platformUsers]
@@ -69,7 +72,7 @@ export default function UserManagement({
           const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
           return bTime - aTime;
         })
-        .map((u, i) => ({ id: i + 1, username: u.username, email: '—', phone: '—', vipLevel: u.vipLevel, balance: u.balance, status: u.isFrozen ? 'Suspended' : 'Active', registered: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—', tasksCompleted: u.tasksCompleted, referredByAdminName: u.referredByAdminName || '—', taskSetCount: u.taskSetCount, tasksPerSet: u.tasksPerSet, tasksCompletedInSet: u.tasksCompletedInSet, completedTaskSets: u.completedTaskSets, pendingTaskReset: u.pendingTaskReset, holdAmount: u.holdAmount, isFrozen: u.isFrozen }))
+        .map((u, i) => ({ id: i + 1, username: u.username, email: '—', phone: '—', vipLevel: u.vipLevel, balance: u.balance, status: u.isFrozen ? 'Suspended' : 'Active', registered: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—', tasksCompleted: u.tasksCompleted, referredByAdminName: u.referredByAdminName || '—', taskSetCount: u.taskSetCount, tasksPerSet: u.tasksPerSet, tasksCompletedInSet: u.tasksCompletedInSet, completedTaskSets: u.completedTaskSets, pendingTaskReset: u.pendingTaskReset, holdAmount: u.holdAmount, isFrozen: u.isFrozen, creditScore: typeof u.creditScore === 'number' ? u.creditScore : 100 }))
     : [];
   const filteredUsers = normalizedUsers.filter(user => {
     const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -256,6 +259,13 @@ export default function UserManagement({
                         title="Reset Completed Task Set"
                       >
                         <RefreshCw size={16} className={`text-gray-400 ${user.pendingTaskReset ? 'hover:text-yellow-400' : ''}`} />
+                      </button>
+                      <button
+                        onClick={() => void onSetCreditScore(user)}
+                        className="p-1 hover:bg-[#1a1f2e] rounded transition-colors"
+                        title={`Set Credit Score (current: ${user.creditScore ?? 100})`}
+                      >
+                        <Star size={16} className="text-gray-400 hover:text-yellow-400" />
                       </button>
                       <button 
                         onClick={() => { setSelectedItem(user); setModalType('delete-user'); }}

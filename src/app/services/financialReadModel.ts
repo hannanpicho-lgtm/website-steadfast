@@ -20,6 +20,7 @@ export type FinancialSummaryResponse = {
   isFrozen: boolean;
   createdAt: string;
   lastReset: string;
+    creditScore?: number;
   taskProgress: {
     taskSetCount: number;
     tasksPerSet: number;

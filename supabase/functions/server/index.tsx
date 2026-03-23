@@ -1989,6 +1989,7 @@ function defaultUserRecord(username: string) {
     referredByAdminId: null as string | null,
     walletProfile: null as WalletProfile | null,
     createdAt: new Date().toISOString(),
+    creditScore: 100,
   };
 }
 
@@ -2058,6 +2059,10 @@ function normalizeUserRecord(userData: any, username: string) {
   normalized.createdAt = typeof normalized.createdAt === 'string' && normalized.createdAt
     ? normalized.createdAt
     : new Date().toISOString();
+
+  normalized.creditScore = Number.isFinite(Number(normalized.creditScore))
+    ? Math.min(100, Math.max(0, Math.round(Number(normalized.creditScore))))
+    : 100;
 
   return normalized;
 }
@@ -7371,6 +7376,7 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
         ? (adminNameMap.get(u.referredByAdminId) ?? u.referredByAdminId)
         : 'Direct',
       createdAt: typeof (u as any).createdAt === 'string' ? (u as any).createdAt : null,
+      creditScore: typeof u.creditScore === 'number' ? u.creditScore : 100,
     }));
 
     return c.json({ users, total: users.length, scoped: !callerIsSuperAdmin });
@@ -7631,6 +7637,64 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
 });
 
 app.delete('/make-server-a1c55d7e/admin/platform-users/:username', async (c) => {
+  app.patch('/make-server-a1c55d7e/admin/platform-users/:username/credit-score', async (c) => {
+    try {
+      const unauthorized = await requireAdmin(c);
+      if (unauthorized) return unauthorized;
+
+      const limited = enforceAdminRateLimit(c, 'admin-platform-users:credit-score');
+      if (limited) return limited;
+
+      const requestedUsername = sanitizeUsername(c.req.param('username'));
+      if (!requestedUsername) {
+        return c.json({ error: 'Invalid username' }, 400);
+      }
+
+      const callingAdmin = c.get('adminUser');
+      const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+      const canonicalUsername = await resolveCanonicalUsername(requestedUsername);
+      if (!canonicalUsername) {
+        return c.json({ error: 'User not found' }, 404);
+      }
+
+      const userKey = `user:${canonicalUsername}`;
+      const existingUser = await kv.get(userKey);
+      if (!existingUser) {
+        return c.json({ error: 'User not found' }, 404);
+      }
+
+      const normalizedUser = await syncUserWithVipConfig(existingUser, canonicalUsername);
+      if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
+        return c.json({ error: 'Forbidden' }, 403);
+      }
+
+      const body = await c.req.json();
+      const rawScore = Number(body?.creditScore);
+      if (!Number.isFinite(rawScore) || rawScore < 0 || rawScore > 100) {
+        return c.json({ error: 'creditScore must be a number between 0 and 100' }, 400);
+      }
+      const newCreditScore = Math.round(rawScore);
+
+      normalizedUser.creditScore = newCreditScore;
+      await kv.set(userKey, normalizedUser);
+
+      const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+        ? callingAdmin.email
+        : String(callingAdmin?.id ?? 'unknown');
+      await recordObservabilityAuditEvent(
+        'admin-user-credit-score',
+        actorEmail,
+        `Set credit score to ${newCreditScore} for user '${canonicalUsername}'`,
+      ).catch((e) => console.error('Failed to record admin-user-credit-score audit event:', e));
+
+      return c.json({ success: true, creditScore: newCreditScore });
+    } catch (err) {
+      console.error('admin/platform-users/credit-score error:', err);
+      return c.json({ error: 'Failed to update credit score' }, 500);
+    }
+  });
+
+  app.delete('/make-server-a1c55d7e/admin/platform-users/:username', async (c) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
