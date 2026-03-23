@@ -1657,12 +1657,12 @@ export default function Admin() {
       name,
       description: String(formData.get('description') ?? '').trim() || 'Custom role',
       color: String(formData.get('color') ?? 'blue').trim(),
-      permissions: buildRolePermissionsFromForm(formData),
+      permissions: buildRolePermissionsFromForm(formData) as Record<string, boolean>,
       createdDate: new Date().toISOString().slice(0, 10),
       isDefault: false,
     };
 
-    setRoleDefinitions((current) => [...current, nextRole]);
+    setRoleDefinitions((current) => [...current, nextRole as typeof roleDefinitions[0]]);
     setModalType(null);
     toast.success('Role created successfully.');
   };
@@ -1680,10 +1680,10 @@ export default function Admin() {
       name: String(formData.get('name') ?? selectedItem.name).trim(),
       description: String(formData.get('description') ?? selectedItem.description).trim(),
       color: String(formData.get('color') ?? selectedItem.color).trim(),
-      permissions: buildRolePermissionsFromForm(formData),
+      permissions: buildRolePermissionsFromForm(formData) as Record<string, boolean>,
     };
 
-    setRoleDefinitions((current) => current.map((role) => (role.id === selectedItem.id ? updatedRole : role)));
+    setRoleDefinitions((current) => current.map((role) => (role.id === selectedItem.id ? (updatedRole as typeof roleDefinitions[0]) : role)));
     setAdminUsers((current) => current.map((admin) => (
       admin.roleId === selectedItem.id
         ? { ...admin, roleName: updatedRole.name, roleColor: updatedRole.color }
