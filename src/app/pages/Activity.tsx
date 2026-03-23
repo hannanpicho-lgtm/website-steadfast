@@ -21,6 +21,7 @@ type ActivityVipLevel = {
   range: string;
   products: number;
   rate: string;
+  premiumRate: string;
   color: string;
 };
 
@@ -40,11 +41,11 @@ type ActivityLogItem = {
 };
 
 const fallbackVipLevels: ActivityVipLevel[] = [
-  { level: 1, range: '100 - 499', products: 40, rate: '0.5%', color: 'bg-slate-300' },
-  { level: 2, range: '500 - 1,599', products: 45, rate: '1.0%', color: 'bg-yellow-500' },
-  { level: 3, range: '1,600 - 5,499', products: 50, rate: '1.5%', color: 'bg-blue-500' },
-  { level: 4, range: '5,500 - 9,999', products: 55, rate: '2.0%', color: 'bg-emerald-500' },
-  { level: 5, range: '10,000', products: 60, rate: '2.5%', color: 'bg-orange-500' },
+  { level: 1, range: '100 - 499', products: 40, rate: '0.5%', premiumRate: '5.0%', color: 'bg-slate-300' },
+  { level: 2, range: '500 - 1,599', products: 45, rate: '1.0%', premiumRate: '10.0%', color: 'bg-yellow-500' },
+  { level: 3, range: '1,600 - 5,499', products: 50, rate: '1.5%', premiumRate: '15.0%', color: 'bg-blue-500' },
+  { level: 4, range: '5,500 - 9,999', products: 55, rate: '2.0%', premiumRate: '20.0%', color: 'bg-emerald-500' },
+  { level: 5, range: '10,000', products: 60, rate: '2.5%', premiumRate: '25.0%', color: 'bg-orange-500' },
 ];
 
 const screenshotWorkdayRewards = [
@@ -70,6 +71,7 @@ function mapVipConfigToActivity(tiers: VipConfig[]): ActivityVipLevel[] {
       range,
       products: tier.dailyTasks,
       rate: `${(tier.commission * 100).toFixed(1)}%`,
+      premiumRate: `${(tier.commission * 1000).toFixed(1)}%`,
       color: vipColorByTier[tier.color] ?? 'bg-gray-500',
     };
   });
@@ -254,27 +256,27 @@ export default function Activity() {
             <h2 className="text-[2rem] sm:text-[2.25rem] font-bold text-[#ffd85a] leading-tight text-center">Workday Rewards Scheme</h2>
             <p className="text-[1.2rem] sm:text-[1.35rem] text-white text-center mb-4">Check In. Show Up. Get Paid</p>
 
-            <div className="space-y-3">
+            <div className="space-y-2.5 sm:space-y-3">
               {screenshotWorkdayRewards.map((reward) => (
-                <div key={reward.days} className="flex items-center gap-2.5">
-                  <div className="w-[94px] h-[66px] sm:w-[104px] sm:h-[72px] bg-[#d5fff7] rounded-[999px] flex flex-col items-center justify-center shrink-0">
-                    <div className="text-[2rem] sm:text-[2.2rem] leading-none font-bold text-[#0f172a]">{reward.days}</div>
+                <div key={reward.days} className="flex items-center gap-2 sm:gap-2.5">
+                  <div className="w-[80px] h-[56px] sm:w-[104px] sm:h-[72px] bg-[#d5fff7] rounded-[999px] flex flex-col items-center justify-center shrink-0">
+                    <div className="text-[1.5rem] sm:text-[2.2rem] leading-none font-bold text-[#0f172a]">{reward.days}</div>
                     <div className="text-[0.72rem] sm:text-[0.78rem] text-[#0f172a] leading-none mt-0.5">Days Worked</div>
                   </div>
 
-                  <div className="h-[66px] sm:h-[72px] flex-1 bg-[#d5fff7] rounded-[999px] pl-2.5 pr-3 sm:pl-3.5 sm:pr-4 flex items-center gap-2.5">
-                    <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#5ccb5f] flex items-center justify-center shrink-0">
+                  <div className="h-[56px] sm:h-[72px] min-w-0 flex-1 bg-[#d5fff7] rounded-[999px] pl-2 pr-2.5 sm:pl-3.5 sm:pr-4 flex items-center gap-2 sm:gap-2.5 overflow-hidden">
+                    <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-full bg-[#5ccb5f] flex items-center justify-center shrink-0">
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                         <circle cx="12" cy="12" r="10" fill="#6be06d" />
                         <path d="M7 12.5L10.2 15.4L17 8.6" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </div>
 
-                    <div className="text-[0.8rem] sm:text-[0.86rem] text-[#213547] leading-none">Salary Earned</div>
+                    <div className="text-[0.7rem] sm:text-[0.86rem] text-[#213547] leading-none">Salary Earned</div>
 
-                    <div className="ml-auto flex items-end gap-1 text-[#0f172a]">
-                      <span className="text-[2rem] sm:text-[2.2rem] leading-none font-bold">{reward.salary.toLocaleString()}</span>
-                      <span className="text-[0.95rem] sm:text-[1rem] leading-none mb-1">USD</span>
+                    <div className="ml-auto flex items-end gap-1 text-[#0f172a] shrink-0">
+                      <span className="text-[1.4rem] sm:text-[2.2rem] leading-none font-bold">{reward.salary.toLocaleString()}</span>
+                      <span className="text-[0.75rem] sm:text-[1rem] leading-none mb-0.5 sm:mb-1">USD</span>
                     </div>
                   </div>
                 </div>
@@ -355,7 +357,8 @@ export default function Activity() {
                     {/* Profit Rate */}
                     <div className="sm:text-center font-bold text-lg sm:text-xl">
                       <p className="text-xs text-gray-300 sm:hidden mb-1">Profit Rate</p>
-                      {vip.rate}
+                      <p>{vip.rate}</p>
+                      <p className="text-xs sm:text-sm text-yellow-300">Premium {vip.premiumRate} (10x)</p>
                     </div>
                   </div>
                 </div>

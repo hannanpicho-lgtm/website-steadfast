@@ -5,6 +5,7 @@ import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 
 type VipCard = {
   level: number;
@@ -18,7 +19,7 @@ type VipCard = {
   textClass: string;
 };
 
-const vipCards: VipCard[] = [
+const fallbackVipCards: VipCard[] = [
   {
     level: 1,
     title: 'VIP1',
@@ -52,28 +53,93 @@ const vipCards: VipCard[] = [
     badgeBorderClass: 'border-[#6e93ff]',
     textClass: 'text-[#3658d6]',
   },
+  {
+    level: 4,
+    title: 'VIP4',
+    amount: '5500 USD',
+    normalProfit: '2.0% profit on normal products',
+    premiumProfit: '20.0% profit on premium products',
+    maxOrders: 'Maximum 110 product orders per day',
+    badgeClass: 'from-[#b4ffd7] to-[#63e6a5]',
+    badgeBorderClass: 'border-[#7ae4b1]',
+    textClass: 'text-[#1f9c63]',
+  },
+  {
+    level: 5,
+    title: 'VIP5',
+    amount: '10000 USD',
+    normalProfit: '2.5% profit on normal products',
+    premiumProfit: '25.0% profit on premium products',
+    maxOrders: 'Maximum 120 product orders per day',
+    badgeClass: 'from-[#ffd88d] to-[#ff9f3a]',
+    badgeBorderClass: 'border-[#ffbf65]',
+    textClass: 'text-[#de7d1f]',
+  },
 ];
+
+const vipPalette = {
+  1: { badgeClass: 'from-[#ffb35a] to-[#ff6a00]', badgeBorderClass: 'border-[#ffbf77]', textClass: 'text-[#ff7a1a]' },
+  2: { badgeClass: 'from-[#a0fff1] to-[#47dccc]', badgeBorderClass: 'border-[#66e3d5]', textClass: 'text-[#1c9c8f]' },
+  3: { badgeClass: 'from-[#8db7ff] to-[#4f74e8]', badgeBorderClass: 'border-[#6e93ff]', textClass: 'text-[#3658d6]' },
+  4: { badgeClass: 'from-[#b4ffd7] to-[#63e6a5]', badgeBorderClass: 'border-[#7ae4b1]', textClass: 'text-[#1f9c63]' },
+  5: { badgeClass: 'from-[#ffd88d] to-[#ff9f3a]', badgeBorderClass: 'border-[#ffbf65]', textClass: 'text-[#de7d1f]' },
+} as const;
+
+function formatRate(rate: number) {
+  return `${(rate * 100).toFixed(1)}%`;
+}
+
+function mapVipConfigToCards(config: VipConfig[]): VipCard[] {
+  return [...config]
+    .sort((left, right) => left.level - right.level)
+    .map((tier) => {
+      const palette = vipPalette[tier.level as keyof typeof vipPalette] ?? vipPalette[5];
+      const normalRate = Number.isFinite(Number(tier.commission)) ? Number(tier.commission) : 0;
+      const premiumRate = normalRate * 10;
+      const dailyTasks = Math.max(0, Number(tier.dailyTasks ?? 0));
+
+      return {
+        level: tier.level,
+        title: `VIP${tier.level}`,
+        amount: `${Number(tier.investment).toFixed(0)} USD`,
+        normalProfit: `${formatRate(normalRate)} profit on normal products`,
+        premiumProfit: `${formatRate(premiumRate)} profit on premium products`,
+        maxOrders: `Maximum ${dailyTasks * 2} product orders per day`,
+        ...palette,
+      };
+    });
+}
 
 export default function VipLevels() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [currentVipLevel, setCurrentVipLevel] = useState<number | null>(null);
+  const [vipCards, setVipCards] = useState<VipCard[]>(fallbackVipCards);
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
   useEffect(() => {
     const loadCurrentVip = async () => {
       try {
-        const response = await fetch(`${serverUrl}/me/financials`, {
-          credentials: 'include',
-          headers: {
-            Authorization: `Bearer ${publicAnonKey}`,
-          },
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (response.ok && Number.isFinite(Number(payload?.vipLevel))) {
+        const [financialsResponse, publicVipConfig] = await Promise.all([
+          fetch(`${serverUrl}/me/financials`, {
+            credentials: 'include',
+            headers: {
+              Authorization: `Bearer ${publicAnonKey}`,
+            },
+          }),
+          fetchPublicVipConfig(),
+        ]);
+
+        const payload = await financialsResponse.json().catch(() => ({}));
+        if (financialsResponse.ok && Number.isFinite(Number(payload?.vipLevel))) {
           setCurrentVipLevel(Number(payload.vipLevel));
+        }
+
+        if (Array.isArray(publicVipConfig) && publicVipConfig.length > 0) {
+          setVipCards(mapVipConfigToCards(publicVipConfig));
         }
       } catch {
         // Keep fallback current badge on VIP1 when session financials are unavailable.
+        setVipCards(fallbackVipCards);
       }
     };
 

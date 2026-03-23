@@ -104,6 +104,7 @@ export default function Starting() {
   const commissionRate = userData
     ? (vipConfigurations.find((tier) => tier.level === userData.vipLevel)?.commission ?? 0.005) * 100
     : 0.5;
+  const premiumCommissionRate = commissionRate * 10;
   const estimatedCommission = currentProduct ? currentProduct.price * (commissionRate / 100) : 0;
   const premiumTriggerTaskNumber = Number(taskRuleConfig?.premiumTriggerTaskNumber ?? rewardsConfig.productSystem.premiumTriggerTaskNumber ?? 10);
   const premiumTopUpRequired = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
@@ -118,6 +119,12 @@ export default function Starting() {
   const premiumTriggerIncoming = !premiumSubmissionBlocked
     && Boolean(taskRuleConfig?.premiumEnabled ?? rewardsConfig.productSystem.premiumEnabled)
     && nextSubmissionNumber === premiumTriggerTaskNumber;
+  const activePremiumQueuePosition = userData?.activePremium && Array.isArray(userData?.premiumQueue)
+    ? Math.max(1, userData.premiumQueue.findIndex((premium) => premium?.id === userData.activePremium?.id) + 1)
+    : 1;
+  const activePremiumEncounterLabel = Number.isFinite(Number(userData?.activePremium?.triggerTaskNumber))
+    ? `Task #${Number(userData?.activePremium?.triggerTaskNumber)}`
+    : 'Admin assigned';
 
   // Fetch user data on mount
   useEffect(() => {
@@ -318,23 +325,23 @@ export default function Starting() {
 
         {/* Product Slideshow */}
         {activeTasks.length > 0 ? (() => { const slide = activeTasks[carouselIndex % activeTasks.length]; return (
-          <div className="bg-white rounded-lg p-6 mb-6 shadow-sm relative select-none">
+          <div className="bg-white rounded-lg p-4 sm:p-6 mb-6 shadow-sm relative select-none">
             {/* Prev button */}
             <button
               onClick={() => setCarouselIndex(i => (i - 1 + activeTasks.length) % activeTasks.length)}
-              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-gray-100 hover:bg-gray-200 rounded-full p-1 transition-colors"
+              className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 bg-gray-100 hover:bg-gray-200 rounded-full p-1 transition-colors"
             >
-              <ChevronLeft size={22} className="text-gray-600" />
+              <ChevronLeft size={20} className="text-gray-600" />
             </button>
 
             {/* Slide content */}
-            <div className="text-center px-8">
+            <div className="text-center px-6 sm:px-8">
               <div className="flex items-center justify-center mb-4 h-[180px]">
                 <img
                   key={slide.id}
                   src={slide.image}
                   alt={getPrimaryLabel(slide.product)}
-                  className="max-h-[180px] max-w-[200px] w-full object-contain"
+                  className="max-h-[170px] sm:max-h-[180px] max-w-[180px] sm:max-w-[200px] w-full object-contain"
                 />
               </div>
                 <h3 className="text-base font-semibold mb-2 line-clamp-2">{slide.product}</h3>
@@ -348,9 +355,9 @@ export default function Starting() {
             {/* Next button */}
             <button
               onClick={() => setCarouselIndex(i => (i + 1) % activeTasks.length)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-gray-100 hover:bg-gray-200 rounded-full p-1 transition-colors"
+              className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 bg-gray-100 hover:bg-gray-200 rounded-full p-1 transition-colors"
             >
-              <ChevronRight size={22} className="text-gray-600" />
+              <ChevronRight size={20} className="text-gray-600" />
             </button>
 
             {/* Dot indicators */}
@@ -396,12 +403,12 @@ export default function Starting() {
                 <p className="text-white font-semibold mb-2">Bundled Products:</p>
                 <div className="space-y-2">
                   {userData.activePremium.bundledProducts.map((product: any, index: number) => (
-                    <div key={index} className="flex items-center gap-3 bg-white/20 rounded p-2">
-                      <img src={product.image} alt={product.name} className="w-12 h-12 object-contain rounded" />
-                      <div className="flex-1">
+                    <div key={index} className="flex items-start sm:items-center gap-3 bg-white/20 rounded p-2">
+                      <img src={product.image} alt={product.name} className="w-10 h-10 sm:w-12 sm:h-12 object-contain rounded shrink-0" />
+                      <div className="flex-1 min-w-0">
                         <p className="text-white text-sm font-semibold line-clamp-1">{getPrimaryLabel(product?.name)}</p>
                       </div>
-                      <span className="text-white font-bold">${product.price.toFixed(2)}</span>
+                      <span className="text-white font-bold text-sm sm:text-base shrink-0">${product.price.toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
@@ -423,6 +430,14 @@ export default function Starting() {
                     {userData.balance < 0 ? '-' : ''}${Math.abs(userData.balance).toFixed(2)} 
                     {userData.balance < 0 && ' (NEGATIVE)'}
                   </span>
+                </div>
+                <div className="flex items-center justify-between text-white">
+                  <span>Current Hold Amount:</span>
+                  <span className="font-bold text-yellow-300">${(userData.activePremium.topUpRequired ?? userData.holdAmount ?? 0).toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between text-white">
+                  <span>Encounter Position:</span>
+                  <span className="font-bold text-cyan-300">{activePremiumEncounterLabel}</span>
                 </div>
               </div>
 
@@ -462,15 +477,18 @@ export default function Starting() {
               {/* Commission Earned */}
               <div className="mt-3 text-center">
                 <p className="text-white text-sm mb-1">Commission Earned So Far:</p>
-                <p className="text-green-300 font-bold text-xl">${userData.activePremium.commissionEarned.toFixed(2)} (VIP{userData.vipLevel} {commissionRate}%)</p>
+                <p className="text-green-300 font-bold text-xl">${userData.activePremium.commissionEarned.toFixed(2)} (VIP{userData.vipLevel} {premiumCommissionRate.toFixed(1)}%)</p>
               </div>
 
               {/* Queue Info */}
-              {userData.premiumQueue && userData.premiumQueue.length > 1 && (
+              {userData.premiumQueue && userData.premiumQueue.length > 0 && (
                 <div className="mt-3 bg-purple-500/50 rounded p-2 text-center">
-                  <p className="text-white text-sm">
-                    ⏳ {userData.premiumQueue.length - 1} more premium bundle{userData.premiumQueue.length > 2 ? 's' : ''} in queue
-                  </p>
+                  <p className="text-white text-sm">⏳ Queue Position: {activePremiumQueuePosition}</p>
+                  {userData.premiumQueue.length > 1 && (
+                    <p className="text-white text-xs mt-1">
+                      {userData.premiumQueue.length - 1} more premium bundle{userData.premiumQueue.length > 2 ? 's' : ''} waiting
+                    </p>
+                  )}
                 </div>
               )}
             </div>

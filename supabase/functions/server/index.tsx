@@ -3767,13 +3767,17 @@ async function submitTaskForUser(c: any, username: string, body: any) {
 
   const rewardsConfig = await getRewardsConfigRecord();
   const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
-  const shouldTriggerPremium = false;
+  const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
+  const premiumTriggerTaskNumber = Math.max(1, Number(productSystem.premiumTriggerTaskNumber ?? 10));
+  const shouldTriggerPremium = Boolean(productSystem.premiumEnabled)
+    && !normalizedUserData.activePremium
+    && nextSubmissionNumber === premiumTriggerTaskNumber;
 
   if (shouldTriggerPremium) {
     const premiumValue = computePremiumValueForVip(Number(normalizedUserData.vipLevel ?? 1), productSystem);
     const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
     const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - premiumValue);
-    const topUpRequired = Math.max(0, roundMoney(-balanceAfterAssignment));
+    const topUpRequired = roundMoney(Math.max(0, -balanceAfterAssignment));
     const activePremium = {
       id: `premium-rule-${Date.now()}`,
       premiumProductValue: premiumValue,
@@ -3784,7 +3788,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
       balanceAfterAssignment,
       negativeAmount: topUpRequired,
       topUpRequired,
-      triggerTaskNumber: nextSubmissionNumber,
+      triggerTaskNumber: premiumTriggerTaskNumber,
       vipLevel: Number(normalizedUserData.vipLevel ?? 1),
       valueMode: productSystem.premiumValueMode,
       tasksCompleted: 0,
@@ -3801,7 +3805,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
       ? [activePremium, ...normalizedUserData.premiumQueue]
       : [activePremium];
     normalizedUserData.balance = balanceAfterAssignment;
-    normalizedUserData.holdAmount = roundMoney(Math.max(Number(normalizedUserData.holdAmount ?? 0), topUpRequired));
+    normalizedUserData.holdAmount = topUpRequired;
 
     await kv.set(userKey, normalizedUserData);
     await kv.set(`premium:${username}:${activePremium.id}`, activePremium);
@@ -3815,7 +3819,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     }, 409);
   }
 
-  const commissionRate = vipConfig.commission;
+  const commissionRate = vipConfig.commission * 10;
   const commission = roundMoney(productPrice * commissionRate);
 
   normalizedUserData.tasksCompleted += 1;
@@ -4214,19 +4218,20 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     const bundledProducts = sortedProducts.slice(0, bundledProductCount);
     
     // Calculate total bundle value
-    const bundledProductsTotal = bundledProducts.reduce((sum, p) => sum + p.price, 0);
-    const totalBundleValue = premiumProductValue + bundledProductsTotal;
+    const bundledProductsTotal = roundMoney(bundledProducts.reduce((sum, p) => sum + p.price, 0));
+    const sanitizedPremiumValue = roundMoney(Number(premiumProductValue));
+    const totalBundleValue = roundMoney(sanitizedPremiumValue + bundledProductsTotal);
     
     // Calculate balance after assignment
-    const balanceBeforeAssignment = normalizedUserData.balance;
-    const balanceAfterAssignment = balanceBeforeAssignment - totalBundleValue;
-    const negativeAmount = balanceAfterAssignment < 0 ? Math.abs(balanceAfterAssignment) : 0;
+    const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
+    const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - totalBundleValue);
+    const negativeAmount = roundMoney(Math.max(0, -balanceAfterAssignment));
     
     // Create premium assignment
     const premiumAssignment = {
       id: `premium-${Date.now()}`,
-      premiumProductValue,
-      premiumProductName: `Premium Product ($${premiumProductValue})`,
+      premiumProductValue: sanitizedPremiumValue,
+      premiumProductName: `Premium Product ($${sanitizedPremiumValue})`,
       bundledProducts,
       totalBundleValue,
       balanceBeforeAssignment,
@@ -4237,8 +4242,9 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       totalTasks: 1 + bundledProductCount, // Premium + bundled products
       assignedAt: new Date().toISOString(),
       assignedBy: adminUsername || 'admin',
-      status: 'active', // active, completed, cancelled
+      status: negativeAmount > 0 ? 'awaiting_funds' : 'active', // active, completed, cancelled
       commissionEarned: 0,
+      encounterPosition: Number(normalizedUserData.tasksCompleted ?? 0) + 1,
     };
 
     // Initialize premium queue if not exists
@@ -4254,9 +4260,7 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       normalizedUserData.isFrozen = true;
       normalizedUserData.activePremium = premiumAssignment;
       normalizedUserData.balance = balanceAfterAssignment;
-      if (negativeAmount > 0) {
-        normalizedUserData.holdAmount = negativeAmount;
-      }
+      normalizedUserData.holdAmount = negativeAmount;
     }
     
     await kv.set(userKey, normalizedUserData);
@@ -4307,7 +4311,7 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
   const premium = normalizedUserData.activePremium;
 
   const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
-  const commissionRate = vipConfig.commission;
+  const commissionRate = vipConfig.commission * 10;
   const commission = roundMoney(productPrice * commissionRate);
 
   premium.tasksCompleted += 1;
@@ -4317,7 +4321,7 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
   normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
 
   if (normalizedUserData.balance < 0) {
-    normalizedUserData.holdAmount = Math.abs(normalizedUserData.balance);
+    normalizedUserData.holdAmount = roundMoney(Math.abs(normalizedUserData.balance));
   } else {
     normalizedUserData.holdAmount = 0;
   }
@@ -4333,15 +4337,17 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
       normalizedUserData.activePremium = nextPremium;
       normalizedUserData.isFrozen = true;
 
-      const newBalance = normalizedUserData.balance - nextPremium.totalBundleValue;
-      nextPremium.balanceBeforeAssignment = normalizedUserData.balance;
+      const newBalance = roundMoney(normalizedUserData.balance - nextPremium.totalBundleValue);
+      nextPremium.balanceBeforeAssignment = roundMoney(normalizedUserData.balance);
       nextPremium.balanceAfterAssignment = newBalance;
-      nextPremium.negativeAmount = newBalance < 0 ? Math.abs(newBalance) : 0;
+      nextPremium.negativeAmount = roundMoney(Math.max(0, -newBalance));
       nextPremium.topUpRequired = nextPremium.negativeAmount;
 
       normalizedUserData.balance = newBalance;
       if (newBalance < 0) {
-        normalizedUserData.holdAmount = Math.abs(newBalance);
+        normalizedUserData.holdAmount = roundMoney(Math.abs(newBalance));
+      } else {
+        normalizedUserData.holdAmount = 0;
       }
     } else {
       normalizedUserData.isFrozen = false;
