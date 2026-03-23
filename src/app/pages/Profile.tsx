@@ -26,6 +26,14 @@ export default function Profile() {
   const [newLoginPassword, setNewLoginPassword] = useState('');
   const [newTransactionPassword, setNewTransactionPassword] = useState('');
   const [updatingCredentials, setUpdatingCredentials] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [profileImageSrc, setProfileImageSrc] = useState<string>(() => {
+    try {
+      return localStorage.getItem(`profile-image-${getCurrentUsername()}`) ?? profileImage;
+    } catch {
+      return profileImage;
+    }
+  });
 
   const username = getCurrentUsername();
 
@@ -37,39 +45,32 @@ export default function Profile() {
   useEffect(() => {
     if (mustChangePassword) {
       setSecurityCredentialsOpen(true);
-      const [updatingCredentials, setUpdatingCredentials] = useState(false);
     }
-      const username = getCurrentUsername();
-      const fileInputRef = useRef<HTMLInputElement>(null);
-      const [profileImageSrc, setProfileImageSrc] = useState<string>(() => {
-        try {
-          return localStorage.getItem(`profile-image-${getCurrentUsername()}`) ?? profileImage;
-        } catch {
-          return profileImage;
-        }
-      });
   }, [mustChangePassword]);
-      const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        if (!file.type.startsWith('image/')) {
-          return;
-        }
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          const result = ev.target?.result as string;
-          if (!result) return;
-          setProfileImageSrc(result);
-          try {
-            localStorage.setItem(`profile-image-${getCurrentUsername()}`, result);
-          } catch {
-            // storage quota exceeded – just update state
-          }
-        };
-        reader.readAsDataURL(file);
-        // Reset input so same file can be re-selected
-        e.target.value = '';
-      };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const result = ev.target?.result as string;
+      if (!result) return;
+      setProfileImageSrc(result);
+      try {
+        localStorage.setItem(`profile-image-${getCurrentUsername()}`, result);
+      } catch {
+        // storage quota exceeded – just update state
+      }
+    };
+    reader.readAsDataURL(file);
+    // Reset input so same file can be re-selected
+    e.target.value = '';
+  };
+
   useEffect(() => {
     if (!username) return;
 
