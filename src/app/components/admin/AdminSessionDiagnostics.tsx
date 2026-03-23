@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react';
 import { supabase } from '../../services/supabaseAuth';
 
+const AUTO_HIDE_DELAY_MS = 10_000;
+
 type DiagnosticsState = {
   status: 'loading' | 'active' | 'missing' | 'error';
   email: string;
@@ -33,6 +35,7 @@ function extractRoleClaim(appMetadata: Record<string, unknown> | null | undefine
 }
 
 export default function AdminSessionDiagnostics() {
+  const [isVisible, setIsVisible] = useState(true);
   const [diagnostics, setDiagnostics] = useState<DiagnosticsState>({
     status: 'loading',
     email: 'Checking admin session...',
@@ -42,6 +45,7 @@ export default function AdminSessionDiagnostics() {
   });
 
   const refreshDiagnostics = useCallback(async () => {
+    setIsVisible(true);
     setDiagnostics((previous) => ({
       ...previous,
       status: 'loading',
@@ -104,6 +108,22 @@ export default function AdminSessionDiagnostics() {
       authListener.subscription.unsubscribe();
     };
   }, [refreshDiagnostics]);
+
+  useEffect(() => {
+    if (!isVisible) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setIsVisible(false);
+    }, AUTO_HIDE_DELAY_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [diagnostics.status, diagnostics.message, isVisible]);
+
+  if (!isVisible) {
+    return null;
+  }
 
   return (
     <aside className="fixed right-4 bottom-4 z-40 w-[320px] max-w-[calc(100vw-2rem)] rounded-xl border border-gray-700 bg-[#13192b]/95 backdrop-blur p-4 shadow-2xl">
