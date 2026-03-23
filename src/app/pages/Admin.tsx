@@ -1071,7 +1071,7 @@ export default function Admin() {
 
     try {
       const headers = await buildAdminAuthHeaders();
-      const response = await fetch(`${serverUrl}/admin/tasks/${taskId}`, {
+      const response = await fetch(`${serverUrl}/admin/tasks/${encodeURIComponent(taskId)}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({
@@ -1109,7 +1109,7 @@ export default function Admin() {
 
     try {
       const headers = await buildAdminAuthHeaders(false);
-      const response = await fetch(`${serverUrl}/admin/tasks/${taskId}`, {
+      const response = await fetch(`${serverUrl}/admin/tasks/${encodeURIComponent(taskId)}`, {
         method: 'DELETE',
         headers,
       });
@@ -1610,7 +1610,7 @@ export default function Admin() {
     try {
       toast.loading('Deleting product...', { id: loadingToastId });
       const headers = await buildAdminAuthHeaders();
-      const response = await fetch(`${serverUrl}/admin/tasks/${productId}`, {
+      const response = await fetch(`${serverUrl}/admin/tasks/${encodeURIComponent(productId)}`, {
         method: 'DELETE',
         headers,
       });
@@ -1657,7 +1657,7 @@ export default function Admin() {
     try {
       toast.loading('Updating product...', { id: loadingToastId });
       const headers = await buildAdminAuthHeaders();
-      const response = await fetch(`${serverUrl}/admin/tasks/${productId}`, {
+      const response = await fetch(`${serverUrl}/admin/tasks/${encodeURIComponent(productId)}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({

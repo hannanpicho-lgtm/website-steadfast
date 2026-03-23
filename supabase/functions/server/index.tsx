@@ -1065,7 +1065,7 @@ function sanitizeFinanceMethod(value: unknown, fallback: string): string {
 function sanitizeTaskId(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
-  if (!/^[a-zA-Z0-9\-]{1,128}$/.test(trimmed)) {
+  if (!/^[a-zA-Z0-9_:\-.]{1,128}$/.test(trimmed)) {
     return null;
   }
   return trimmed;
