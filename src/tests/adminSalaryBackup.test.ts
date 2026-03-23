@@ -276,6 +276,17 @@ describe('saveSalaryProjectAutosave / loadSalaryProjectAutosave', () => {
     expect(payments[0].username).toBe('alice');
   });
 
+  it('persists autosave data to browser localStorage when available', () => {
+    save();
+    const raw = localStorage.getItem('steadfast_admin_salary_project_v1');
+
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(String(raw))).toMatchObject({
+      version: 1,
+      payments: DEFAULT_PAYMENTS,
+    });
+  });
+
   it('returns default payments when storage is empty', () => {
     const { payments } = loadSalaryProjectAutosave(DEFAULT_PAYMENTS);
     expect(payments).toEqual(DEFAULT_PAYMENTS);
@@ -307,6 +318,19 @@ describe('saveSalaryProjectAutosave / loadSalaryProjectAutosave', () => {
     seedAdminSalaryProjectCompatibilityStorageForTests(JSON.stringify(raw));
     const { payments } = loadSalaryProjectAutosave(DEFAULT_PAYMENTS);
     expect(payments).toEqual(DEFAULT_PAYMENTS);
+  });
+
+  it('surfaces browser storage write failures', () => {
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota exceeded');
+    });
+
+    expect(save()).toEqual({
+      ok: false,
+      message: 'Unable to save backup data to browser storage. quota exceeded',
+    });
+
+    setItemSpy.mockRestore();
   });
 
   it('saves and restores restore points', () => {
@@ -362,6 +386,15 @@ describe('saveSalaryAuditLog / loadSalaryAuditLog', () => {
     const loaded = loadSalaryAuditLog();
     expect(loaded).toHaveLength(1);
     expect(loaded[0].action).toBe('auto-backup');
+  });
+
+  it('persists audit log data to browser localStorage when available', () => {
+    const events = [createAuditEvent('manual-backup', 'persisted')];
+    saveSalaryAuditLog(events);
+
+    const raw = localStorage.getItem('steadfast_admin_salary_audit_log_v1');
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(String(raw))).toHaveLength(1);
   });
 
   it(`truncates the log to MAX_AUDIT_EVENTS (${MAX_AUDIT_EVENTS}) on save`, () => {

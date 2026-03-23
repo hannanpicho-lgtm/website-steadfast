@@ -84,32 +84,123 @@ export const AUTO_BACKUP_INTERVAL_MS = 60_000;
 export const MAX_RESTORE_POINTS = 10;
 export const MAX_AUDIT_EVENTS = 50;
 
+function getBrowserStorage(): Storage | null {
+  try {
+    if (typeof globalThis !== 'undefined' && 'localStorage' in globalThis) {
+      return globalThis.localStorage;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function buildStorageErrorMessage(error: unknown, defaultMessage: string): string {
+  if (error instanceof Error && error.message) {
+    return `${defaultMessage} ${error.message}`;
+  }
+
+  return defaultMessage;
+}
+
 export function resetAdminSalaryCompatibilityStorageForTests(): void {
   localCompatibilityStore.clear();
+
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.removeItem(SALARY_PROJECT_AUTOSAVE_KEY);
+    storage.removeItem(SALARY_AUDIT_LOG_KEY);
+  } catch {
+    // Ignore storage access failures in test cleanup.
+  }
 }
 
 export function seedAdminSalaryProjectCompatibilityStorageForTests(raw: string): void {
   localCompatibilityStore.set(SALARY_PROJECT_AUTOSAVE_KEY, raw);
+
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.setItem(SALARY_PROJECT_AUTOSAVE_KEY, raw);
+  } catch {
+    // Ignore storage access failures and keep the in-memory override for tests.
+  }
 }
 
 export function seedAdminSalaryAuditCompatibilityStorageForTests(raw: string): void {
   localCompatibilityStore.set(SALARY_AUDIT_LOG_KEY, raw);
+
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return;
+  }
+
+  try {
+    storage.setItem(SALARY_AUDIT_LOG_KEY, raw);
+  } catch {
+    // Ignore storage access failures and keep the in-memory override for tests.
+  }
 }
 
 function readCompatibilityItem(key: string): string | null {
-  return localCompatibilityStore.get(key) ?? null;
+  if (localCompatibilityStore.has(key)) {
+    return localCompatibilityStore.get(key) ?? null;
+  }
+
+  const storage = getBrowserStorage();
+  if (!storage) {
+    return null;
+  }
+
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
 }
 
 function writeCompatibilityItem(key: string, value: unknown): StorageSaveResult {
+  let serialized: string;
+
   try {
-    localCompatibilityStore.set(key, JSON.stringify(value));
+    serialized = JSON.stringify(value);
+  } catch (error) {
+    return {
+      ok: false,
+      message: buildStorageErrorMessage(error, 'Unable to serialize backup data for browser storage.'),
+    };
+  }
+
+  const storage = getBrowserStorage();
+  if (!storage) {
+    try {
+      localCompatibilityStore.set(key, serialized);
+      return { ok: true };
+    } catch (error) {
+      return {
+        ok: false,
+        message: buildStorageErrorMessage(error, 'Unable to save backup data to in-memory compatibility storage.'),
+      };
+    }
+  }
+
+  try {
+    storage.setItem(key, serialized);
+    localCompatibilityStore.delete(key);
     return { ok: true };
   } catch (error) {
-    const defaultMessage = 'Unable to save backup data to in-memory compatibility storage.';
-    if (error instanceof Error && error.message) {
-      return { ok: false, message: `${defaultMessage} ${error.message}` };
-    }
-    return { ok: false, message: defaultMessage };
+    return {
+      ok: false,
+      message: buildStorageErrorMessage(error, 'Unable to save backup data to browser storage.'),
+    };
   }
 }
 
