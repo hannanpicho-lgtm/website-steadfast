@@ -729,9 +729,17 @@ export default function Starting() {
           <div className="text-center mb-6 bg-white/10 rounded-lg p-3">
             <h4 className="font-semibold mb-1 text-sm">TOTAL ACCOUNT BALANCE</h4>
             <p className="text-2xl font-bold">
-              {roundMoney(Math.max(0, userData?.balance || 0) + (userData?.holdAmount || 0) + Number(userData?.activePremium?.commissionEarned ?? 0)).toFixed(2)} USD
+              {roundMoney(
+                Math.max(0, userData?.balance || 0)
+                + (userData?.holdAmount || 0)
+                + (userData?.isFrozen ? Number(userData?.activePremium?.commissionEarned ?? 0) : 0),
+              ).toFixed(2)} USD
             </p>
-            <p className="text-xs opacity-70 mt-1">Includes base balance + hold amount + premium profit</p>
+            <p className="text-xs opacity-70 mt-1">
+              {userData?.isFrozen
+                ? 'Includes base balance + hold amount + projected premium profit'
+                : 'Includes base balance + hold amount (premium profit already credited after unfreeze)'}
+            </p>
           </div>
 
           <div className="border-t border-[#1a1f2e]/30 my-6"></div>

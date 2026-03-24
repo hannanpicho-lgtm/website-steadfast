@@ -3907,7 +3907,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     }, 409);
   }
 
-  const commissionRate = vipConfig.commission * 10;
+  const commissionRate = vipConfig.commission;
   const commission = roundMoney(productPrice * commissionRate);
 
   normalizedUserData.tasksCompleted += 1;
