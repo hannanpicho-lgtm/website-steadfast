@@ -4310,22 +4310,17 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     
     // Calculate total bundle value
     const bundledProductsTotal = roundMoney(bundledProducts.reduce((sum, p) => sum + p.price, 0));
-    const hasExplicitPremiumValue = Number.isFinite(Number(premiumProductValue));
-    const requestedTopUpAmount = Number.isFinite(Number(upholdAmountOverride)) && Number(upholdAmountOverride) > 0
-      ? roundMoney(Number(upholdAmountOverride))
+    const sanitizedPremiumValue = Number.isFinite(Number(premiumProductValue))
+      ? roundMoney(Math.max(0, Number(premiumProductValue)))
       : 0;
+    const totalBundleValue = roundMoney(sanitizedPremiumValue + bundledProductsTotal);
 
     // Calculate balance after assignment
     const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
-    const sanitizedPremiumValue = hasExplicitPremiumValue
-      ? roundMoney(Math.max(0, Number(premiumProductValue)))
-      : requestedTopUpAmount > 0
-        ? roundMoney(Math.max(0, (balanceBeforeAssignment + requestedTopUpAmount) - bundledProductsTotal))
-        : 0;
-    const totalBundleValue = roundMoney(sanitizedPremiumValue + bundledProductsTotal);
     const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - totalBundleValue);
-    const negativeAmount = hasExplicitPremiumValue && requestedTopUpAmount > 0
-      ? requestedTopUpAmount
+    // Use admin-defined uphold amount if provided (deterministic), otherwise calculate
+    const negativeAmount = Number.isFinite(Number(upholdAmountOverride)) && Number(upholdAmountOverride) > 0
+      ? roundMoney(Number(upholdAmountOverride))
       : roundMoney(Math.max(0, -balanceAfterAssignment));
     
     // Create premium assignment
@@ -4338,7 +4333,9 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       balanceBeforeAssignment,
       balanceAfterAssignment,
       negativeAmount,
-      configuredUpholdAmount: requestedTopUpAmount,
+      configuredUpholdAmount: Number.isFinite(Number(upholdAmountOverride)) && Number(upholdAmountOverride) > 0
+        ? roundMoney(Number(upholdAmountOverride))
+        : 0,
       topUpRequired: negativeAmount,
       tasksCompleted: 0,
       totalTasks: 1 + bundledProductCount, // Premium + bundled products
