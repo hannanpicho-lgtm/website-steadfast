@@ -18,6 +18,7 @@ export type FinancialSummaryResponse = {
   completedTaskSets: number;
   pendingTaskReset: boolean;
   isFrozen: boolean;
+  isSuspended?: boolean;
   createdAt: string;
   lastReset: string;
     creditScore?: number;

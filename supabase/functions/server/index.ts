@@ -2142,6 +2142,7 @@ function defaultUserRecord(username: string) {
     tasksPerSetOverride: null as number | null,
     lastReset: new Date().toISOString().split('T')[0],
     isFrozen: false,
+    isSuspended: false,
     activePremium: null,
     premiumQueue: [],
     invitationCode: null,
@@ -2200,6 +2201,7 @@ function normalizeUserRecord(userData: any, username: string) {
     ? Math.max(0, Math.round(Number(normalized.completedTaskSets)))
     : 0;
   normalized.pendingTaskReset = Boolean(normalized.pendingTaskReset);
+  normalized.isSuspended = Boolean(normalized.isSuspended);
   normalized.referralEarnings = Number.isFinite(Number(normalized.referralEarnings)) ? Number(normalized.referralEarnings) : 0;
   normalized.children = Array.isArray(normalized.children) ? normalized.children : [];
   normalized.workdayQualifiedDays = Number.isFinite(Number(normalized.workdayQualifiedDays))
@@ -2543,9 +2545,15 @@ function restoreUserToNaturalState(userData: any) {
   const preFreezeBalance = Number.isFinite(Number(restored?.activePremium?.balanceBeforeAssignment))
     ? roundMoney(Number(restored.activePremium.balanceBeforeAssignment))
     : currentBalance;
-  const settledUpholdAmount = Number.isFinite(Number(restored?.activePremium?.topUpRequired ?? restored?.activePremium?.negativeAmount))
+  const preservedHoldAmount = roundMoney(Math.max(0, Number(restored.holdAmount ?? 0)));
+  const configuredUpholdAmount = Number.isFinite(Number(restored?.activePremium?.upholdAmount))
+    ? roundMoney(Math.max(0, Number(restored.activePremium.upholdAmount)))
+    : 0;
+  const outstandingTopUp = Number.isFinite(Number(restored?.activePremium?.topUpRequired ?? restored?.activePremium?.negativeAmount))
     ? roundMoney(Math.max(0, Number(restored.activePremium.topUpRequired ?? restored.activePremium.negativeAmount)))
-    : roundMoney(Math.max(0, Number(restored.holdAmount ?? 0)));
+    : 0;
+  // Prefer held/configured uphold value so fulfilled premium states do not regress to pre-premium balances.
+  const settledUpholdAmount = Math.max(preservedHoldAmount, configuredUpholdAmount, outstandingTopUp);
   const premiumCommission = Number.isFinite(Number(restored?.activePremium?.commissionEarned))
     ? roundMoney(Math.max(0, Number(restored.activePremium.commissionEarned)))
     : 0;
@@ -3274,6 +3282,7 @@ async function buildAdminPlatformUserAudit(username: string) {
     walletProfile: normalizeStoredWalletProfile(normalizedUser.walletProfile),
     accountStatus: {
       isFrozen: Boolean(normalizedUser.isFrozen),
+      isSuspended: Boolean(normalizedUser.isSuspended),
       pendingTaskReset: Boolean(normalizedUser.pendingTaskReset),
       activePremiumStatus: typeof normalizedUser.activePremium?.status === 'string' ? normalizedUser.activePremium.status : null,
     },
@@ -7775,6 +7784,7 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
       holdAmount: u.holdAmount,
       availableAmount: roundMoney(Number(u.balance ?? 0) - Number(u.holdAmount ?? 0)),
       isFrozen: u.isFrozen,
+      isSuspended: Boolean(u.isSuspended),
       walletProfile: normalizeStoredWalletProfile(u.walletProfile),
       invitationCode: typeof u.invitationCode === 'string' && u.invitationCode ? u.invitationCode : null,
       lastLoginAt: typeof u.lastLoginAt === 'string' && u.lastLoginAt ? u.lastLoginAt : null,
@@ -7864,8 +7874,9 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
     const vipConfig = await getVipConfigForLevel(Number(normalizedUser.vipLevel ?? 1));
     const nextTasksPerSet = Math.max(1, Math.round(Number(vipConfig.dailyTasks ?? normalizedUser.tasksPerSet ?? 1)));
     const shouldResetCurrentSet = body?.resetCurrentSet === true;
-    const shouldRestoreNaturalState = body?.restoreNaturalState === true;
+    const shouldUnfreezeAccount = body?.restoreNaturalState === true || body?.unfreezeAccount === true;
     const shouldSuspendAccount = body?.suspendAccount === true;
+    const shouldUnsuspendAccount = body?.unsuspendAccount === true;
 
     normalizedUser.taskSetCountOverride = nextTaskSetCount;
     normalizedUser.tasksPerSetOverride = null;
@@ -7884,10 +7895,14 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
     }
 
     if (shouldSuspendAccount) {
-      normalizedUser.isFrozen = true;
+      normalizedUser.isSuspended = true;
     }
 
-    if (shouldRestoreNaturalState) {
+    if (shouldUnsuspendAccount) {
+      normalizedUser.isSuspended = false;
+    }
+
+    if (shouldUnfreezeAccount) {
       const restored = restoreUserToNaturalState(normalizedUser);
       Object.assign(normalizedUser, restored);
       normalizedUser.pendingTaskReset = false;
@@ -7902,7 +7917,8 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
       const flags = [
         shouldResetCurrentSet ? 'reset-set' : '',
         shouldSuspendAccount ? 'suspend' : '',
-        shouldRestoreNaturalState ? 'restore' : '',
+        shouldUnsuspendAccount ? 'unsuspend' : '',
+        shouldUnfreezeAccount ? 'unfreeze' : '',
       ].filter(Boolean);
       return flags.length > 0 ? flags.join('+') : 'update';
     })();

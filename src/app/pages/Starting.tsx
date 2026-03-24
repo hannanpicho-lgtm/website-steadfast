@@ -28,6 +28,7 @@ interface UserData {
   completedTaskSets?: number;
   pendingTaskReset?: boolean;
   isFrozen?: boolean;
+  isSuspended?: boolean;
   activePremium?: any;
   premiumQueue?: any[];
 }
@@ -217,6 +218,7 @@ export default function Starting() {
     : 100;
   const availableFundsForSubmit = roundMoney(Number(userData?.availableAmount ?? ((userData?.balance ?? 0) - (userData?.holdAmount ?? 0))));
   const vipFundingBlocked = Boolean(userData) && availableFundsForSubmit < requiredFundsForVip;
+  const isAccountSuspended = Boolean(userData?.isSuspended);
   const taskSetResetRequired = Boolean(userData?.pendingTaskReset);
   const nextSubmissionNumber = Number(userData?.tasksCompleted ?? 0) + 1;
   const premiumTriggerIncoming = !premiumSubmissionBlocked
@@ -353,6 +355,11 @@ export default function Starting() {
 
     if (vipFundingBlocked) {
       toast.error(`VIP${userData.vipLevel} requires at least $${requiredFundsForVip.toFixed(2)} available before submitting tasks.`);
+      return;
+    }
+
+    if (isAccountSuspended) {
+      toast.error('Account is suspended. Please contact support.');
       return;
     }
 
@@ -657,7 +664,25 @@ export default function Starting() {
 
         {/* Starting Button */}
         {/* Reset Required Banner — shown when the full task set is complete */}
-        {taskSetResetRequired ? (
+        {isAccountSuspended ? (
+          <div className="bg-gradient-to-br from-red-700 to-rose-700 border-2 border-red-300 rounded-lg p-6 mb-6 shadow-xl">
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <Lock className="text-red-100" size={30} />
+              <h2 className="text-xl font-bold text-white text-center">ACCOUNT SUSPENDED</h2>
+              <Lock className="text-red-100" size={30} />
+            </div>
+            <p className="text-red-100 text-sm text-center mb-5">
+              Task submissions are disabled while this account is suspended. Contact support for assistance.
+            </p>
+            <button
+              onClick={() => setIsChatOpen(true)}
+              className="w-full flex items-center justify-center gap-2 bg-white text-[#7a0016] font-bold py-3 rounded-lg hover:bg-red-50 transition-colors text-lg"
+            >
+              <MessageCircle size={22} />
+              Contact Support
+            </button>
+          </div>
+        ) : taskSetResetRequired ? (
           <div className="bg-gradient-to-br from-yellow-700 to-amber-600 border-2 border-yellow-300 rounded-lg p-6 mb-6 shadow-xl">
             <div className="flex items-center justify-center gap-3 mb-3">
               <AlertTriangle className="text-yellow-200" size={32} />
@@ -704,13 +729,15 @@ export default function Starting() {
             <button
               className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
               onClick={handleSubmitTask}
-              disabled={submitting || (!currentProduct && !isPremiumTaskActive) || premiumSubmissionBlocked || vipFundingBlocked || taskSetResetRequired}
+              disabled={submitting || (!currentProduct && !isPremiumTaskActive) || premiumSubmissionBlocked || vipFundingBlocked || taskSetResetRequired || isAccountSuspended}
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
                   <Loader2 className="animate-spin" size={24} />
                   Submitting...
                 </span>
+              ) : isAccountSuspended ? (
+                'Account Suspended'
               ) : taskSetResetRequired ? (
                 'Waiting For Admin Reset'
               ) : vipFundingBlocked ? (
@@ -738,77 +765,77 @@ export default function Starting() {
         )}
 
         {/* Commission Panel */}
-        <div className="relative mb-6 overflow-hidden rounded-[28px] bg-[linear-gradient(145deg,#0b72e7_0%,#0d92f4_52%,#19c0ff_100%)] text-white shadow-[0_24px_60px_rgba(6,58,145,0.24)]">
-          <div className="absolute inset-x-0 top-0 h-24 bg-white/10 blur-3xl" />
-          <div className="relative p-6 md:p-7">
+        <div className="relative mb-6 overflow-hidden rounded-[22px] bg-[linear-gradient(145deg,#0b72e7_0%,#0d92f4_52%,#19c0ff_100%)] text-white shadow-[0_16px_36px_rgba(6,58,145,0.22)]">
+          <div className="absolute inset-x-0 top-0 h-20 bg-white/10 blur-3xl" />
+          <div className="relative p-4 md:p-5">
             <div className="mx-auto max-w-md text-center">
-              <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/90">
+              <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/90">
                 Financial Summary
               </div>
-              <Rocket className="mx-auto mt-4" size={34} />
-              <h3 className="mt-3 text-sm font-semibold uppercase tracking-[0.26em] text-white/80">Today's Commission</h3>
-              <p className="mt-2 text-4xl font-bold leading-none">{(userData?.todayCommission || 0).toFixed(2)} USD</p>
-              <p className="mt-3 text-sm text-white/80">Updated from completed submissions in the current working day.</p>
+              <Rocket className="mx-auto mt-3" size={26} />
+              <h3 className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Today's Commission</h3>
+              <p className="mt-2 text-3xl font-bold leading-none">{(userData?.todayCommission || 0).toFixed(2)} USD</p>
+              <p className="mt-2 text-xs text-white/80">Updated from completed submissions in the current working day.</p>
             </div>
 
-            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="rounded-2xl bg-white/12 p-4 backdrop-blur-sm">
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded-xl bg-white/12 p-3 backdrop-blur-sm">
                 <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-white/15 p-2">
-                    <CreditCard size={18} />
+                  <div className="rounded-full bg-white/15 p-1.5">
+                    <CreditCard size={15} />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
                       {userData?.isFrozen ? 'Current Balance' : 'Available Balance'}
                     </p>
-                    <p className="mt-1 text-2xl font-bold">
+                    <p className="mt-1 text-xl font-bold">
                       {(userData?.isFrozen ? Math.max(0, frozenCurrentBalanceBeforeFreeze) : availableFundsForSubmit).toFixed(2)} USD
                     </p>
                   </div>
                 </div>
-                <p className="mt-3 text-xs text-white/75">
+                <p className="mt-2 text-[11px] text-white/75">
                   {userData?.isFrozen ? 'Balance held before premium settlement.' : 'Funds currently available for new submissions.'}
                 </p>
               </div>
 
-              <div className="rounded-2xl bg-white/12 p-4 backdrop-blur-sm">
+              <div className="rounded-xl bg-white/12 p-3 backdrop-blur-sm">
                 <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-white/15 p-2">
-                    <Snowflake size={18} />
+                  <div className="rounded-full bg-white/15 p-1.5">
+                    <Snowflake size={15} />
                   </div>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Hold Amount</p>
-                    <p className={`mt-1 text-2xl font-bold ${userData?.isFrozen ? 'text-[#ffe1e1]' : 'text-white'}`}>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Hold Amount</p>
+                    <p className={`mt-1 text-xl font-bold ${userData?.isFrozen ? 'text-[#ffe1e1]' : 'text-white'}`}>
                       {userData?.isFrozen ? '-' : ''}{(userData?.isFrozen ? frozenUpholdAmount : Number(userData?.holdAmount ?? 0)).toFixed(2)} USD
                     </p>
                   </div>
                 </div>
-                <p className="mt-3 text-xs text-white/75">
+                <p className="mt-2 text-[11px] text-white/75">
                   {userData?.isFrozen ? 'Reserved for the premium settlement requirement.' : 'Amount currently reserved from the working balance.'}
                 </p>
               </div>
             </div>
 
-            <div className="mt-4 rounded-[24px] border border-white/15 bg-white/12 p-5 backdrop-blur-sm">
-              <p className="text-center text-xs font-semibold uppercase tracking-[0.24em] text-white/75">Total Account Balance</p>
-              <p className="mt-2 text-center text-3xl font-bold">{totalAccountBalanceDisplay.toFixed(2)} USD</p>
-              <p className="mt-2 text-center text-xs text-white/75">
+            <div className="mt-3 rounded-[18px] border border-white/15 bg-white/12 p-4 backdrop-blur-sm">
+              <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">Total Account Balance</p>
+              <p className="mt-1.5 text-center text-[1.75rem] font-bold">{totalAccountBalanceDisplay.toFixed(2)} USD</p>
+              <p className="mt-1.5 text-center text-[11px] text-white/75">
                 {userData?.isFrozen
                   ? 'Includes pre-freeze balance, current hold amount, and projected premium profit.'
                   : 'Reflects the active account balance across the current task cycle.'}
               </p>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="rounded-2xl bg-[#083b93]/35 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Lucky Bonus</p>
-                <p className="mt-1 text-2xl font-bold">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
-                <p className="mt-2 text-xs text-white/75">Bonus value currently carried on the account.</p>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className="rounded-xl bg-[#083b93]/35 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Lucky Bonus</p>
+                <p className="mt-1 text-xl font-bold">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
+                <p className="mt-1.5 text-[11px] text-white/75">Bonus value currently carried on the account.</p>
               </div>
-              <div className="rounded-2xl bg-[#083b93]/35 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Working Status</p>
-                <p className="mt-1 text-2xl font-bold">{userData?.isFrozen ? 'Settlement Review' : 'Ready To Submit'}</p>
-                <p className="mt-2 text-xs text-white/75">
+              <div className="rounded-xl bg-[#083b93]/35 p-3">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Working Status</p>
+                <p className="mt-1 text-xl font-bold">{userData?.isFrozen ? 'Settlement Review' : 'Ready To Submit'}</p>
+                <p className="mt-1.5 text-[11px] text-white/75">
                   {userData?.isFrozen ? 'Submission remains paused until the premium requirement is cleared.' : 'The account can continue processing eligible tasks.'}
                 </p>
               </div>

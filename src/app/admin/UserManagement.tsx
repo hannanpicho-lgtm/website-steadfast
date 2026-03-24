@@ -63,6 +63,7 @@ export default function UserManagement({
     pendingTaskReset?: boolean;
     holdAmount?: number;
     isFrozen?: boolean;
+    isSuspended?: boolean;
     creditScore?: number;
   };
   const normalizedUsers: DisplayUser[] = platformUsersLoaded
@@ -72,7 +73,7 @@ export default function UserManagement({
           const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
           return bTime - aTime;
         })
-        .map((u, i) => ({ id: i + 1, username: u.username, email: '—', phone: '—', vipLevel: u.vipLevel, balance: u.balance, status: u.isFrozen ? 'Suspended' : 'Active', registered: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—', tasksCompleted: u.tasksCompleted, referredByAdminName: u.referredByAdminName || '—', taskSetCount: u.taskSetCount, tasksPerSet: u.tasksPerSet, tasksCompletedInSet: u.tasksCompletedInSet, completedTaskSets: u.completedTaskSets, pendingTaskReset: u.pendingTaskReset, holdAmount: u.holdAmount, isFrozen: u.isFrozen, creditScore: typeof u.creditScore === 'number' ? u.creditScore : 100 }))
+        .map((u, i) => ({ id: i + 1, username: u.username, email: '—', phone: '—', vipLevel: u.vipLevel, balance: u.balance, status: u.isSuspended ? 'Suspended' : 'Active', registered: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—', tasksCompleted: u.tasksCompleted, referredByAdminName: u.referredByAdminName || '—', taskSetCount: u.taskSetCount, tasksPerSet: u.tasksPerSet, tasksCompletedInSet: u.tasksCompletedInSet, completedTaskSets: u.completedTaskSets, pendingTaskReset: u.pendingTaskReset, holdAmount: u.holdAmount, isFrozen: u.isFrozen, isSuspended: u.isSuspended, creditScore: typeof u.creditScore === 'number' ? u.creditScore : 100 }))
     : [];
   const filteredUsers = normalizedUsers.filter(user => {
     const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -193,6 +194,11 @@ export default function UserManagement({
                         <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold ${user.pendingTaskReset ? 'bg-yellow-500/20 text-yellow-300' : 'bg-green-500/20 text-green-300'}`}>
                           {user.pendingTaskReset ? 'Reset Needed' : 'Ready'}
                         </span>
+                        {user.isFrozen ? (
+                          <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/20 text-blue-300">
+                            Frozen (Premium)
+                          </span>
+                        ) : null}
                       </div>
                     ) : (
                       <span className="text-gray-500">—</span>
@@ -230,9 +236,9 @@ export default function UserManagement({
                       </button>
                       {user.status === 'Suspended' ? (
                         <button 
-                          onClick={() => { if (confirm(`Restore account for ${user.username}?`)) { void onRestoreNaturalState(user); } }}
+                          onClick={() => { if (confirm(`Unsuspend account for ${user.username}?`)) { void onToggleSuspension(user); } }}
                           className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
-                          title="Restore Account"
+                          title="Unsuspend Account"
                         >
                           <Check size={16} className="text-gray-400 hover:text-green-400" />
                         </button>
@@ -245,6 +251,15 @@ export default function UserManagement({
                           <X size={16} className="text-gray-400 hover:text-orange-400" />
                         </button>
                       )}
+                      {user.isFrozen ? (
+                        <button
+                          onClick={() => { if (confirm(`Unfreeze (restore natural state) for ${user.username}?`)) { void onRestoreNaturalState(user); } }}
+                          className="p-1 hover:bg-[#1a1f2e] rounded transition-colors"
+                          title="Unfreeze (Restore Natural State)"
+                        >
+                          <Check size={16} className="text-gray-400 hover:text-cyan-400" />
+                        </button>
+                      ) : null}
                       <button 
                         onClick={() => {
                           if (!user.pendingTaskReset) {

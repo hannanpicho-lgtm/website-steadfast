@@ -241,6 +241,7 @@ type PlatformUser = {
   holdAmount: number;
   availableAmount?: number;
   isFrozen: boolean;
+  isSuspended?: boolean;
   walletProfile?: any;
   invitationCode?: string | null;
   lastLoginAt?: string | null;
@@ -265,6 +266,7 @@ type PlatformUserAudit = {
   walletProfile: any;
   accountStatus: {
     isFrozen: boolean;
+    isSuspended?: boolean;
     pendingTaskReset: boolean;
     activePremiumStatus: string | null;
   };
@@ -617,7 +619,7 @@ export default function Admin() {
         ? {
             ...current,
             ...nextUser,
-            status: nextUser.isFrozen ? 'Suspended' : 'Active',
+            status: nextUser.isSuspended ? 'Suspended' : 'Active',
             registered: nextUser.createdAt ? new Date(nextUser.createdAt).toLocaleDateString() : '—',
           }
         : current
@@ -682,12 +684,12 @@ export default function Admin() {
   };
 
   const handleRestorePlatformUser = async (user: PlatformUser) => {
-    await updatePlatformUserTaskControls(user.username, { restoreNaturalState: true }, `Account restored for ${user.username}`);
+    await updatePlatformUserTaskControls(user.username, { unfreezeAccount: true }, `Account unfrozen for ${user.username}`);
   };
 
   const handleTogglePlatformUserSuspension = async (user: PlatformUser) => {
-    if (user.isFrozen) {
-      await handleRestorePlatformUser(user);
+    if (user.isSuspended) {
+      await updatePlatformUserTaskControls(user.username, { unsuspendAccount: true }, `Account unsuspended for ${user.username}`);
       return;
     }
 
@@ -2587,6 +2589,7 @@ export default function Admin() {
                       <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-300 mb-3">Account Status</p>
                       <div className="space-y-2 text-sm">
                         <p className="text-white">Frozen: <span className="font-semibold">{selectedUserAudit?.accountStatus?.isFrozen ? 'Yes' : 'No'}</span></p>
+                        <p className="text-white">Suspended: <span className="font-semibold">{selectedUserAudit?.accountStatus?.isSuspended ? 'Yes' : 'No'}</span></p>
                         <p className="text-white">Reset Required: <span className="font-semibold">{selectedUserAudit?.accountStatus?.pendingTaskReset ? 'Yes' : 'No'}</span></p>
                         <p className="text-white">Premium State: <span className="font-semibold">{selectedUserAudit?.accountStatus?.activePremiumStatus ?? 'None'}</span></p>
                         <p className="text-white">Set Progress: <span className="font-semibold">{selectedUserAudit?.taskProgress?.tasksCompletedInSet ?? selectedItem.tasksCompletedInSet ?? 0}/{selectedUserAudit?.taskProgress?.tasksPerSet ?? selectedItem.tasksPerSet ?? 0}</span></p>
@@ -2788,7 +2791,7 @@ export default function Admin() {
                     disabled={userTaskControlSaving || (!selectedItem.isFrozen && (selectedItem.holdAmount ?? 0) <= 0)}
                     className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Restore Natural State
+                    Unfreeze (Restore Natural State)
                   </button>
                   <button
                     type="button"
@@ -2796,7 +2799,7 @@ export default function Admin() {
                     disabled={userTaskControlSaving}
                     className="bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {selectedItem.isFrozen ? 'Restore Account' : 'Suspend Account'}
+                    {selectedItem.isSuspended ? 'Unsuspend Account' : 'Suspend Account'}
                   </button>
                 </div>
               </div>
@@ -4320,7 +4323,7 @@ export default function Admin() {
   const platformRevenue = totalDeposits - totalWithdrawals - totalCommissions;
   const totalUserBalances = platformUsers.reduce((sum, user) => sum + user.balance, 0);
   const totalCompletedTasks = platformUsers.reduce((sum, user) => sum + user.tasksCompleted, 0);
-  const activePlatformUsers = platformUsers.filter((user) => !user.isFrozen).length;
+  const activePlatformUsers = platformUsers.filter((user) => !user.isSuspended).length;
   const averageBalance = platformUsers.length > 0 ? totalUserBalances / platformUsers.length : 0;
   const averageCommissionRate = platformUsers.length > 0
     ? (platformUsers.reduce((sum, user) => sum + (vipConfigurations.find((vip) => vip.level === user.vipLevel)?.commission ?? 0), 0) / platformUsers.length) * 100
