@@ -939,6 +939,7 @@ export default function Admin() {
 
     const vipPremiumAdjustments = vipConfigurations.map((tier) => {
       const vipLevel = tier.level;
+      const existing = rewardsConfig.productSystem.vipPremiumAdjustments?.find((entry) => entry.vipLevel === vipLevel);
       const multiplierValue = Number(formData.get(`premiumMultiplier_${vipLevel}`));
       const minValue = Number(formData.get(`premiumMin_${vipLevel}`));
       const maxValue = Number(formData.get(`premiumMax_${vipLevel}`));
@@ -948,6 +949,7 @@ export default function Admin() {
         multiplier: multiplierValue,
         minValue,
         maxValue,
+        upholdAmount: Number(existing?.upholdAmount ?? 0),
       };
     });
 
