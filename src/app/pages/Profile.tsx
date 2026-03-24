@@ -1,4 +1,4 @@
-import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle } from 'lucide-react';
+﻿import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
@@ -419,15 +419,21 @@ export default function Profile() {
             {languageOpen && (
               <div className="px-4 pb-4 border-t border-gray-100">
                 <div className="space-y-2">
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50 font-semibold text-[#0066cc]">
-                    English
-                  </button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">
-                    Español
-                  </button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">
-                    中文
-                  </button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50 font-semibold text-[#0066cc]">English</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Español</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">中文</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Français</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Deutsch</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Português</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">العربية</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">हिन्दी</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Bahasa Indonesia</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">日本語</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">한국어</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Русский</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Türkçe</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Tiếng Việt</button>
+                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">ภาษาไทย</button>
                 </div>
               </div>
             )}
