@@ -4,7 +4,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
-    "backup:project": "powershell -ExecutionPolicy Bypass -File ../Backup-Project.ps1 -ProjectPath $(powershell -NoProfile -Command \"(Get-Location).Path\") -Description",
+    "backup:project": "node scripts/backup-project.mjs",
     "build": "vite build",
     "dev": "vite",
     "preview": "vite preview",
@@ -19,7 +19,9 @@
     "test:all": "vitest run",
     "test:watch": "vitest",
     "smoke": "node scripts/api-smoke-test.mjs",
-    "verify:deploy:p4": "node scripts/verify-cloudflare-deploy.mjs --project website-steadfast"
+    "verify:deploy:p4": "node scripts/verify-cloudflare-deploy.mjs --project website-steadfast",
+    "deploy:supabase:hardened": "powershell -ExecutionPolicy Bypass -File scripts/deploy-supabase-hardened.ps1",
+    "deploy:supabase:hardened:smoke": "powershell -ExecutionPolicy Bypass -File scripts/deploy-supabase-hardened.ps1 -RunSmoke"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

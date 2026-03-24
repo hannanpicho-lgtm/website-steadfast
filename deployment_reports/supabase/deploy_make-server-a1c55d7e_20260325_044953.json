@@ -1,0 +1,38 @@
+﻿{
+    "timestampUtc":  "2026-03-24T21:49:53.2151842Z",
+    "projectRef":  "gvqwvuqeenkusdayosty",
+    "functionName":  "make-server-a1c55d7e",
+    "git":  {
+                "branch":  "main",
+                "headShort":  "730bc9c3",
+                "headLong":  "730bc9c3fa60202dba1bf6acb8be6d1dd91e7553",
+                "originMain":  "730bc9c3fa60202dba1bf6acb8be6d1dd91e7553",
+                "isDirty":  true
+            },
+    "before":  {
+                   "version":  119,
+                   "status":  "ACTIVE",
+                   "updatedAtUtc":  "2026-03-24T21:42:41.1840000Z",
+                   "updatedAtRaw":  1774388561184
+               },
+    "after":  {
+                  "version":  120,
+                  "status":  "ACTIVE",
+                  "updatedAtUtc":  "2026-03-24T21:49:48.2210000Z",
+                  "updatedAtRaw":  1774388988221
+              },
+    "smoke":  {
+                  "ran":  false,
+                  "exitCode":  null
+              },
+    "deployOutput":  [
+                         "WARNING: Docker is not running",
+                         "Uploading asset (make-server-a1c55d7e): supabase/functions/make-server-a1c55d7e/index.ts",
+                         "Uploading asset (make-server-a1c55d7e): supabase/functions/server/index.tsx",
+                         "Uploading asset (make-server-a1c55d7e): supabase/functions/server/kv_store.tsx",
+                         "Deployed Functions on project gvqwvuqeenkusdayosty: make-server-a1c55d7e",
+                         "You can inspect your deployment in the Dashboard: https://supabase.com/dashboard/project/gvqwvuqeenkusdayosty/functions",
+                         "A new version of Supabase CLI is available: v2.78.1 (currently installed v2.75.0)",
+                         "We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli"
+                     ]
+}
