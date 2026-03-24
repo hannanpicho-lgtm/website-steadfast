@@ -163,6 +163,13 @@ export default function Login() {
   const routeNotice = buildRouteNotice(loginState);
   const isAdminAttempt = adminRequired || username.trim().includes('@');
   const errorNotice = errorText ? buildLoginErrorNotice(errorText, isAdminAttempt) : null;
+  const [showSignInForm, setShowSignInForm] = useState(false);
+
+  useEffect(() => {
+    if (adminRequired || routeNotice || errorNotice) {
+      setShowSignInForm(true);
+    }
+  }, [adminRequired, routeNotice, errorNotice]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,49 +215,62 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Dark Header */}
-      <header className="bg-[#3d4551] py-6 px-6">
-        <div className="max-w-2xl mx-auto text-center">
-          <div className="inline-flex items-center justify-center gap-3 flex-nowrap">
-            <img 
-              src={steadfastLogo} 
-              alt="Steadfast Digital Logo" 
-              className="w-10 h-10 object-contain shrink-0"
+    <div className="min-h-screen bg-[#1f84b2] text-white flex flex-col">
+      <main className="flex-1 w-full max-w-6xl mx-auto px-5 sm:px-8 py-8 sm:py-10 flex flex-col items-center">
+        <div className="w-full max-w-[680px] text-center">
+          <div className="pt-4 sm:pt-8">
+            <img
+              src={steadfastLogo}
+              alt="Steadfast Digital Logo"
+              className="w-24 h-24 sm:w-28 sm:h-28 object-contain mx-auto"
             />
-            <p className="text-white font-bold tracking-tight whitespace-nowrap text-[clamp(1.25rem,2.4vw,1.9rem)] leading-none">
-              STEADFAST DIGITAL
-            </p>
+            <h1 className="mt-3 text-white text-[2.1rem] sm:text-[2.5rem] font-extrabold tracking-tight">steadfast</h1>
+            <p className="text-white/90 text-xl sm:text-2xl -mt-1">digital</p>
+            <p className="mt-8 text-[clamp(1.8rem,3.4vw,3rem)] font-bold tracking-tight">Creating Real Business Value</p>
           </div>
-          <p className="text-[#d8e2ee] text-xs mt-2 tracking-wide">Secure platform access</p>
+
+          <div className="mt-16 sm:mt-20 space-y-4">
+            <Link
+              to="/signup"
+              className="block w-full rounded-2xl bg-[#333b47] hover:bg-[#2d3440] text-white font-bold text-2xl py-4 transition-colors"
+            >
+              CREATE AN ACCOUNT
+            </Link>
+            <button
+              type="button"
+              onClick={() => setShowSignInForm((prev) => !prev)}
+              className="block w-full rounded-2xl bg-[#0d5f93] hover:bg-[#0a527f] text-white font-bold text-2xl py-4 transition-colors"
+            >
+              SIGN IN
+            </button>
+          </div>
         </div>
-      </header>
 
-      {/* Form Section */}
-      <div className="max-w-2xl mx-auto px-6 py-12">
-        <h1 className="text-[#005a87] text-3xl font-bold text-center mb-2">Sign In</h1>
-        <p className="text-[#3d4551] text-center text-sm mb-8">
-          {adminRequired
-            ? 'Admin access now requires a Supabase Auth admin account.'
-            : 'Enter your username and password to access'}
-        </p>
+        {showSignInForm ? (
+          <section className="w-full max-w-[680px] mt-7 rounded-2xl bg-white/95 text-[#1f2b38] p-5 sm:p-6 shadow-xl">
+            <h2 className="text-[#0f5f8d] text-2xl font-bold text-center mb-2">Sign In</h2>
+            <p className="text-[#3d4551] text-center text-sm mb-6">
+              {adminRequired
+                ? 'Admin access now requires a Supabase Auth admin account.'
+                : 'Enter your username and password to access'}
+            </p>
 
-        {routeNotice ? (
-          <div className={`max-w-xl mx-auto mb-5 rounded-2xl border px-4 py-4 ${getNoticeClasses(routeNotice.tone)}`}>
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 shrink-0">
-                {routeNotice.tone === 'warning' ? <ShieldAlert size={20} /> : <Lock size={20} />}
+            {routeNotice ? (
+              <div className={`max-w-xl mx-auto mb-5 rounded-2xl border px-4 py-4 ${getNoticeClasses(routeNotice.tone)}`}>
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 shrink-0">
+                    {routeNotice.tone === 'warning' ? <ShieldAlert size={20} /> : <Lock size={20} />}
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold uppercase tracking-[0.14em]">{routeNotice.title}</h2>
+                    <p className="mt-1 text-sm">{routeNotice.message}</p>
+                    <p className="mt-2 text-xs opacity-80">{routeNotice.hint}</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <h2 className="text-sm font-bold uppercase tracking-[0.14em]">{routeNotice.title}</h2>
-                <p className="mt-1 text-sm">{routeNotice.message}</p>
-                <p className="mt-2 text-xs opacity-80">{routeNotice.hint}</p>
-              </div>
-            </div>
-          </div>
-        ) : null}
+            ) : null}
 
-        <form onSubmit={handleLogin} className="space-y-5 max-w-xl mx-auto">
+            <form onSubmit={handleLogin} className="space-y-5 max-w-xl mx-auto">
           {/* Username/Phone */}
           <div>
             <input
@@ -350,14 +370,13 @@ export default function Login() {
               Contact our user support
             </a>
           </p>
-        </form>
-      </div>
+            </form>
+          </section>
+        ) : null}
+      </main>
 
-      {/* Footer */}
-      <footer className="bg-[#3d4551] py-4 px-6 fixed bottom-0 left-0 right-0">
-        <p className="text-center text-white text-xs">
-          © 2026 Steadfast Digital, Inc. All rights reserved
-        </p>
+      <footer className="py-4 px-6">
+        <p className="text-center text-white/90 text-[15px]">© 2026 Steadfast Digital, Inc. All right reserved</p>
       </footer>
 
       {/* Welcome Modal */}

@@ -15,6 +15,18 @@ interface UserData {
   vipLevel: number;
   tasksCompleted: number;
   tasksLimit: number;
+  activePremium?: {
+    id?: string;
+    premiumProductName?: string;
+    premiumProductValue?: number;
+    totalBundleValue?: number;
+    status?: string;
+    bundledProducts?: Array<{
+      id?: string;
+      name?: string;
+      price?: number;
+    }>;
+  } | null;
 }
 
 interface TaskRecord {
@@ -55,6 +67,40 @@ interface TransactionRecord {
   txHash: string;
   description: string;
 }
+
+type CompletedRecordItem = {
+  recordType: 'completed';
+  id: string;
+  name: string;
+  price: number;
+  rating: number;
+  image: string;
+  productUrl: string;
+  commission: number;
+  isPremium: boolean;
+  timestamp: string;
+};
+
+type PendingPremiumItem = {
+  id: string;
+  name: string;
+  price: number;
+  profitRate: number;
+  estimatedProfit: number;
+};
+
+type PendingPremiumRecordItem = {
+  recordType: 'pending-premium';
+  id: string;
+  premiumType: 'single' | 'bundled';
+  status: string;
+  totalValue: number;
+  profitRate: number;
+  estimatedProfit: number;
+  items: PendingPremiumItem[];
+};
+
+type RecordListItem = CompletedRecordItem | PendingPremiumRecordItem;
 
 export default function Records() {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -168,9 +214,10 @@ export default function Records() {
   // Get completed products (products that were submitted)
   const activeTasks = taskCatalog.filter((task) => task.status === 'Active');
 
-  const completedProducts = taskRecords.map((task, index) => {
+  const completedProducts: CompletedRecordItem[] = taskRecords.map((task, index) => {
     const fallbackTask = activeTasks.length > 0 ? activeTasks[index % activeTasks.length] : null;
     return {
+      recordType: 'completed',
       id: task.taskId ?? `${task.username}-${index}`,
       name: task.productName ?? fallbackTask?.product ?? 'Task Product',
       price: task.productPrice,
@@ -180,40 +227,77 @@ export default function Records() {
       commission: task.commission,
       isPremium: task.isPremium,
       timestamp: task.timestamp,
-      submittedPrice: task.productPrice
     };
   });
 
-  // Get pending products (remaining products to submit today)
-  const pendingCount = (userData?.tasksLimit || 10) - (userData?.tasksCompleted || 0);
-  const pendingProducts = Array.from({ length: pendingCount }, (_, index) => {
-    const product = activeTasks.length > 0
-      ? activeTasks[((userData?.tasksCompleted || 0) + index) % activeTasks.length]
-      : null;
-    if (!product) {
-      return null;
+  const normalRate = ((vipConfigurations.find((tier) => tier.level === (userData?.vipLevel || 1))?.commission) ?? 0.005) * 100;
+  const premiumRate = normalRate * 10;
+
+  const pendingPremiumRecords: PendingPremiumRecordItem[] = (() => {
+    const activePremium = userData?.activePremium;
+    if (!activePremium) {
+      return [];
     }
-    const commissionRate = ((vipConfigurations.find((tier) => tier.level === (userData?.vipLevel || 1))?.commission) ?? 0.005) * 100;
-    const estimatedCommission = product.price * (commissionRate / 100);
-    
-    return {
-      id: product.id,
-      name: product.product,
-      ...product,
-      estimatedCommission,
-      commissionRate
-    };
-  }).filter((product): product is NonNullable<typeof product> => Boolean(product));
+
+    const bundledProducts = Array.isArray(activePremium.bundledProducts)
+      ? activePremium.bundledProducts
+      : [];
+    const premiumProductValue = Number(activePremium.premiumProductValue ?? 0);
+    const totalBundleValue = Number(activePremium.totalBundleValue ?? premiumProductValue ?? 0);
+    const primaryValue = premiumProductValue > 0 ? premiumProductValue : totalBundleValue;
+    const primaryName = typeof activePremium.premiumProductName === 'string' && activePremium.premiumProductName.trim()
+      ? activePremium.premiumProductName.trim()
+      : 'Premium Product';
+
+    const items: PendingPremiumItem[] = [
+      {
+        id: String(activePremium.id ?? 'premium-primary'),
+        name: primaryName,
+        price: primaryValue,
+        profitRate: premiumRate,
+        estimatedProfit: primaryValue * (premiumRate / 100),
+      },
+      ...bundledProducts.map((entry, index) => {
+        const itemPrice = Number(entry?.price ?? 0);
+        return {
+          id: String(entry?.id ?? `bundled-${index}`),
+          name: typeof entry?.name === 'string' && entry.name.trim() ? entry.name.trim() : `Bundled Product ${index + 1}`,
+          price: itemPrice,
+          profitRate: premiumRate,
+          estimatedProfit: itemPrice * (premiumRate / 100),
+        };
+      }),
+    ].filter((entry) => Number.isFinite(entry.price) && entry.price > 0);
+
+    if (items.length === 0) {
+      return [];
+    }
+
+    const resolvedTotalValue = totalBundleValue > 0
+      ? totalBundleValue
+      : items.reduce((sum, item) => sum + item.price, 0);
+
+    return [{
+      recordType: 'pending-premium',
+      id: String(activePremium.id ?? 'pending-premium'),
+      premiumType: bundledProducts.length > 0 ? 'bundled' : 'single',
+      status: typeof activePremium.status === 'string' && activePremium.status ? activePremium.status : 'pending',
+      totalValue: resolvedTotalValue,
+      profitRate: premiumRate,
+      estimatedProfit: resolvedTotalValue * (premiumRate / 100),
+      items,
+    }];
+  })();
 
   // Determine which products to show based on active tab
-  const getFilteredProducts = () => {
+  const getFilteredProducts = (): RecordListItem[] => {
     if (activeTab === 'completed') {
       return completedProducts;
     } else if (activeTab === 'pending') {
-      return pendingProducts;
+      return pendingPremiumRecords;
     } else {
       // All - show both completed and pending
-      return [...completedProducts, ...pendingProducts];
+      return [...pendingPremiumRecords, ...completedProducts];
     }
   };
 
@@ -290,14 +374,64 @@ export default function Records() {
               <p className="text-xl font-bold text-gray-600 mb-2">No more data</p>
               <p className="text-gray-500">
                 {activeTab === 'completed' && 'You haven\'t submitted any products yet'}
-                {activeTab === 'pending' && 'All tasks completed for today!'}
+                {activeTab === 'pending' && 'No pending premium order at the moment.'}
                 {activeTab === 'all' && 'No records available'}
               </p>
             </div>
           ) : (
             filteredProducts.map((product, index) => {
-              const isCompleted = 'timestamp' in product;
-              const isPending = 'estimatedCommission' in product;
+              const isCompleted = product.recordType === 'completed';
+              const isPremiumPending = product.recordType === 'pending-premium';
+
+              if (isPremiumPending) {
+                return (
+                  <div
+                    key={`${product.id}-${index}`}
+                    className="bg-white border border-orange-200 rounded-lg p-4 shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <div className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                        <Clock size={12} />
+                        Pending Premium Order
+                      </div>
+                      <span className="text-xs font-semibold text-[#0b5f8b] uppercase tracking-wide">
+                        {product.premiumType === 'bundled' ? 'Bundled Premium' : 'Single Premium'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
+                      <div className="bg-[#f6fbff] border border-[#d8ecfa] rounded-md px-3 py-2">
+                        <p className="text-[11px] text-gray-500">Pending Value</p>
+                        <p className="text-sm font-bold text-gray-900">${product.totalValue.toFixed(2)}</p>
+                      </div>
+                      <div className="bg-[#f6fbff] border border-[#d8ecfa] rounded-md px-3 py-2">
+                        <p className="text-[11px] text-gray-500">Premium Profit %</p>
+                        <p className="text-sm font-bold text-[#0b5f8b]">{product.profitRate.toFixed(2)}%</p>
+                      </div>
+                      <div className="bg-[#f6fbff] border border-[#d8ecfa] rounded-md px-3 py-2">
+                        <p className="text-[11px] text-gray-500">Estimated Profit</p>
+                        <p className="text-sm font-bold text-green-600">+${product.estimatedProfit.toFixed(2)}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Premium Product Items</p>
+                      {product.items.map((item, itemIndex) => (
+                        <div key={`${item.id}-${itemIndex}`} className="border border-gray-200 rounded-md p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-semibold text-gray-900">{item.name}</p>
+                            <span className="text-xs font-semibold text-orange-700">{item.profitRate.toFixed(2)}%</span>
+                          </div>
+                          <div className="mt-1 flex items-center justify-between text-xs">
+                            <span className="text-gray-600">Value: <strong className="text-gray-900">${item.price.toFixed(2)}</strong></span>
+                            <span className="text-green-600 font-semibold">Profit: +${item.estimatedProfit.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              }
               
               return (
                 <div 
@@ -345,23 +479,6 @@ export default function Records() {
                                 🎉 PREMIUM 10X
                               </div>
                             )}
-                          </>
-                        )}
-                        
-                        {isPending && (
-                          <>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-500">Est. Commission:</span>
-                              <span className="text-sm font-bold text-blue-600">
-                                ${product.estimatedCommission.toFixed(2)}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-500">Rate:</span>
-                              <span className="text-xs font-semibold text-gray-700">
-                                {product.commissionRate}% (VIP{userData?.vipLevel})
-                              </span>
-                            </div>
                           </>
                         )}
                       </div>
