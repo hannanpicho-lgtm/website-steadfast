@@ -491,7 +491,7 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
                 <div className="bg-green-500/10 border border-green-500/30 rounded p-3 space-y-2">
                   <p className="text-green-300 text-xs font-semibold uppercase tracking-wide mb-1">After Assignment — User Financial Card</p>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-400">Current Balance:</span>
+                    <span className="text-gray-400">Current Account Balance (Before Freeze):</span>
                     <span className="text-white">${userBalance.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">

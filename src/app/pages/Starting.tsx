@@ -161,6 +161,21 @@ export default function Starting() {
   const premiumTriggerTaskNumber = Number(taskRuleConfig?.premiumTriggerTaskNumber ?? rewardsConfig.productSystem.premiumTriggerTaskNumber ?? 10);
   const premiumTopUpRequired = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
   const premiumSubmissionBlocked = Boolean(userData?.activePremium) && premiumTopUpRequired > 0;
+  const frozenUpholdAmount = Number(
+    userData?.activePremium?.topUpRequired
+    ?? userData?.activePremium?.negativeAmount
+    ?? userData?.holdAmount
+    ?? 0,
+  );
+  const frozenCurrentBalanceBeforeFreeze = Number(
+    userData?.activePremium?.balanceBeforeAssignment
+    ?? userData?.balance
+    ?? 0,
+  );
+  const frozenPremiumProfit = Number(userData?.activePremium?.commissionEarned ?? 0);
+  const totalAccountBalanceDisplay = userData?.isFrozen
+    ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze) + frozenUpholdAmount + frozenPremiumProfit)
+    : roundMoney(Math.max(0, Number(userData?.balance ?? 0)));
   const requiredFundsForVip = userData
     ? Number(vipConfigurations.find((tier) => tier.level === userData.vipLevel)?.investment ?? 100)
     : 100;
@@ -634,55 +649,46 @@ export default function Starting() {
 
           <div className="border-t border-[#1a1f2e]/30 my-6"></div>
 
-          {/* Balance and Uphold Amount */}
-          <div className="grid grid-cols-2 gap-6 mb-6">
-            <div className="text-center">
-              <CreditCard className="mx-auto mb-2" size={32} />
-              <h4 className="font-semibold mb-1">BALANCE</h4>
-              <p className="text-2xl font-bold mb-1">{Math.max(0, userData?.balance || 0).toFixed(2)} USD</p>
-              <p className="text-xs opacity-90">The total balance reflects both the deposited amount and earned commissions.</p>
+          {/* Frozen state: show current balance before freeze + negative uphold amount */}
+          {userData?.isFrozen && (
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              <div className="text-center">
+                <CreditCard className="mx-auto mb-2" size={32} />
+                <h4 className="font-semibold mb-1">CURRENT BALANCE</h4>
+                <p className="text-2xl font-bold mb-1">{Math.max(0, frozenCurrentBalanceBeforeFreeze).toFixed(2)} USD</p>
+                <p className="text-xs opacity-90">Current account balance before freeze.</p>
+              </div>
+              <div className="text-center">
+                <Snowflake className="mx-auto mb-2" size={32} />
+                <h4 className="font-semibold mb-1">Uphold Amount</h4>
+                <p className="text-2xl font-bold mb-1 text-red-500">-{frozenUpholdAmount.toFixed(2)} USD</p>
+                <p className="text-xs opacity-90">Frozen for premium settlement</p>
+              </div>
             </div>
-            <div className="text-center">
-              <Snowflake className="mx-auto mb-2" size={32} />
-              <h4 className="font-semibold mb-1">Uphold Amount</h4>
-              {userData?.isFrozen && (userData?.holdAmount || 0) > 0 ? (
-                <>
-                  <p className="text-2xl font-bold mb-1 text-red-500">-{(userData?.holdAmount || 0).toFixed(2)} USD</p>
-                  <p className="text-xs opacity-90">Frozen for premium settlement</p>
-                </>
-              ) : (
-                <>
-                  <p className="text-2xl font-bold mb-1">{(userData?.holdAmount || 0) > 0 ? (userData.holdAmount).toFixed(2) : '0.00'} USD</p>
-                  <p className="text-xs opacity-90">Contact Support for inquiries</p>
-                </>
-              )}
-            </div>
-          </div>
+          )}
 
           {/* Total Account Balance — always transparent */}
           <div className="text-center mb-6 bg-white/10 rounded-lg p-3">
             <h4 className="font-semibold mb-1 text-sm">TOTAL ACCOUNT BALANCE</h4>
-            <p className="text-2xl font-bold">
-              {roundMoney(
-                Math.max(0, userData?.balance || 0)
-                + (userData?.holdAmount || 0)
-                + (userData?.isFrozen ? Number(userData?.activePremium?.commissionEarned ?? 0) : 0),
-              ).toFixed(2)} USD
-            </p>
+            <p className="text-2xl font-bold">{totalAccountBalanceDisplay.toFixed(2)} USD</p>
             <p className="text-xs opacity-70 mt-1">
               {userData?.isFrozen
-                ? 'Includes base balance + hold amount + projected premium profit'
-                : 'Includes base balance + hold amount (premium profit already credited after unfreeze)'}
+                ? 'Includes current balance before freeze + uphold amount + projected premium profit'
+                : 'Post-unfreeze view: total account balance and today\'s commission only'}
             </p>
           </div>
 
-          <div className="border-t border-[#1a1f2e]/30 my-6"></div>
+          {userData?.isFrozen && (
+            <>
+              <div className="border-t border-[#1a1f2e]/30 my-6"></div>
 
-          {/* Special Lucky Bonus */}
-          <div className="text-center">
-            <h4 className="font-semibold mb-1">Special Lucky Bonus</h4>
-            <p className="text-2xl font-bold">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
-          </div>
+              {/* Special Lucky Bonus */}
+              <div className="text-center">
+                <h4 className="font-semibold mb-1">Special Lucky Bonus</h4>
+                <p className="text-2xl font-bold">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Important Notice */}
