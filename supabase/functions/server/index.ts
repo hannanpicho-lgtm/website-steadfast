@@ -4323,14 +4323,24 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       return rateLimited;
     }
 
-    const { username: rawUsername, premiumProductValue, bundledProductCount, triggerTaskNumber, upholdAmountOverride } = await c.req.json();
+    const {
+      username: rawUsername,
+      premiumProductValue,
+      bundledProductCount,
+      selectedBundledProducts,
+      triggerTaskNumber,
+      upholdAmountOverride,
+    } = await c.req.json();
     const requestedUsername = sanitizeUsername(rawUsername);
     const callingAdmin = c.get('adminUser');
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
     const adminIdentity = mapAuthUserToAdminRecord(callingAdmin ?? {});
     const adminUsername = adminIdentity.username || callingAdmin?.email || callingAdmin?.id || 'admin';
 
-    if (!requestedUsername || !bundledProductCount) {
+    const parsedBundledCount = Number(bundledProductCount);
+    const selectedBundledProductsInput = Array.isArray(selectedBundledProducts) ? selectedBundledProducts : [];
+
+    if (!requestedUsername || (!selectedBundledProductsInput.length && !Number.isFinite(parsedBundledCount))) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
@@ -4339,10 +4349,6 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       return c.json({ error: 'User not found' }, 404);
     }
 
-    if (![1, 2, 3].includes(bundledProductCount)) {
-      return c.json({ error: 'Bundled product count must be 1, 2, or 3' }, 400);
-    }
-    
     const userKey = `user:${canonicalUsername}`;
     const userData = await kv.get(userKey);
     
@@ -4358,9 +4364,46 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       ? Math.round(Number(triggerTaskNumber))
       : Number(normalizedUserData.tasksCompleted ?? 0) + 1;
 
-    // Select highest value products for bundling
-    const sortedProducts = [...productCatalog].sort((a, b) => b.price - a.price);
-    const bundledProducts = sortedProducts.slice(0, bundledProductCount);
+    let bundledProducts: Array<typeof productCatalog[number]> = [];
+    if (selectedBundledProductsInput.length > 0) {
+      if (selectedBundledProductsInput.length > 3) {
+        return c.json({ error: 'No more than 3 bundled products can be selected' }, 400);
+      }
+      const seenProductIds = new Set<number>();
+      for (const selectedProduct of selectedBundledProductsInput) {
+        const selectedId = Number(selectedProduct?.id);
+        if (!Number.isInteger(selectedId)) {
+          return c.json({ error: 'Each selected bundled product must include a valid id' }, 400);
+        }
+        if (seenProductIds.has(selectedId)) {
+          continue;
+        }
+        const catalogProduct = productCatalog.find((product) => product.id === selectedId);
+        if (!catalogProduct) {
+          return c.json({ error: `Invalid bundled product id: ${selectedId}` }, 400);
+        }
+        const requestedPrice = Number(selectedProduct?.price);
+        const resolvedPrice = Number.isFinite(requestedPrice) && requestedPrice > 0
+          ? roundMoney(requestedPrice)
+          : roundMoney(catalogProduct.price);
+        bundledProducts.push({
+          ...catalogProduct,
+          price: resolvedPrice,
+        });
+        seenProductIds.add(selectedId);
+      }
+      if (!bundledProducts.length) {
+        return c.json({ error: 'At least one bundled product must be selected' }, 400);
+      }
+    } else {
+      const normalizedBundledCount = Math.round(parsedBundledCount);
+      if (![1, 2, 3].includes(normalizedBundledCount)) {
+        return c.json({ error: 'Bundled product count must be 1, 2, or 3' }, 400);
+      }
+      const sortedProducts = [...productCatalog].sort((a, b) => b.price - a.price);
+      bundledProducts = sortedProducts.slice(0, normalizedBundledCount);
+    }
+    const effectiveBundledCount = bundledProducts.length;
     
     // Calculate total bundle value
     const bundledProductsTotal = roundMoney(bundledProducts.reduce((sum, p) => sum + p.price, 0));
@@ -4392,7 +4435,7 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
         : 0,
       topUpRequired: negativeAmount,
       tasksCompleted: 0,
-      totalTasks: 1 + bundledProductCount, // Premium + bundled products
+      totalTasks: 1 + effectiveBundledCount, // Premium + bundled products
       assignedAt: new Date().toISOString(),
       assignedBy: adminUsername || 'admin',
       status: 'scheduled',
@@ -4430,7 +4473,7 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     await recordObservabilityAuditEvent(
       'admin-premium-bundle-assign',
       assignActorEmail,
-      `Assigned premium bundle ($${sanitizedPremiumValue}, ${bundledProductCount} bundled product${bundledProductCount !== 1 ? 's' : ''}) to user '${canonicalUsername}' for task #${requestedTriggerTaskNumber} — total value $${totalBundleValue}`,
+      `Assigned premium bundle ($${sanitizedPremiumValue}, ${effectiveBundledCount} bundled product${effectiveBundledCount !== 1 ? 's' : ''}) to user '${canonicalUsername}' for task #${requestedTriggerTaskNumber} — total value $${totalBundleValue}`,
     ).catch((e) => console.error('Failed to record admin-premium-bundle-assign audit event:', e));
 
     return c.json({

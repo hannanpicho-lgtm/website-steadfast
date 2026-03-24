@@ -41,7 +41,8 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
   const [premiumValue, setPremiumValue] = useState('');
   const [triggerTaskNumber, setTriggerTaskNumber] = useState('');
   const [upholdAmountOverride, setUpholdAmountOverride] = useState('');
-  const [bundleCount, setBundleCount] = useState<1 | 2 | 3>(3);
+  const [selectedBundledProductIds, setSelectedBundledProductIds] = useState<number[]>([3]);
+  const [bundledValueOverrides, setBundledValueOverrides] = useState<Record<number, string>>({});
   const [assigningPremium, setAssigningPremium] = useState(false);
   const [assignments, setAssignments] = useState<PremiumAssignmentRecord[]>([]);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
@@ -68,9 +69,27 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
 
   // Calculate preview
   const selectedUser = useMemo(() => users.find((u) => u.username === selectedUsername), [users, selectedUsername]);
+  const hasExplicitPremiumValue = premiumValue.trim() !== '';
   const premiumVal = parseFloat(premiumValue) || 0;
-  const sortedProducts = [...productCatalog].sort((a, b) => b.price - a.price);
-  const bundledProducts = sortedProducts.slice(0, bundleCount);
+  const bundledProducts = useMemo(() => {
+    const byId = new Map(productCatalog.map((product) => [product.id, product] as const));
+    return selectedBundledProductIds
+      .map((id) => {
+        const baseProduct = byId.get(id);
+        if (!baseProduct) {
+          return null;
+        }
+        const overridePrice = Number(bundledValueOverrides[id]);
+        const price = Number.isFinite(overridePrice) && overridePrice > 0
+          ? Math.round((overridePrice + Number.EPSILON) * 100) / 100
+          : baseProduct.price;
+        return {
+          ...baseProduct,
+          price,
+        };
+      })
+      .filter((product): product is { id: number; name: string; price: number; rating: number; image: string } => Boolean(product));
+  }, [bundledValueOverrides, productCatalog, selectedBundledProductIds]);
   const bundledTotal = bundledProducts.reduce((sum, p) => sum + p.price, 0);
   const totalBundleValue = premiumVal + bundledTotal;
   const userBalance = selectedUser?.balance || 0;
@@ -144,7 +163,12 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
     }
 
     const effectiveTrigger = triggerTaskNumberValue > 0 ? triggerTaskNumberValue : 1;
-    if (!window.confirm(`Assign premium bundle to ${selectedUsername}?\n\nPremium Position: Task #${effectiveTrigger}\nPremium Product Value: $${premiumVal.toFixed(2)}\nTotal Bundle Value: $${totalBundleValue.toFixed(2)}\nBalance After: $${balanceAfter.toFixed(2)}\nTop-up Required: $${topUpRequired.toFixed(2)}`)) {
+    if (!bundledProducts.length) {
+      toast.error('Please select at least one bundled product.');
+      return;
+    }
+
+    if (!window.confirm(`Assign premium bundle to ${selectedUsername}?\n\nPremium Position: Task #${effectiveTrigger}\nPremium Product Value: ${hasExplicitPremiumValue ? `$${premiumVal.toFixed(2)}` : 'Auto-calculate'}\nBundled Products: ${bundledProducts.length}\nTotal Bundle Value: $${totalBundleValue.toFixed(2)}\nBalance After: $${balanceAfter.toFixed(2)}\nTop-up Required: $${topUpRequired.toFixed(2)}`)) {
       return;
     }
 
@@ -157,7 +181,12 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
         body: JSON.stringify({
           username: selectedUsername,
           premiumProductValue: hasExplicitPremiumValue ? premiumVal : undefined,
-          bundledProductCount: bundleCount,
+          bundledProductCount: bundledProducts.length,
+          selectedBundledProducts: bundledProducts.map((product) => ({
+            id: product.id,
+            name: product.name,
+            price: product.price,
+          })),
           triggerTaskNumber: triggerTaskNumberValue > 0 ? triggerTaskNumberValue : undefined,
           upholdAmountOverride: upholdVal > 0 ? upholdVal : undefined,
           adminUsername: 'admin',
@@ -184,7 +213,8 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
       setPremiumValue('');
       setTriggerTaskNumber('');
       setUpholdAmountOverride('');
-      setBundleCount(3);
+      setSelectedBundledProductIds([3]);
+      setBundledValueOverrides({});
       await loadAssignments();
     } catch (error) {
       console.error('Error assigning premium bundle:', error);
@@ -269,27 +299,62 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
               <p className="text-gray-300 text-xs mt-1">If empty, the premium can activate immediately. If set, it waits until that task number.</p>
             </div>
 
-            {/* Bundle Product Count */}
+            {/* Bundled Product Selection */}
             <div>
               <label className="block text-gray-300 text-sm font-semibold mb-2">
-                Bundled Products Count <span className="text-red-400">*</span>
+                Select Bundled Products <span className="text-red-400">*</span>
               </label>
-              <div className="flex gap-3">
-                {[1, 2, 3].map((count) => (
-                  <button
-                    key={count}
-                    onClick={() => setBundleCount(count as 1 | 2 | 3)}
-                    className={`flex-1 py-3 rounded font-semibold transition-all ${
-                      bundleCount === count
-                        ? 'bg-[#00D9FF] text-[#1a1f2e]'
-                        : 'bg-[#1a1f2e] text-gray-400 border border-gray-600 hover:border-[#00D9FF]'
-                    }`}
-                  >
-                    {count} Product{count > 1 ? 's' : ''}
-                  </button>
-                ))}
+              <div className="space-y-2">
+                {productCatalog.map((product) => {
+                  const isSelected = selectedBundledProductIds.includes(product.id);
+                  return (
+                    <label
+                      key={product.id}
+                      className={`flex items-center justify-between gap-3 p-3 rounded border transition-all ${
+                        isSelected
+                          ? 'border-[#00D9FF] bg-[#00D9FF]/10'
+                          : 'border-gray-600 bg-[#1a1f2e]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            setSelectedBundledProductIds((prev) => {
+                              if (e.target.checked) {
+                                return [...prev, product.id].sort((a, b) => a - b);
+                              }
+                              return prev.filter((id) => id !== product.id);
+                            });
+                          }}
+                          className="h-4 w-4 accent-[#00D9FF]"
+                        />
+                        <div>
+                          <p className="text-white text-sm font-semibold">{product.name}</p>
+                          <p className="text-gray-400 text-xs">Default: ${product.price.toFixed(2)}</p>
+                        </div>
+                      </div>
+                      <input
+                        type="number"
+                        value={bundledValueOverrides[product.id] ?? ''}
+                        onChange={(e) => {
+                          const nextValue = e.target.value;
+                          setBundledValueOverrides((prev) => ({
+                            ...prev,
+                            [product.id]: nextValue,
+                          }));
+                        }}
+                        placeholder={product.price.toFixed(2)}
+                        min="0"
+                        step="0.01"
+                        className="w-28 bg-[#0f1420] text-white border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-[#00D9FF]"
+                      />
+                    </label>
+                  );
+                })}
               </div>
-              <p className="text-gray-300 text-xs mt-1">💡 System will select highest value products</p>
+              <p className="text-gray-300 text-xs mt-1">Select at least one product. Optional value fields override the default product prices.</p>
             </div>
 
             {/* Uphold Amount Override (Deterministic) */}
@@ -310,7 +375,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
             </div>
 
             {/* Bundled Products Preview */}
-            {bundleCount > 0 && (
+            {bundledProducts.length > 0 && (
               <div className="bg-[#1a1f2e] rounded-lg p-4">
                 <p className="text-gray-400 text-sm font-semibold mb-2">Products to be bundled:</p>
                 <div className="space-y-2">
@@ -327,7 +392,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
             {/* Assign Button */}
             <button
               onClick={handleAssignPremium}
-              disabled={!selectedUsername || assigningPremium}
+              disabled={!selectedUsername || assigningPremium || bundledProducts.length === 0}
               className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold py-3 rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {assigningPremium ? 'Assigning...' : 'Assign Premium Bundle'}
@@ -356,10 +421,12 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
                 <div className="bg-yellow-500/10 rounded p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-yellow-300 text-sm">Premium Product:</span>
-                    <span className="text-yellow-300 font-bold">${premiumVal.toFixed(2)}</span>
+                    <span className="text-yellow-300 font-bold">
+                      {hasExplicitPremiumValue ? `$${premiumVal.toFixed(2)}` : 'Auto-calculate'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-yellow-300 text-sm">Bundled Products ({bundleCount}):</span>
+                    <span className="text-yellow-300 text-sm">Bundled Products ({bundledProducts.length}):</span>
                     <span className="text-yellow-300 font-bold">${bundledTotal.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between">
@@ -393,7 +460,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
 
                 <div className="bg-blue-500/10 rounded p-3 mt-4">
                   <p className="text-blue-300 text-xs">
-                    💡 User's account will be frozen until all {1 + bundleCount} bundled tasks are completed or top-up is made.
+                    💡 User's account will be frozen until all {1 + bundledProducts.length} bundled tasks are completed or top-up is made.
                   </p>
                 </div>
               </div>
