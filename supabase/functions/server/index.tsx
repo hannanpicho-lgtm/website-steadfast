@@ -2425,8 +2425,15 @@ function restoreUserToNaturalState(userData: any) {
   const preFreezeBalance = Number.isFinite(Number(restored?.activePremium?.balanceBeforeAssignment))
     ? roundMoney(Number(restored.activePremium.balanceBeforeAssignment))
     : currentBalance;
+  const settledUpholdAmount = Number.isFinite(Number(restored?.activePremium?.topUpRequired ?? restored?.activePremium?.negativeAmount))
+    ? roundMoney(Math.max(0, Number(restored.activePremium.topUpRequired ?? restored.activePremium.negativeAmount)))
+    : roundMoney(Math.max(0, Number(restored.holdAmount ?? 0)));
+  const premiumCommission = Number.isFinite(Number(restored?.activePremium?.commissionEarned))
+    ? roundMoney(Math.max(0, Number(restored.activePremium.commissionEarned)))
+    : 0;
 
-  restored.balance = Math.max(currentBalance, preFreezeBalance);
+  restored.balance = roundMoney(Math.max(currentBalance, preFreezeBalance) + settledUpholdAmount);
+  restored.todayCommission = roundMoney(Number(restored.todayCommission ?? 0) + premiumCommission);
   restored.holdAmount = 0;
   restored.isFrozen = false;
 
