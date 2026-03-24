@@ -574,6 +574,11 @@ export default function Starting() {
               <p className="text-white font-extrabold text-xl">${estimatedCommission.toFixed(2)}</p>
             </div>
           </div>
+          <div className="px-4 py-2 bg-emerald-900/35 border-t border-emerald-300/20">
+            <p className="text-emerald-100 text-[11px] leading-relaxed">
+              Regular formula: Product Price x {commissionRate.toFixed(2)}% (VIP rate). Premium formula: Product Price x {premiumCommissionRate.toFixed(2)}% (VIP rate x 10).
+            </p>
+          </div>
 
           {/* Progress + premium hint row */}
           <div className="px-4 py-2.5 flex items-center justify-between gap-3">
