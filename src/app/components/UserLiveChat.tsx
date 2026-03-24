@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, MessageCircle, Loader2, ImagePlus, Smile } from 'lucide-react';
+import { X, Send, MessageCircle, Loader2, Paperclip, Smile, Download, FileText, Image as ImageIcon, Video, Music2 } from 'lucide-react';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 
@@ -12,36 +12,124 @@ interface ChatMessage {
   read: boolean;
 }
 
+type ChatAttachmentType = 'image' | 'video' | 'audio' | 'file';
+
+type ChatAttachment = {
+  type: ChatAttachmentType;
+  dataUrl: string;
+  name: string;
+  mimeType: string;
+  size: number;
+};
+
 interface UserLiveChatProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
 const CHAT_IMAGE_PREFIX = '__img__:';
-const MAX_CHAT_IMAGE_SIZE_BYTES = 350 * 1024;
-const QUICK_EMOJIS = ['😀', '😁', '😂', '😊', '😍', '👍', '🙏', '🎉', '🔥', '💯'];
+const CHAT_ATTACHMENT_PREFIX = '__att__:';
+const MAX_CHAT_ATTACHMENT_SIZE_BYTES = 700 * 1024;
+const QUICK_EMOJIS = ['🙂', '👍', '🙏', '✅'];
+
+function getAttachmentType(file: File): ChatAttachmentType {
+  if (file.type.startsWith('image/')) {
+    return 'image';
+  }
+  if (file.type.startsWith('video/')) {
+    return 'video';
+  }
+  if (file.type.startsWith('audio/')) {
+    return 'audio';
+  }
+  return 'file';
+}
+
+function buildAttachmentLabel(type: ChatAttachmentType) {
+  switch (type) {
+    case 'image':
+      return 'Image';
+    case 'video':
+      return 'Video';
+    case 'audio':
+      return 'Audio';
+    default:
+      return 'File';
+  }
+}
+
+function downloadAttachment(attachment: ChatAttachment) {
+  const link = document.createElement('a');
+  link.href = attachment.dataUrl;
+  link.download = attachment.name || `attachment-${Date.now()}`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 
 function decodeChatMessage(rawMessage: string) {
+  if (rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX)) {
+    try {
+      const payload = JSON.parse(rawMessage.slice(CHAT_ATTACHMENT_PREFIX.length)) as {
+        text?: string;
+        attachment?: ChatAttachment;
+      };
+      return {
+        text: typeof payload.text === 'string' ? payload.text : '',
+        attachment: payload.attachment && typeof payload.attachment.dataUrl === 'string'
+          ? payload.attachment
+          : null,
+      };
+    } catch {
+      return { text: rawMessage, attachment: null };
+    }
+  }
+
   if (!rawMessage.startsWith(CHAT_IMAGE_PREFIX)) {
-    return { text: rawMessage, imageUrl: '' };
+    return { text: rawMessage, attachment: null };
   }
 
   const payload = rawMessage.slice(CHAT_IMAGE_PREFIX.length);
   const newlineIndex = payload.indexOf('\n');
   if (newlineIndex === -1) {
-    return { text: '', imageUrl: payload.trim() };
+    return {
+      text: '',
+      attachment: {
+        type: 'image',
+        dataUrl: payload.trim(),
+        name: 'chat-image',
+        mimeType: 'image/*',
+        size: 0,
+      },
+    };
   }
 
   return {
-    imageUrl: payload.slice(0, newlineIndex).trim(),
     text: payload.slice(newlineIndex + 1),
+    attachment: {
+      type: 'image',
+      dataUrl: payload.slice(0, newlineIndex).trim(),
+      name: 'chat-image',
+      mimeType: 'image/*',
+      size: 0,
+    },
   };
+}
+
+function encodeChatMessage(text: string, attachment: ChatAttachment | null) {
+  if (!attachment) {
+    return text;
+  }
+
+  return `${CHAT_ATTACHMENT_PREFIX}${JSON.stringify({ text, attachment })}`;
 }
 
 export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [selectedImageDataUrl, setSelectedImageDataUrl] = useState('');
+  const [selectedAttachment, setSelectedAttachment] = useState<ChatAttachment | null>(null);
+  const [previewAttachment, setPreviewAttachment] = useState<ChatAttachment | null>(null);
+  const [attachmentError, setAttachmentError] = useState('');
   const [showEmojiPanel, setShowEmojiPanel] = useState(false);
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -112,11 +200,9 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedMessage = newMessage.trim();
-    if ((!trimmedMessage && !selectedImageDataUrl) || !username) return;
+    if ((!trimmedMessage && !selectedAttachment) || !username) return;
 
-    const outgoingMessage = selectedImageDataUrl
-      ? `${CHAT_IMAGE_PREFIX}${selectedImageDataUrl}${trimmedMessage ? `\n${trimmedMessage}` : ''}`
-      : trimmedMessage;
+    const outgoingMessage = encodeChatMessage(trimmedMessage, selectedAttachment);
 
     try {
       setSending(true);
@@ -131,7 +217,8 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
       });
       if (response.ok) {
         setNewMessage('');
-        setSelectedImageDataUrl('');
+        setSelectedAttachment(null);
+        setAttachmentError('');
         setShowEmojiPanel(false);
         await fetchMessages(true);
       }
@@ -142,18 +229,14 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
     }
   };
 
-  const handlePickImage = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePickAttachment = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) {
       return;
     }
 
-    if (!selectedFile.type.startsWith('image/')) {
-      event.target.value = '';
-      return;
-    }
-
-    if (selectedFile.size > MAX_CHAT_IMAGE_SIZE_BYTES) {
+    if (selectedFile.size > MAX_CHAT_ATTACHMENT_SIZE_BYTES) {
+      setAttachmentError('Attachment must be 700 KB or smaller.');
       event.target.value = '';
       return;
     }
@@ -162,7 +245,14 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
     reader.onload = () => {
       const result = typeof reader.result === 'string' ? reader.result : '';
       if (result) {
-        setSelectedImageDataUrl(result);
+        setSelectedAttachment({
+          type: getAttachmentType(selectedFile),
+          dataUrl: result,
+          name: selectedFile.name,
+          mimeType: selectedFile.type,
+          size: selectedFile.size,
+        });
+        setAttachmentError('');
       }
     };
     reader.readAsDataURL(selectedFile);
@@ -177,6 +267,48 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
 
   return (
     <>
+      {previewAttachment ? (
+        <div className="fixed inset-0 z-[70] bg-black/80 p-4" onClick={() => setPreviewAttachment(null)}>
+          <div className="mx-auto flex h-full max-w-4xl items-center justify-center" onClick={(event) => event.stopPropagation()}>
+            <div className="w-full rounded-2xl bg-[#0f172a] p-4 text-white shadow-2xl">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold">{previewAttachment.name || 'Attachment preview'}</p>
+                  <p className="text-xs text-slate-400">{buildAttachmentLabel(previewAttachment.type)}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => downloadAttachment(previewAttachment)}
+                    className="inline-flex items-center gap-2 rounded-full bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950"
+                  >
+                    <Download size={16} />
+                    Download
+                  </button>
+                  <button type="button" onClick={() => setPreviewAttachment(null)} className="rounded-full border border-slate-700 p-2 text-slate-300">
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex min-h-[280px] items-center justify-center rounded-2xl bg-slate-950/60 p-4">
+                {previewAttachment.type === 'image' ? (
+                  <img src={previewAttachment.dataUrl} alt={previewAttachment.name} className="max-h-[70vh] w-auto rounded-xl object-contain" />
+                ) : previewAttachment.type === 'video' ? (
+                  <video controls src={previewAttachment.dataUrl} className="max-h-[70vh] w-full rounded-xl" />
+                ) : previewAttachment.type === 'audio' ? (
+                  <audio controls src={previewAttachment.dataUrl} className="w-full" />
+                ) : (
+                  <div className="text-center">
+                    <FileText className="mx-auto mb-3 text-slate-400" size={36} />
+                    <p className="text-sm text-slate-300">Preview is not available for this file type.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* Overlay */}
       <div className="fixed inset-0 bg-black/50 z-[60]" onClick={onClose} />
 
@@ -213,6 +345,7 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
           ) : (
             messages.map((msg) => {
               const decoded = decodeChatMessage(msg.message);
+              const attachment = decoded.attachment;
               return (
                 <div key={msg.id} className={`flex ${msg.isAdmin ? 'justify-start' : 'justify-end'}`}>
                   <div
@@ -225,12 +358,49 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
                     {msg.isAdmin && (
                       <p className="text-[10px] font-semibold text-cyan-400 mb-1">Support</p>
                     )}
-                    {decoded.imageUrl ? (
-                      <img
-                        src={decoded.imageUrl}
-                        alt="Chat attachment"
-                        className="w-full max-h-52 object-cover rounded-lg mb-2"
-                      />
+                    {attachment?.type === 'image' ? (
+                      <button type="button" onClick={() => setPreviewAttachment(attachment)} className="mb-2 block w-full overflow-hidden rounded-lg">
+                        <img src={attachment.dataUrl} alt={attachment.name || 'Chat attachment'} className="w-full max-h-52 object-cover rounded-lg" />
+                      </button>
+                    ) : null}
+                    {attachment?.type === 'video' ? (
+                      <div className="mb-2 rounded-lg bg-black/20 p-2">
+                        <video controls src={attachment.dataUrl} className="max-h-52 w-full rounded-lg" />
+                        <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+                          <span className="truncate">{attachment.name}</span>
+                          <button type="button" onClick={() => downloadAttachment(attachment)} className="inline-flex items-center gap-1 font-semibold">
+                            <Download size={12} />
+                            Download
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {attachment?.type === 'audio' ? (
+                      <div className="mb-2 rounded-lg bg-black/20 p-3">
+                        <audio controls src={attachment.dataUrl} className="w-full" />
+                        <div className="mt-2 flex items-center justify-between gap-2 text-[11px]">
+                          <span className="truncate">{attachment.name}</span>
+                          <button type="button" onClick={() => downloadAttachment(attachment)} className="inline-flex items-center gap-1 font-semibold">
+                            <Download size={12} />
+                            Download
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                    {attachment?.type === 'file' ? (
+                      <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-white/15 bg-black/10 px-3 py-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <FileText size={16} className="shrink-0" />
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold">{attachment.name}</p>
+                            <p className="text-[10px] opacity-70">{buildAttachmentLabel(attachment.type)}</p>
+                          </div>
+                        </div>
+                        <button type="button" onClick={() => downloadAttachment(attachment)} className="inline-flex items-center gap-1 text-xs font-semibold">
+                          <Download size={12} />
+                          Download
+                        </button>
+                      </div>
                     ) : null}
                     {decoded.text ? <p className="whitespace-pre-wrap">{decoded.text}</p> : null}
                     <p className={`text-[10px] mt-1 ${msg.isAdmin ? 'text-gray-500' : 'text-white/70'}`}>
@@ -246,19 +416,35 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
 
         {/* Input */}
         <form onSubmit={handleSend} className="px-3 py-3 border-t border-gray-700 shrink-0">
-          {selectedImageDataUrl ? (
-            <div className="mb-2 relative inline-block">
-              <img src={selectedImageDataUrl} alt="Selected attachment" className="h-16 w-16 object-cover rounded-md border border-gray-600" />
-              <button
-                type="button"
-                onClick={() => setSelectedImageDataUrl('')}
-                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
-                aria-label="Remove selected image"
-              >
-                <X size={12} />
-              </button>
+          {selectedAttachment ? (
+            <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border border-gray-700 bg-[#111827] px-3 py-2">
+              <div className="flex min-w-0 items-center gap-2">
+                {selectedAttachment.type === 'image' ? <ImageIcon size={16} className="text-cyan-300" /> : null}
+                {selectedAttachment.type === 'video' ? <Video size={16} className="text-cyan-300" /> : null}
+                {selectedAttachment.type === 'audio' ? <Music2 size={16} className="text-cyan-300" /> : null}
+                {selectedAttachment.type === 'file' ? <FileText size={16} className="text-cyan-300" /> : null}
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-white">{selectedAttachment.name}</p>
+                  <p className="text-[11px] text-gray-400">{buildAttachmentLabel(selectedAttachment.type)}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={() => setPreviewAttachment(selectedAttachment)} className="text-xs font-semibold text-cyan-300">
+                  Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedAttachment(null)}
+                  className="rounded-full bg-red-500 p-1 text-white"
+                  aria-label="Remove selected attachment"
+                >
+                  <X size={12} />
+                </button>
+              </div>
             </div>
           ) : null}
+
+          {attachmentError ? <p className="mb-2 text-xs text-amber-400">{attachmentError}</p> : null}
 
           {showEmojiPanel ? (
             <div className="mb-2 p-2 rounded-lg border border-gray-700 bg-[#111827] flex flex-wrap gap-1.5">
@@ -279,17 +465,17 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
-              onChange={handlePickImage}
+              accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+              onChange={handlePickAttachment}
               className="hidden"
             />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               className="w-9 h-9 bg-[#252b3d] hover:bg-[#2f374a] rounded-full flex items-center justify-center transition-colors shrink-0"
-              aria-label="Attach image"
+              aria-label="Attach file"
             >
-              <ImagePlus size={16} className="text-gray-200" />
+              <Paperclip size={16} className="text-gray-200" />
             </button>
             <button
               type="button"
@@ -308,7 +494,7 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
           />
           <button
             type="submit"
-            disabled={(!newMessage.trim() && !selectedImageDataUrl) || sending}
+            disabled={(!newMessage.trim() && !selectedAttachment) || sending}
             className="w-9 h-9 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 rounded-full flex items-center justify-center transition-colors shrink-0"
           >
             {sending ? <Loader2 size={16} className="animate-spin text-white" /> : <Send size={16} className="text-white" />}

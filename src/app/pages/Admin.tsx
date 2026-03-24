@@ -230,6 +230,7 @@ type PlatformUser = {
   username: string;
   vipLevel: number;
   balance: number;
+  phone?: string;
   tasksCompleted: number;
   tasksLimit: number;
   taskSetCount: number;
@@ -238,12 +239,70 @@ type PlatformUser = {
   completedTaskSets: number;
   pendingTaskReset: boolean;
   holdAmount: number;
+  availableAmount?: number;
   isFrozen: boolean;
+  walletProfile?: any;
+  invitationCode?: string | null;
+  lastLoginAt?: string | null;
+  lastLoginIp?: string | null;
+  lastLoginLocation?: string | null;
+  lastActivityAt?: string | null;
+  lastActivityIp?: string | null;
+  lastActivityLocation?: string | null;
   referredByAdminId: string | null;
   referredByAdminName: string;
   createdAt: string | null;
 };
 
+
+type PlatformUserAudit = {
+  username: string;
+  phone: string;
+  gender: string;
+  invitationCode: string | null;
+  invitedByCode: string | null;
+  referredByAdminId: string | null;
+  walletProfile: any;
+  accountStatus: {
+    isFrozen: boolean;
+    pendingTaskReset: boolean;
+    activePremiumStatus: string | null;
+  };
+  financialCard: {
+    vipLevel: number;
+    balance: number;
+    holdAmount: number;
+    availableAmount: number;
+    totalBalance: number;
+    todayCommission: number;
+    luckyBonus: number;
+    creditScore: number;
+  };
+  taskProgress: {
+    tasksCompleted?: number;
+    tasksLimit?: number;
+    taskSetCount?: number;
+    tasksPerSet?: number;
+    tasksCompletedInSet?: number;
+    completedTaskSets?: number;
+  };
+  activePremium: any;
+  premiumQueue: any[];
+  audit: {
+    registeredAt: string | null;
+    lastLoginAt: string | null;
+    lastLoginIp: string | null;
+    lastLoginLocation: string | null;
+    lastActivityAt: string | null;
+    lastActivityIp: string | null;
+    lastActivityLocation: string | null;
+    lastDepositAt: string | null;
+    lastWithdrawalAt: string | null;
+  };
+  deposits: any[];
+  withdrawals: any[];
+  transactions: any[];
+};
 type UserTaskControlDraft = {
   taskSetCount: string;
 };
@@ -362,6 +421,8 @@ export default function Admin() {
   const [currentAdminId, setCurrentAdminId] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [platformUsers, setPlatformUsers] = useState<PlatformUser[]>([]);
+  const [selectedUserAudit, setSelectedUserAudit] = useState<PlatformUserAudit | null>(null);
+  const [selectedUserAuditLoading, setSelectedUserAuditLoading] = useState(false);
   const [platformUsersLoading, setPlatformUsersLoading] = useState(false);
   const [platformUsersLoaded, setPlatformUsersLoaded] = useState(false);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
@@ -504,6 +565,48 @@ export default function Admin() {
 
     setDeletePlatformUserConfirmation('');
   }, [modalType, selectedItem]);
+
+  useEffect(() => {
+    if (modalType !== 'view-user' || !selectedItem?.username) {
+      setSelectedUserAudit(null);
+      setSelectedUserAuditLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadUserAudit = async () => {
+      setSelectedUserAuditLoading(true);
+      try {
+        const headers = await buildAdminAuthHeaders(false);
+        const response = await fetch(`${serverUrl}/admin/platform-users/${encodeURIComponent(selectedItem.username)}/audit`, {
+          headers,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload?.error ?? `Failed to load user audit (${response.status})`);
+        }
+        if (!cancelled) {
+          setSelectedUserAudit(payload as PlatformUserAudit);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSelectedUserAudit(null);
+          handleAdminRequestError(error, 'Failed to load user audit details');
+        }
+      } finally {
+        if (!cancelled) {
+          setSelectedUserAuditLoading(false);
+        }
+      }
+    };
+
+    void loadUserAudit();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [modalType, selectedItem, serverUrl]);
 
   const mergePlatformUser = (nextUser: PlatformUser) => {
     setPlatformUsers((current) => current.map((user) => (
@@ -2411,72 +2514,118 @@ export default function Admin() {
                   <X size={24} />
                 </button>
               </div>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Username</p>
-                    <p className="text-white font-semibold mt-1">{selectedItem.username}</p>
+              {selectedUserAuditLoading ? (
+                <div className="bg-[#1a1f2e] p-8 rounded-lg text-center text-gray-400">Loading audit details…</div>
+              ) : (
+                <div className="space-y-4 max-h-[70vh] overflow-auto pr-1">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                      <p className="text-gray-400 text-sm">Username</p>
+                      <p className="text-white font-semibold mt-1">{selectedItem.username}</p>
+                    </div>
+                    <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                      <p className="text-gray-400 text-sm">Phone Number</p>
+                      <p className="text-white font-semibold mt-1">{selectedUserAudit?.phone ?? selectedItem.phone ?? '—'}</p>
+                    </div>
+                    <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                      <p className="text-gray-400 text-sm">Invitation Code</p>
+                      <p className="text-white font-semibold mt-1">{selectedUserAudit?.invitationCode ?? '—'}</p>
+                    </div>
+                    <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                      <p className="text-gray-400 text-sm">Wallet Address</p>
+                      <p className="text-white font-semibold mt-1 break-all">{selectedUserAudit?.walletProfile?.walletAddress ?? 'No wallet bound'}</p>
+                    </div>
                   </div>
+
                   <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Email</p>
-                    <p className="text-white font-semibold mt-1">{selectedItem.email}</p>
+                    <p className="text-gray-400 text-sm mb-3">Financial Card Snapshot</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <p className="text-gray-500 text-xs">VIP</p>
+                        <p className="text-purple-300 font-semibold mt-1">VIP {selectedUserAudit?.financialCard?.vipLevel ?? selectedItem.vipLevel}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs">Balance</p>
+                        <p className="text-[#00D9FF] font-bold mt-1">${Number(selectedUserAudit?.financialCard?.balance ?? selectedItem.balance ?? 0).toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs">Hold</p>
+                        <p className="text-white font-semibold mt-1">${Number(selectedUserAudit?.financialCard?.holdAmount ?? selectedItem.holdAmount ?? 0).toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs">Available</p>
+                        <p className="text-green-400 font-semibold mt-1">${Number(selectedUserAudit?.financialCard?.availableAmount ?? selectedItem.availableAmount ?? 0).toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs">Today Commission</p>
+                        <p className="text-white font-semibold mt-1">${Number(selectedUserAudit?.financialCard?.todayCommission ?? 0).toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs">Lucky Bonus</p>
+                        <p className="text-white font-semibold mt-1">${Number(selectedUserAudit?.financialCard?.luckyBonus ?? 0).toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs">Total Balance</p>
+                        <p className="text-white font-semibold mt-1">${Number(selectedUserAudit?.financialCard?.totalBalance ?? 0).toFixed(2)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs">Credit Score</p>
+                        <p className="text-yellow-300 font-semibold mt-1">{selectedUserAudit?.financialCard?.creditScore ?? selectedItem.creditScore ?? 100}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                      <p className="text-gray-400 text-sm mb-3">Account Status</p>
+                      <div className="space-y-2 text-sm">
+                        <p className="text-white">Frozen: <span className="font-semibold">{selectedUserAudit?.accountStatus?.isFrozen ? 'Yes' : 'No'}</span></p>
+                        <p className="text-white">Reset Required: <span className="font-semibold">{selectedUserAudit?.accountStatus?.pendingTaskReset ? 'Yes' : 'No'}</span></p>
+                        <p className="text-white">Premium State: <span className="font-semibold">{selectedUserAudit?.accountStatus?.activePremiumStatus ?? 'None'}</span></p>
+                        <p className="text-white">Set Progress: <span className="font-semibold">{selectedUserAudit?.taskProgress?.tasksCompletedInSet ?? selectedItem.tasksCompletedInSet ?? 0}/{selectedUserAudit?.taskProgress?.tasksPerSet ?? selectedItem.tasksPerSet ?? 0}</span></p>
+                        <p className="text-white">Completed Sets: <span className="font-semibold">{selectedUserAudit?.taskProgress?.completedTaskSets ?? selectedItem.completedTaskSets ?? 0}/{selectedUserAudit?.taskProgress?.taskSetCount ?? selectedItem.taskSetCount ?? 0}</span></p>
+                      </div>
+                    </div>
+                    <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                      <p className="text-gray-400 text-sm mb-3">Audit Trail</p>
+                      <div className="space-y-2 text-sm">
+                        <p className="text-white">Registered: <span className="font-semibold">{selectedUserAudit?.audit?.registeredAt ? new Date(selectedUserAudit.audit.registeredAt).toLocaleString() : selectedItem.registered}</span></p>
+                        <p className="text-white">Last Login: <span className="font-semibold">{selectedUserAudit?.audit?.lastLoginAt ? new Date(selectedUserAudit.audit.lastLoginAt).toLocaleString() : '—'}</span></p>
+                        <p className="text-white">Last Login IP: <span className="font-semibold">{selectedUserAudit?.audit?.lastLoginIp ?? '—'}</span></p>
+                        <p className="text-white">Approx. Location: <span className="font-semibold">{selectedUserAudit?.audit?.lastLoginLocation ?? '—'}</span></p>
+                        <p className="text-white">Last Activity: <span className="font-semibold">{selectedUserAudit?.audit?.lastActivityAt ? new Date(selectedUserAudit.audit.lastActivityAt).toLocaleString() : '—'}</span></p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                      <p className="text-gray-400 text-sm mb-3">Deposits</p>
+                      {selectedUserAudit?.deposits?.length ? selectedUserAudit.deposits.slice(0, 5).map((deposit, index) => (
+                        <div key={`${deposit.id ?? index}`} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-b-0 text-sm">
+                          <div>
+                            <p className="text-white font-medium">${Number(deposit.amount ?? 0).toFixed(2)}</p>
+                            <p className="text-gray-500 text-xs">{deposit.method ?? 'Deposit'}</p>
+                          </div>
+                          <p className="text-gray-400 text-xs">{deposit.date ? new Date(deposit.date).toLocaleString() : '—'}</p>
+                        </div>
+                      )) : <p className="text-gray-500 text-sm">No deposit history.</p>}
+                    </div>
+                    <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                      <p className="text-gray-400 text-sm mb-3">Withdrawals</p>
+                      {selectedUserAudit?.withdrawals?.length ? selectedUserAudit.withdrawals.slice(0, 5).map((withdrawal, index) => (
+                        <div key={`${withdrawal.id ?? index}`} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-b-0 text-sm">
+                          <div>
+                            <p className="text-white font-medium">${Number(withdrawal.amount ?? 0).toFixed(2)}</p>
+                            <p className="text-gray-500 text-xs">{withdrawal.status ?? 'Pending'}</p>
+                          </div>
+                          <p className="text-gray-400 text-xs">{withdrawal.requestedDate ? new Date(withdrawal.requestedDate).toLocaleString() : '—'}</p>
+                        </div>
+                      )) : <p className="text-gray-500 text-sm">No withdrawal history.</p>}
+                    </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Phone</p>
-                    <p className="text-white font-semibold mt-1">{selectedItem.phone}</p>
-                  </div>
-                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">VIP Level</p>
-                    <p className="text-purple-300 font-semibold mt-1">{selectedItem.vipLevel}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Balance</p>
-                    <p className="text-[#00D9FF] font-bold text-xl mt-1">${selectedItem.balance.toFixed(2)}</p>
-                  </div>
-                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Status</p>
-                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mt-1 ${
-                      selectedItem.status === 'Active' ? 'bg-green-500/20 text-green-300' :
-                      selectedItem.status === 'Suspended' ? 'bg-red-500/20 text-red-300' :
-                      'bg-yellow-500/20 text-yellow-300'
-                    }`}>
-                      {selectedItem.status}
-                    </span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Tasks Completed</p>
-                    <p className="text-white font-bold text-xl mt-1">{selectedItem.tasksCompleted}</p>
-                  </div>
-                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Task Progress</p>
-                    <p className="text-green-400 font-bold text-xl mt-1">{selectedItem.tasksCompletedInSet ?? 0}/{selectedItem.tasksPerSet ?? 0}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Completed Sets</p>
-                    <p className="text-white font-bold text-xl mt-1">{selectedItem.completedTaskSets ?? 0}/{selectedItem.taskSetCount ?? 0}</p>
-                  </div>
-                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm">Held Amount</p>
-                    <p className="text-green-400 font-bold text-xl mt-1">${(selectedItem.holdAmount ?? 0).toFixed(2)}</p>
-                  </div>
-                </div>
-                <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                  <p className="text-gray-400 text-sm">Registered Date</p>
-                  <p className="text-white font-semibold mt-1">{selectedItem.registered}</p>
-                </div>
-                <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                  <p className="text-gray-400 text-sm">Reset Required</p>
-                  <p className="text-white font-semibold mt-1">{selectedItem.pendingTaskReset ? 'Yes' : 'No'}</p>
-                </div>
-              </div>
+              )}
               <div className="flex gap-3 mt-6">
                 <button
                   type="button"

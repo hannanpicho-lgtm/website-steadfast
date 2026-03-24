@@ -643,14 +643,14 @@ export default function Starting() {
               Completed <span className="text-white font-semibold">{userData?.completedTaskSets ?? 0}/{userData?.taskSetCount ?? 0}</span>
             </p>
             <p className="text-yellow-400 text-xs shrink-0">
-              {isPremiumTaskActive ? '💡 Premium task active' : `💡 #${premiumTriggerTaskNumber} premium`}
+              {isPremiumTaskActive ? 'Premium task active' : `Premium at #${premiumTriggerTaskNumber}`}
             </p>
           </div>
 
           {/* Premium trigger warning — only when near */}
           {premiumTriggerIncoming && (
             <div className="mx-4 mb-3 px-3 py-1.5 bg-red-500/15 border border-red-500/30 rounded-lg">
-              <p className="text-red-400 text-xs text-center font-semibold">⚠️ Premium trigger incoming on this submission</p>
+              <p className="text-red-400 text-xs text-center font-semibold">Premium trigger incoming on this submission</p>
             </div>
           )}
         </div>
@@ -726,64 +726,94 @@ export default function Starting() {
 
         {/* Success Notification */}
         {showSuccess && (
-          <div className={`mb-6 p-4 rounded-lg text-center font-bold animate-bounce ${isPremium ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white' : 'bg-green-500 text-white'}`}>
-            {isPremium ? '🎉 PREMIUM PRODUCT! 10X COMMISSION! 🎉' : '✅ Task Submitted Successfully!'}
-            <div className="text-2xl mt-2">+${lastCommission.toFixed(2)} USD</div>
+          <div className={`mb-6 rounded-2xl border px-5 py-4 text-center shadow-sm ${isPremium ? 'border-amber-200 bg-amber-50 text-amber-950' : 'border-emerald-200 bg-emerald-50 text-emerald-950'}`}>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em]">
+              {isPremium ? 'Premium Assignment Completed' : 'Submission Confirmed'}
+            </p>
+            <div className="mt-2 text-3xl font-bold">+${lastCommission.toFixed(2)} USD</div>
+            <p className="mt-1 text-sm">
+              {isPremium ? 'The premium commission has been added to the current cycle.' : 'The task commission has been credited successfully.'}
+            </p>
           </div>
         )}
 
         {/* Commission Panel */}
-        <div className="bg-gradient-to-br from-[#00D9FF] to-[#00a8cc] rounded-lg p-6 text-[#1a1f2e] mb-6">
-          {/* Today's Commission */}
-          <div className="text-center mb-6">
-            <Rocket className="mx-auto mb-2" size={40} />
-            <h3 className="text-lg font-semibold mb-1">TODAY'S COMMISSION</h3>
-            <p className="text-3xl font-bold mb-1">{(userData?.todayCommission || 0).toFixed(2)} USD</p>
-            <p className="text-sm opacity-90">The displayed amount reflects today's earned commissions.</p>
-          </div>
-
-          <div className="border-t border-[#1a1f2e]/30 my-6"></div>
-
-          {/* Frozen state: show current balance before freeze + negative uphold amount */}
-          {userData?.isFrozen && (
-            <div className="grid grid-cols-2 gap-6 mb-6">
-              <div className="text-center">
-                <CreditCard className="mx-auto mb-2" size={32} />
-                <h4 className="font-semibold mb-1">CURRENT BALANCE</h4>
-                <p className="text-2xl font-bold mb-1">{Math.max(0, frozenCurrentBalanceBeforeFreeze).toFixed(2)} USD</p>
-                <p className="text-xs opacity-90">Current account balance before freeze.</p>
+        <div className="relative mb-6 overflow-hidden rounded-[28px] bg-[linear-gradient(145deg,#0b72e7_0%,#0d92f4_52%,#19c0ff_100%)] text-white shadow-[0_24px_60px_rgba(6,58,145,0.24)]">
+          <div className="absolute inset-x-0 top-0 h-24 bg-white/10 blur-3xl" />
+          <div className="relative p-6 md:p-7">
+            <div className="mx-auto max-w-md text-center">
+              <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/90">
+                Financial Summary
               </div>
-              <div className="text-center">
-                <Snowflake className="mx-auto mb-2" size={32} />
-                <h4 className="font-semibold mb-1">Uphold Amount</h4>
-                <p className="text-2xl font-bold mb-1 text-red-500">-{frozenUpholdAmount.toFixed(2)} USD</p>
-                <p className="text-xs opacity-90">Frozen for premium settlement</p>
+              <Rocket className="mx-auto mt-4" size={34} />
+              <h3 className="mt-3 text-sm font-semibold uppercase tracking-[0.26em] text-white/80">Today's Commission</h3>
+              <p className="mt-2 text-4xl font-bold leading-none">{(userData?.todayCommission || 0).toFixed(2)} USD</p>
+              <p className="mt-3 text-sm text-white/80">Updated from completed submissions in the current working day.</p>
+            </div>
+
+            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="rounded-2xl bg-white/12 p-4 backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-full bg-white/15 p-2">
+                    <CreditCard size={18} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">
+                      {userData?.isFrozen ? 'Current Balance' : 'Available Balance'}
+                    </p>
+                    <p className="mt-1 text-2xl font-bold">
+                      {(userData?.isFrozen ? Math.max(0, frozenCurrentBalanceBeforeFreeze) : availableFundsForSubmit).toFixed(2)} USD
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-white/75">
+                  {userData?.isFrozen ? 'Balance held before premium settlement.' : 'Funds currently available for new submissions.'}
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-white/12 p-4 backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-full bg-white/15 p-2">
+                    <Snowflake size={18} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Hold Amount</p>
+                    <p className={`mt-1 text-2xl font-bold ${userData?.isFrozen ? 'text-[#ffe1e1]' : 'text-white'}`}>
+                      {userData?.isFrozen ? '-' : ''}{(userData?.isFrozen ? frozenUpholdAmount : Number(userData?.holdAmount ?? 0)).toFixed(2)} USD
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-white/75">
+                  {userData?.isFrozen ? 'Reserved for the premium settlement requirement.' : 'Amount currently reserved from the working balance.'}
+                </p>
               </div>
             </div>
-          )}
 
-          {/* Total Account Balance — always transparent */}
-          <div className="text-center mb-6 bg-white/10 rounded-lg p-3">
-            <h4 className="font-semibold mb-1 text-sm">TOTAL ACCOUNT BALANCE</h4>
-            <p className="text-2xl font-bold">{totalAccountBalanceDisplay.toFixed(2)} USD</p>
-            <p className="text-xs opacity-70 mt-1">
-              {userData?.isFrozen
-                ? 'Includes current balance before freeze + uphold amount + projected premium profit'
-                : 'Post-unfreeze view: total account balance and today\'s commission only'}
-            </p>
-          </div>
+            <div className="mt-4 rounded-[24px] border border-white/15 bg-white/12 p-5 backdrop-blur-sm">
+              <p className="text-center text-xs font-semibold uppercase tracking-[0.24em] text-white/75">Total Account Balance</p>
+              <p className="mt-2 text-center text-3xl font-bold">{totalAccountBalanceDisplay.toFixed(2)} USD</p>
+              <p className="mt-2 text-center text-xs text-white/75">
+                {userData?.isFrozen
+                  ? 'Includes pre-freeze balance, current hold amount, and projected premium profit.'
+                  : 'Reflects the active account balance across the current task cycle.'}
+              </p>
+            </div>
 
-          {userData?.isFrozen && (
-            <>
-              <div className="border-t border-[#1a1f2e]/30 my-6"></div>
-
-              {/* Special Lucky Bonus */}
-              <div className="text-center">
-                <h4 className="font-semibold mb-1">Special Lucky Bonus</h4>
-                <p className="text-2xl font-bold">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="rounded-2xl bg-[#083b93]/35 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Lucky Bonus</p>
+                <p className="mt-1 text-2xl font-bold">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
+                <p className="mt-2 text-xs text-white/75">Bonus value currently carried on the account.</p>
               </div>
-            </>
-          )}
+              <div className="rounded-2xl bg-[#083b93]/35 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Working Status</p>
+                <p className="mt-1 text-2xl font-bold">{userData?.isFrozen ? 'Settlement Review' : 'Ready To Submit'}</p>
+                <p className="mt-2 text-xs text-white/75">
+                  {userData?.isFrozen ? 'Submission remains paused until the premium requirement is cleared.' : 'The account can continue processing eligible tasks.'}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Important Notice */}

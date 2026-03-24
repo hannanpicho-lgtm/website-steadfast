@@ -67,6 +67,19 @@ function requestSource(c: any): string {
   return forwardedFor.split(',')[0].trim();
 }
 
+function getClientRequestMetadata(c: any) {
+  const clientIp = requestSource(c);
+  const country = (c.req.header('cf-ipcountry') ?? '').trim();
+  const region = (c.req.header('cf-region') ?? '').trim();
+  const city = (c.req.header('cf-ipcity') ?? '').trim();
+  const location = [city, region, country].filter(Boolean).join(', ');
+
+  return {
+    clientIp,
+    location: location || 'Unknown location',
+  };
+}
+
 function baseRequestContext(c: any): Record<string, unknown> {
   return {
     requestId: c.get('requestId') ?? null,
@@ -2142,6 +2155,14 @@ function defaultUserRecord(username: string) {
     accumulatedRewardClaims: {} as Record<string, { tierId: number; depositTotal: number; rewardCredited: number; creditedAt: string }> ,
     referredByAdminId: null as string | null,
     walletProfile: null as WalletProfile | null,
+    phone: '',
+    gender: '',
+    lastLoginAt: null as string | null,
+    lastLoginIp: null as string | null,
+    lastLoginLocation: null as string | null,
+    lastActivityAt: null as string | null,
+    lastActivityIp: null as string | null,
+    lastActivityLocation: null as string | null,
     createdAt: new Date().toISOString(),
     creditScore: 100,
   };
@@ -2210,9 +2231,29 @@ function normalizeUserRecord(userData: any, username: string) {
     ? normalized.referredByAdminId
     : null;
   normalized.walletProfile = normalizeStoredWalletProfile(normalized.walletProfile);
+  normalized.phone = typeof normalized.phone === 'string' ? normalized.phone : '';
+  normalized.gender = typeof normalized.gender === 'string' ? normalized.gender : '';
   normalized.createdAt = typeof normalized.createdAt === 'string' && normalized.createdAt
     ? normalized.createdAt
     : new Date().toISOString();
+  normalized.lastLoginAt = typeof normalized.lastLoginAt === 'string' && normalized.lastLoginAt
+    ? normalized.lastLoginAt
+    : null;
+  normalized.lastLoginIp = typeof normalized.lastLoginIp === 'string' && normalized.lastLoginIp
+    ? normalized.lastLoginIp
+    : null;
+  normalized.lastLoginLocation = typeof normalized.lastLoginLocation === 'string' && normalized.lastLoginLocation
+    ? normalized.lastLoginLocation
+    : null;
+  normalized.lastActivityAt = typeof normalized.lastActivityAt === 'string' && normalized.lastActivityAt
+    ? normalized.lastActivityAt
+    : null;
+  normalized.lastActivityIp = typeof normalized.lastActivityIp === 'string' && normalized.lastActivityIp
+    ? normalized.lastActivityIp
+    : null;
+  normalized.lastActivityLocation = typeof normalized.lastActivityLocation === 'string' && normalized.lastActivityLocation
+    ? normalized.lastActivityLocation
+    : null;
 
   normalized.creditScore = Number.isFinite(Number(normalized.creditScore))
     ? Math.min(100, Math.max(0, Math.round(Number(normalized.creditScore))))
@@ -3203,6 +3244,62 @@ async function buildEarningsSummaryResponse(username: string) {
   };
 }
 
+async function buildAdminPlatformUserAudit(username: string) {
+  const canonicalUsername = (await resolveCanonicalUsername(username)) ?? username;
+  const userData = await getOrCreateUserRecord(canonicalUsername);
+  const normalizedUser = await syncUserWithVipConfig(userData, canonicalUsername);
+  const transactions = await listTransactionRecords(canonicalUsername);
+  const withdrawals = await listWithdrawalRecords(canonicalUsername);
+  const deposits = transactions.filter((transaction) => transaction.type === 'Deposit');
+  const commissions = transactions.filter((transaction) => transaction.type === 'Commission');
+  const balance = roundMoney(Number(normalizedUser.balance ?? 0));
+  const holdAmount = roundMoney(Number(normalizedUser.holdAmount ?? 0));
+  const availableAmount = roundMoney(balance - holdAmount);
+
+  return {
+    username: canonicalUsername,
+    phone: normalizedUser.phone || '-',
+    gender: normalizedUser.gender || '-',
+    invitationCode: typeof normalizedUser.invitationCode === 'string' && normalizedUser.invitationCode ? normalizedUser.invitationCode : null,
+    invitedByCode: typeof normalizedUser.invitedByCode === 'string' && normalizedUser.invitedByCode ? normalizedUser.invitedByCode : null,
+    referredByAdminId: normalizedUser.referredByAdminId ?? null,
+    walletProfile: normalizeStoredWalletProfile(normalizedUser.walletProfile),
+    accountStatus: {
+      isFrozen: Boolean(normalizedUser.isFrozen),
+      pendingTaskReset: Boolean(normalizedUser.pendingTaskReset),
+      activePremiumStatus: typeof normalizedUser.activePremium?.status === 'string' ? normalizedUser.activePremium.status : null,
+    },
+    financialCard: {
+      vipLevel: Number(normalizedUser.vipLevel ?? 1),
+      balance,
+      holdAmount,
+      availableAmount,
+      totalBalance: roundMoney(balance + holdAmount),
+      todayCommission: roundMoney(Number(normalizedUser.todayCommission ?? 0)),
+      luckyBonus: roundMoney(Number(normalizedUser.luckyBonus ?? 0)),
+      creditScore: typeof normalizedUser.creditScore === 'number' ? normalizedUser.creditScore : 100,
+    },
+    taskProgress: buildUserTaskProgress(normalizedUser),
+    activePremium: normalizedUser.activePremium ?? null,
+    premiumQueue: Array.isArray(normalizedUser.premiumQueue) ? normalizedUser.premiumQueue : [],
+    audit: {
+      registeredAt: normalizedUser.createdAt,
+      lastLoginAt: normalizedUser.lastLoginAt,
+      lastLoginIp: normalizedUser.lastLoginIp,
+      lastLoginLocation: normalizedUser.lastLoginLocation,
+      lastActivityAt: normalizedUser.lastActivityAt,
+      lastActivityIp: normalizedUser.lastActivityIp,
+      lastActivityLocation: normalizedUser.lastActivityLocation,
+      lastDepositAt: deposits[0]?.date ?? null,
+      lastWithdrawalAt: withdrawals[0]?.requestedDate ?? null,
+    },
+    deposits,
+    withdrawals,
+    transactions,
+    commissions,
+  };
+}
+
 app.get('/make-server-a1c55d7e/me/referrals/summary', async (c) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
@@ -3323,7 +3420,11 @@ app.put('/make-server-a1c55d7e/me/wallet', async (c) => {
     const canonicalUsername = sessionResult.session.username;
     const userData = await getOrCreateUserRecord(canonicalUsername);
     const normalizedUserData = await syncUserWithVipConfig(userData, canonicalUsername);
+    const clientMeta = getClientRequestMetadata(c);
     normalizedUserData.walletProfile = parsed.walletProfile;
+    normalizedUserData.lastActivityAt = new Date().toISOString();
+    normalizedUserData.lastActivityIp = clientMeta.clientIp;
+    normalizedUserData.lastActivityLocation = clientMeta.location;
 
     await kv.set(`user:${canonicalUsername}`, normalizedUserData);
     await assignUsernameLookup(canonicalUsername);
@@ -3792,6 +3893,16 @@ app.post('/make-server-a1c55d7e/auth/login', async (c) => {
     }
 
     const mustChangePassword = Boolean((userData as any).mustChangePassword);
+    const clientMeta = getClientRequestMetadata(c);
+    const normalizedUserData = normalizeUserRecord(userData, canonicalUsername);
+    normalizedUserData.lastLoginAt = new Date().toISOString();
+    normalizedUserData.lastLoginIp = clientMeta.clientIp;
+    normalizedUserData.lastLoginLocation = clientMeta.location;
+    normalizedUserData.lastActivityAt = normalizedUserData.lastLoginAt;
+    normalizedUserData.lastActivityIp = clientMeta.clientIp;
+    normalizedUserData.lastActivityLocation = clientMeta.location;
+    await kv.set(userKey, normalizedUserData);
+
     const session = await createUserSession(canonicalUsername, mustChangePassword);
     c.header('Set-Cookie', buildSessionCookieValue(session.sessionId));
 
@@ -7637,6 +7748,7 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
       username: u.username,
       vipLevel: u.vipLevel,
       balance: u.balance,
+      phone: typeof u.phone === 'string' && u.phone ? u.phone : '-',
       tasksCompleted: u.tasksCompleted,
       tasksLimit: u.tasksLimit,
       taskSetCount: u.taskSetCount,
@@ -7645,7 +7757,16 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
       completedTaskSets: u.completedTaskSets,
       pendingTaskReset: u.pendingTaskReset,
       holdAmount: u.holdAmount,
+      availableAmount: roundMoney(Number(u.balance ?? 0) - Number(u.holdAmount ?? 0)),
       isFrozen: u.isFrozen,
+      walletProfile: normalizeStoredWalletProfile(u.walletProfile),
+      invitationCode: typeof u.invitationCode === 'string' && u.invitationCode ? u.invitationCode : null,
+      lastLoginAt: typeof u.lastLoginAt === 'string' && u.lastLoginAt ? u.lastLoginAt : null,
+      lastLoginIp: typeof u.lastLoginIp === 'string' && u.lastLoginIp ? u.lastLoginIp : null,
+      lastLoginLocation: typeof u.lastLoginLocation === 'string' && u.lastLoginLocation ? u.lastLoginLocation : null,
+      lastActivityAt: typeof u.lastActivityAt === 'string' && u.lastActivityAt ? u.lastActivityAt : null,
+      lastActivityIp: typeof u.lastActivityIp === 'string' && u.lastActivityIp ? u.lastActivityIp : null,
+      lastActivityLocation: typeof u.lastActivityLocation === 'string' && u.lastActivityLocation ? u.lastActivityLocation : null,
       referredByAdminId: u.referredByAdminId ?? null,
       referredByAdminName: u.referredByAdminId
         ? (adminNameMap.get(u.referredByAdminId) ?? u.referredByAdminId)
@@ -7658,6 +7779,39 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
   } catch (err) {
     console.error('admin/platform-users error:', err);
     return c.json({ error: 'Failed to fetch platform users' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/platform-users/:username/audit', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-platform-users:audit');
+    if (limited) return limited;
+
+    const requestedUsername = sanitizeUsername(c.req.param('username'));
+    if (!requestedUsername) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const canonicalUsername = await resolveCanonicalUsername(requestedUsername);
+    if (!canonicalUsername) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const userData = await getOrCreateUserRecord(canonicalUsername);
+    const normalizedUser = normalizeUserRecord(userData, canonicalUsername);
+    if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    return c.json(await buildAdminPlatformUserAudit(canonicalUsername));
+  } catch (err) {
+    console.error('admin/platform-users/audit error:', err);
+    return c.json({ error: 'Failed to fetch user audit details' }, 500);
   }
 });
 

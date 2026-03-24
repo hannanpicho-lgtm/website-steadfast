@@ -1,4 +1,4 @@
-import { ChevronLeft, Bitcoin } from 'lucide-react';
+import { ChevronLeft, Bitcoin, CheckCircle2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
@@ -22,6 +22,7 @@ export default function ConnectWallet() {
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [successBanner, setSuccessBanner] = useState('');
 
   const username = getCurrentUsername();
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
@@ -100,7 +101,7 @@ export default function ConnectWallet() {
         throw new Error(String((payload as Record<string, unknown>).error ?? 'Failed to save wallet details'));
       }
 
-      toast.success(successMessage);
+      setSuccessBanner(successMessage);
       setTimeout(() => navigate('/profile'), 1200);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to save wallet details. Please try again.';
@@ -122,7 +123,7 @@ export default function ConnectWallet() {
   return (
     <div className="size-full overflow-auto pb-20 bg-gray-50">
       {/* Header */}
-      <Header onContactClick={() => setIsChatOpen(true)} />
+      <Header onContactClick={() => {}} />
 
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-6 py-6">
@@ -140,6 +141,18 @@ export default function ConnectWallet() {
           </button>
           <h1 className="text-2xl font-bold text-[#1a1f2e] flex-1 text-center mr-10">Connect Wallet</h1>
         </div>
+
+        {successBanner ? (
+          <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 className="mt-0.5 text-emerald-600" size={20} />
+              <div>
+                <p className="text-sm font-semibold text-emerald-900">Wallet details saved</p>
+                <p className="text-sm text-emerald-800">{successBanner}</p>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
 
 
@@ -205,7 +218,7 @@ export default function ConnectWallet() {
                   required
                 />
                 <p className="text-xs text-gray-500 mt-2">
-                  ⚠️ Please double-check your wallet address. Transactions cannot be reversed.
+                  Please double-check your wallet address. Transactions cannot be reversed.
                 </p>
               </div>
 

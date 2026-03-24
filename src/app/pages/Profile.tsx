@@ -1,4 +1,4 @@
-﻿import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle } from 'lucide-react';
+﻿import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle, PencilLine } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
@@ -177,14 +177,14 @@ export default function Profile() {
             <img 
               src={profileImageSrc}
               alt="Profile" 
-              className="w-24 h-24 rounded-full object-cover bg-gray-200"
+              className="w-24 h-24 rounded-full object-cover bg-gray-200 border-2 border-[#d9b48c] shadow-sm"
             />
           </div>
           <button
             onClick={() => fileInputRef.current?.click()}
             className="text-sm text-[#0066cc] flex items-center gap-1 hover:underline"
           >
-            <span>✏️</span>
+            <PencilLine size={14} />
             <span>Edit Profile Image</span>
           </button>
           <input
@@ -197,52 +197,53 @@ export default function Profile() {
         </div>
 
         {/* Profile Card */}
-        <div className="bg-gradient-to-r from-[#0066cc] to-[#0088ee] rounded-lg p-6 text-white mb-6 shadow-md">
-          <div className="flex items-center justify-between mb-4">
+        <div className="rounded-2xl bg-[linear-gradient(135deg,#0b5f94_0%,#0f6ea9_52%,#157fbc_100%)] p-6 text-white mb-6 shadow-[0_18px_40px_rgba(10,79,126,0.22)]">
+          <div className="flex items-start justify-between mb-5">
             <div>
-              <p className="text-sm opacity-90">Hello,</p>
-              <h2 className="text-2xl font-bold">{username ?? 'User'}</h2>
+              <p className="text-sm font-medium text-white/80">Hello,</p>
+              <h2 className="text-[2rem] font-bold leading-none mt-1">{username ?? 'User'}</h2>
             </div>
-            <div className="bg-white/15 border border-white/30 rounded-full px-3 py-1 text-sm font-semibold">
-              VIP {vipLevel}
+            <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-right">
+              <div>
+                <p className="text-xs uppercase tracking-[0.18em] text-white/70">Tier</p>
+                <p className="text-2xl font-bold leading-none">VIP{vipLevel}</p>
+              </div>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" className="text-orange-300 drop-shadow-sm">
+                <path d="M12 2L14.97 8.03L21.63 8.99L16.82 13.68L17.95 20.31L12 17.18L6.05 20.31L7.18 13.68L2.37 8.99L9.03 8.03L12 2Z"/>
+              </svg>
             </div>
           </div>
 
-          <div className="mb-4">
-            <p className="text-xs opacity-90">Available Balance</p>
-            <p className="text-2xl font-bold">${Number(financialSummary?.availableAmount ?? 0).toFixed(2)}</p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div className="flex flex-col items-center">
-              <p className="text-xs opacity-90 mb-1">My Referral Code</p>
+          <div className="grid grid-cols-3 gap-3 mb-4 text-center">
+            <div className="flex flex-col items-center justify-center">
+              <p className="text-xs font-semibold text-white/85 mb-1">My Referral Code</p>
               <div className="flex items-center gap-2">
-                <p className="text-lg font-bold">{referralCode || '—'}</p>
-                <button onClick={handleCopyReferral} className="hover:opacity-80">
+                <p className="text-sm font-bold uppercase tracking-[0.14em]">{referralCode || '—'}</p>
+                <button onClick={handleCopyReferral} className="hover:opacity-80 rounded p-1 hover:bg-white/10">
                   <Copy size={16} />
                 </button>
               </div>
             </div>
             <div className="flex flex-col items-center border-l border-r border-white/30">
-              <p className="text-xs opacity-90 mb-1">Today's Profit (USD)</p>
+              <p className="text-xs font-semibold text-white/85 mb-1">Today's Profit (USD)</p>
               <p className="text-lg font-bold">{todayProfit.toFixed(2)}</p>
             </div>
             <div className="flex flex-col items-center">
-              <p className="text-xs opacity-90 mb-1">Total Commission (USD)</p>
+              <p className="text-xs font-semibold text-white/85 mb-1">Total Commission (USD)</p>
               <p className="text-lg font-bold">{totalCommission.toFixed(2)}</p>
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold">Credit Score:</span>
-            <div className="flex-1 mx-4 bg-white/20 rounded-full h-2 overflow-hidden">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-semibold whitespace-nowrap">Credit Score:</span>
+            <div className="flex-1 bg-[#092d46] rounded-full h-2.5 overflow-hidden">
               <div className="bg-white h-full rounded-full" style={{ width: `${creditScore}%` }}></div>
             </div>
-            <span className="text-sm font-bold flex items-center gap-1">
-              {creditScore}%
+            <span className="text-sm font-bold flex items-center gap-1 whitespace-nowrap">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-orange-400">
                 <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
               </svg>
+              {creditScore}%
             </span>
           </div>
         </div>

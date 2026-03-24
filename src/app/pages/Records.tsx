@@ -476,7 +476,7 @@ export default function Records() {
                             </div>
                             {product.isPremium && (
                               <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs px-2 py-1 rounded inline-block">
-                                🎉 PREMIUM 10X
+                                PREMIUM 10X
                               </div>
                             )}
                           </>
