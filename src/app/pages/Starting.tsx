@@ -54,6 +54,8 @@ type TaskCatalogResponse = {
 };
 
 const REQUEST_TIMEOUT_MS = 8000;
+const TASK_CATALOG_CACHE_KEY = 'starting:task-catalog:v1';
+const TASK_CATALOG_CACHE_TTL_MS = 2 * 60 * 1000;
 
 function roundMoney(value: number): number {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -100,6 +102,40 @@ async function fetchJsonWithTimeout(url: string, init: RequestInit): Promise<any
     return payload;
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+function readTaskCatalogCache(): TaskCatalogResponse | null {
+  try {
+    const rawValue = sessionStorage.getItem(TASK_CATALOG_CACHE_KEY);
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsed = JSON.parse(rawValue) as { timestamp?: number; payload?: TaskCatalogResponse };
+    if (!parsed || typeof parsed.timestamp !== 'number' || !parsed.payload) {
+      return null;
+    }
+
+    if (Date.now() - parsed.timestamp > TASK_CATALOG_CACHE_TTL_MS) {
+      sessionStorage.removeItem(TASK_CATALOG_CACHE_KEY);
+      return null;
+    }
+
+    return parsed.payload;
+  } catch {
+    return null;
+  }
+}
+
+function writeTaskCatalogCache(payload: TaskCatalogResponse) {
+  try {
+    sessionStorage.setItem(TASK_CATALOG_CACHE_KEY, JSON.stringify({
+      timestamp: Date.now(),
+      payload,
+    }));
+  } catch {
+    // Ignore storage errors and continue without cache.
   }
 }
 
@@ -251,6 +287,12 @@ export default function Starting() {
     try {
       setLoading(true);
       setLoadError(null);
+      const cachedTaskCatalog = readTaskCatalogCache();
+      if (cachedTaskCatalog) {
+        setTaskCatalog(Array.isArray(cachedTaskCatalog.tasks) ? cachedTaskCatalog.tasks : []);
+        setTaskRuleConfig(cachedTaskCatalog.ruleConfig ?? null);
+      }
+
       const [sessionResult, tasksResult] = await Promise.allSettled([
         withRetry(() => fetchSessionUser(), 2),
         withRetry(() => fetchJsonWithTimeout(`${serverUrl}/tasks/catalog`, {
@@ -265,8 +307,13 @@ export default function Starting() {
       }
 
       if (tasksResult.status === 'fulfilled') {
-        setTaskCatalog(Array.isArray(tasksResult.value?.tasks) ? tasksResult.value.tasks : []);
-        setTaskRuleConfig(tasksResult.value?.ruleConfig ?? null);
+        const nextPayload: TaskCatalogResponse = {
+          tasks: Array.isArray(tasksResult.value?.tasks) ? tasksResult.value.tasks : [],
+          ruleConfig: tasksResult.value?.ruleConfig,
+        };
+        setTaskCatalog(nextPayload.tasks ?? []);
+        setTaskRuleConfig(nextPayload.ruleConfig ?? null);
+        writeTaskCatalogCache(nextPayload);
       }
 
       if (sessionResult.status !== 'fulfilled' && tasksResult.status !== 'fulfilled') {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Send, MessageCircle, Loader2 } from 'lucide-react';
+import { X, Send, MessageCircle, Loader2, ImagePlus, Smile } from 'lucide-react';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 
@@ -17,13 +17,37 @@ interface UserLiveChatProps {
   onClose: () => void;
 }
 
+const CHAT_IMAGE_PREFIX = '__img__:';
+const MAX_CHAT_IMAGE_SIZE_BYTES = 350 * 1024;
+const QUICK_EMOJIS = ['😀', '😁', '😂', '😊', '😍', '👍', '🙏', '🎉', '🔥', '💯'];
+
+function decodeChatMessage(rawMessage: string) {
+  if (!rawMessage.startsWith(CHAT_IMAGE_PREFIX)) {
+    return { text: rawMessage, imageUrl: '' };
+  }
+
+  const payload = rawMessage.slice(CHAT_IMAGE_PREFIX.length);
+  const newlineIndex = payload.indexOf('\n');
+  if (newlineIndex === -1) {
+    return { text: '', imageUrl: payload.trim() };
+  }
+
+  return {
+    imageUrl: payload.slice(0, newlineIndex).trim(),
+    text: payload.slice(newlineIndex + 1),
+  };
+}
+
 export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [selectedImageDataUrl, setSelectedImageDataUrl] = useState('');
+  const [showEmojiPanel, setShowEmojiPanel] = useState(false);
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<number | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
   const username = getCurrentUsername();
@@ -87,7 +111,12 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !username) return;
+    const trimmedMessage = newMessage.trim();
+    if ((!trimmedMessage && !selectedImageDataUrl) || !username) return;
+
+    const outgoingMessage = selectedImageDataUrl
+      ? `${CHAT_IMAGE_PREFIX}${selectedImageDataUrl}${trimmedMessage ? `\n${trimmedMessage}` : ''}`
+      : trimmedMessage;
 
     try {
       setSending(true);
@@ -98,10 +127,12 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${publicAnonKey}`,
         },
-        body: JSON.stringify({ username, message: newMessage.trim(), isAdmin: false }),
+        body: JSON.stringify({ username, message: outgoingMessage, isAdmin: false }),
       });
       if (response.ok) {
         setNewMessage('');
+        setSelectedImageDataUrl('');
+        setShowEmojiPanel(false);
         await fetchMessages(true);
       }
     } catch {
@@ -109,6 +140,37 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
     } finally {
       setSending(false);
     }
+  };
+
+  const handlePickImage = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    if (!selectedFile) {
+      return;
+    }
+
+    if (!selectedFile.type.startsWith('image/')) {
+      event.target.value = '';
+      return;
+    }
+
+    if (selectedFile.size > MAX_CHAT_IMAGE_SIZE_BYTES) {
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      if (result) {
+        setSelectedImageDataUrl(result);
+      }
+    };
+    reader.readAsDataURL(selectedFile);
+    event.target.value = '';
+  };
+
+  const appendEmoji = (emoji: string) => {
+    setNewMessage((prev) => `${prev}${emoji}`);
   };
 
   if (!isOpen) return null;
@@ -149,31 +211,94 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
               <p className="text-gray-500 text-xs mt-1">Send a message to start the conversation</p>
             </div>
           ) : (
-            messages.map((msg) => (
-              <div key={msg.id} className={`flex ${msg.isAdmin ? 'justify-start' : 'justify-end'}`}>
-                <div
-                  className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
-                    msg.isAdmin
-                      ? 'bg-[#252b3d] text-gray-200 rounded-tl-sm'
-                      : 'bg-cyan-500 text-white rounded-tr-sm'
-                  }`}
-                >
-                  {msg.isAdmin && (
-                    <p className="text-[10px] font-semibold text-cyan-400 mb-1">Support</p>
-                  )}
-                  <p>{msg.message}</p>
-                  <p className={`text-[10px] mt-1 ${msg.isAdmin ? 'text-gray-500' : 'text-white/70'}`}>
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </p>
+            messages.map((msg) => {
+              const decoded = decodeChatMessage(msg.message);
+              return (
+                <div key={msg.id} className={`flex ${msg.isAdmin ? 'justify-start' : 'justify-end'}`}>
+                  <div
+                    className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
+                      msg.isAdmin
+                        ? 'bg-[#252b3d] text-gray-200 rounded-tl-sm'
+                        : 'bg-cyan-500 text-white rounded-tr-sm'
+                    }`}
+                  >
+                    {msg.isAdmin && (
+                      <p className="text-[10px] font-semibold text-cyan-400 mb-1">Support</p>
+                    )}
+                    {decoded.imageUrl ? (
+                      <img
+                        src={decoded.imageUrl}
+                        alt="Chat attachment"
+                        className="w-full max-h-52 object-cover rounded-lg mb-2"
+                      />
+                    ) : null}
+                    {decoded.text ? <p className="whitespace-pre-wrap">{decoded.text}</p> : null}
+                    <p className={`text-[10px] mt-1 ${msg.isAdmin ? 'text-gray-500' : 'text-white/70'}`}>
+                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
           <div ref={messagesEndRef} />
         </div>
 
         {/* Input */}
-        <form onSubmit={handleSend} className="px-3 py-3 border-t border-gray-700 flex items-center gap-2 shrink-0">
+        <form onSubmit={handleSend} className="px-3 py-3 border-t border-gray-700 shrink-0">
+          {selectedImageDataUrl ? (
+            <div className="mb-2 relative inline-block">
+              <img src={selectedImageDataUrl} alt="Selected attachment" className="h-16 w-16 object-cover rounded-md border border-gray-600" />
+              <button
+                type="button"
+                onClick={() => setSelectedImageDataUrl('')}
+                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"
+                aria-label="Remove selected image"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ) : null}
+
+          {showEmojiPanel ? (
+            <div className="mb-2 p-2 rounded-lg border border-gray-700 bg-[#111827] flex flex-wrap gap-1.5">
+              {QUICK_EMOJIS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => appendEmoji(emoji)}
+                  className="text-lg leading-none hover:scale-110 transition-transform"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handlePickImage}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="w-9 h-9 bg-[#252b3d] hover:bg-[#2f374a] rounded-full flex items-center justify-center transition-colors shrink-0"
+              aria-label="Attach image"
+            >
+              <ImagePlus size={16} className="text-gray-200" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowEmojiPanel((prev) => !prev)}
+              className="w-9 h-9 bg-[#252b3d] hover:bg-[#2f374a] rounded-full flex items-center justify-center transition-colors shrink-0"
+              aria-label="Open emoji picker"
+            >
+              <Smile size={16} className="text-gray-200" />
+            </button>
           <input
             type="text"
             value={newMessage}
@@ -183,11 +308,12 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
           />
           <button
             type="submit"
-            disabled={!newMessage.trim() || sending}
+            disabled={(!newMessage.trim() && !selectedImageDataUrl) || sending}
             className="w-9 h-9 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 rounded-full flex items-center justify-center transition-colors shrink-0"
           >
             {sending ? <Loader2 size={16} className="animate-spin text-white" /> : <Send size={16} className="text-white" />}
           </button>
+          </div>
         </form>
       </div>
     </>

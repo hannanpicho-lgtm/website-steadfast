@@ -12,10 +12,10 @@ export default function NotFound() {
 
         <div className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-3">
           <Link
-            to="/starting"
+            to="/home"
             className="px-4 py-2 rounded-lg bg-[#0066b3] text-white text-sm font-medium hover:bg-[#0052a3] transition-colors text-center"
           >
-            Go to Dashboard
+            Go to Home
           </Link>
           <Link
             to="/"

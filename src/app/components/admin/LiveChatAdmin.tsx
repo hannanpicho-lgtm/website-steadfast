@@ -33,6 +33,25 @@ interface ChatSummary {
   totalMessages: number;
 }
 
+const CHAT_IMAGE_PREFIX = '__img__:';
+
+function decodeChatMessage(rawMessage: string) {
+  if (!rawMessage.startsWith(CHAT_IMAGE_PREFIX)) {
+    return { text: rawMessage, imageUrl: '' };
+  }
+
+  const payload = rawMessage.slice(CHAT_IMAGE_PREFIX.length);
+  const newlineIndex = payload.indexOf('\n');
+  if (newlineIndex === -1) {
+    return { text: '', imageUrl: payload.trim() };
+  }
+
+  return {
+    imageUrl: payload.slice(0, newlineIndex).trim(),
+    text: payload.slice(newlineIndex + 1),
+  };
+}
+
 export default function LiveChatAdmin() {
   const navigate = useNavigate();
   const adminAuthRedirectedRef = useRef(false);
@@ -261,6 +280,7 @@ export default function LiveChatAdmin() {
           ) : (
             <div className="divide-y divide-gray-200">
               {filteredChats.map((chat) => (
+                
                 <button
                   key={chat.username}
                   onClick={() => setSelectedChat(chat.username)}
@@ -284,7 +304,9 @@ export default function LiveChatAdmin() {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-600 truncate mb-1">{chat.lastMessage}</p>
+                  <p className="text-sm text-gray-600 truncate mb-1">
+                    {decodeChatMessage(chat.lastMessage).imageUrl ? '[Image]' : chat.lastMessage}
+                  </p>
                   <p className="text-xs text-gray-400 flex items-center gap-1">
                     <Clock size={12} />
                     {new Date(chat.lastMessageTime).toLocaleString()}
@@ -336,6 +358,9 @@ export default function LiveChatAdmin() {
                       key={msg.id}
                       className={`flex ${msg.isAdmin ? 'justify-end' : 'justify-start'}`}
                     >
+                      {(() => {
+                        const decoded = decodeChatMessage(msg.message);
+                        return (
                       <div className={`max-w-[70%]`}>
                         {!msg.isAdmin && (
                           <div className="flex items-center gap-2 mb-1">
@@ -354,7 +379,14 @@ export default function LiveChatAdmin() {
                               : 'bg-white border border-gray-200 text-gray-900'
                           }`}
                         >
-                          <p className="text-sm break-words">{msg.message}</p>
+                          {decoded.imageUrl ? (
+                            <img
+                              src={decoded.imageUrl}
+                              alt="Chat attachment"
+                              className="w-full max-h-56 object-cover rounded-lg mb-2"
+                            />
+                          ) : null}
+                          {decoded.text ? <p className="text-sm break-words whitespace-pre-wrap">{decoded.text}</p> : null}
                           <div className="flex items-center justify-end gap-1 mt-1">
                             <p className={`text-xs ${msg.isAdmin ? 'text-white/70' : 'text-gray-400'}`}>
                               {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -368,6 +400,8 @@ export default function LiveChatAdmin() {
                           <p className="text-xs text-gray-400 text-right mt-1">You</p>
                         )}
                       </div>
+                        );
+                      })()}
                     </div>
                   ))}
                   <div ref={messagesEndRef} />

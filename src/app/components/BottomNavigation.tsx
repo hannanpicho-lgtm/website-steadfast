@@ -42,12 +42,12 @@ export function BottomNavigation() {
       {/* Starting Button - Center with Special Effect */}
       <Link 
         to="/starting" 
-        className="flex min-w-0 flex-col items-center gap-1 relative -mt-6 sm:-mt-8 group"
+        className="flex min-w-0 flex-col items-center gap-1 relative -mt-3 sm:-mt-4 group"
       >
-        <div className={`bg-gradient-to-br from-[#00D9FF] to-[#00a8cc] rounded-full p-4 sm:p-5 shadow-2xl transition-all duration-300 ${
+        <div className={`rounded-full p-3 sm:p-4 shadow-2xl transition-all duration-300 ${
           isActive('/starting') 
-            ? 'animate-pulse-glow scale-110' 
-            : 'group-hover:scale-110 group-hover:shadow-[0_0_30px_rgba(0,217,255,0.6)]'
+            ? 'bg-gradient-to-br from-[#00D9FF] to-[#00a8cc] animate-pulse-glow scale-110' 
+            : 'bg-[#0e7fc5] group-hover:bg-gradient-to-br group-hover:from-[#00D9FF] group-hover:to-[#00a8cc] group-hover:scale-105 group-hover:shadow-[0_0_30px_rgba(0,217,255,0.6)]'
         }`}>
           <svg 
             width="24" 
@@ -59,7 +59,7 @@ export function BottomNavigation() {
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
           </svg>
         </div>
-        <span className={`text-[11px] sm:text-xs font-bold mt-2 transition-all duration-300 ${
+        <span className={`text-[11px] sm:text-xs font-bold mt-1.5 transition-all duration-300 ${
           isActive('/starting') 
             ? 'text-[#00D9FF] drop-shadow-[0_0_6px_rgba(0,217,255,0.8)] scale-110' 
             : 'group-hover:text-[#00D9FF] group-hover:scale-105'

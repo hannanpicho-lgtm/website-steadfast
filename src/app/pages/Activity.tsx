@@ -197,7 +197,7 @@ export default function Activity() {
       <div className="max-w-3xl mx-auto px-3 sm:px-6 py-6">
         {/* Back Button and Title */}
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 mb-6">
-          <Link to="/starting" className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors justify-self-start">
+          <Link to="/home" className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors justify-self-start">
             <ChevronLeft size={20} />
           </Link>
           <h1 className="text-xl sm:text-2xl font-bold text-[#0066b3] text-center">Activity</h1>

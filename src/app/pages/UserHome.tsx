@@ -28,10 +28,10 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
   return (
     <Link
       to={item.to}
-      className="rounded-md bg-[#005f98] h-[72px] sm:h-[88px] flex flex-col items-center justify-center gap-1 px-1 text-white shadow-[0_8px_18px_rgba(0,38,69,0.28)] border border-[#0a78b9] transition-transform duration-200 hover:-translate-y-0.5"
+      className="rounded-md bg-[#005f98] h-[64px] sm:h-[82px] flex flex-col items-center justify-center gap-0.5 sm:gap-1 px-1 text-white shadow-[0_8px_18px_rgba(0,38,69,0.28)] border border-[#0a78b9] transition-transform duration-200 hover:-translate-y-0.5"
     >
-      <Icon size={18} strokeWidth={2.2} className="sm:h-5 sm:w-5" />
-      <span className="text-[0.68rem] sm:text-[0.8rem] font-semibold tracking-tight text-center leading-tight px-1 break-words">{item.title}</span>
+      <Icon size={16} strokeWidth={2.2} className="sm:h-5 sm:w-5" />
+      <span className="text-[0.62rem] sm:text-[0.8rem] font-semibold tracking-tight text-center leading-tight px-1 break-words">{item.title}</span>
     </Link>
   );
 }
@@ -83,12 +83,12 @@ export default function UserHome() {
         </section>
 
         {/* Quick Access */}
-        <section className="mt-5 rounded-xl bg-[#2a3146] border border-white/5 p-2 sm:p-3 shadow-[0_10px_28px_rgba(5,12,24,0.22)]">
+        <section className="mt-4 rounded-xl bg-[#2a3146] border border-white/5 p-2 sm:p-3 shadow-[0_10px_28px_rgba(5,12,24,0.22)]">
           <div className="mb-1.5 sm:mb-3 text-center">
             <p className="text-[#9fb4d1] text-[11px] sm:text-sm">Quick access</p>
           </div>
 
-          <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
+          <div className="grid grid-cols-4 gap-1.5 sm:gap-2.5">
             {quickLinks.map((item) => (
               <QuickLinkCard key={item.title} item={item} />
             ))}

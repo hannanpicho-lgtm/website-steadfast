@@ -162,7 +162,7 @@ export default function Profile() {
     <div className="size-full overflow-auto pb-20 bg-gray-50">
       {/* Header */}
       <header className="bg-white text-[#0066cc] py-4 px-6 flex items-center justify-between shadow-sm sticky top-0 z-10">
-        <Link to="/starting">
+        <Link to="/home">
           <ArrowLeft size={24} className="cursor-pointer hover:text-[#0055aa]" />
         </Link>
         <h1 className="text-xl font-bold">My Profile</h1>

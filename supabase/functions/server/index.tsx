@@ -1495,6 +1495,44 @@ function inferPriceFromTaskUrls(...values: unknown[]): number | null {
   return null;
 }
 
+function deriveDeterministicTaskPrice(...values: unknown[]): number {
+  const seedSource = values
+    .filter((value) => typeof value === 'string' && value.trim().length > 0)
+    .map((value) => String(value).trim().toLowerCase())
+    .join('|');
+
+  let hash = 0;
+  for (let i = 0; i < seedSource.length; i += 1) {
+    hash = (hash * 31 + seedSource.charCodeAt(i)) >>> 0;
+  }
+
+  const normalizedHash = hash || 1;
+  const dollars = 35 + (normalizedHash % 1965);
+  const cents = Math.floor(normalizedHash / 1965) % 100;
+  return roundMoney(dollars + cents / 100);
+}
+
+function resolveAutomaticTaskPrice(record: any) {
+  const inferredPrice = inferPriceFromTaskUrls(
+    record?.productUrl,
+    record?.image,
+    record?.product,
+    record?.merchant,
+  );
+
+  if (Number.isFinite(inferredPrice) && Number(inferredPrice) > 0) {
+    return {
+      price: roundMoney(Number(inferredPrice)),
+      priceSource: 'inferred',
+    };
+  }
+
+  return {
+    price: deriveDeterministicTaskPrice(record?.product, record?.merchant, record?.productUrl, record?.image),
+    priceSource: 'derived',
+  };
+}
+
 function inferTaskImageUrl(imageValue: unknown, productUrlValue: unknown): string {
   const imageUrl = sanitizeTaskUrl(imageValue);
   if (imageUrl) {
@@ -1857,6 +1895,9 @@ function normalizeTaskCatalogRecord(record: any) {
     merchant: sanitizeTaskText(record?.merchant, 'Marketplace'),
     product: sanitizeTaskText(record?.product, 'Task Product'),
     price: roundMoney(Number(record?.price ?? 0)),
+    priceSource: typeof record?.priceSource === 'string' && record.priceSource
+      ? record.priceSource
+      : 'manual',
     commission: Number.isFinite(Number(record?.commission)) ? Number(record.commission) : 0.01,
     status: sanitizeTaskStatus(record?.status),
     image: sanitizeTaskText(record?.image),
@@ -1885,8 +1926,36 @@ async function ensureTaskCatalogSeeded() {
 
 async function listTaskCatalogRecords(includePaused = true) {
   await ensureTaskCatalogSeeded();
-  const tasks = await kv.getByPrefix(TASK_CATALOG_KEY_PREFIX);
-  return tasks
+  const rawTasks = await kv.getByPrefix(TASK_CATALOG_KEY_PREFIX);
+
+  // Auto-repair historical fallback/default prices so each task carries its own value.
+  const repairedTasks = await Promise.all(rawTasks.map(async (task: any) => {
+    const taskId = sanitizeTaskId(task?.id);
+    if (!taskId) {
+      return task;
+    }
+
+    const hasPriceSource = typeof task?.priceSource === 'string' && task.priceSource.trim().length > 0;
+    const currentPrice = roundMoney(Number(task?.price ?? 0));
+    const shouldRepairLegacyFallback = !hasPriceSource && (currentPrice <= 0 || currentPrice === 123.45);
+
+    if (!shouldRepairLegacyFallback) {
+      return task;
+    }
+
+    const autoPrice = resolveAutomaticTaskPrice(task);
+    const repairedTask = normalizeTaskCatalogRecord({
+      ...task,
+      price: autoPrice.price,
+      priceSource: autoPrice.priceSource,
+      updatedAt: new Date().toISOString(),
+    });
+
+    await kv.set(`${TASK_CATALOG_KEY_PREFIX}${taskId}`, repairedTask);
+    return repairedTask;
+  }));
+
+  return repairedTasks
     .map((task) => normalizeTaskCatalogRecord(task))
     .filter((task) => includePaused || task.status === 'Active')
     .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
@@ -3853,8 +3922,15 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     }, 409);
   }
 
-  // Do not block regular task submissions by set-reset or funding gates.
-  normalizedUserData.pendingTaskReset = false;
+  if (normalizedUserData.pendingTaskReset) {
+    return c.json({
+      error: 'Current task set is complete. Please contact customer service for reset before continuing.',
+      code: 'task_set_reset_required',
+      disableSubmit: true,
+      user: normalizedUserData,
+      taskProgress: buildUserTaskProgress(normalizedUserData),
+    }, 409);
+  }
 
   if (normalizedUserData.tasksCompleted >= normalizedUserData.tasksLimit) {
     return c.json({ error: 'Daily task limit reached' }, 400);
@@ -3981,10 +4057,8 @@ async function submitTaskForUser(c: any, username: string, body: any) {
       normalizedUserData.completedTaskSets + 1,
       normalizedUserData.taskSetCount,
     );
-    normalizedUserData.tasksCompletedInSet = normalizedUserData.tasksCompleted < normalizedUserData.tasksLimit
-      ? 0
-      : normalizedUserData.tasksPerSet;
-    normalizedUserData.pendingTaskReset = false;
+    normalizedUserData.tasksCompletedInSet = normalizedUserData.tasksPerSet;
+    normalizedUserData.pendingTaskReset = true;
   }
 
   if (Math.random() < 0.01) {
@@ -5729,9 +5803,14 @@ app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
     const productUrl = sanitizeTaskUrl(body?.productUrl);
     const image = inferTaskImageUrl(body?.image, productUrl);
     const merchant = sanitizeTaskText(body?.merchant, inferMerchantFromTaskUrls(productUrl, image) || 'General');
-    const price = Number.isFinite(Number(body?.price)) && Number(body?.price) > 0
-      ? roundMoney(Number(body.price))
-      : inferPriceFromTaskUrls(productUrl, image) ?? 123.45;
+    const hasExplicitPrice = Number.isFinite(Number(body?.price)) && Number(body?.price) > 0;
+    const autoPrice = resolveAutomaticTaskPrice({
+      product,
+      merchant,
+      productUrl,
+      image,
+    });
+    const price = hasExplicitPrice ? roundMoney(Number(body.price)) : autoPrice.price;
     const vipConfigRecords = await listVipConfigRecords();
     const baseCommission = vipConfigRecords.find((tier) => tier.level === 1)?.commission ?? 0.005;
     const commission = Number.isFinite(Number(body?.commission)) && Number(body?.commission) > 0
@@ -5753,6 +5832,7 @@ app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
       merchant,
       product,
       price,
+      priceSource: hasExplicitPrice ? 'manual' : autoPrice.priceSource,
       commission,
       status: body?.status,
       image,
