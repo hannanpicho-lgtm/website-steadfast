@@ -62,7 +62,8 @@ function Ensure-GitGuards {
   $branch = (git branch --show-current).Trim()
   $headSha = (git rev-parse --short HEAD).Trim()
   $headShaLong = (git rev-parse HEAD).Trim()
-  $status = (git status --porcelain).Trim()
+  $statusOutput = git status --porcelain
+  $status = (($statusOutput | Out-String).Trim())
 
   if (-not $AllowDirtyTree -and $status) {
     throw "Working tree is not clean. Commit or stash changes, or use -AllowDirty explicitly."
