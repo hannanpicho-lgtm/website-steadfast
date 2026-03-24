@@ -50,7 +50,7 @@ type ChatAttachment = {
 
 const CHAT_IMAGE_PREFIX = '__img__:';
 const CHAT_ATTACHMENT_PREFIX = '__att__:';
-const MAX_CHAT_ATTACHMENT_SIZE_BYTES = 700 * 1024;
+const MAX_CHAT_ATTACHMENT_SIZE_BYTES = 250 * 1024;
 
 function getAttachmentType(file: File): ChatAttachmentType {
   if (file.type.startsWith('image/')) {
@@ -101,7 +101,10 @@ function decodeChatMessage(rawMessage: string) {
           : null,
       };
     } catch {
-      return { text: rawMessage, attachment: null };
+      return {
+        text: 'Attachment could not be previewed. Ask user to resend a smaller file.',
+        attachment: null,
+      };
     }
   }
 
@@ -344,7 +347,7 @@ export default function LiveChatAdmin() {
     }
 
     if (selectedFile.size > MAX_CHAT_ATTACHMENT_SIZE_BYTES) {
-      setAttachmentError('Attachment must be 700 KB or smaller.');
+      setAttachmentError('Attachment must be 250 KB or smaller.');
       event.target.value = '';
       return;
     }
@@ -476,6 +479,9 @@ export default function LiveChatAdmin() {
                       const decoded = decodeChatMessage(chat.lastMessage);
                       if (decoded.attachment) {
                         return `[${buildAttachmentLabel(decoded.attachment.type)}] ${decoded.text}`.trim();
+                      }
+                      if (chat.lastMessage.startsWith(CHAT_ATTACHMENT_PREFIX)) {
+                        return 'Attachment message';
                       }
                       return chat.lastMessage;
                     })()}

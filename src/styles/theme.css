@@ -129,6 +129,7 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-family-ui);
     font-feature-settings: 'kern' 1;
     text-rendering: optimizeLegibility;
   }

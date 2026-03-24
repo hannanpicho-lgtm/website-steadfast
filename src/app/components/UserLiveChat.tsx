@@ -29,8 +29,8 @@ interface UserLiveChatProps {
 
 const CHAT_IMAGE_PREFIX = '__img__:';
 const CHAT_ATTACHMENT_PREFIX = '__att__:';
-const MAX_CHAT_ATTACHMENT_SIZE_BYTES = 700 * 1024;
-const QUICK_EMOJIS = ['🙂', '👍', '🙏', '✅'];
+const MAX_CHAT_ATTACHMENT_SIZE_BYTES = 250 * 1024;
+const QUICK_EMOJIS = ['😀', '😁', '😂', '😊', '😉', '😍', '🤩', '😎', '🙂', '😌', '🤝', '👏', '👍', '🙏', '💪', '🎯', '🎉', '✨', '🔥', '💯', '✅', '⭐', '💡', '📌'];
 
 function getAttachmentType(file: File): ChatAttachmentType {
   if (file.type.startsWith('image/')) {
@@ -58,6 +58,10 @@ function buildAttachmentLabel(type: ChatAttachmentType) {
   }
 }
 
+function isChatAttachmentType(value: unknown): value is ChatAttachmentType {
+  return value === 'image' || value === 'video' || value === 'audio' || value === 'file';
+}
+
 function downloadAttachment(attachment: ChatAttachment) {
   const link = document.createElement('a');
   link.href = attachment.dataUrl;
@@ -72,16 +76,30 @@ function decodeChatMessage(rawMessage: string) {
     try {
       const payload = JSON.parse(rawMessage.slice(CHAT_ATTACHMENT_PREFIX.length)) as {
         text?: string;
-        attachment?: ChatAttachment;
+        attachment?: Record<string, unknown>;
       };
+      const candidateAttachment = payload.attachment;
+      const normalizedAttachment: ChatAttachment | null = candidateAttachment
+        && typeof candidateAttachment === 'object'
+        && typeof candidateAttachment.dataUrl === 'string'
+        && isChatAttachmentType(candidateAttachment.type)
+        ? {
+            type: candidateAttachment.type,
+            dataUrl: candidateAttachment.dataUrl,
+            name: typeof candidateAttachment.name === 'string' ? candidateAttachment.name : 'attachment',
+            mimeType: typeof candidateAttachment.mimeType === 'string' ? candidateAttachment.mimeType : '',
+            size: Number.isFinite(Number(candidateAttachment.size)) ? Number(candidateAttachment.size) : 0,
+          }
+        : null;
       return {
         text: typeof payload.text === 'string' ? payload.text : '',
-        attachment: payload.attachment && typeof payload.attachment.dataUrl === 'string'
-          ? payload.attachment
-          : null,
+        attachment: normalizedAttachment,
       };
     } catch {
-      return { text: rawMessage, attachment: null };
+      return {
+        text: 'Attachment could not be previewed. Please resend a smaller file.',
+        attachment: null,
+      };
     }
   }
 
@@ -95,7 +113,7 @@ function decodeChatMessage(rawMessage: string) {
     return {
       text: '',
       attachment: {
-        type: 'image',
+        type: 'image' as const,
         dataUrl: payload.trim(),
         name: 'chat-image',
         mimeType: 'image/*',
@@ -107,7 +125,7 @@ function decodeChatMessage(rawMessage: string) {
   return {
     text: payload.slice(newlineIndex + 1),
     attachment: {
-      type: 'image',
+      type: 'image' as const,
       dataUrl: payload.slice(0, newlineIndex).trim(),
       name: 'chat-image',
       mimeType: 'image/*',
@@ -236,7 +254,7 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
     }
 
     if (selectedFile.size > MAX_CHAT_ATTACHMENT_SIZE_BYTES) {
-      setAttachmentError('Attachment must be 700 KB or smaller.');
+      setAttachmentError('Attachment must be 250 KB or smaller.');
       event.target.value = '';
       return;
     }
