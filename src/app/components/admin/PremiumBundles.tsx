@@ -68,16 +68,22 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
 
   // Calculate preview
   const selectedUser = useMemo(() => users.find((u) => u.username === selectedUsername), [users, selectedUsername]);
+  const hasExplicitPremiumValue = premiumValue.trim() !== '';
   const premiumVal = parseFloat(premiumValue) || 0;
   const sortedProducts = [...productCatalog].sort((a, b) => b.price - a.price);
   const bundledProducts = sortedProducts.slice(0, bundleCount);
   const bundledTotal = bundledProducts.reduce((sum, p) => sum + p.price, 0);
-  const totalBundleValue = premiumVal + bundledTotal;
   const userBalance = selectedUser?.balance || 0;
-  const balanceAfter = userBalance - totalBundleValue;
   const upholdVal = parseFloat(upholdAmountOverride) || 0;
   const triggerTaskNumberValue = parseInt(triggerTaskNumber, 10) || 0;
-  const topUpRequired = upholdVal > 0 ? upholdVal : (balanceAfter < 0 ? Math.abs(balanceAfter) : 0);
+  const derivedPremiumValue = !hasExplicitPremiumValue && upholdVal > 0
+    ? Math.max(0, (userBalance + upholdVal) - bundledTotal)
+    : premiumVal;
+  const effectivePremiumValue = Math.round((derivedPremiumValue + Number.EPSILON) * 100) / 100;
+  const totalBundleValue = effectivePremiumValue + bundledTotal;
+  const balanceAfter = userBalance - totalBundleValue;
+  const topUpRequired = Math.max(0, Math.abs(Math.min(0, balanceAfter)));
+  const targetTopUpCannotFitBundle = !hasExplicitPremiumValue && upholdVal > 0 && effectivePremiumValue === 0 && bundledTotal > (userBalance + upholdVal);
 
   const activeAssignments = useMemo(
     () => assignments.filter((assignment) => assignment.status === 'active' || assignment.status === 'awaiting_funds' || assignment.status === 'scheduled'),
@@ -144,7 +150,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
     }
 
     const effectiveTrigger = triggerTaskNumberValue > 0 ? triggerTaskNumberValue : 1;
-    if (!window.confirm(`Assign premium bundle to ${selectedUsername}?\n\nPremium Position: Task #${effectiveTrigger}\nTotal Bundle Value: $${totalBundleValue.toFixed(2)}\nBalance After: $${balanceAfter.toFixed(2)}\nTop-up Required: $${topUpRequired.toFixed(2)}`)) {
+    if (!window.confirm(`Assign premium bundle to ${selectedUsername}?\n\nPremium Position: Task #${effectiveTrigger}\nPremium Product Value: $${effectivePremiumValue.toFixed(2)}\nTotal Bundle Value: $${totalBundleValue.toFixed(2)}\nBalance After: $${balanceAfter.toFixed(2)}\nTop-up Required: $${topUpRequired.toFixed(2)}`)) {
       return;
     }
 
@@ -156,7 +162,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
         headers: await buildAdminAuthHeaders(),
         body: JSON.stringify({
           username: selectedUsername,
-          premiumProductValue: premiumValue.trim() === '' ? undefined : premiumVal,
+          premiumProductValue: hasExplicitPremiumValue ? premiumVal : undefined,
           bundledProductCount: bundleCount,
           triggerTaskNumber: triggerTaskNumberValue > 0 ? triggerTaskNumberValue : undefined,
           upholdAmountOverride: upholdVal > 0 ? upholdVal : undefined,
@@ -245,12 +251,12 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
                 type="number"
                 value={premiumValue}
                 onChange={(e) => setPremiumValue(e.target.value)}
-                placeholder="Optional: enter premium value"
+                placeholder="Optional: leave blank to derive from target amount"
                 min="0"
                 step="0.01"
                 className="w-full bg-[#1a1f2e] text-white border border-gray-600 rounded px-4 py-2 focus:outline-none focus:border-[#00D9FF]"
               />
-              <p className="text-gray-300 text-xs mt-1">This field is optional for testing.</p>
+              <p className="text-gray-300 text-xs mt-1">If blank and you enter a target top-up amount below, the premium value is derived automatically.</p>
             </div>
 
             <div>
@@ -292,21 +298,21 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
               <p className="text-gray-300 text-xs mt-1">💡 System will select highest value products</p>
             </div>
 
-            {/* Uphold Amount Override (Deterministic) */}
+            {/* Target Top-up / Uphold Amount */}
             <div>
               <label className="block text-gray-300 text-sm font-semibold mb-2">
-                Uphold Amount Override (USD)
+                Target Top-up Amount (USD)
               </label>
               <input
                 type="number"
                 value={upholdAmountOverride}
                 onChange={(e) => setUpholdAmountOverride(e.target.value)}
-                placeholder="Leave blank to auto-calculate"
+                placeholder="Optional: e.g. 359.67"
                 min="0"
                 step="0.01"
                 className="w-full bg-[#1a1f2e] text-white border border-gray-600 rounded px-4 py-2 focus:outline-none focus:border-[#00D9FF]"
               />
-              <p className="text-gray-300 text-xs mt-1">💡 Set exact uphold (negative) amount. Leave empty to calculate from balance.</p>
+              <p className="text-gray-300 text-xs mt-1">Set the target negative / uphold amount. If Premium Product Value is blank, the system derives the premium value to fit this scenario.</p>
             </div>
 
             {/* Bundled Products Preview */}
@@ -356,7 +362,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
                 <div className="bg-yellow-500/10 rounded p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-yellow-300 text-sm">Premium Product:</span>
-                    <span className="text-yellow-300 font-bold">${premiumVal.toFixed(2)}</span>
+                    <span className="text-yellow-300 font-bold">${effectivePremiumValue.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-yellow-300 text-sm">Bundled Products ({bundleCount}):</span>
@@ -388,6 +394,11 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
                     <div className="text-red-400 font-bold text-2xl text-center">
                       ${topUpRequired.toFixed(2)}
                     </div>
+                    {targetTopUpCannotFitBundle && (
+                      <p className="text-red-200 text-xs text-center mt-2">
+                        The selected bundled products already exceed this target amount, so the premium product value has been reduced to $0.00.
+                      </p>
+                    )}
                   </div>
                 )}
 
