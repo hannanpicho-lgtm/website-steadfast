@@ -1,4 +1,4 @@
-import { ExternalLink, UserCircle } from 'lucide-react';
+import { UserCircle } from 'lucide-react';
 import { Link } from 'react-router';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { getCurrentUsername } from '../services/referralSystem';
@@ -52,17 +52,6 @@ export function Header({ onContactClick }: HeaderProps) {
               <span className="relative z-10">Contact</span>
             </button>
           )}
-
-          {/* Official Site Link */}
-          <a
-            href="https://steadfastdigital.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden sm:flex items-center gap-2 bg-[#5dade2]/10 hover:bg-[#5dade2]/20 border border-[#5dade2]/30 hover:border-[#5dade2] text-[#5dade2] px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all duration-300 hover:scale-105 hover:shadow-md hover:shadow-[#5dade2]/20"
-          >
-            <span>Official Site</span>
-            <ExternalLink size={14} className="group-hover:rotate-12 transition-transform" />
-          </a>
 
           {/* Profile Icon */}
           <Link 
