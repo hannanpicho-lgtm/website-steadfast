@@ -2280,8 +2280,15 @@ async function syncUserWithVipConfig(userData: any, username: string) {
   const baselineTasksPerSet = vipTaskBaselineByLevel[vipConfig.level] ?? configuredTasksPerSet;
   const defaultVipTasksPerSet = Math.max(configuredTasksPerSet, baselineTasksPerSet);
 
+  // Legacy compatibility: older builds wrote a default override of 2 sets,
+  // which doubled required tasks (e.g., 0/80 for VIP1). Treat that as stale.
+  const effectiveTaskSetCountOverride = normalized.taskSetCountOverride === 2
+    ? null
+    : normalized.taskSetCountOverride;
+
   normalized.vipLevel = vipConfig.level;
-  normalized.taskSetCount = normalized.taskSetCountOverride ?? defaultVipTaskSetCount;
+  normalized.taskSetCountOverride = effectiveTaskSetCountOverride;
+  normalized.taskSetCount = effectiveTaskSetCountOverride ?? defaultVipTaskSetCount;
   // Tasks per set is always derived from VIP tier dailyTasks.
   normalized.tasksPerSetOverride = null;
   normalized.tasksPerSet = defaultVipTasksPerSet;
