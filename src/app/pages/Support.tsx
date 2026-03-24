@@ -5,17 +5,7 @@ import { Header } from '../components/Header';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { UserLiveChat } from '../components/UserLiveChat';
 import { SupportContactMethods } from '../components/SupportContactMethods';
-import { 
-  MessageSquare, 
-  Clock, 
-  CheckCircle, 
-  XCircle,
-  AlertCircle,
-  Loader2,
-  Send,
-  ChevronDown,
-  ChevronUp
-} from 'lucide-react';
+
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
@@ -366,157 +356,104 @@ export default function Support() {
           />
         </div>
 
-        {/* Tickets List */}
-        <div className="bg-[#252b3d] rounded-lg p-6 border border-gray-700">
-          <h2 className="text-xl font-bold text-white mb-4">My Support Tickets</h2>
+        {/* Welcome Card */}
+        <div className="rounded-2xl overflow-hidden border border-amber-500/20 shadow-2xl">
+          {/* Warm illustration area */}
+          <div className="relative bg-gradient-to-br from-amber-600/30 via-orange-500/15 to-[#00D9FF]/15 px-6 pt-10 pb-8 text-center overflow-hidden">
+            {/* Decorative blobs */}
+            <div className="absolute top-0 right-0 w-56 h-56 bg-amber-400/10 rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-40 h-40 bg-[#00D9FF]/10 rounded-full translate-y-1/2 -translate-x-1/3 pointer-events-none" />
 
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="animate-spin text-[#00D9FF]" size={40} />
+            {/* SVG Illustration */}
+            <div className="relative mx-auto mb-5 w-32 h-32">
+              <svg viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+                <circle cx="70" cy="70" r="68" fill="url(#bgGrad)" />
+                <circle cx="70" cy="70" r="68" stroke="url(#borderGrad)" strokeWidth="2" />
+                {/* Sparkles */}
+                <path d="M107 22 L108.5 18 L110 22 L114 23.5 L110 25 L108.5 29 L107 25 L103 23.5Z" fill="#FCD34D" />
+                <circle cx="120" cy="55" r="2.5" fill="#FCD34D" opacity="0.5" />
+                <circle cx="118" cy="90" r="2" fill="#FCD34D" opacity="0.5" />
+                <circle cx="22" cy="45" r="2.5" fill="#00D9FF" opacity="0.5" />
+                <circle cx="25" cy="100" r="3" fill="#00D9FF" opacity="0.45" />
+                {/* Body */}
+                <ellipse cx="70" cy="107" rx="28" ry="22" fill="#2563EB" />
+                <ellipse cx="70" cy="110" rx="32" ry="9" fill="#1D4ED8" />
+                {/* Neck */}
+                <rect x="63" y="74" width="14" height="16" rx="7" fill="#FBBF7C" />
+                {/* Head */}
+                <circle cx="70" cy="58" r="22" fill="#FBBF7C" />
+                {/* Hair */}
+                <path d="M48 54 Q48 33 70 32 Q92 33 92 54 Q92 40 70 39 Q48 40 48 54Z" fill="#92400E" />
+                <path d="M48 54 Q46 58 48 64 C48 54 52 51 48 54Z" fill="#92400E" />
+                <path d="M92 54 Q94 58 92 64 C92 54 88 51 92 54Z" fill="#92400E" />
+                {/* Happy eyes */}
+                <path d="M60 56 Q63 52.5 66 56" stroke="#78350F" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                <path d="M74 56 Q77 52.5 80 56" stroke="#78350F" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                {/* Smile */}
+                <path d="M61 67 Q70 75 79 67" stroke="#92400E" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+                {/* Rosy cheeks */}
+                <circle cx="57" cy="65" r="6" fill="#FCA5A5" fillOpacity="0.45" />
+                <circle cx="83" cy="65" r="6" fill="#FCA5A5" fillOpacity="0.45" />
+                {/* Headset band */}
+                <path d="M47 52 Q47 28 70 28 Q93 28 93 52" stroke="#1F2937" strokeWidth="6" fill="none" strokeLinecap="round" />
+                {/* Ear cups */}
+                <rect x="42" y="49" width="10" height="16" rx="5" fill="#1F2937" />
+                <rect x="44" y="51" width="6" height="12" rx="3" fill="#374151" />
+                <rect x="88" y="49" width="10" height="16" rx="5" fill="#1F2937" />
+                <rect x="90" y="51" width="6" height="12" rx="3" fill="#374151" />
+                {/* Mic arm */}
+                <path d="M47 63 Q40 68 37 76" stroke="#1F2937" strokeWidth="3" strokeLinecap="round" />
+                <circle cx="36" cy="78" r="5" fill="#00D9FF" />
+                <circle cx="36" cy="78" r="3" fill="#38BDF8" />
+                <defs>
+                  <radialGradient id="bgGrad" cx="50%" cy="40%" r="55%">
+                    <stop offset="0%" stopColor="#3B1E08" stopOpacity="0.95" />
+                    <stop offset="100%" stopColor="#0F1929" stopOpacity="0.98" />
+                  </radialGradient>
+                  <linearGradient id="borderGrad" x1="0" y1="0" x2="140" y2="140" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.9" />
+                    <stop offset="100%" stopColor="#00D9FF" stopOpacity="0.9" />
+                  </linearGradient>
+                </defs>
+              </svg>
             </div>
-          ) : tickets.length === 0 ? (
-            <div className="text-center py-12">
-              <MessageSquare className="mx-auto mb-4 text-gray-600" size={48} />
-              <p className="text-gray-400 mb-2">No support tickets yet</p>
-              <p className="text-gray-500 text-sm">Create your first ticket to get help from our support team</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {sortedTickets.map((ticket) => (
-                <div
-                  key={ticket.id}
-                  className={`rounded-lg border overflow-hidden transition-all ${recentlyUpdatedTicketIds.includes(ticket.id) ? 'bg-[#22314f] border-[#5dade2] ring-2 ring-[#5dade2]/30 shadow-lg' : 'bg-[#1a1f2e] border-gray-700'}`}
-                >
-                  {/* Ticket Header */}
-                  <div
-                    onClick={() => setExpandedTicket(expandedTicket === ticket.id ? null : ticket.id)}
-                    className="p-4 cursor-pointer hover:bg-[#252b3d] transition-colors"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <h3 className="text-white font-semibold text-lg mb-1">{ticket.subject}</h3>
-                        <p className="text-gray-400 text-sm">
-                          Ticket ID: {ticket.id}
-                        </p>
-                      </div>
-                      {expandedTicket === ticket.id ? (
-                        <ChevronUp className="text-gray-400" size={20} />
-                      ) : (
-                        <ChevronDown className="text-gray-400" size={20} />
-                      )}
-                    </div>
 
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className={`flex items-center gap-1 px-3 py-1 rounded-full border ${getStatusColor(ticket.status)}`}>
-                        {getStatusIcon(ticket.status)}
-                        <span className="text-xs font-semibold uppercase">{ticket.status}</span>
-                      </div>
-                      <div className={`px-3 py-1 rounded-full text-xs font-semibold ${getPriorityColor(ticket.priority)}`}>
-                        {ticket.priority.toUpperCase()}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {ticket.category}
-                      </div>
-                      <div className="text-xs text-gray-500 ml-auto">
-                        {new Date(ticket.createdAt).toLocaleString()}
-                      </div>
-                    </div>
-                    {recentlyUpdatedTicketIds.includes(ticket.id) && (
-                      <p className="text-xs font-semibold text-[#8fdcff] mt-3">New activity</p>
-                    )}
-                  </div>
+            <h2 className="relative text-2xl font-bold text-white mb-3">
+              Welcome to Steadfast Customer Service
+            </h2>
+            <p className="relative text-amber-100/75 text-sm max-w-sm mx-auto leading-relaxed">
+              We're here for you — every question, every concern, every step of the way. Our team is dedicated to making your experience exceptional.
+            </p>
 
-                  {/* Ticket Details */}
-                  {expandedTicket === ticket.id && (
-                    <div className="border-t border-gray-700 p-4">
-                      {/* Original Message */}
-                      <div className="mb-4">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                            {ticket.username.charAt(0).toUpperCase()}
-                          </div>
-                          <div>
-                            <p className="text-white font-semibold text-sm">{ticket.username}</p>
-                            <p className="text-gray-500 text-xs">{new Date(ticket.createdAt).toLocaleString()}</p>
-                          </div>
-                        </div>
-                        <p className="text-gray-300 bg-[#252b3d] p-3 rounded-lg">{ticket.message}</p>
-                      </div>
-
-                      {/* Responses */}
-                      {ticket.responses.length > 0 && (
-                        <div className="space-y-3 mb-4">
-                          {ticket.responses.map((response) => (
-                            <div key={response.id}>
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${response.isAdmin ? 'bg-purple-500' : 'bg-blue-500'}`}>
-                                  {response.respondedBy.charAt(0).toUpperCase()}
-                                </div>
-                                <div>
-                                  <p className="text-white font-semibold text-sm">
-                                    {response.respondedBy}
-                                    {response.isAdmin && <span className="ml-2 text-xs bg-purple-500 px-2 py-0.5 rounded">Support</span>}
-                                  </p>
-                                  <p className="text-gray-500 text-xs">{new Date(response.createdAt).toLocaleString()}</p>
-                                </div>
-                              </div>
-                              <p className="text-gray-300 bg-[#252b3d] p-3 rounded-lg ml-10">{response.message}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Reply Form */}
-                      {ticket.status !== 'closed' && ticket.status !== 'resolved' && (
-                        <div>
-                          {replyingTo === ticket.id ? (
-                            <div className="space-y-3">
-                              <textarea
-                                value={replyDrafts[ticket.id] ?? ''}
-                                onChange={(e) => setReplyDrafts((prev) => ({ ...prev, [ticket.id]: e.target.value }))}
-                                placeholder="Type your reply..."
-                                rows={3}
-                                className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:border-[#00D9FF] focus:outline-none resize-none"
-                              />
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleReply(ticket.id)}
-                                  className="flex-1 bg-[#00D9FF] text-white py-2 px-4 rounded-lg font-semibold hover:bg-[#00c0e6] transition-colors flex items-center justify-center gap-2"
-                                >
-                                  <Send size={16} />
-                                  Send Reply
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setReplyingTo(null);
-                                    setReplyDrafts((prev) => {
-                                      const next = { ...prev };
-                                      delete next[ticket.id];
-                                      return next;
-                                    });
-                                  }}
-                                  className="px-4 bg-gray-700 text-white py-2 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setReplyingTo(ticket.id)}
-                              className="w-full bg-gray-700 text-white py-2 rounded-lg font-semibold hover:bg-gray-600 transition-colors"
-                            >
-                              Reply to Ticket
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+            {/* Star row */}
+            <div className="relative flex items-center justify-center gap-1 mt-4">
+              {[0,1,2,3,4].map((i) => (
+                <svg key={i} className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
               ))}
+              <span className="text-amber-300 text-xs ml-1.5 font-semibold">5-star support</span>
             </div>
-          )}
+          </div>
+
+          {/* Service promise strip */}
+          <div className="grid grid-cols-3 bg-[#1e2535] border-t border-white/5">
+            <div className="text-center px-3 py-4 border-r border-white/5">
+              <div className="w-10 h-10 bg-amber-500/15 rounded-full flex items-center justify-center mx-auto mb-2 text-xl">⚡</div>
+              <p className="text-white text-xs font-semibold">Fast Response</p>
+              <p className="text-gray-500 text-xs mt-0.5">Quick replies</p>
+            </div>
+            <div className="text-center px-3 py-4 border-r border-white/5">
+              <div className="w-10 h-10 bg-[#00D9FF]/15 rounded-full flex items-center justify-center mx-auto mb-2 text-xl">🛡️</div>
+              <p className="text-white text-xs font-semibold">Secure & Private</p>
+              <p className="text-gray-500 text-xs mt-0.5">Your data is safe</p>
+            </div>
+            <div className="text-center px-3 py-4">
+              <div className="w-10 h-10 bg-green-500/15 rounded-full flex items-center justify-center mx-auto mb-2 text-xl">💬</div>
+              <p className="text-white text-xs font-semibold">Always Available</p>
+              <p className="text-gray-500 text-xs mt-0.5">24/7 support</p>
+            </div>
+          </div>
         </div>
       </div>
 
