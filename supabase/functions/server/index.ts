@@ -2389,11 +2389,9 @@ async function getUserRecordWithDailyReset(username: string) {
   await assignUsernameLookup(canonicalUsername);
 
   const today = new Date().toISOString().split('T')[0];
-  if (normalizedUserData.lastReset !== today) {
-    normalizedUserData.tasksCompleted = 0;
-    normalizedUserData.tasksCompletedInSet = 0;
-    normalizedUserData.completedTaskSets = 0;
-    normalizedUserData.pendingTaskReset = false;
+  const lastResetDay = extractIsoDatePrefix(normalizedUserData.lastReset);
+  if (lastResetDay !== today) {
+    // Keep task progress continuous across sessions; only rotate daily commission counters.
     normalizedUserData.todayCommission = 0;
     normalizedUserData.lastReset = today;
     await kv.set(userKey, normalizedUserData);
