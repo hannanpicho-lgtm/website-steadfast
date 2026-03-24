@@ -739,42 +739,40 @@ export default function Starting() {
 
         {/* Commission Panel */}
         <div className="mb-6 overflow-hidden rounded-2xl border border-[#0f6ea8] bg-[#0b5f94] text-white shadow-lg">
-          <div className="px-6 py-7 text-center sm:px-8">
-            <Rocket className="mx-auto" size={50} />
-            <h3 className="mt-3 text-[1.85rem] font-extrabold leading-none tracking-tight">TODAY'S COMMISSION</h3>
-            <p className="mt-3 text-4xl font-bold leading-none">{(userData?.todayCommission || 0).toFixed(2)} USD</p>
+          <div className="px-6 py-8 text-center sm:px-9 sm:py-9">
+            <Rocket className="mx-auto" size={56} />
+            <h3 className="mt-3 text-[1.95rem] font-extrabold leading-none tracking-tight">TODAY'S COMMISSION</h3>
+            <p className="mt-3 text-[2.2rem] font-bold leading-none">{(userData?.todayCommission || 0).toFixed(2)} USD</p>
             <p className="mt-4 text-sm text-[#dcedf8]">The displayed amount reflects today's earned commissions.</p>
           </div>
 
-          <div className="mx-4 border-t border-white/50" />
+          <div className="mx-5 border-t border-white/50" />
 
-          <div className="grid grid-cols-1 gap-4 px-6 py-6 sm:grid-cols-2 sm:gap-8 sm:px-8">
-            <div className="text-center">
-              <div className="mx-auto inline-flex rounded-xl bg-white/12 p-3">
-                <CreditCard size={46} />
-              </div>
-              <p className="mt-3 text-[2rem] font-extrabold leading-none tracking-tight">BALANCE</p>
-              <p className="mt-2 text-4xl font-bold leading-none">{(userData?.isFrozen ? Math.max(0, frozenCurrentBalanceBeforeFreeze) : availableFundsForSubmit).toFixed(2)} USD</p>
-              <p className="mt-3 text-sm text-[#dcedf8]">The total balance reflects both the deposited amount and earned commissions.</p>
+          <div className="relative grid grid-cols-1 px-6 py-7 sm:grid-cols-2 sm:px-8 sm:py-8">
+            <div className="hidden sm:block absolute left-1/2 top-6 h-[calc(100%-3rem)] w-px -translate-x-1/2 bg-white/45" />
+
+            <div className="pb-5 text-center sm:pb-0 sm:pr-6">
+              <CreditCard className="mx-auto" size={60} />
+              <p className="mt-3 text-[2.05rem] font-extrabold leading-none tracking-tight">BALANCE</p>
+              <p className="mt-2 text-[2.1rem] font-bold leading-none">{(userData?.isFrozen ? Math.max(0, frozenCurrentBalanceBeforeFreeze) : availableFundsForSubmit).toFixed(2)} USD</p>
+              <p className="mx-auto mt-3 max-w-[320px] text-sm text-[#dcedf8]">The total balance reflects both the deposited amount and earned commissions.</p>
             </div>
 
-            <div className="text-center">
-              <div className="mx-auto inline-flex rounded-xl bg-white/12 p-3">
-                <Snowflake size={46} />
-              </div>
-              <p className="mt-3 text-[2rem] font-extrabold leading-none tracking-tight">Hold Amount</p>
-              <p className={`mt-2 text-4xl font-bold leading-none ${userData?.isFrozen ? 'text-[#ffe1e1]' : 'text-white'}`}>
+            <div className="border-t border-white/45 pt-6 text-center sm:border-t-0 sm:pt-0 sm:pl-6">
+              <Snowflake className="mx-auto" size={60} />
+              <p className="mt-3 text-[2.05rem] font-extrabold leading-none tracking-tight">Hold Amount</p>
+              <p className={`mt-2 text-[2.1rem] font-bold leading-none ${userData?.isFrozen ? 'text-[#ffe1e1]' : 'text-white'}`}>
                 {userData?.isFrozen ? '-' : ''}{(userData?.isFrozen ? frozenUpholdAmount : Number(userData?.holdAmount ?? 0)).toFixed(2)} USD
               </p>
-              <p className="mt-3 text-sm text-[#dcedf8]">Contact Customer Service for more infor</p>
+              <p className="mx-auto mt-3 max-w-[320px] text-sm text-[#dcedf8]">Contact Customer Service for more infor</p>
             </div>
           </div>
 
-          <div className="mx-4 border-t border-white/50" />
+          <div className="mx-5 border-t border-white/50" />
 
-          <div className="px-6 py-6 text-center sm:px-8">
-            <p className="text-[1.95rem] font-extrabold leading-none tracking-tight">Special Lucky Bonus</p>
-            <p className="mt-2 text-4xl font-bold leading-none">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
+          <div className="px-6 py-7 text-center sm:px-8 sm:py-8">
+            <p className="text-[2rem] font-extrabold leading-none tracking-tight">Special Lucky Bonus</p>
+            <p className="mt-2 text-[2.15rem] font-bold leading-none">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
           </div>
         </div>
 
