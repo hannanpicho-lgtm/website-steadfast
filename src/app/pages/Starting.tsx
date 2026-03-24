@@ -566,68 +566,62 @@ export default function Starting() {
         )}
 
         {/* Current Product to Submit */}
-        <div className="bg-gradient-to-br from-[#252d42] to-[#1a1f2e] border border-[#00D9FF]/30 rounded-lg p-6 mb-6 shadow-xl">
-          <h3 className="text-[#00D9FF] font-bold text-lg mb-4 text-center">Next Product to Submit</h3>
-          
-          <div className="bg-white rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-center mb-3">
-              <img 
-                src={currentProduct?.image} 
-                alt={currentProduct?.product || 'Task'} 
-                className="max-w-[150px] w-full object-contain"
+        <div className="bg-gradient-to-br from-[#252d42] to-[#1a1f2e] border border-[#00D9FF]/30 rounded-xl mb-6 shadow-xl overflow-hidden">
+          {/* Product image + name */}
+          <div className="flex items-center gap-4 p-4 bg-white/5">
+            <div className="shrink-0 bg-white rounded-lg p-2 w-20 h-20 flex items-center justify-center">
+              <img
+                src={currentProduct?.image}
+                alt={currentProduct?.product || 'Task'}
+                className="w-full h-full object-contain"
               />
             </div>
-            <div className="text-center">
-              <h4 className="text-sm font-semibold mb-2 line-clamp-2 text-gray-800">
+            <div className="flex-1 min-w-0">
+              <p className="text-[#00D9FF] text-xs font-semibold uppercase tracking-wide mb-0.5">Next Product</p>
+              <h4 className="text-white font-bold text-sm leading-snug line-clamp-2">
                 {currentProduct?.product || 'No active task'}
               </h4>
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <div className="flex items-center gap-1">
-                  <span className="text-yellow-500">⭐</span>
-                  <span className="text-sm font-semibold text-gray-700">{currentProduct?.rating ?? '-'}</span>
-                </div>
+              <div className="flex items-center gap-1 mt-1">
+                <span className="text-yellow-400 text-xs">★</span>
+                <span className="text-gray-300 text-xs font-medium">{currentProduct?.rating ?? '-'}</span>
+                <span className="text-gray-500 text-xs mx-1">·</span>
+                <span className="text-gray-400 text-xs">VIP{userData?.vipLevel || 1}</span>
+                <span className="text-gray-500 text-xs mx-1">·</span>
+                <span className="text-gray-300 text-xs">${currentProduct?.price?.toFixed(2) ?? '0.00'}</span>
               </div>
             </div>
           </div>
 
-          {/* Product Details */}
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="bg-[#1a1f2e] rounded-lg p-4 border border-[#00D9FF]/20">
-              <p className="text-gray-400 text-xs mb-1">Product Value</p>
-              <p className="text-white font-bold text-lg">${currentProduct?.price.toFixed(2) ?? '0.00'}</p>
+          {/* Commission row */}
+          <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-green-600/80 to-emerald-600/80">
+            <div>
+              <p className="text-green-100 text-xs">Commission Rate</p>
+              <p className="text-white font-bold text-base">{commissionRate}%</p>
             </div>
-            <div className="bg-[#1a1f2e] rounded-lg p-4 border border-[#00D9FF]/20">
-              <p className="text-gray-400 text-xs mb-1">VIP Level</p>
-              <p className="text-white font-bold text-lg">VIP{userData?.vipLevel || 1}</p>
-            </div>
-          </div>
-
-          {/* Commission Details */}
-          <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg p-4 mb-4">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-white font-semibold">Commission Rate:</p>
-              <p className="text-white font-bold text-xl">{commissionRate}%</p>
-            </div>
-            <div className="flex items-center justify-between">
-              <p className="text-white font-semibold">Estimated Profit:</p>
-              <p className="text-white font-bold text-2xl">${estimatedCommission.toFixed(2)}</p>
+            <div className="text-right">
+              <p className="text-green-100 text-xs">Estimated Profit</p>
+              <p className="text-white font-extrabold text-xl">${estimatedCommission.toFixed(2)}</p>
             </div>
           </div>
 
-          {/* Info Box */}
-          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3">
-            <p className="text-yellow-400 text-xs text-center">
-              💡 Premium rule: task #{premiumTriggerTaskNumber} triggers premium check ({taskRuleConfig?.premiumValueMode ?? rewardsConfig.productSystem.premiumValueMode}).
+          {/* Progress + premium hint row */}
+          <div className="px-4 py-2.5 flex items-center justify-between gap-3">
+            <p className="text-gray-400 text-xs">
+              Set <span className="text-white font-semibold">{userData?.tasksCompletedInSet ?? 0}/{userData?.tasksPerSet ?? 0}</span>
+              <span className="mx-1.5 text-gray-600">·</span>
+              Completed <span className="text-white font-semibold">{userData?.completedTaskSets ?? 0}/{userData?.taskSetCount ?? 0}</span>
             </p>
-            <p className="text-white/80 text-xs text-center mt-2">
-              Set progress: {userData?.tasksCompletedInSet ?? 0}/{userData?.tasksPerSet ?? 0} in current set, completed sets {userData?.completedTaskSets ?? 0}/{userData?.taskSetCount ?? 0}.
+            <p className="text-yellow-400 text-xs shrink-0">
+              💡 #{premiumTriggerTaskNumber} premium
             </p>
-            {premiumTriggerIncoming && (
-              <p className="text-red-400 text-xs text-center mt-2 font-semibold">
-                Premium trigger incoming on this submission.
-              </p>
-            )}
           </div>
+
+          {/* Premium trigger warning — only when near */}
+          {premiumTriggerIncoming && (
+            <div className="mx-4 mb-3 px-3 py-1.5 bg-red-500/15 border border-red-500/30 rounded-lg">
+              <p className="text-red-400 text-xs text-center font-semibold">⚠️ Premium trigger incoming on this submission</p>
+            </div>
+          )}
         </div>
 
         {/* Starting Button */}
