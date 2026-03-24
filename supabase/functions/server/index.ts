@@ -4269,14 +4269,14 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       return rateLimited;
     }
 
-    const { username: rawUsername, premiumProductValue, bundledProductCount, upholdAmountOverride } = await c.req.json();
+    const { username: rawUsername, premiumProductValue, bundledProductCount, triggerTaskNumber, upholdAmountOverride } = await c.req.json();
     const requestedUsername = sanitizeUsername(rawUsername);
     const callingAdmin = c.get('adminUser');
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
     const adminIdentity = mapAuthUserToAdminRecord(callingAdmin ?? {});
     const adminUsername = adminIdentity.username || callingAdmin?.email || callingAdmin?.id || 'admin';
 
-    if (!requestedUsername || !premiumProductValue || !bundledProductCount) {
+    if (!requestedUsername || !bundledProductCount) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
@@ -4300,6 +4300,9 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     if (!callerIsSuperAdmin && normalizedUserData.referredByAdminId !== callingAdmin?.id) {
       return c.json({ error: 'Forbidden' }, 403);
     }
+    const requestedTriggerTaskNumber = Number.isInteger(Number(triggerTaskNumber)) && Number(triggerTaskNumber) > 0
+      ? Math.round(Number(triggerTaskNumber))
+      : Number(normalizedUserData.tasksCompleted ?? 0) + 1;
 
     // Select highest value products for bundling
     const sortedProducts = [...productCatalog].sort((a, b) => b.price - a.price);
@@ -4307,7 +4310,9 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     
     // Calculate total bundle value
     const bundledProductsTotal = roundMoney(bundledProducts.reduce((sum, p) => sum + p.price, 0));
-    const sanitizedPremiumValue = roundMoney(Number(premiumProductValue));
+    const sanitizedPremiumValue = Number.isFinite(Number(premiumProductValue))
+      ? roundMoney(Math.max(0, Number(premiumProductValue)))
+      : 0;
     const totalBundleValue = roundMoney(sanitizedPremiumValue + bundledProductsTotal);
     
     // Calculate balance after assignment
@@ -4322,20 +4327,24 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     const premiumAssignment = {
       id: `premium-${Date.now()}`,
       premiumProductValue: sanitizedPremiumValue,
-      premiumProductName: `Premium Product ($${sanitizedPremiumValue})`,
+      premiumProductName: sanitizedPremiumValue > 0 ? `Premium Product ($${sanitizedPremiumValue})` : 'Premium Product',
       bundledProducts,
       totalBundleValue,
       balanceBeforeAssignment,
       balanceAfterAssignment,
       negativeAmount,
+      configuredUpholdAmount: Number.isFinite(Number(upholdAmountOverride)) && Number(upholdAmountOverride) > 0
+        ? roundMoney(Number(upholdAmountOverride))
+        : 0,
       topUpRequired: negativeAmount,
       tasksCompleted: 0,
       totalTasks: 1 + bundledProductCount, // Premium + bundled products
       assignedAt: new Date().toISOString(),
       assignedBy: adminUsername || 'admin',
-      status: negativeAmount > 0 ? 'awaiting_funds' : 'active', // active, completed, cancelled
+      status: 'scheduled',
       commissionEarned: 0,
-      encounterPosition: Number(normalizedUserData.tasksCompleted ?? 0) + 1,
+      encounterPosition: requestedTriggerTaskNumber,
+      triggerTaskNumber: requestedTriggerTaskNumber,
     };
 
     // Initialize premium queue if not exists
@@ -4347,7 +4356,8 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     normalizedUserData.premiumQueue.push(premiumAssignment);
     
     // If this is the first in queue, activate it
-    if (normalizedUserData.premiumQueue.length === 1) {
+    if (normalizedUserData.premiumQueue.length === 1 && requestedTriggerTaskNumber <= (Number(normalizedUserData.tasksCompleted ?? 0) + 1)) {
+      premiumAssignment.status = negativeAmount > 0 ? 'awaiting_funds' : 'active';
       normalizedUserData.isFrozen = true;
       normalizedUserData.activePremium = premiumAssignment;
       normalizedUserData.balance = balanceAfterAssignment;
@@ -4366,7 +4376,7 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     await recordObservabilityAuditEvent(
       'admin-premium-bundle-assign',
       assignActorEmail,
-      `Assigned premium bundle ($${premiumProductValue}, ${bundledProductCount} bundled product${bundledProductCount !== 1 ? 's' : ''}) to user '${canonicalUsername}' — total value $${totalBundleValue}`,
+      `Assigned premium bundle ($${sanitizedPremiumValue}, ${bundledProductCount} bundled product${bundledProductCount !== 1 ? 's' : ''}) to user '${canonicalUsername}' for task #${requestedTriggerTaskNumber} — total value $${totalBundleValue}`,
     ).catch((e) => console.error('Failed to record admin-premium-bundle-assign audit event:', e));
 
     return c.json({

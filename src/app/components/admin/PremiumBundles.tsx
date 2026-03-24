@@ -18,6 +18,7 @@ interface PremiumAssignmentRecord {
   username: string;
   vipLevel: number;
   premiumProductValue: number;
+  triggerTaskNumber?: number;
   totalBundleValue: number;
   balanceAfterAssignment: number;
   tasksCompleted: number;
@@ -38,6 +39,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
   const navigate = useNavigate();
   const [selectedUsername, setSelectedUsername] = useState('');
   const [premiumValue, setPremiumValue] = useState('');
+  const [triggerTaskNumber, setTriggerTaskNumber] = useState('');
   const [upholdAmountOverride, setUpholdAmountOverride] = useState('');
   const [bundleCount, setBundleCount] = useState<1 | 2 | 3>(3);
   const [assigningPremium, setAssigningPremium] = useState(false);
@@ -74,10 +76,11 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
   const userBalance = selectedUser?.balance || 0;
   const balanceAfter = userBalance - totalBundleValue;
   const upholdVal = parseFloat(upholdAmountOverride) || 0;
+  const triggerTaskNumberValue = parseInt(triggerTaskNumber, 10) || 0;
   const topUpRequired = upholdVal > 0 ? upholdVal : (balanceAfter < 0 ? Math.abs(balanceAfter) : 0);
 
   const activeAssignments = useMemo(
-    () => assignments.filter((assignment) => assignment.status === 'active'),
+    () => assignments.filter((assignment) => assignment.status === 'active' || assignment.status === 'awaiting_funds' || assignment.status === 'scheduled'),
     [assignments],
   );
 
@@ -130,12 +133,18 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
   };
 
   const handleAssignPremium = async () => {
-    if (!selectedUsername || !premiumValue || premiumVal <= 0) {
-      toast.error('Please select a user and enter a valid premium value.');
+    if (!selectedUsername) {
+      toast.error('Please select a user.');
       return;
     }
 
-    if (!window.confirm(`Assign premium bundle to ${selectedUsername}?\n\nTotal Bundle Value: $${totalBundleValue.toFixed(2)}\nBalance After: $${balanceAfter.toFixed(2)}\nTop-up Required: $${topUpRequired.toFixed(2)}`)) {
+    if (triggerTaskNumber && (!Number.isInteger(triggerTaskNumberValue) || triggerTaskNumberValue <= 0)) {
+      toast.error('Position number must be a whole number greater than 0.');
+      return;
+    }
+
+    const effectiveTrigger = triggerTaskNumberValue > 0 ? triggerTaskNumberValue : 1;
+    if (!window.confirm(`Assign premium bundle to ${selectedUsername}?\n\nPremium Position: Task #${effectiveTrigger}\nTotal Bundle Value: $${totalBundleValue.toFixed(2)}\nBalance After: $${balanceAfter.toFixed(2)}\nTop-up Required: $${topUpRequired.toFixed(2)}`)) {
       return;
     }
 
@@ -147,8 +156,9 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
         headers: await buildAdminAuthHeaders(),
         body: JSON.stringify({
           username: selectedUsername,
-          premiumProductValue: premiumVal,
+          premiumProductValue: premiumValue.trim() === '' ? undefined : premiumVal,
           bundledProductCount: bundleCount,
+          triggerTaskNumber: triggerTaskNumberValue > 0 ? triggerTaskNumberValue : undefined,
           upholdAmountOverride: upholdVal > 0 ? upholdVal : undefined,
           adminUsername: 'admin',
         }),
@@ -172,6 +182,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
       // Reset form
       setSelectedUsername('');
       setPremiumValue('');
+      setTriggerTaskNumber('');
       setUpholdAmountOverride('');
       setBundleCount(3);
       await loadAssignments();
@@ -228,18 +239,34 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
             {/* Premium Product Value */}
             <div>
               <label className="block text-gray-300 text-sm font-semibold mb-2">
-                Premium Product Value (USD) <span className="text-red-400">*</span>
+                Premium Product Value (USD)
               </label>
               <input
                 type="number"
                 value={premiumValue}
                 onChange={(e) => setPremiumValue(e.target.value)}
-                placeholder="Enter premium value (e.g., 1200)"
+                placeholder="Optional: enter premium value"
                 min="0"
                 step="0.01"
                 className="w-full bg-[#1a1f2e] text-white border border-gray-600 rounded px-4 py-2 focus:outline-none focus:border-[#00D9FF]"
               />
-              <p className="text-gray-300 text-xs mt-1">💡 This is the admin-defined premium product value</p>
+              <p className="text-gray-300 text-xs mt-1">This field is optional for testing.</p>
+            </div>
+
+            <div>
+              <label className="block text-gray-300 text-sm font-semibold mb-2">
+                Position Number Premium Appears
+              </label>
+              <input
+                type="number"
+                value={triggerTaskNumber}
+                onChange={(e) => setTriggerTaskNumber(e.target.value)}
+                placeholder="Optional: e.g. 10 or 30"
+                min="1"
+                step="1"
+                className="w-full bg-[#1a1f2e] text-white border border-gray-600 rounded px-4 py-2 focus:outline-none focus:border-[#00D9FF]"
+              />
+              <p className="text-gray-300 text-xs mt-1">If empty, the premium can activate immediately. If set, it waits until that task number.</p>
             </div>
 
             {/* Bundle Product Count */}
@@ -300,7 +327,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
             {/* Assign Button */}
             <button
               onClick={handleAssignPremium}
-              disabled={!selectedUsername || !premiumValue || premiumVal <= 0 || assigningPremium}
+              disabled={!selectedUsername || assigningPremium}
               className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white font-bold py-3 rounded transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {assigningPremium ? 'Assigning...' : 'Assign Premium Bundle'}
@@ -314,7 +341,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
               Calculation Preview
             </h4>
 
-            {selectedUser && premiumVal > 0 ? (
+            {selectedUser ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between pb-2 border-b border-gray-600">
                   <span className="text-gray-400">User:</span>
@@ -334,6 +361,10 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
                   <div className="flex items-center justify-between">
                     <span className="text-yellow-300 text-sm">Bundled Products ({bundleCount}):</span>
                     <span className="text-yellow-300 font-bold">${bundledTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-yellow-300 text-sm">Appears At:</span>
+                    <span className="text-yellow-300 font-bold">{triggerTaskNumberValue > 0 ? `Task #${triggerTaskNumberValue}` : 'Immediate / next eligible task'}</span>
                   </div>
                   <div className="border-t border-yellow-500/30 pt-2 flex items-center justify-between">
                     <span className="text-yellow-300 font-semibold">Total Bundle Value:</span>
@@ -368,7 +399,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-gray-300 text-sm">Select a user and enter premium value to see calculation</p>
+                <p className="text-gray-300 text-sm">Select a user to see calculation</p>
               </div>
             )}
           </div>
@@ -388,7 +419,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
                 <th className="text-left py-3 px-4 text-gray-400 font-semibold">Bundle Value</th>
                 <th className="text-left py-3 px-4 text-gray-400 font-semibold">Balance After</th>
                 <th className="text-left py-3 px-4 text-gray-400 font-semibold">Progress</th>
-                <th className="text-left py-3 px-4 text-gray-400 font-semibold">Queue</th>
+                <th className="text-left py-3 px-4 text-gray-400 font-semibold">Position</th>
                 <th className="text-left py-3 px-4 text-gray-400 font-semibold">Assigned</th>
                 <th className="text-right py-3 px-4 text-gray-400 font-semibold">Actions</th>
               </tr>
@@ -434,7 +465,14 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded text-xs">Position {assignment.queuePosition}</span>
+                        <div className="flex flex-col gap-1">
+                          <span className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded text-xs w-fit">
+                            {Number.isFinite(Number(assignment.triggerTaskNumber)) ? `Task #${Number(assignment.triggerTaskNumber)}` : `Queue ${assignment.queuePosition}`}
+                          </span>
+                          <span className={`px-2 py-1 rounded text-[11px] w-fit ${assignment.status === 'scheduled' ? 'bg-blue-500/20 text-blue-300' : assignment.status === 'awaiting_funds' ? 'bg-red-500/20 text-red-300' : 'bg-green-500/20 text-green-300'}`}>
+                            {assignment.status}
+                          </span>
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-gray-400 text-sm">{new Date(assignment.assignedAt).toLocaleString()}</td>
                       <td className="py-3 px-4">
