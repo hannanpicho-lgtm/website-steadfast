@@ -260,7 +260,7 @@ export default function Profile() {
           ) : null}
 
           {/* Account Info */}
-          <div className="bg-white rounded-lg mb-3 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
             <button 
               onClick={() => setAccountInfoOpen(!accountInfoOpen)}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
@@ -297,7 +297,7 @@ export default function Profile() {
           </div>
 
           {/* Bind Wallet */}
-          <div className="bg-white rounded-lg mb-3 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
             <button 
               onClick={() => navigate('/connect-wallet')}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
@@ -306,6 +306,7 @@ export default function Profile() {
                 <LinkIcon size={20} />
                 <span className="font-semibold">Bind Wallet</span>
               </div>
+              <ChevronDown size={20} />
             </button>
           </div>
         </div>
@@ -315,7 +316,7 @@ export default function Profile() {
           <h3 className="text-lg font-bold text-[#0066cc] mb-3">My Financial</h3>
           
           {/* Deposit */}
-          <div className="bg-white rounded-lg mb-3 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
             <button 
               onClick={() => navigate('/deposit')}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
@@ -327,11 +328,12 @@ export default function Profile() {
                 </svg>
                 <span className="font-semibold">Deposit</span>
               </div>
+              <ChevronDown size={20} />
             </button>
           </div>
 
           {/* Withdraw */}
-          <div className="bg-white rounded-lg mb-3 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
             <button 
               onClick={() => navigate('/withdrawal')}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
@@ -344,6 +346,7 @@ export default function Profile() {
                 </svg>
                 <span className="font-semibold">Withdraw</span>
               </div>
+              <ChevronDown size={20} />
             </button>
           </div>
         </div>
@@ -353,7 +356,7 @@ export default function Profile() {
           <h3 className="text-lg font-bold text-[#0066cc] mb-3">Other</h3>
           
           {/* Notifications */}
-          <div className="bg-white rounded-lg mb-3 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
             <button 
               onClick={() => setNotificationsOpen(!notificationsOpen)}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
@@ -375,7 +378,7 @@ export default function Profile() {
           </div>
 
           {/* Customer Support */}
-          <div className="bg-white rounded-lg mb-3 shadow-sm">
+          <div className="bg-white rounded-lg mb-3 border border-[#1f2937]">
             <Link
               to="/support"
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
@@ -389,7 +392,7 @@ export default function Profile() {
           </div>
 
           {/* FAQs */}
-          <div className="bg-white rounded-lg mb-3 shadow-sm">
+          <div className="bg-white rounded-lg mb-3 border border-[#1f2937]">
             <Link
               to="/faqs"
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
@@ -403,7 +406,7 @@ export default function Profile() {
           </div>
 
           {/* Change Language */}
-          <div className="bg-white rounded-lg mb-3 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
             <button 
               onClick={() => setLanguageOpen(!languageOpen)}
               className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
@@ -441,7 +444,7 @@ export default function Profile() {
           </div>
 
           {/* Logout */}
-          <div className="bg-white rounded-lg shadow-sm">
+          <div className="bg-white rounded-lg border border-[#1f2937]">
             <Link
               to="/login"
               onClick={() => logoutCurrentUser()}
