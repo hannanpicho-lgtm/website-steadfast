@@ -106,23 +106,23 @@ export default function UserHome() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5 sm:gap-3">
               <div className="rounded-lg border border-[#b5d0e6] bg-[#f8fbfd] p-2.5 min-h-[76px]">
                 <h3 className="mb-0.5 text-[0.9rem] font-bold text-[#0b5f94]">Search</h3>
-                <p className="text-[10px] leading-relaxed text-[#44647f]">Google and Bing built for efficient ROAS.</p>
+                <p className="text-xs font-medium leading-relaxed text-[#1f3f5b]">Google and Bing built for efficient ROAS.</p>
               </div>
               <div className="rounded-lg border border-[#b5d0e6] bg-[#f8fbfd] p-2.5 min-h-[76px]">
                 <h3 className="mb-0.5 text-[0.9rem] font-bold text-[#0b5f94]">Paid Social</h3>
-                <p className="text-[10px] leading-relaxed text-[#44647f]">Meta, TikTok, and LinkedIn for conversion lift.</p>
+                <p className="text-xs font-medium leading-relaxed text-[#1f3f5b]">Meta, TikTok, and LinkedIn for conversion lift.</p>
               </div>
               <div className="rounded-lg border border-[#b5d0e6] bg-[#f8fbfd] p-2.5 min-h-[76px]">
                 <h3 className="mb-0.5 text-[0.9rem] font-bold text-[#0b5f94]">Paid Content</h3>
-                <p className="text-[10px] leading-relaxed text-[#44647f]">Native placements that expand qualified reach.</p>
+                <p className="text-xs font-medium leading-relaxed text-[#1f3f5b]">Native placements that expand qualified reach.</p>
               </div>
               <div className="rounded-lg border border-[#b5d0e6] bg-[#f8fbfd] p-2.5 min-h-[76px]">
                 <h3 className="mb-0.5 text-[0.9rem] font-bold text-[#0b5f94]">Affiliate</h3>
-                <p className="text-[10px] leading-relaxed text-[#44647f]">Partnership channels aligned to core buyers.</p>
+                <p className="text-xs font-medium leading-relaxed text-[#1f3f5b]">Partnership channels aligned to core buyers.</p>
               </div>
               <div className="rounded-lg border border-[#b5d0e6] bg-[#f8fbfd] p-2.5 min-h-[76px]">
                 <h3 className="mb-0.5 text-[0.9rem] font-bold text-[#0b5f94]">Strategy</h3>
-                <p className="text-[10px] leading-relaxed text-[#44647f]">Unified data guiding budget and growth pace.</p>
+                <p className="text-xs font-medium leading-relaxed text-[#1f3f5b]">Unified data guiding budget and growth pace.</p>
               </div>
             </div>
           </div>
