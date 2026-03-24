@@ -29,6 +29,7 @@ interface UserLiveChatProps {
 
 const CHAT_IMAGE_PREFIX = '__img__:';
 const CHAT_ATTACHMENT_PREFIX = '__att__:';
+const CHAT_ATTACHMENT_PREFIX_LEGACY = '__att_:';
 const MAX_CHAT_ATTACHMENT_SIZE_BYTES = 250 * 1024;
 const QUICK_EMOJIS = ['😀', '😁', '😂', '😊', '😉', '😍', '🤩', '😎', '🙂', '😌', '🤝', '👏', '👍', '🙏', '💪', '🎯', '🎉', '✨', '🔥', '💯', '✅', '⭐', '💡', '📌'];
 
@@ -72,9 +73,13 @@ function downloadAttachment(attachment: ChatAttachment) {
 }
 
 function decodeChatMessage(rawMessage: string) {
-  if (rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX)) {
+  const isAttachmentPayload = rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX) || rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX_LEGACY);
+  if (isAttachmentPayload) {
     try {
-      const payload = JSON.parse(rawMessage.slice(CHAT_ATTACHMENT_PREFIX.length)) as {
+      const payloadString = rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX)
+        ? rawMessage.slice(CHAT_ATTACHMENT_PREFIX.length)
+        : rawMessage.slice(CHAT_ATTACHMENT_PREFIX_LEGACY.length);
+      const payload = JSON.parse(payloadString) as {
         text?: string;
         attachment?: Record<string, unknown>;
       };
@@ -421,6 +426,7 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
                       </div>
                     ) : null}
                     {decoded.text ? <p className="whitespace-pre-wrap">{decoded.text}</p> : null}
+                    {decoded.text ? <p className="whitespace-pre-wrap break-words">{decoded.text}</p> : null}
                     <p className={`text-[10px] mt-1 ${msg.isAdmin ? 'text-gray-500' : 'text-white/70'}`}>
                       {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>

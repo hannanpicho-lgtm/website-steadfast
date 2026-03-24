@@ -50,7 +50,12 @@ type ChatAttachment = {
 
 const CHAT_IMAGE_PREFIX = '__img__:';
 const CHAT_ATTACHMENT_PREFIX = '__att__:';
+const CHAT_ATTACHMENT_PREFIX_LEGACY = '__att_:';
 const MAX_CHAT_ATTACHMENT_SIZE_BYTES = 250 * 1024;
+
+function isChatAttachmentType(value: unknown): value is ChatAttachmentType {
+  return value === 'image' || value === 'video' || value === 'audio' || value === 'file';
+}
 
 function getAttachmentType(file: File): ChatAttachmentType {
   if (file.type.startsWith('image/')) {
@@ -88,17 +93,32 @@ function downloadAttachment(attachment: ChatAttachment) {
 }
 
 function decodeChatMessage(rawMessage: string) {
-  if (rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX)) {
+  const isAttachmentPayload = rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX) || rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX_LEGACY);
+  if (isAttachmentPayload) {
     try {
-      const payload = JSON.parse(rawMessage.slice(CHAT_ATTACHMENT_PREFIX.length)) as {
+      const payloadString = rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX)
+        ? rawMessage.slice(CHAT_ATTACHMENT_PREFIX.length)
+        : rawMessage.slice(CHAT_ATTACHMENT_PREFIX_LEGACY.length);
+      const payload = JSON.parse(payloadString) as {
         text?: string;
-        attachment?: ChatAttachment;
+        attachment?: Record<string, unknown>;
       };
+      const candidateAttachment = payload.attachment;
+      const normalizedAttachment: ChatAttachment | null = candidateAttachment
+        && typeof candidateAttachment === 'object'
+        && typeof candidateAttachment.dataUrl === 'string'
+        && isChatAttachmentType(candidateAttachment.type)
+        ? {
+            type: candidateAttachment.type,
+            dataUrl: candidateAttachment.dataUrl,
+            name: typeof candidateAttachment.name === 'string' ? candidateAttachment.name : 'attachment',
+            mimeType: typeof candidateAttachment.mimeType === 'string' ? candidateAttachment.mimeType : '',
+            size: Number.isFinite(Number(candidateAttachment.size)) ? Number(candidateAttachment.size) : 0,
+          }
+        : null;
       return {
         text: typeof payload.text === 'string' ? payload.text : '',
-        attachment: payload.attachment && typeof payload.attachment.dataUrl === 'string'
-          ? payload.attachment
-          : null,
+        attachment: normalizedAttachment,
       };
     } catch {
       return {
@@ -480,7 +500,7 @@ export default function LiveChatAdmin() {
                       if (decoded.attachment) {
                         return `[${buildAttachmentLabel(decoded.attachment.type)}] ${decoded.text}`.trim();
                       }
-                      if (chat.lastMessage.startsWith(CHAT_ATTACHMENT_PREFIX)) {
+                      if (chat.lastMessage.startsWith(CHAT_ATTACHMENT_PREFIX) || chat.lastMessage.startsWith(CHAT_ATTACHMENT_PREFIX_LEGACY)) {
                         return 'Attachment message';
                       }
                       return chat.lastMessage;
@@ -603,7 +623,7 @@ export default function LiveChatAdmin() {
                               </button>
                             </div>
                           ) : null}
-                          {decoded.text ? <p className="text-sm break-words whitespace-pre-wrap">{decoded.text}</p> : null}
+                          {decoded.text ? <p className="text-sm break-all whitespace-pre-wrap">{decoded.text}</p> : null}
                           <div className="flex items-center justify-end gap-1 mt-1">
                             <p className={`text-xs ${msg.isAdmin ? 'text-white/70' : 'text-gray-400'}`}>
                               {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

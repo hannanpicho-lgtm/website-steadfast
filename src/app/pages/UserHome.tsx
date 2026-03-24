@@ -80,6 +80,10 @@ export default function UserHome() {
               </div>
             </div>
           </div>
+          <div className="mt-5 px-1 text-center sm:mt-6">
+            <h3 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-[#0f172a]">We're a digital marketing agency based in New York City</h3>
+            <p className="mt-3 text-sm sm:text-base text-[#334155]">Steadfast helps B2B and B2C organizations navigate digital complexity with measurable growth outcomes.</p>
+          </div>
         </section>
 
         {/* Quick Access */}
@@ -153,6 +157,11 @@ export default function UserHome() {
               </div>
             </div>
           </div>
+        </section>
+
+        <section className="mt-5 mb-3 rounded-2xl border border-[#d3dde8] bg-white px-4 py-5 text-center shadow-sm sm:px-6 sm:py-6">
+          <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#0b5f94]">Our Approach</h3>
+          <p className="mt-2 text-sm sm:text-base text-[#475569]">Data-led execution, transparent reporting, and sustainable acquisition strategy.</p>
         </section>
       </main>
 

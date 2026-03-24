@@ -2507,9 +2507,12 @@ export default function Admin() {
 
           {/* View User Modal */}
           {modalType === 'view-user' && selectedItem && (
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-2xl font-bold text-white">User Details</h3>
+            <div className="p-4 sm:p-6">
+              <div className="sticky top-0 z-10 -mx-4 sm:-mx-6 mb-4 px-4 sm:px-6 py-3 bg-[#0f172a]/95 border-b border-[#2a3448] backdrop-blur-sm flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl sm:text-2xl font-bold text-white">User Details</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Audit snapshot for {selectedItem.username}</p>
+                </div>
                 <button onClick={() => setModalType(null)} className="text-gray-400 hover:text-white">
                   <X size={24} />
                 </button>
@@ -2538,7 +2541,7 @@ export default function Admin() {
                   </div>
 
                   <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                    <p className="text-gray-400 text-sm mb-3">Financial Card Snapshot</p>
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-300 mb-3">Financial Card Snapshot</p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div>
                         <p className="text-gray-500 text-xs">VIP</p>
@@ -2577,7 +2580,7 @@ export default function Admin() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm mb-3">Account Status</p>
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-300 mb-3">Account Status</p>
                       <div className="space-y-2 text-sm">
                         <p className="text-white">Frozen: <span className="font-semibold">{selectedUserAudit?.accountStatus?.isFrozen ? 'Yes' : 'No'}</span></p>
                         <p className="text-white">Reset Required: <span className="font-semibold">{selectedUserAudit?.accountStatus?.pendingTaskReset ? 'Yes' : 'No'}</span></p>
@@ -2587,7 +2590,7 @@ export default function Admin() {
                       </div>
                     </div>
                     <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm mb-3">Audit Trail</p>
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-300 mb-3">Audit Trail</p>
                       <div className="space-y-2 text-sm">
                         <p className="text-white">Registered: <span className="font-semibold">{selectedUserAudit?.audit?.registeredAt ? new Date(selectedUserAudit.audit.registeredAt).toLocaleString() : selectedItem.registered}</span></p>
                         <p className="text-white">Last Login: <span className="font-semibold">{selectedUserAudit?.audit?.lastLoginAt ? new Date(selectedUserAudit.audit.lastLoginAt).toLocaleString() : '—'}</span></p>
@@ -2600,7 +2603,7 @@ export default function Admin() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm mb-3">Deposits</p>
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-300 mb-3">Deposits</p>
                       {selectedUserAudit?.deposits?.length ? selectedUserAudit.deposits.slice(0, 5).map((deposit, index) => (
                         <div key={`${deposit.id ?? index}`} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-b-0 text-sm">
                           <div>
@@ -2612,7 +2615,7 @@ export default function Admin() {
                       )) : <p className="text-gray-500 text-sm">No deposit history.</p>}
                     </div>
                     <div className="bg-[#1a1f2e] p-4 rounded-lg">
-                      <p className="text-gray-400 text-sm mb-3">Withdrawals</p>
+                      <p className="text-[11px] uppercase tracking-[0.22em] text-cyan-300 mb-3">Withdrawals</p>
                       {selectedUserAudit?.withdrawals?.length ? selectedUserAudit.withdrawals.slice(0, 5).map((withdrawal, index) => (
                         <div key={`${withdrawal.id ?? index}`} className="flex items-center justify-between py-2 border-b border-gray-800 last:border-b-0 text-sm">
                           <div>
