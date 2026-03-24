@@ -1472,9 +1472,11 @@ export default function Admin() {
     const formData = new FormData(formElement);
     const product = String(formData.get('product') ?? '').trim();
     const imageUrl = String(formData.get('image') ?? '').trim();
+    const priceRaw = String(formData.get('price') ?? '').trim();
+    const price = Number(priceRaw);
     const status = String(formData.get('status') ?? 'Active').trim();
 
-    console.log('[DEBUG] Form submission:', { product, imageUrl, status });
+    console.log('[DEBUG] Form submission:', { product, imageUrl, price, status });
 
     if (!product) {
       toast.error('Product name is required.');
@@ -1482,6 +1484,10 @@ export default function Admin() {
     }
     if (!imageUrl) {
       toast.error('Image URL is required.');
+      return;
+    }
+    if (!Number.isFinite(price) || price <= 0) {
+      toast.error('Product value must be greater than 0.');
       return;
     }
 
@@ -1494,6 +1500,7 @@ export default function Admin() {
         body: JSON.stringify({
           product,
           image: imageUrl,
+          price,
           status,
         }),
       });
@@ -1642,6 +1649,8 @@ export default function Admin() {
     const formData = new FormData(event.currentTarget);
     const product = String(formData.get('product') ?? '').trim();
     const imageUrl = String(formData.get('image') ?? '').trim();
+    const priceRaw = String(formData.get('price') ?? '').trim();
+    const price = Number(priceRaw);
     const status = String(formData.get('status') ?? 'Active').trim();
 
     if (!product) {
@@ -1650,6 +1659,10 @@ export default function Admin() {
     }
     if (!imageUrl) {
       toast.error('Image URL is required.');
+      return;
+    }
+    if (!Number.isFinite(price) || price <= 0) {
+      toast.error('Product value must be greater than 0.');
       return;
     }
 
@@ -1665,6 +1678,7 @@ export default function Admin() {
         body: JSON.stringify({
           product,
           image: imageUrl,
+          price,
           status,
         }),
       });
@@ -2917,8 +2931,12 @@ export default function Admin() {
                     <label className="block text-sm font-medium text-gray-300 mb-2">Image URL</label>
                     <input type="url" name="image" required className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://image.example/product.jpg" />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">Product Value (USD)</label>
+                    <input type="number" name="price" required min="0.01" step="0.01" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product value" />
+                  </div>
                   <div className="col-span-2 rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs text-cyan-200">
-                    Merchant, product value, and catalog commission are auto-filled by the system from the product image. User profit still follows the VIP commission percentages configured on the platform.
+                    Merchant and catalog commission can be auto-detected from the image/product URL. Product value is now set manually so each added product can keep its own price.
                   </div>
                 </div>
                 <div className="flex gap-3 mt-6">
@@ -3122,8 +3140,12 @@ export default function Admin() {
                       <label className="block text-sm font-medium text-gray-300 mb-2">Image URL</label>
                       <input type="url" name="image" required defaultValue={selectedItem.image || selectedItem.imageUrl || ''} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://image.example/product.jpg" />
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">Product Value (USD)</label>
+                      <input type="number" name="price" required min="0.01" step="0.01" defaultValue={selectedItem.price ?? ''} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product value" />
+                    </div>
                     <div className="col-span-2 rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs text-cyan-200">
-                      Merchant, product value, and catalog commission are auto-filled by the system. Edit only the product name and image URL.
+                      Product value is editable. Merchant and commission can still be inferred by system logic when needed.
                     </div>
                   </div>
                   <div className="flex gap-3 mt-6">
