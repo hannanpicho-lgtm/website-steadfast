@@ -3856,6 +3856,60 @@ async function submitTaskForUser(c: any, username: string, body: any) {
   const rewardsConfig = await getRewardsConfigRecord();
   const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
   const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
+
+  // Admin-assigned premiums can be scheduled for a specific encounter position.
+  // Activate the queued premium when the user reaches that submission number.
+  const queuedPremiumAssignments = Array.isArray(normalizedUserData.premiumQueue)
+    ? normalizedUserData.premiumQueue
+    : [];
+  const queuedEncounterCandidate = !normalizedUserData.activePremium && queuedPremiumAssignments.length > 0
+    ? queuedPremiumAssignments[0]
+    : null;
+  const queuedTriggerTaskNumber = Number.isFinite(Number(queuedEncounterCandidate?.triggerTaskNumber))
+    ? Math.max(1, Math.round(Number(queuedEncounterCandidate?.triggerTaskNumber)))
+    : nextSubmissionNumber;
+  const shouldActivateQueuedPremium = Boolean(queuedEncounterCandidate)
+    && nextSubmissionNumber >= queuedTriggerTaskNumber;
+
+  if (shouldActivateQueuedPremium && queuedEncounterCandidate) {
+    const activePremium = {
+      ...queuedEncounterCandidate,
+    };
+    const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
+    const totalBundleValue = roundMoney(Number(activePremium.totalBundleValue ?? 0));
+    const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - totalBundleValue);
+    const configuredUpholdAmount = Number.isFinite(Number(activePremium.configuredUpholdAmount))
+      ? Math.max(0, roundMoney(Number(activePremium.configuredUpholdAmount)))
+      : 0;
+    const topUpRequired = configuredUpholdAmount > 0
+      ? configuredUpholdAmount
+      : roundMoney(Math.max(0, -balanceAfterAssignment));
+
+    activePremium.balanceBeforeAssignment = balanceBeforeAssignment;
+    activePremium.balanceAfterAssignment = balanceAfterAssignment;
+    activePremium.negativeAmount = topUpRequired;
+    activePremium.topUpRequired = topUpRequired;
+    activePremium.triggerTaskNumber = queuedTriggerTaskNumber;
+    activePremium.status = topUpRequired > 0 ? 'awaiting_funds' : 'active';
+
+    normalizedUserData.isFrozen = true;
+    normalizedUserData.activePremium = activePremium;
+    normalizedUserData.premiumQueue = [activePremium, ...queuedPremiumAssignments.slice(1)];
+    normalizedUserData.balance = balanceAfterAssignment;
+    normalizedUserData.holdAmount = topUpRequired;
+
+    await kv.set(userKey, normalizedUserData);
+    await kv.set(`premium:${username}:${activePremium.id}`, activePremium);
+
+    return c.json({
+      error: 'Premium task encountered. Top-up is required before continuing task submission.',
+      code: 'premium_task_encountered',
+      disableSubmit: true,
+      premiumRequirement: buildPremiumRequirementResponse(activePremium),
+      user: normalizedUserData,
+    }, 409);
+  }
+
   const premiumTriggerTaskNumber = Math.max(1, Number(productSystem.premiumTriggerTaskNumber ?? 10));
   const shouldTriggerPremium = Boolean(productSystem.premiumEnabled)
     && !normalizedUserData.activePremium

@@ -444,7 +444,7 @@ export default function Starting() {
         )}
 
         {/* FREEZE BANNER - Premium Product Rule */}
-        {userData?.isFrozen && userData?.activePremium && (() => {
+        {userData?.activePremium && (userData?.isFrozen || premiumSubmissionBlocked) && (() => {
           const premiumProfit = Number(userData.activePremium.commissionEarned ?? 0);
           const upholdAmount = Number(userData.activePremium.topUpRequired ?? userData.holdAmount ?? 0);
           const displayBalance = Math.max(0, userData.balance);
