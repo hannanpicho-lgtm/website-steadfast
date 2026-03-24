@@ -443,125 +443,96 @@ export default function Starting() {
           </div>
         )}
 
-        {/* FREEZE BANNER - Premium Bundle Assigned */}
-        {userData?.isFrozen && userData?.activePremium && (
-          <div className="bg-gradient-to-br from-red-600 to-orange-600 border-4 border-yellow-400 rounded-lg p-6 mb-6 shadow-2xl animate-pulse">
-            {/* Header */}
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <Lock className="text-yellow-300" size={32} />
-              <h2 className="text-2xl font-bold text-white text-center">🔒 ACCOUNT FROZEN</h2>
-              <Lock className="text-yellow-300" size={32} />
-            </div>
-            
-            <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-4">
-              <h3 className="text-yellow-300 font-bold text-lg mb-3 text-center">Premium Bundle Assigned</h3>
-              
-              {/* Premium Product */}
-              <div className="bg-gradient-to-r from-yellow-500 to-orange-500 rounded-lg p-4 mb-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-white font-semibold">Premium Product:</span>
-                  <span className="text-white font-bold text-xl">${userData.activePremium.premiumProductValue.toFixed(2)}</span>
-                </div>
-              </div>
-
-              {/* Bundled Products */}
-              <div className="mb-3">
-                <p className="text-white font-semibold mb-2">Bundled Products:</p>
-                <div className="space-y-2">
-                  {userData.activePremium.bundledProducts.map((product: any, index: number) => (
-                    <div key={index} className="flex items-start sm:items-center gap-3 bg-white/20 rounded p-2">
-                      <img src={product.image} alt={product.name} className="w-10 h-10 sm:w-12 sm:h-12 object-contain rounded shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-semibold line-clamp-1">{getPrimaryLabel(product?.name)}</p>
-                      </div>
-                      <span className="text-white font-bold text-sm sm:text-base shrink-0">${product.price.toFixed(2)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Financial Details */}
-              <div className="border-t border-white/30 pt-3 space-y-2">
-                <div className="flex items-center justify-between text-white">
-                  <span>Total Bundle Value:</span>
-                  <span className="font-bold text-lg">${userData.activePremium.totalBundleValue.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between text-white">
-                  <span>Balance Before:</span>
-                  <span className="font-bold">${userData.activePremium.balanceBeforeAssignment.toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between text-yellow-300 text-lg">
-                  <span className="font-bold">Current Balance:</span>
-                  <span className="font-bold">
-                    {userData.balance < 0 ? '-' : ''}${Math.abs(userData.balance).toFixed(2)} 
-                    {userData.balance < 0 && ' (NEGATIVE)'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-white">
-                  <span>Current Hold Amount:</span>
-                  <span className="font-bold text-yellow-300">${(userData.activePremium.topUpRequired ?? userData.holdAmount ?? 0).toFixed(2)}</span>
-                </div>
-                <div className="flex items-center justify-between text-white">
-                  <span>Encounter Position:</span>
-                  <span className="font-bold text-cyan-300">{activePremiumEncounterLabel}</span>
-                </div>
-              </div>
-
-              {/* Top-up Warning */}
-              {userData.activePremium.negativeAmount > 0 && (
-                <div className="bg-red-500 rounded-lg p-3 mt-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <AlertTriangle className="text-white" size={20} />
-                    <span className="text-white font-bold">Top-up Required:</span>
-                  </div>
-                  <div className="text-center">
-                    <span className="text-white font-bold text-2xl">${userData.activePremium.topUpRequired.toFixed(2)}</span>
-                  </div>
-                  <Link to="/deposit" className="block mt-2 bg-white text-red-600 font-bold py-2 px-4 rounded text-center hover:bg-gray-100 transition-colors">
-                    <DollarSign className="inline mr-1" size={18} />
-                    Deposit Now
-                  </Link>
-                </div>
-              )}
-
-              {/* Task Progress */}
-              <div className="mt-4 bg-white/20 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-white font-semibold">Complete Tasks to Unlock:</span>
-                  <span className="text-yellow-300 font-bold">{userData.activePremium.tasksCompleted} / {userData.activePremium.totalTasks}</span>
-                </div>
-                <div className="flex gap-1">
-                  {Array.from({ length: userData.activePremium.totalTasks }).map((_, index) => (
-                    <div 
-                      key={index} 
-                      className={`flex-1 h-2 rounded ${index < userData.activePremium.tasksCompleted ? 'bg-green-500' : 'bg-white/30'}`}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {/* Commission Earned */}
-              <div className="mt-3 text-center">
-                <p className="text-white text-sm mb-1">Commission Earned So Far:</p>
-                <p className="text-green-300 font-bold text-xl">${userData.activePremium.commissionEarned.toFixed(2)} (VIP{userData.vipLevel} {premiumCommissionRate.toFixed(1)}%)</p>
-              </div>
-
-              {/* Queue Info */}
-              {userData.premiumQueue && userData.premiumQueue.length > 0 && (
-                <div className="mt-3 bg-purple-500/50 rounded p-2 text-center">
-                  <p className="text-white text-sm">⏳ Queue Position: {activePremiumQueuePosition}</p>
-                  {userData.premiumQueue.length > 1 && (
-                    <p className="text-white text-xs mt-1">
-                      {userData.premiumQueue.length - 1} more premium bundle{userData.premiumQueue.length > 2 ? 's' : ''} waiting
-                    </p>
-                  )}
-                </div>
-              )}
+        {/* FREEZE BANNER - Premium Product Rule */}
+        {userData?.isFrozen && userData?.activePremium && (() => {
+          const premiumProfit = Number(userData.activePremium.commissionEarned ?? 0);
+          const upholdAmount = Number(userData.activePremium.topUpRequired ?? userData.holdAmount ?? 0);
+          const displayBalance = Math.max(0, userData.balance);
+          const totalAccountBalance = roundMoney(displayBalance + upholdAmount + premiumProfit);
+          const previousCommission = roundMoney(Number(userData.todayCommission ?? 0) - premiumProfit);
+          const todayCommissionTotal = Number(userData.todayCommission ?? 0);
+          return (
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-red-500/60 rounded-xl p-6 mb-6 shadow-2xl">
+            {/* Freeze Banner Header */}
+            <div className="flex items-center gap-3 mb-5">
+              <Lock className="text-red-400 shrink-0" size={24} />
+              <p className="text-white text-sm leading-snug">
+                Your account is temporarily frozen due to a premium product. Complete the required action to unlock and receive your profit.
+              </p>
             </div>
 
-            <p className="text-white text-xs text-center italic">
-              Account will unlock after completing all bundled tasks or depositing the required top-up amount
-            </p>
+            {/* Financial Breakdown */}
+            <div className="space-y-3">
+              {/* Current Balance — neutral, never negative */}
+              <div className="flex items-center justify-between">
+                <span className="text-gray-300 text-sm">Current Balance</span>
+                <span className="text-white font-bold text-lg">${displayBalance.toFixed(2)}</span>
+              </div>
+
+              {/* Uphold Amount — red, always negative when frozen */}
+              <div className="flex items-center justify-between">
+                <span className="text-gray-300 text-sm">Uphold Amount</span>
+                <span className="text-red-400 font-bold text-lg">-${upholdAmount.toFixed(2)}</span>
+              </div>
+
+              {/* Premium Profit — green emphasis */}
+              <div className="flex items-center justify-between bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
+                <span className="text-green-300 text-sm font-semibold">Premium Profit</span>
+                <span className="text-green-400 font-bold text-lg">You will earn ${premiumProfit.toFixed(2)} after unfreezing</span>
+              </div>
+
+              {/* Divider */}
+              <div className="border-t border-white/10 my-1" />
+
+              {/* Total Account Balance — neutral */}
+              <div className="flex items-center justify-between">
+                <span className="text-gray-300 text-sm font-semibold">Total Account Balance</span>
+                <span className="text-white font-bold text-xl">${totalAccountBalance.toFixed(2)}</span>
+              </div>
+              <p className="text-gray-500 text-xs">
+                This includes base balance + premium product value + premium commission profit
+              </p>
+
+              {/* Divider */}
+              <div className="border-t border-white/10 my-1" />
+
+              {/* Today's Commission with breakdown */}
+              <div className="flex items-center justify-between">
+                <span className="text-gray-300 text-sm">Today&apos;s Commission</span>
+                <span className="text-white font-bold text-lg">${todayCommissionTotal.toFixed(2)}</span>
+              </div>
+              <p className="text-gray-500 text-xs">
+                Includes: Previous commission ${previousCommission.toFixed(2)} + premium commission ${premiumProfit.toFixed(2)}
+              </p>
+            </div>
+
+            {/* Task Submission Paused */}
+            <div className="mt-5 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3">
+              <p className="text-red-300 text-sm text-center font-medium">
+                Task submission is paused while your account is frozen for premium settlement.
+              </p>
+            </div>
+
+            {/* Deposit CTA when top-up needed */}
+            {upholdAmount > 0 && (
+              <Link to="/deposit" className="block mt-4 bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold py-3 px-4 rounded-lg text-center hover:from-red-600 hover:to-orange-600 transition-colors">
+                <DollarSign className="inline mr-1" size={18} />
+                Deposit ${upholdAmount.toFixed(2)} to Unfreeze
+              </Link>
+            )}
+          </div>
+          );
+        })()}
+
+        {/* POST-UNFREEZE: Premium profit credited confirmation */}
+        {!userData?.isFrozen && userData?.activePremium && Number(userData.activePremium.commissionEarned ?? 0) > 0 && (
+          <div className="bg-green-500/10 border border-green-500/40 rounded-xl p-4 mb-6">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="text-green-400 shrink-0" size={20} />
+              <p className="text-green-300 text-sm font-semibold">
+                Premium profit of ${Number(userData.activePremium.commissionEarned).toFixed(2)} has been credited.
+              </p>
+            </div>
           </div>
         )}
 
@@ -680,10 +651,10 @@ export default function Starting() {
             )}
             {premiumSubmissionBlocked && (
               <div className="bg-red-500/20 border border-red-400/60 rounded-lg p-4 mb-4">
-                <p className="text-red-300 text-sm font-semibold text-center">Premium requirement</p>
-                <p className="text-red-200 text-xs text-center mt-1">Required amount (negative):</p>
-                <p className="text-red-300 text-3xl font-extrabold text-center mt-1">-${premiumTopUpRequired.toFixed(2)}</p>
-                <p className="text-red-100 text-xs text-center mt-2">Task submission is locked until this amount is covered.</p>
+                <p className="text-red-300 text-sm font-semibold text-center">Account Frozen — Premium Settlement</p>
+                <p className="text-red-200 text-xs text-center mt-1">Uphold amount:</p>
+                <p className="text-red-400 text-3xl font-extrabold text-center mt-1">-${premiumTopUpRequired.toFixed(2)}</p>
+                <p className="text-red-100 text-xs text-center mt-2">Task submission is paused while your account is frozen for premium settlement.</p>
               </div>
             )}
             <button
@@ -729,20 +700,38 @@ export default function Starting() {
 
           <div className="border-t border-[#1a1f2e]/30 my-6"></div>
 
-          {/* Balance and Hold Amount */}
+          {/* Balance and Uphold Amount */}
           <div className="grid grid-cols-2 gap-6 mb-6">
             <div className="text-center">
               <CreditCard className="mx-auto mb-2" size={32} />
               <h4 className="font-semibold mb-1">BALANCE</h4>
-              <p className="text-2xl font-bold mb-1">{(userData?.balance || 0).toFixed(2)} USD</p>
+              <p className="text-2xl font-bold mb-1">{Math.max(0, userData?.balance || 0).toFixed(2)} USD</p>
               <p className="text-xs opacity-90">The total balance reflects both the deposited amount and earned commissions.</p>
             </div>
             <div className="text-center">
               <Snowflake className="mx-auto mb-2" size={32} />
-              <h4 className="font-semibold mb-1">Hold Amount</h4>
-              <p className="text-2xl font-bold mb-1">{(userData?.holdAmount || 0).toFixed(2)} USD</p>
-              <p className="text-xs opacity-90">Contact Support for inquiries</p>
+              <h4 className="font-semibold mb-1">Uphold Amount</h4>
+              {userData?.isFrozen && (userData?.holdAmount || 0) > 0 ? (
+                <>
+                  <p className="text-2xl font-bold mb-1 text-red-500">-{(userData?.holdAmount || 0).toFixed(2)} USD</p>
+                  <p className="text-xs opacity-90">Frozen for premium settlement</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-2xl font-bold mb-1">{(userData?.holdAmount || 0) > 0 ? (userData.holdAmount).toFixed(2) : '0.00'} USD</p>
+                  <p className="text-xs opacity-90">Contact Support for inquiries</p>
+                </>
+              )}
             </div>
+          </div>
+
+          {/* Total Account Balance — always transparent */}
+          <div className="text-center mb-6 bg-white/10 rounded-lg p-3">
+            <h4 className="font-semibold mb-1 text-sm">TOTAL ACCOUNT BALANCE</h4>
+            <p className="text-2xl font-bold">
+              {roundMoney(Math.max(0, userData?.balance || 0) + (userData?.holdAmount || 0) + Number(userData?.activePremium?.commissionEarned ?? 0)).toFixed(2)} USD
+            </p>
+            <p className="text-xs opacity-70 mt-1">Includes base balance + hold amount + premium profit</p>
           </div>
 
           <div className="border-t border-[#1a1f2e]/30 my-6"></div>

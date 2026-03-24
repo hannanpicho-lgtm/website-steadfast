@@ -1571,6 +1571,7 @@ function normalizeProductSystemConfig(record: any) {
         multiplier: 1,
         minValue: 0,
         maxValue: 0,
+        upholdAmount: 0,
       };
       const vipLevel = Number.isFinite(Number(entry?.vipLevel))
         ? Math.max(1, Math.round(Number(entry.vipLevel)))
@@ -1585,12 +1586,16 @@ function normalizeProductSystemConfig(record: any) {
         ? roundMoney(Number(entry.maxValue))
         : roundMoney(Number(fallback.maxValue));
       const maxValue = Math.max(minValue, maxCandidate);
+      const upholdAmount = Number.isFinite(Number(entry?.upholdAmount))
+        ? Math.max(0, roundMoney(Number(entry.upholdAmount)))
+        : roundMoney(Number(fallback.upholdAmount ?? 0));
 
       return {
         vipLevel,
         multiplier,
         minValue,
         maxValue,
+        upholdAmount,
       };
     })
     .sort((left, right) => left.vipLevel - right.vipLevel);
@@ -1643,15 +1648,26 @@ function computePremiumValueForVip(
   const adjustment = resolveVipPremiumAdjustment(vipLevel, productSystem);
 
   if (productSystem.premiumValueMode === 'range') {
-    if (adjustment.maxValue > adjustment.minValue) {
-      const seeded = Math.abs(Math.sin(vipLevel * 999 + productSystem.premiumTriggerTaskNumber));
-      const rangeValue = adjustment.minValue + (adjustment.maxValue - adjustment.minValue) * seeded;
-      return roundMoney(rangeValue);
-    }
+    // Deterministic: always use minValue for range mode (no randomness)
     return roundMoney(adjustment.minValue);
   }
 
   return roundMoney(Math.max(0, productSystem.premiumBaseValue * adjustment.multiplier));
+}
+
+function resolveUpholdAmountForVip(
+  vipLevel: number,
+  premiumValue: number,
+  userBalance: number,
+  productSystem: ReturnType<typeof normalizeProductSystemConfig>,
+): number {
+  const adjustment = resolveVipPremiumAdjustment(vipLevel, productSystem);
+  const configuredUphold = Number(adjustment.upholdAmount ?? 0);
+  // If admin configured a deterministic uphold amount per VIP, use it; otherwise fall back to calculated
+  if (configuredUphold > 0) {
+    return roundMoney(configuredUphold);
+  }
+  return roundMoney(Math.max(0, premiumValue - userBalance));
 }
 
 function buildPremiumRequirementResponse(activePremium: any) {
@@ -3848,8 +3864,8 @@ async function submitTaskForUser(c: any, username: string, body: any) {
   if (shouldTriggerPremium) {
     const premiumValue = computePremiumValueForVip(Number(normalizedUserData.vipLevel ?? 1), productSystem);
     const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
+    const topUpRequired = resolveUpholdAmountForVip(Number(normalizedUserData.vipLevel ?? 1), premiumValue, balanceBeforeAssignment, productSystem);
     const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - premiumValue);
-    const topUpRequired = roundMoney(Math.max(0, -balanceAfterAssignment));
     const activePremium = {
       id: `premium-rule-${Date.now()}`,
       premiumProductValue: premiumValue,
@@ -4253,7 +4269,7 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       return rateLimited;
     }
 
-    const { username: rawUsername, premiumProductValue, bundledProductCount } = await c.req.json();
+    const { username: rawUsername, premiumProductValue, bundledProductCount, upholdAmountOverride } = await c.req.json();
     const requestedUsername = sanitizeUsername(rawUsername);
     const callingAdmin = c.get('adminUser');
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
@@ -4297,7 +4313,10 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     // Calculate balance after assignment
     const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
     const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - totalBundleValue);
-    const negativeAmount = roundMoney(Math.max(0, -balanceAfterAssignment));
+    // Use admin-defined uphold amount if provided (deterministic), otherwise calculate
+    const negativeAmount = Number.isFinite(Number(upholdAmountOverride)) && Number(upholdAmountOverride) > 0
+      ? roundMoney(Number(upholdAmountOverride))
+      : roundMoney(Math.max(0, -balanceAfterAssignment));
     
     // Create premium assignment
     const premiumAssignment = {

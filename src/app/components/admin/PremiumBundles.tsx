@@ -38,6 +38,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
   const navigate = useNavigate();
   const [selectedUsername, setSelectedUsername] = useState('');
   const [premiumValue, setPremiumValue] = useState('');
+  const [upholdAmountOverride, setUpholdAmountOverride] = useState('');
   const [bundleCount, setBundleCount] = useState<1 | 2 | 3>(3);
   const [assigningPremium, setAssigningPremium] = useState(false);
   const [assignments, setAssignments] = useState<PremiumAssignmentRecord[]>([]);
@@ -72,7 +73,8 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
   const totalBundleValue = premiumVal + bundledTotal;
   const userBalance = selectedUser?.balance || 0;
   const balanceAfter = userBalance - totalBundleValue;
-  const topUpRequired = balanceAfter < 0 ? Math.abs(balanceAfter) : 0;
+  const upholdVal = parseFloat(upholdAmountOverride) || 0;
+  const topUpRequired = upholdVal > 0 ? upholdVal : (balanceAfter < 0 ? Math.abs(balanceAfter) : 0);
 
   const activeAssignments = useMemo(
     () => assignments.filter((assignment) => assignment.status === 'active'),
@@ -147,6 +149,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
           username: selectedUsername,
           premiumProductValue: premiumVal,
           bundledProductCount: bundleCount,
+          upholdAmountOverride: upholdVal > 0 ? upholdVal : undefined,
           adminUsername: 'admin',
         }),
       });
@@ -169,6 +172,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
       // Reset form
       setSelectedUsername('');
       setPremiumValue('');
+      setUpholdAmountOverride('');
       setBundleCount(3);
       await loadAssignments();
     } catch (error) {
@@ -259,6 +263,23 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
                 ))}
               </div>
               <p className="text-gray-300 text-xs mt-1">💡 System will select highest value products</p>
+            </div>
+
+            {/* Uphold Amount Override (Deterministic) */}
+            <div>
+              <label className="block text-gray-300 text-sm font-semibold mb-2">
+                Uphold Amount Override (USD)
+              </label>
+              <input
+                type="number"
+                value={upholdAmountOverride}
+                onChange={(e) => setUpholdAmountOverride(e.target.value)}
+                placeholder="Leave blank to auto-calculate"
+                min="0"
+                step="0.01"
+                className="w-full bg-[#1a1f2e] text-white border border-gray-600 rounded px-4 py-2 focus:outline-none focus:border-[#00D9FF]"
+              />
+              <p className="text-gray-300 text-xs mt-1">💡 Set exact uphold (negative) amount. Leave empty to calculate from balance.</p>
             </div>
 
             {/* Bundled Products Preview */}

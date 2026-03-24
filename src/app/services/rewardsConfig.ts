@@ -41,6 +41,7 @@ export type ProductSystemConfig = {
     multiplier: number;
     minValue: number;
     maxValue: number;
+    upholdAmount: number;
   }>;
 };
 
@@ -85,11 +86,11 @@ export const defaultRewardsConfig: RewardsConfig = {
     premiumBaseValue: 300,
     premiumValueMode: 'multiplier',
     vipPremiumAdjustments: [
-      { vipLevel: 1, multiplier: 1.1, minValue: 220, maxValue: 420 },
-      { vipLevel: 2, multiplier: 1.2, minValue: 300, maxValue: 620 },
-      { vipLevel: 3, multiplier: 1.35, minValue: 500, maxValue: 1300 },
-      { vipLevel: 4, multiplier: 1.5, minValue: 900, maxValue: 2600 },
-      { vipLevel: 5, multiplier: 1.8, minValue: 1800, maxValue: 5200 },
+      { vipLevel: 1, multiplier: 1.1, minValue: 220, maxValue: 420, upholdAmount: 330 },
+      { vipLevel: 2, multiplier: 1.2, minValue: 300, maxValue: 620, upholdAmount: 360 },
+      { vipLevel: 3, multiplier: 1.35, minValue: 500, maxValue: 1300, upholdAmount: 405 },
+      { vipLevel: 4, multiplier: 1.5, minValue: 900, maxValue: 2600, upholdAmount: 450 },
+      { vipLevel: 5, multiplier: 1.8, minValue: 1800, maxValue: 5200, upholdAmount: 540 },
     ],
   },
 };
@@ -123,18 +124,22 @@ function normalizeVipPremiumAdjustments(rawAdjustments: unknown): ProductSystemC
     const maxRaw = Number.isFinite(Number(candidate.maxValue))
       ? Number(candidate.maxValue)
       : fallbackForLevel.maxValue;
+    const upholdAmount = Number.isFinite(Number((candidate as any).upholdAmount))
+      ? Math.max(0, Number((candidate as any).upholdAmount))
+      : (fallbackForLevel as any).upholdAmount ?? 0;
 
     byLevel.set(vipLevel, {
       vipLevel,
       multiplier: Number.isFinite(Number(candidate.multiplier)) ? Math.max(0.1, Number(candidate.multiplier)) : fallbackForLevel.multiplier,
       minValue,
       maxValue: Math.max(minValue, maxRaw),
+      upholdAmount,
     });
   }
 
   for (const entry of fallback) {
     if (!byLevel.has(entry.vipLevel)) {
-      byLevel.set(entry.vipLevel, { ...entry });
+      byLevel.set(entry.vipLevel, { ...entry, upholdAmount: entry.upholdAmount ?? 0 });
     }
   }
 
