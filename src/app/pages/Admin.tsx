@@ -4113,12 +4113,18 @@ export default function Admin() {
       const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
       return bTime - aTime;
     })
-    .map((user, index) => ({
-      id: `${user.username}-${user.createdAt ?? index}`,
-      username: user.username,
-      vipLevel: String(user.vipLevel),
-      balance: user.balance,
-    }));
+    .map((user, index) => {
+      const totalCommission = transactions
+        .filter((t) => t.username === user.username && t.type === 'Commission' && t.status === 'Completed')
+        .reduce((sum, t) => sum + t.amount, 0);
+      return {
+        id: `${user.username}-${user.createdAt ?? index}`,
+        username: user.username,
+        vipLevel: String(user.vipLevel),
+        balance: user.balance,
+        totalCommission,
+      };
+    });
 
   const totalDeposits = transactions
     .filter((transaction) => transaction.type === 'Deposit' && transaction.status === 'Completed')
@@ -4380,7 +4386,7 @@ export default function Admin() {
       case 'premium-bundles':
         return (
           <Suspense fallback={<AdminPanelFallback label="Loading premium bundles..." />}>
-            <PremiumBundles users={premiumBundleUsers} />
+            <PremiumBundles users={premiumBundleUsers} vipConfigs={vipConfigurations} />
           </Suspense>
         );
 

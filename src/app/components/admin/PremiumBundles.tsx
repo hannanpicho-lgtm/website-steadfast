@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { projectId } from '@utils/supabase/info';
 import { Lock, Calculator, AlertTriangle, Info, Eye, XCircle } from 'lucide-react';
+import type { VipConfig } from '../../services/vipConfig';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
@@ -11,6 +12,7 @@ interface User {
   username: string;
   vipLevel: string;
   balance: number;
+  totalCommission: number;
 }
 
 interface PremiumAssignmentRecord {
@@ -33,9 +35,10 @@ interface PremiumAssignmentRecord {
 
 interface PremiumBundlesProps {
   users: User[];
+  vipConfigs: VipConfig[];
 }
 
-export default function PremiumBundles({ users }: PremiumBundlesProps) {
+export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProps) {
   const navigate = useNavigate();
   const [selectedUsername, setSelectedUsername] = useState('');
   const [premiumValue, setPremiumValue] = useState('');
@@ -97,6 +100,15 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
   const upholdVal = parseFloat(upholdAmountOverride) || 0;
   const triggerTaskNumberValue = parseInt(triggerTaskNumber, 10) || 0;
   const topUpRequired = upholdVal > 0 ? upholdVal : (balanceAfter < 0 ? Math.abs(balanceAfter) : 0);
+
+  // Premium commission calculations
+  const vipLevelNum = parseInt(selectedUser?.vipLevel ?? '1', 10) || 1;
+  const vipCommissionRate = vipConfigs.find((c) => c.level === vipLevelNum)?.commission ?? 0.005;
+  const premiumCommissionRate = vipCommissionRate * 10; // 10× multiplier for premium tasks
+  const premiumBundleCommission = Math.round(premiumCommissionRate * totalBundleValue * 100) / 100;
+  const totalAccountBalance = Math.round((topUpRequired + userBalance + premiumBundleCommission) * 100) / 100;
+  const preBundleCommission = selectedUser?.totalCommission ?? 0;
+  const projectedTotalCommission = Math.round((preBundleCommission + premiumBundleCommission) * 100) / 100;
 
   const activeAssignments = useMemo(
     () => assignments.filter((assignment) => assignment.status === 'active' || assignment.status === 'awaiting_funds' || assignment.status === 'scheduled'),
@@ -475,7 +487,45 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
                   </div>
                 )}
 
-                <div className="bg-blue-500/10 rounded p-3 mt-4">
+                {/* Post-assignment account summary */}
+                <div className="bg-green-500/10 border border-green-500/30 rounded p-3 space-y-2">
+                  <p className="text-green-300 text-xs font-semibold uppercase tracking-wide mb-1">After Assignment — User Financial Card</p>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Current Balance:</span>
+                    <span className="text-white">${userBalance.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Uphold Amount:</span>
+                    <span className="text-red-400">-${topUpRequired.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Premium Commission ({(premiumCommissionRate * 100).toFixed(1)}%):</span>
+                    <span className="text-green-400">+${premiumBundleCommission.toFixed(2)}</span>
+                  </div>
+                  <div className="border-t border-green-500/30 pt-2 flex items-center justify-between">
+                    <span className="text-green-300 font-bold">Total Account Balance:</span>
+                    <span className="text-green-300 font-bold text-lg">${totalAccountBalance.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                {/* Commission breakdown */}
+                <div className="bg-purple-500/10 border border-purple-500/30 rounded p-3 space-y-2">
+                  <p className="text-purple-300 text-xs font-semibold uppercase tracking-wide mb-1">Commission Breakdown</p>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Pre-bundle Commission:</span>
+                    <span className="text-white">${preBundleCommission.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">This Bundle ({bundledProducts.length} tasks × {(premiumCommissionRate * 100).toFixed(1)}%):</span>
+                    <span className="text-purple-300">+${premiumBundleCommission.toFixed(2)}</span>
+                  </div>
+                  <div className="border-t border-purple-500/30 pt-2 flex items-center justify-between">
+                    <span className="text-purple-300 font-bold">Total Commission:</span>
+                    <span className="text-purple-300 font-bold text-lg">${projectedTotalCommission.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="bg-blue-500/10 rounded p-3">
                   <p className="text-blue-300 text-xs">
                     💡 User's account will be frozen until all {1 + bundledProducts.length} bundled tasks are completed or top-up is made.
                   </p>
