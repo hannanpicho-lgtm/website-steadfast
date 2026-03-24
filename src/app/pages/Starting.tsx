@@ -738,41 +738,81 @@ export default function Starting() {
         )}
 
         {/* Commission Panel */}
-        <div className="mb-6 overflow-hidden rounded-2xl border border-[#0f6ea8] bg-[#0b5f94] text-white shadow-lg">
-          <div className="px-6 py-8 text-center sm:px-9 sm:py-9">
-            <Rocket className="mx-auto" size={56} />
-            <h3 className="mt-3 text-[1.95rem] font-extrabold leading-none tracking-tight">TODAY'S COMMISSION</h3>
-            <p className="mt-3 text-[2.2rem] font-bold leading-none">{(userData?.todayCommission || 0).toFixed(2)} USD</p>
-            <p className="mt-4 text-sm text-[#dcedf8]">The displayed amount reflects today's earned commissions.</p>
-          </div>
-
-          <div className="mx-5 border-t border-white/50" />
-
-          <div className="relative grid grid-cols-1 px-6 py-7 sm:grid-cols-2 sm:px-8 sm:py-8">
-            <div className="hidden sm:block absolute left-1/2 top-6 h-[calc(100%-3rem)] w-px -translate-x-1/2 bg-white/45" />
-
-            <div className="pb-5 text-center sm:pb-0 sm:pr-6">
-              <CreditCard className="mx-auto" size={60} />
-              <p className="mt-3 text-[2.05rem] font-extrabold leading-none tracking-tight">BALANCE</p>
-              <p className="mt-2 text-[2.1rem] font-bold leading-none">{(userData?.isFrozen ? Math.max(0, frozenCurrentBalanceBeforeFreeze) : availableFundsForSubmit).toFixed(2)} USD</p>
-              <p className="mx-auto mt-3 max-w-[320px] text-sm text-[#dcedf8]">The total balance reflects both the deposited amount and earned commissions.</p>
+        <div className="relative mb-6 overflow-hidden rounded-[28px] bg-[linear-gradient(145deg,#0b72e7_0%,#0d92f4_52%,#19c0ff_100%)] text-white shadow-[0_24px_60px_rgba(6,58,145,0.24)]">
+          <div className="absolute inset-x-0 top-0 h-24 bg-white/10 blur-3xl" />
+          <div className="relative p-6 md:p-7">
+            <div className="mx-auto max-w-md text-center">
+              <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/90">
+                Financial Summary
+              </div>
+              <Rocket className="mx-auto mt-4" size={34} />
+              <h3 className="mt-3 text-sm font-semibold uppercase tracking-[0.26em] text-white/80">Today's Commission</h3>
+              <p className="mt-2 text-4xl font-bold leading-none">{(userData?.todayCommission || 0).toFixed(2)} USD</p>
+              <p className="mt-3 text-sm text-white/80">Updated from completed submissions in the current working day.</p>
             </div>
 
-            <div className="border-t border-white/45 pt-6 text-center sm:border-t-0 sm:pt-0 sm:pl-6">
-              <Snowflake className="mx-auto" size={60} />
-              <p className="mt-3 text-[2.05rem] font-extrabold leading-none tracking-tight">Hold Amount</p>
-              <p className={`mt-2 text-[2.1rem] font-bold leading-none ${userData?.isFrozen ? 'text-[#ffe1e1]' : 'text-white'}`}>
-                {userData?.isFrozen ? '-' : ''}{(userData?.isFrozen ? frozenUpholdAmount : Number(userData?.holdAmount ?? 0)).toFixed(2)} USD
+            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="rounded-2xl bg-white/12 p-4 backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-full bg-white/15 p-2">
+                    <CreditCard size={18} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">
+                      {userData?.isFrozen ? 'Current Balance' : 'Available Balance'}
+                    </p>
+                    <p className="mt-1 text-2xl font-bold">
+                      {(userData?.isFrozen ? Math.max(0, frozenCurrentBalanceBeforeFreeze) : availableFundsForSubmit).toFixed(2)} USD
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-white/75">
+                  {userData?.isFrozen ? 'Balance held before premium settlement.' : 'Funds currently available for new submissions.'}
+                </p>
+              </div>
+
+              <div className="rounded-2xl bg-white/12 p-4 backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-full bg-white/15 p-2">
+                    <Snowflake size={18} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Hold Amount</p>
+                    <p className={`mt-1 text-2xl font-bold ${userData?.isFrozen ? 'text-[#ffe1e1]' : 'text-white'}`}>
+                      {userData?.isFrozen ? '-' : ''}{(userData?.isFrozen ? frozenUpholdAmount : Number(userData?.holdAmount ?? 0)).toFixed(2)} USD
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-white/75">
+                  {userData?.isFrozen ? 'Reserved for the premium settlement requirement.' : 'Amount currently reserved from the working balance.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-[24px] border border-white/15 bg-white/12 p-5 backdrop-blur-sm">
+              <p className="text-center text-xs font-semibold uppercase tracking-[0.24em] text-white/75">Total Account Balance</p>
+              <p className="mt-2 text-center text-3xl font-bold">{totalAccountBalanceDisplay.toFixed(2)} USD</p>
+              <p className="mt-2 text-center text-xs text-white/75">
+                {userData?.isFrozen
+                  ? 'Includes pre-freeze balance, current hold amount, and projected premium profit.'
+                  : 'Reflects the active account balance across the current task cycle.'}
               </p>
-              <p className="mx-auto mt-3 max-w-[320px] text-sm text-[#dcedf8]">Contact Customer Service for more infor</p>
             </div>
-          </div>
 
-          <div className="mx-5 border-t border-white/50" />
-
-          <div className="px-6 py-7 text-center sm:px-8 sm:py-8">
-            <p className="text-[2rem] font-extrabold leading-none tracking-tight">Special Lucky Bonus</p>
-            <p className="mt-2 text-[2.15rem] font-bold leading-none">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="rounded-2xl bg-[#083b93]/35 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Lucky Bonus</p>
+                <p className="mt-1 text-2xl font-bold">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
+                <p className="mt-2 text-xs text-white/75">Bonus value currently carried on the account.</p>
+              </div>
+              <div className="rounded-2xl bg-[#083b93]/35 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Working Status</p>
+                <p className="mt-1 text-2xl font-bold">{userData?.isFrozen ? 'Settlement Review' : 'Ready To Submit'}</p>
+                <p className="mt-2 text-xs text-white/75">
+                  {userData?.isFrozen ? 'Submission remains paused until the premium requirement is cleared.' : 'The account can continue processing eligible tasks.'}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 

@@ -2267,7 +2267,8 @@ async function syncUserWithVipConfig(userData: any, username: string) {
   const vipConfig = await getVipConfigForLevel(Number(normalized.vipLevel ?? 1));
 
   // VIP chart is the primary source of truth for required products/tasks per user.
-  const defaultVipTaskSetCount = 2;
+  // One set per cycle keeps totals aligned with expected VIP task requirements.
+  const defaultVipTaskSetCount = 1;
   const vipTaskBaselineByLevel: Record<number, number> = {
     1: 40,
     2: 45,
@@ -7712,11 +7713,19 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
     const callingAdmin = c.get('adminUser');
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
 
-    // Load all KV users
+    // Load and sync all KV users to ensure VIP task limits are current.
     const allRawUsers = await kv.getByPrefix('user:');
-    const allUsers = allRawUsers
-      .map((raw) => normalizeUserRecord(raw, String(raw?.username ?? '')))
-      .filter((u) => typeof u.username === 'string' && u.username && u.username !== 'steadfast_root');
+    const allUsers = (await Promise.all(allRawUsers.map(async (raw) => {
+      const rawUsername = typeof raw?.username === 'string' ? raw.username : '';
+      if (!rawUsername || rawUsername === 'steadfast_root') {
+        return null;
+      }
+
+      const canonicalUsername = (await resolveCanonicalUsername(rawUsername)) ?? rawUsername;
+      const syncedUser = await syncUserWithVipConfig(raw, canonicalUsername);
+      await kv.set(`user:${canonicalUsername}`, syncedUser);
+      return syncedUser;
+    }))).filter((user): user is ReturnType<typeof normalizeUserRecord> => Boolean(user));
 
     // Scope: sub-admins only see their own referrals
     const scopedUsers = callerIsSuperAdmin
@@ -8115,7 +8124,12 @@ app.patch('/make-server-a1c55d7e/admin/platform-users/:username/credit-score', a
       `Set credit score to ${newCreditScore} for user '${canonicalUsername}'`,
     ).catch((e) => console.error('Failed to record admin-user-credit-score audit event:', e));
 
-    return c.json({ success: true, creditScore: newCreditScore });
+    return c.json({
+      success: true,
+      creditScore: newCreditScore,
+      user: normalizedUser,
+      taskProgress: buildUserTaskProgress(normalizedUser),
+    });
   } catch (err) {
     console.error('admin/platform-users/credit-score error:', err);
     return c.json({ error: 'Failed to update credit score' }, 500);

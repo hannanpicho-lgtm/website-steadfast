@@ -754,7 +754,11 @@ export default function Admin() {
         throw new Error(payload?.error ?? `Failed to set credit score (${response.status})`);
       }
       toast.success(`Credit score set to ${Math.round(newScore)} for ${user.username}.`);
-      void loadPlatformUsers();
+      if (payload?.user) {
+        mergePlatformUser(payload.user as PlatformUser);
+      } else {
+        void loadPlatformUsers();
+      }
     } catch (error) {
       handleAdminRequestError(error, `Failed to set credit score for ${user.username}`);
     }
