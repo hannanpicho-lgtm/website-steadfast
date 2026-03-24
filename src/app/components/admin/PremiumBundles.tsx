@@ -42,7 +42,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
   const [triggerTaskNumber, setTriggerTaskNumber] = useState('');
   const [upholdAmountOverride, setUpholdAmountOverride] = useState('');
   const [selectedBundledProductIds, setSelectedBundledProductIds] = useState<number[]>([3]);
-  const [bundledValueOverrides, setBundledValueOverrides] = useState<Record<number, string>>({});
+  const [bundledValueOverrides, setBundledValueOverrides] = useState<Record<number, string>>({ 3: '549.99' });
   const [assigningPremium, setAssigningPremium] = useState(false);
   const [assignments, setAssignments] = useState<PremiumAssignmentRecord[]>([]);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
@@ -214,7 +214,7 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
       setTriggerTaskNumber('');
       setUpholdAmountOverride('');
       setSelectedBundledProductIds([3]);
-      setBundledValueOverrides({});
+      setBundledValueOverrides({ 3: '549.99' });
       await loadAssignments();
     } catch (error) {
       console.error('Error assigning premium bundle:', error);
@@ -321,18 +321,30 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
                           type="checkbox"
                           checked={isSelected}
                           onChange={(e) => {
-                            setSelectedBundledProductIds((prev) => {
-                              if (e.target.checked) {
-                                return [...prev, product.id].sort((a, b) => a - b);
-                              }
-                              return prev.filter((id) => id !== product.id);
-                            });
+                            if (e.target.checked) {
+                              setSelectedBundledProductIds((prev) =>
+                                [...prev, product.id].sort((a, b) => a - b),
+                              );
+                              // Pre-populate value input with catalog price so it is immediately adjustable
+                              setBundledValueOverrides((prev) => ({
+                                ...prev,
+                                [product.id]: product.price.toFixed(2),
+                              }));
+                            } else {
+                              setSelectedBundledProductIds((prev) =>
+                                prev.filter((id) => id !== product.id),
+                              );
+                              setBundledValueOverrides((prev) => {
+                                const next = { ...prev };
+                                delete next[product.id];
+                                return next;
+                              });
+                            }
                           }}
                           className="h-4 w-4 accent-[#00D9FF]"
                         />
                         <div>
                           <p className="text-white text-sm font-semibold">{product.name}</p>
-                          <p className="text-gray-400 text-xs">Default: ${product.price.toFixed(2)}</p>
                         </div>
                       </div>
                       <input
@@ -345,16 +357,21 @@ export default function PremiumBundles({ users }: PremiumBundlesProps) {
                             [product.id]: nextValue,
                           }));
                         }}
-                        placeholder={product.price.toFixed(2)}
+                        placeholder="Enter value"
                         min="0"
                         step="0.01"
-                        className="w-28 bg-[#0f1420] text-white border border-gray-600 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-[#00D9FF]"
+                        disabled={!isSelected}
+                        className={`w-28 border rounded px-3 py-1.5 text-sm focus:outline-none focus:border-[#00D9FF] ${
+                          isSelected
+                            ? 'bg-[#0f1420] text-white border-gray-500'
+                            : 'bg-[#0f1420]/40 text-gray-600 border-gray-700 cursor-not-allowed'
+                        }`}
                       />
                     </label>
                   );
                 })}
               </div>
-              <p className="text-gray-300 text-xs mt-1">Select at least one product. Optional value fields override the default product prices.</p>
+              <p className="text-gray-300 text-xs mt-1">Check a product to include it. Edit the value field to set a custom price.</p>
             </div>
 
             {/* Uphold Amount Override (Deterministic) */}
