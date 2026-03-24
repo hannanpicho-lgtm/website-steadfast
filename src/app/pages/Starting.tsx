@@ -1,6 +1,6 @@
 import { UserCircle, Rocket, CreditCard, Snowflake, Loader2, Lock, AlertTriangle, DollarSign, ChevronLeft, ChevronRight, CheckCircle2, MessageCircle } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -134,6 +134,7 @@ export default function Starting() {
   const [rewardsConfig, setRewardsConfig] = useState<RewardsConfig>(defaultRewardsConfig);
   const [taskRuleConfig, setTaskRuleConfig] = useState<TaskCatalogResponse['ruleConfig'] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const connectionToastShownRef = useRef(false);
   
   const sessionUsername = getCurrentUsername();
   const username = sessionUsername;
@@ -204,27 +205,52 @@ export default function Starting() {
     try {
       setLoading(true);
       setLoadError(null);
-      const [data, tasksPayload, vipPayload, rewardsPayload] = await Promise.all([
+      const [sessionResult, tasksResult] = await Promise.allSettled([
         withRetry(() => fetchSessionUser(), 2),
         withRetry(() => fetchJsonWithTimeout(`${serverUrl}/tasks/catalog`, {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,
           },
         }), 2),
-        withRetry(() => fetchPublicVipConfig(), 2),
-        withRetry(() => fetchPublicRewardsConfig(), 2),
       ]);
 
-      setUserData(data);
-      setTaskCatalog(Array.isArray(tasksPayload?.tasks) ? tasksPayload.tasks : []);
-      setTaskRuleConfig(tasksPayload?.ruleConfig ?? null);
-      setVipConfigurations(vipPayload);
-      setRewardsConfig(rewardsPayload);
+      if (sessionResult.status === 'fulfilled') {
+        setUserData(sessionResult.value);
+      }
+
+      if (tasksResult.status === 'fulfilled') {
+        setTaskCatalog(Array.isArray(tasksResult.value?.tasks) ? tasksResult.value.tasks : []);
+        setTaskRuleConfig(tasksResult.value?.ruleConfig ?? null);
+      }
+
+      if (sessionResult.status !== 'fulfilled' && tasksResult.status !== 'fulfilled') {
+        throw new Error('Unable to load user and task data right now.');
+      }
+
+      setLoading(false);
+
+      // Load non-critical configs in background so the page becomes usable faster.
+      void (async () => {
+        const [vipResult, rewardsResult] = await Promise.allSettled([
+          withRetry(() => fetchPublicVipConfig(), 2),
+          withRetry(() => fetchPublicRewardsConfig(), 2),
+        ]);
+
+        if (vipResult.status === 'fulfilled') {
+          setVipConfigurations(vipResult.value);
+        }
+
+        if (rewardsResult.status === 'fulfilled') {
+          setRewardsConfig(rewardsResult.value);
+        }
+      })();
     } catch (error) {
       console.error('Error fetching user data:', error);
       setLoadError('Connection is unstable. Please retry loading your data.');
-      toast.error('Connection issue detected. Retrying may help.');
-    } finally {
+      if (!connectionToastShownRef.current) {
+        toast.error('Connection issue detected. Retrying may help.');
+        connectionToastShownRef.current = true;
+      }
       setLoading(false);
     }
   };

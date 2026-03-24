@@ -24,6 +24,17 @@ function isRecoverableRouteLoadError(error: unknown): boolean {
 const sleep = (ms: number) =>
   new Promise((resolve) => window.setTimeout(resolve, ms));
 
+function tryOneTimeRouteReload(): boolean {
+  const reloadKey = `route-reload:${window.location.pathname}`;
+  if (window.sessionStorage.getItem(reloadKey) === '1') {
+    return false;
+  }
+
+  window.sessionStorage.setItem(reloadKey, '1');
+  window.location.reload();
+  return true;
+}
+
 const lazyRoute = (importer: () => Promise<RouteModule>) => async () => {
   const maxRetries = 2;
   let lastError: unknown;
@@ -31,6 +42,7 @@ const lazyRoute = (importer: () => Promise<RouteModule>) => async () => {
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     try {
       const module = await importer();
+      window.sessionStorage.removeItem(`route-reload:${window.location.pathname}`);
 
       return {
         Component: module.default,
@@ -38,6 +50,9 @@ const lazyRoute = (importer: () => Promise<RouteModule>) => async () => {
     } catch (error) {
       lastError = error;
       if (!isRecoverableRouteLoadError(error) || attempt === maxRetries) {
+        if (attempt === maxRetries && isRecoverableRouteLoadError(error)) {
+          tryOneTimeRouteReload();
+        }
         break;
       }
       await sleep(250 * (attempt + 1));
