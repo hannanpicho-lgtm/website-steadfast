@@ -212,17 +212,18 @@ export default function Login() {
       {/* Dark Header */}
       <header className="bg-[#3d4551] py-6 px-6">
         <div className="max-w-2xl mx-auto text-center">
-          <p className="text-white text-sm mb-4">Welcome to</p>
-          <div className="flex items-center justify-center gap-3">
+          <div className="inline-flex items-center justify-center gap-3">
             <img 
               src={steadfastLogo} 
               alt="Steadfast Digital Logo" 
-              className="w-12 h-12 object-contain"
+              className="w-11 h-11 object-contain"
             />
-            <span className="text-white text-3xl font-bold tracking-tight">
-              STEADFAST
-            </span>
+            <div className="text-left leading-tight">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-[#a9bacd]">Steadfast Digital</p>
+              <p className="text-white text-[2rem] font-bold tracking-tight">STEADFAST</p>
+            </div>
           </div>
+          <p className="text-[#d8e2ee] text-xs mt-3 tracking-wide">Secure platform access</p>
         </div>
       </header>
 
@@ -329,10 +330,6 @@ export default function Login() {
               </div>
             </div>
           ) : null}
-
-          <p className="text-center text-xs text-gray-500">
-            Secure admin access requires a real Supabase Auth admin email with app_metadata.role = admin or super_admin.
-          </p>
 
           {/* Sign Up Link */}
           <p className="text-center text-sm text-[#3d4551]">

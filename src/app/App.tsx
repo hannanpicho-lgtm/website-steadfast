@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { RouterProvider } from "react-router";
-import { router } from "./routes";
+import router from "./appRouter";
 import { Toaster } from "./components/ui/sonner";
 
 function RouteLoadingFallback() {

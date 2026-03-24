@@ -1,20 +1,57 @@
 import type { ComponentType } from "react";
 import { createBrowserRouter } from "react-router";
 import RouteErrorBoundary from "./components/RouteErrorBoundary";
+import RouteLoadFallback from "./components/RouteLoadFallback";
 
 type RouteModule = {
   default: ComponentType;
 };
 
+function isRecoverableRouteLoadError(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("failed to fetch dynamically imported module") ||
+    message.includes("loading chunk") ||
+    message.includes("chunkloaderror") ||
+    message.includes("importing a module script failed")
+  );
+}
+
+const sleep = (ms: number) =>
+  new Promise((resolve) => window.setTimeout(resolve, ms));
+
 const lazyRoute = (importer: () => Promise<RouteModule>) => async () => {
-  const module = await importer();
+  const maxRetries = 2;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      const module = await importer();
+
+      return {
+        Component: module.default,
+      };
+    } catch (error) {
+      lastError = error;
+      if (!isRecoverableRouteLoadError(error) || attempt === maxRetries) {
+        break;
+      }
+      await sleep(250 * (attempt + 1));
+    }
+  }
+
+  console.error("Route lazy-load failed after retries:", lastError);
 
   return {
-    Component: module.default,
+    Component: RouteLoadFallback,
   };
 };
 
-export const router = createBrowserRouter([
+const router = createBrowserRouter([
   {
     path: "/",
     ErrorBoundary: RouteErrorBoundary,
@@ -125,3 +162,5 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
+
+export default router;
