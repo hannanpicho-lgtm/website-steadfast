@@ -2569,20 +2569,19 @@ function restoreUserToNaturalState(userData: any) {
     ? roundMoney(Number(restored.activePremium.balanceBeforeAssignment))
     : currentBalance;
   const preservedHoldAmount = roundMoney(Math.max(0, Number(restored.holdAmount ?? 0)));
-  const configuredUpholdAmount = Number.isFinite(Number(restored?.activePremium?.upholdAmount))
-    ? roundMoney(Math.max(0, Number(restored.activePremium.upholdAmount)))
+  const configuredUpholdAmount = Number.isFinite(Number(restored?.activePremium?.configuredUpholdAmount))
+    ? roundMoney(Math.max(0, Number(restored.activePremium.configuredUpholdAmount)))
     : 0;
   const outstandingTopUp = Number.isFinite(Number(restored?.activePremium?.topUpRequired ?? restored?.activePremium?.negativeAmount))
     ? roundMoney(Math.max(0, Number(restored.activePremium.topUpRequired ?? restored.activePremium.negativeAmount)))
     : 0;
-  // Prefer held/configured uphold value so fulfilled premium states do not regress to pre-premium balances.
-  const settledUpholdAmount = Math.max(preservedHoldAmount, configuredUpholdAmount, outstandingTopUp);
+  const settledUpholdAmount = roundMoney(Math.max(outstandingTopUp, configuredUpholdAmount, preservedHoldAmount));
   const premiumCommission = Number.isFinite(Number(restored?.activePremium?.commissionEarned))
     ? roundMoney(Math.max(0, Number(restored.activePremium.commissionEarned)))
     : 0;
   const settledBalanceTarget = roundMoney(preFreezeBalance + settledUpholdAmount + premiumCommission);
 
-  restored.balance = roundMoney(Math.max(currentBalance, settledBalanceTarget));
+  restored.balance = settledBalanceTarget;
   restored.holdAmount = 0;
   restored.isFrozen = false;
 
@@ -4592,6 +4591,20 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     const normalizedUserData = normalizeUserRecord(userData, canonicalUsername);
     if (!callerIsSuperAdmin && normalizedUserData.referredByAdminId !== callingAdmin?.id) {
       return c.json({ error: 'Forbidden' }, 403);
+    }
+    const existingPremiumQueue = Array.isArray(normalizedUserData.premiumQueue)
+      ? normalizedUserData.premiumQueue
+      : [];
+    const hasPendingPremium = Boolean(normalizedUserData.activePremium)
+      || existingPremiumQueue.some((entry: any) => {
+        const status = String(entry?.status ?? '').toLowerCase();
+        return status !== 'completed' && status !== 'cancelled';
+      });
+    if (hasPendingPremium) {
+      return c.json({
+        error: 'User already has a pending premium assignment. Complete or cancel it before assigning a new one.',
+        code: 'existing_pending_premium',
+      }, 409);
     }
     const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
     const requestedTriggerTaskNumber = Number.isInteger(Number(triggerTaskNumber)) && Number(triggerTaskNumber) > 0
