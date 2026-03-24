@@ -192,6 +192,37 @@ export default function Starting() {
   const activePremiumEncounterLabel = Number.isFinite(Number(userData?.activePremium?.triggerTaskNumber))
     ? `Task #${Number(userData?.activePremium?.triggerTaskNumber)}`
     : 'Admin assigned';
+  const premiumDisplayPrice = roundMoney(Number(userData?.activePremium?.totalBundleValue ?? userData?.activePremium?.premiumProductValue ?? 0));
+  const isPremiumTaskActive = Boolean(userData?.activePremium) && premiumDisplayPrice > 0;
+  const premiumDisplayName = (() => {
+    const configuredName = typeof userData?.activePremium?.premiumProductName === 'string'
+      ? userData.activePremium.premiumProductName.trim()
+      : '';
+    if (configuredName) {
+      return configuredName;
+    }
+    const bundledCount = Array.isArray(userData?.activePremium?.bundledProducts)
+      ? userData.activePremium.bundledProducts.length
+      : 0;
+    return bundledCount > 0 ? `Premium Bundle (${bundledCount + 1} tasks)` : 'Premium Product';
+  })();
+  const displayProduct = isPremiumTaskActive
+    ? {
+        id: String(userData?.activePremium?.id ?? 'premium-task'),
+        merchant: 'Premium Assignment',
+        product: premiumDisplayName,
+        price: premiumDisplayPrice,
+        commission: roundMoney(premiumDisplayPrice * (premiumCommissionRate / 100)),
+        status: 'Active' as const,
+        image: currentProduct?.image ?? activeTasks[0]?.image ?? '',
+        rating: 5,
+        productUrl: '',
+      }
+    : currentProduct;
+  const displayCommissionRate = isPremiumTaskActive ? premiumCommissionRate : commissionRate;
+  const displayEstimatedCommission = isPremiumTaskActive
+    ? roundMoney(premiumDisplayPrice * (premiumCommissionRate / 100))
+    : estimatedCommission;
 
   // Fetch user data on mount
   useEffect(() => {
@@ -271,7 +302,7 @@ export default function Starting() {
   };
 
   const handleSubmitTask = async () => {
-    if (!userData || !currentProduct || submitting) return;
+    if (!userData || submitting || (!displayProduct && !isPremiumTaskActive)) return;
 
     if (vipFundingBlocked) {
       toast.error(`VIP${userData.vipLevel} requires at least $${requiredFundsForVip.toFixed(2)} available before submitting tasks.`);
@@ -296,17 +327,25 @@ export default function Starting() {
     try {
       setSubmitting(true);
 
-      const response = await fetch(`${serverUrl}/me/submit-task`, {
+      const isSubmittingPremiumTask = isPremiumTaskActive && !premiumSubmissionBlocked;
+
+      const response = await fetch(`${serverUrl}${isSubmittingPremiumTask ? '/me/complete-premium-task' : '/me/submit-task'}`, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
         },
-        body: JSON.stringify({
-          taskId: currentProduct.id,
-          productPrice: currentProduct.price,
-        }),
+        body: JSON.stringify(
+          isSubmittingPremiumTask
+            ? {
+                productPrice: premiumDisplayPrice,
+              }
+            : {
+                taskId: currentProduct?.id,
+                productPrice: currentProduct?.price,
+              },
+        ),
       });
 
       if (!response.ok) {
@@ -328,31 +367,38 @@ export default function Starting() {
 
       const result = await response.json();
       
-      // Update user data with new values
-      setUserData({
-        ...userData,
-        tasksCompleted: result.tasksCompleted,
-        balance: result.balance,
-        todayCommission: result.todayCommission,
-        luckyBonus: result.luckyBonus,
-        isFrozen: result.user?.isFrozen ?? userData.isFrozen,
-        holdAmount: result.user?.holdAmount ?? userData.holdAmount,
-        activePremium: result.user?.activePremium ?? userData.activePremium,
-        premiumQueue: result.user?.premiumQueue ?? userData.premiumQueue,
-        taskSetCount: result.taskProgress?.taskSetCount ?? userData.taskSetCount,
-        tasksPerSet: result.taskProgress?.tasksPerSet ?? userData.tasksPerSet,
-        tasksCompletedInSet: result.taskProgress?.tasksCompletedInSet ?? userData.tasksCompletedInSet,
-        completedTaskSets: result.taskProgress?.completedTaskSets ?? userData.completedTaskSets,
-        pendingTaskReset: result.taskProgress?.pendingTaskReset ?? userData.pendingTaskReset,
-      });
+      if (isSubmittingPremiumTask) {
+        const refreshedUser = await fetchSessionUser();
+        setUserData(refreshedUser);
+      } else {
+        // Update user data with new values
+        setUserData({
+          ...userData,
+          tasksCompleted: result.tasksCompleted,
+          balance: result.balance,
+          todayCommission: result.todayCommission,
+          luckyBonus: result.luckyBonus,
+          isFrozen: result.user?.isFrozen ?? userData.isFrozen,
+          holdAmount: result.user?.holdAmount ?? userData.holdAmount,
+          activePremium: result.user?.activePremium ?? userData.activePremium,
+          premiumQueue: result.user?.premiumQueue ?? userData.premiumQueue,
+          taskSetCount: result.taskProgress?.taskSetCount ?? userData.taskSetCount,
+          tasksPerSet: result.taskProgress?.tasksPerSet ?? userData.tasksPerSet,
+          tasksCompletedInSet: result.taskProgress?.tasksCompletedInSet ?? userData.tasksCompletedInSet,
+          completedTaskSets: result.taskProgress?.completedTaskSets ?? userData.completedTaskSets,
+          pendingTaskReset: result.taskProgress?.pendingTaskReset ?? userData.pendingTaskReset,
+        });
+      }
       
       // Show success message
       setLastCommission(result.commission);
-      setIsPremium(result.isPremium);
+      setIsPremium(Boolean(result.isPremium ?? isSubmittingPremiumTask));
       setShowSuccess(true);
       
       // Move to next product
-      setCurrentProductIndex((prev) => prev + 1);
+      if (!isSubmittingPremiumTask) {
+        setCurrentProductIndex((prev) => prev + 1);
+      }
       
       // Hide success message after 3 seconds
       setTimeout(() => {
@@ -502,23 +548,23 @@ export default function Starting() {
           <div className="flex items-center gap-4 p-4 bg-white/5">
             <div className="shrink-0 bg-white rounded-lg p-2 w-20 h-20 flex items-center justify-center">
               <img
-                src={currentProduct?.image}
-                alt={currentProduct?.product || 'Task'}
+                src={displayProduct?.image}
+                alt={displayProduct?.product || 'Task'}
                 className="w-full h-full object-contain"
               />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[#00D9FF] text-xs font-semibold uppercase tracking-wide mb-0.5">Next Product</p>
+              <p className="text-[#00D9FF] text-xs font-semibold uppercase tracking-wide mb-0.5">{isPremiumTaskActive ? 'Premium Product' : 'Next Product'}</p>
               <h4 className="text-white font-bold text-sm leading-snug line-clamp-2">
-                {currentProduct?.product || 'No active task'}
+                {displayProduct?.product || 'No active task'}
               </h4>
               <div className="flex items-center gap-1 mt-1">
                 <span className="text-yellow-400 text-xs">★</span>
-                <span className="text-gray-300 text-xs font-medium">{currentProduct?.rating ?? '-'}</span>
+                <span className="text-gray-300 text-xs font-medium">{displayProduct?.rating ?? '-'}</span>
                 <span className="text-gray-500 text-xs mx-1">·</span>
                 <span className="text-gray-400 text-xs">VIP{userData?.vipLevel || 1}</span>
                 <span className="text-gray-500 text-xs mx-1">·</span>
-                <span className="text-gray-300 text-xs">${currentProduct?.price?.toFixed(2) ?? '0.00'}</span>
+                <span className="text-gray-300 text-xs">${displayProduct?.price?.toFixed(2) ?? '0.00'}</span>
               </div>
             </div>
           </div>
@@ -527,16 +573,18 @@ export default function Starting() {
           <div className="flex items-center justify-between px-4 py-3 bg-gradient-to-r from-green-600/80 to-emerald-600/80">
             <div>
               <p className="text-green-100 text-xs">Commission Rate</p>
-              <p className="text-white font-bold text-base">{commissionRate}%</p>
+              <p className="text-white font-bold text-base">{displayCommissionRate}%</p>
             </div>
             <div className="text-right">
               <p className="text-green-100 text-xs">Estimated Profit</p>
-              <p className="text-white font-extrabold text-xl">${estimatedCommission.toFixed(2)}</p>
+              <p className="text-white font-extrabold text-xl">${displayEstimatedCommission.toFixed(2)}</p>
             </div>
           </div>
           <div className="px-4 py-2 bg-emerald-900/35 border-t border-emerald-300/20">
             <p className="text-emerald-100 text-[11px] leading-relaxed">
-              Regular formula: Product Price x {commissionRate.toFixed(2)}% (VIP rate). Premium formula: Product Price x {premiumCommissionRate.toFixed(2)}% (VIP rate x 10).
+              {isPremiumTaskActive
+                ? `Premium formula: Product Price x ${premiumCommissionRate.toFixed(2)}% (VIP rate x 10).`
+                : `Regular formula: Product Price x ${commissionRate.toFixed(2)}% (VIP rate). Premium formula: Product Price x ${premiumCommissionRate.toFixed(2)}% (VIP rate x 10).`}
             </p>
           </div>
 
@@ -548,7 +596,7 @@ export default function Starting() {
               Completed <span className="text-white font-semibold">{userData?.completedTaskSets ?? 0}/{userData?.taskSetCount ?? 0}</span>
             </p>
             <p className="text-yellow-400 text-xs shrink-0">
-              💡 #{premiumTriggerTaskNumber} premium
+              {isPremiumTaskActive ? '💡 Premium task active' : `💡 #${premiumTriggerTaskNumber} premium`}
             </p>
           </div>
 
@@ -609,7 +657,7 @@ export default function Starting() {
             <button
               className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
               onClick={handleSubmitTask}
-              disabled={submitting || !currentProduct || premiumSubmissionBlocked || vipFundingBlocked || taskSetResetRequired}
+              disabled={submitting || (!currentProduct && !isPremiumTaskActive) || premiumSubmissionBlocked || vipFundingBlocked || taskSetResetRequired}
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
