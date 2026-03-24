@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
-import { serverSignup } from '../services/serverAuth';
+import { serverLogin, serverSignup } from '../services/serverAuth';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 export default function Signup() {
@@ -129,7 +129,15 @@ export default function Signup() {
     toast.success(
       `Signup successful. Your invitation code is ${signupResult.invitationCode}. Parent reward credited: ${referralPct}% (${signupResult.parentReward.toFixed(2)} USD).`
     );
-    navigate('/login');
+
+    const loginResult = await serverLogin(normalizedUsername, loginPassword);
+    if (loginResult.ok) {
+      navigate('/home', { replace: true });
+      return;
+    }
+
+    toast.info('Account created successfully. Please sign in to continue.');
+    navigate('/login', { replace: true });
   };
 
   return (
