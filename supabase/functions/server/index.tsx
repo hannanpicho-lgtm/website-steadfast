@@ -2557,9 +2557,9 @@ function restoreUserToNaturalState(userData: any) {
   const premiumCommission = Number.isFinite(Number(restored?.activePremium?.commissionEarned))
     ? roundMoney(Math.max(0, Number(restored.activePremium.commissionEarned)))
     : 0;
+  const settledBalanceTarget = roundMoney(preFreezeBalance + settledUpholdAmount + premiumCommission);
 
-  restored.balance = roundMoney(Math.max(currentBalance, preFreezeBalance) + settledUpholdAmount);
-  restored.todayCommission = roundMoney(Number(restored.todayCommission ?? 0) + premiumCommission);
+  restored.balance = roundMoney(Math.max(currentBalance, settledBalanceTarget));
   restored.holdAmount = 0;
   restored.isFrozen = false;
 
@@ -4726,12 +4726,10 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
 
   normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);
   normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
-
-  if (normalizedUserData.balance < 0) {
-    normalizedUserData.holdAmount = roundMoney(Math.abs(normalizedUserData.balance));
-  } else {
-    normalizedUserData.holdAmount = 0;
-  }
+  const currentPremiumTopUpRequired = Number.isFinite(Number(premium.topUpRequired ?? premium.negativeAmount))
+    ? roundMoney(Math.max(0, Number(premium.topUpRequired ?? premium.negativeAmount)))
+    : 0;
+  normalizedUserData.holdAmount = currentPremiumTopUpRequired;
 
   if (premium.tasksCompleted >= premium.totalTasks) {
     premium.status = 'completed';
@@ -4747,15 +4745,16 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
       const newBalance = roundMoney(normalizedUserData.balance - nextPremium.totalBundleValue);
       nextPremium.balanceBeforeAssignment = roundMoney(normalizedUserData.balance);
       nextPremium.balanceAfterAssignment = newBalance;
-      nextPremium.negativeAmount = roundMoney(Math.max(0, -newBalance));
+      const nextConfiguredUphold = Number.isFinite(Number(nextPremium.configuredUpholdAmount))
+        ? roundMoney(Math.max(0, Number(nextPremium.configuredUpholdAmount)))
+        : 0;
+      nextPremium.negativeAmount = nextConfiguredUphold > 0
+        ? nextConfiguredUphold
+        : roundMoney(Math.max(0, -newBalance));
       nextPremium.topUpRequired = nextPremium.negativeAmount;
 
       normalizedUserData.balance = newBalance;
-      if (newBalance < 0) {
-        normalizedUserData.holdAmount = roundMoney(Math.abs(newBalance));
-      } else {
-        normalizedUserData.holdAmount = 0;
-      }
+      normalizedUserData.holdAmount = roundMoney(Math.max(0, Number(nextPremium.topUpRequired ?? 0)));
     } else {
       normalizedUserData.isFrozen = false;
       normalizedUserData.activePremium = null;

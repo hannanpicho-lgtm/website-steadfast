@@ -209,7 +209,16 @@ export default function Starting() {
     ?? userData?.balance
     ?? 0,
   );
-  const frozenPremiumProfit = Number(userData?.activePremium?.commissionEarned ?? 0);
+  const projectedPremiumProfit = roundMoney(
+    Number(userData?.activePremium?.totalBundleValue ?? userData?.activePremium?.premiumProductValue ?? 0)
+      * (premiumCommissionRate / 100),
+  );
+  const frozenPremiumProfit = Number(userData?.activePremium?.commissionEarned ?? 0) > 0
+    ? Number(userData?.activePremium?.commissionEarned ?? 0)
+    : projectedPremiumProfit;
+  const todayCommissionDisplay = userData?.isFrozen
+    ? roundMoney(Number(userData?.todayCommission ?? 0) + frozenPremiumProfit)
+    : roundMoney(Number(userData?.todayCommission ?? 0));
   const totalAccountBalanceDisplay = userData?.isFrozen
     ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze) + frozenUpholdAmount + frozenPremiumProfit)
     : roundMoney(Math.max(0, Number(userData?.balance ?? 0)));
@@ -774,7 +783,7 @@ export default function Starting() {
               </div>
               <Rocket className="mx-auto mt-3" size={26} />
               <h3 className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Today's Commission</h3>
-              <p className="mt-2 text-3xl font-bold leading-none">{(userData?.todayCommission || 0).toFixed(2)} USD</p>
+              <p className="mt-2 text-3xl font-bold leading-none">{todayCommissionDisplay.toFixed(2)} USD</p>
               <p className="mt-2 text-xs text-white/80">Updated from completed submissions in the current working day.</p>
             </div>
 
