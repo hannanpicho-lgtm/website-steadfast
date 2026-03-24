@@ -22,6 +22,7 @@ interface UserManagementProps {
   onRestoreNaturalState: (user: any) => void | Promise<void>;
   onResetCredentials: (user: any) => void | Promise<void>;
   onSetCreditScore: (user: any) => void | Promise<void>;
+  onRecalculateFinancialState: (user: any) => void | Promise<void>;
 }
 
 export default function UserManagement({
@@ -44,6 +45,7 @@ export default function UserManagement({
   onRestoreNaturalState,
   onResetCredentials,
   onSetCreditScore,
+  onRecalculateFinancialState,
 }: UserManagementProps) {
   type DisplayUser = {
     id: number;
@@ -236,30 +238,37 @@ export default function UserManagement({
                       </button>
                       {user.status === 'Suspended' ? (
                         <button 
-                          onClick={() => { if (confirm(`Unsuspend account for ${user.username}?`)) { void onToggleSuspension(user); } }}
+                          onClick={() => { if (confirm(`Enable account for ${user.username}?`)) { void onToggleSuspension(user); } }}
                           className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
-                          title="Unsuspend Account"
+                          title="Enable Account"
                         >
                           <Check size={16} className="text-gray-400 hover:text-green-400" />
                         </button>
                       ) : (
                         <button 
-                          onClick={() => { if (confirm(`Suspend account for ${user.username}?`)) { void onToggleSuspension(user); } }}
+                          onClick={() => { if (confirm(`Disable account for ${user.username}?`)) { void onToggleSuspension(user); } }}
                           className="p-1 hover:bg-[#1a1f2e] rounded transition-colors" 
-                          title="Suspend Account"
+                          title="Disable Account"
                         >
                           <X size={16} className="text-gray-400 hover:text-orange-400" />
                         </button>
                       )}
                       {user.isFrozen ? (
                         <button
-                          onClick={() => { if (confirm(`Unfreeze (restore natural state) for ${user.username}?`)) { void onRestoreNaturalState(user); } }}
+                          onClick={() => { if (confirm(`Unfreeze account for ${user.username}?`)) { void onRestoreNaturalState(user); } }}
                           className="p-1 hover:bg-[#1a1f2e] rounded transition-colors"
-                          title="Unfreeze (Restore Natural State)"
+                          title="Unfreeze Account"
                         >
                           <Check size={16} className="text-gray-400 hover:text-cyan-400" />
                         </button>
                       ) : null}
+                      <button
+                        onClick={() => { if (confirm(`Recalculate financial state for ${user.username}?`)) { void onRecalculateFinancialState(user); } }}
+                        className="p-1 hover:bg-[#1a1f2e] rounded transition-colors"
+                        title="Recalculate Financial State"
+                      >
+                        <RefreshCw size={16} className="text-gray-400 hover:text-cyan-400" />
+                      </button>
                       <button 
                         onClick={() => {
                           if (!user.pendingTaskReset) {

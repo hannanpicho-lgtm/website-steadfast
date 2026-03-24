@@ -689,11 +689,11 @@ export default function Admin() {
 
   const handleTogglePlatformUserSuspension = async (user: PlatformUser) => {
     if (user.isSuspended) {
-      await updatePlatformUserTaskControls(user.username, { unsuspendAccount: true }, `Account unsuspended for ${user.username}`);
+      await updatePlatformUserTaskControls(user.username, { unsuspendAccount: true }, `Account enabled for ${user.username}`);
       return;
     }
 
-    await updatePlatformUserTaskControls(user.username, { suspendAccount: true }, `Account suspended for ${user.username}`);
+    await updatePlatformUserTaskControls(user.username, { suspendAccount: true }, `Account disabled for ${user.username}`);
   };
 
   const handleResetUserCredentials = async (user: PlatformUser) => {
@@ -763,6 +763,33 @@ export default function Admin() {
       }
     } catch (error) {
       handleAdminRequestError(error, `Failed to set credit score for ${user.username}`);
+    }
+  };
+
+  const handleRecalculateFinancialState = async (user: PlatformUser) => {
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/platform-users/${encodeURIComponent(user.username)}/recalculate-financial-state`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Failed to recalculate financial state (${response.status})`);
+      }
+
+      if (payload?.user) {
+        mergePlatformUser(payload.user as PlatformUser);
+      } else {
+        void loadPlatformUsers();
+      }
+
+      const beforeBalance = Number(payload?.before?.balance ?? user.balance ?? 0);
+      const afterBalance = Number(payload?.after?.balance ?? payload?.user?.balance ?? beforeBalance);
+      toast.success(`Financial state recalculated for ${user.username} (${beforeBalance.toFixed(2)} -> ${afterBalance.toFixed(2)} USD).`);
+    } catch (error) {
+      handleAdminRequestError(error, `Failed to recalculate financial state for ${user.username}`);
     }
   };
 
@@ -2776,7 +2803,7 @@ export default function Admin() {
                     <p className="text-white font-semibold mt-1">${(selectedItem.holdAmount ?? 0).toFixed(2)}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                   <button
                     type="button"
                     onClick={() => void handleResetUserTaskSet(selectedItem)}
@@ -2791,7 +2818,7 @@ export default function Admin() {
                     disabled={userTaskControlSaving || (!selectedItem.isFrozen && (selectedItem.holdAmount ?? 0) <= 0)}
                     className="bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Unfreeze (Restore Natural State)
+                    Unfreeze Account
                   </button>
                   <button
                     type="button"
@@ -2799,7 +2826,15 @@ export default function Admin() {
                     disabled={userTaskControlSaving}
                     className="bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {selectedItem.isSuspended ? 'Unsuspend Account' : 'Suspend Account'}
+                    {selectedItem.isSuspended ? 'Enable Account' : 'Disable Account'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRecalculateFinancialState(selectedItem)}
+                    disabled={userTaskControlSaving}
+                    className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Recalculate Financial State
                   </button>
                 </div>
               </div>
@@ -4459,6 +4494,7 @@ export default function Admin() {
               onRestoreNaturalState={handleRestorePlatformUser}
               onResetCredentials={handleResetUserCredentials}
               onSetCreditScore={handleSetCreditScore}
+              onRecalculateFinancialState={handleRecalculateFinancialState}
             />
           </Suspense>
         );

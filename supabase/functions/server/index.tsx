@@ -7939,6 +7939,99 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
   }
 });
 
+app.post('/make-server-a1c55d7e/admin/platform-users/:username/recalculate-financial-state', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-platform-users:recalculate-financial-state');
+    if (limited) return limited;
+
+    const requestedUsername = sanitizeUsername(c.req.param('username'));
+    if (!requestedUsername) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const canonicalUsername = await resolveCanonicalUsername(requestedUsername);
+    if (!canonicalUsername) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const userKey = `user:${canonicalUsername}`;
+    const existingUser = await kv.get(userKey);
+    if (!existingUser) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const normalizedUser = await syncUserWithVipConfig(existingUser, canonicalUsername);
+    if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    const before = {
+      balance: roundMoney(Number(normalizedUser.balance ?? 0)),
+      holdAmount: roundMoney(Number(normalizedUser.holdAmount ?? 0)),
+      isFrozen: Boolean(normalizedUser.isFrozen),
+      isSuspended: Boolean(normalizedUser.isSuspended),
+      activePremiumStatus: typeof normalizedUser.activePremium?.status === 'string' ? normalizedUser.activePremium.status : null,
+      topUpRequired: roundMoney(Number(normalizedUser?.activePremium?.topUpRequired ?? normalizedUser?.activePremium?.negativeAmount ?? 0)),
+    };
+
+    const outstandingTopUp = Number(normalizedUser?.activePremium?.topUpRequired ?? normalizedUser?.activePremium?.negativeAmount ?? 0);
+    const shouldAutoUnfreeze = Boolean(normalizedUser.isFrozen)
+      && Boolean(normalizedUser.activePremium)
+      && Number.isFinite(outstandingTopUp)
+      && outstandingTopUp <= 0;
+
+    let recalculatedUser = { ...normalizedUser };
+    if (shouldAutoUnfreeze) {
+      recalculatedUser = restoreUserToNaturalState(recalculatedUser);
+      recalculatedUser.pendingTaskReset = false;
+    }
+
+    recalculatedUser.balance = roundMoney(Number(recalculatedUser.balance ?? 0));
+    recalculatedUser.holdAmount = roundMoney(Math.max(0, Number(recalculatedUser.holdAmount ?? 0)));
+    recalculatedUser.tasksCompleted = Math.min(
+      Math.max(0, Number(recalculatedUser.tasksCompleted ?? 0)),
+      Number(recalculatedUser.tasksLimit ?? 0),
+    );
+
+    await kv.set(userKey, recalculatedUser);
+
+    const after = {
+      balance: roundMoney(Number(recalculatedUser.balance ?? 0)),
+      holdAmount: roundMoney(Number(recalculatedUser.holdAmount ?? 0)),
+      isFrozen: Boolean(recalculatedUser.isFrozen),
+      isSuspended: Boolean(recalculatedUser.isSuspended),
+      activePremiumStatus: typeof recalculatedUser.activePremium?.status === 'string' ? recalculatedUser.activePremium.status : null,
+      topUpRequired: roundMoney(Number(recalculatedUser?.activePremium?.topUpRequired ?? recalculatedUser?.activePremium?.negativeAmount ?? 0)),
+    };
+
+    const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-user-financial-recalculate',
+      actorEmail,
+      `Recalculated financial state for user '${canonicalUsername}' (autoUnfreeze: ${shouldAutoUnfreeze ? 'yes' : 'no'})`,
+    ).catch((e) => console.error('Failed to record admin-user-financial-recalculate audit event:', e));
+
+    return c.json({
+      success: true,
+      autoUnfreezeApplied: shouldAutoUnfreeze,
+      before,
+      after,
+      user: recalculatedUser,
+      taskProgress: buildUserTaskProgress(recalculatedUser),
+    });
+  } catch (err) {
+    console.error('admin/platform-users/recalculate-financial-state error:', err);
+    return c.json({ error: 'Failed to recalculate financial state' }, 500);
+  }
+});
+
 // Admin-reset user credentials (login + transaction) without email dependency.
 // Admin provides new values; server stores only hashes and forces next password change.
 app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials', async (c) => {
