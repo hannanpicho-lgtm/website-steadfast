@@ -443,87 +443,6 @@ export default function Starting() {
           </div>
         )}
 
-        {/* FREEZE BANNER - Premium Product Rule */}
-        {userData?.activePremium && (userData?.isFrozen || premiumSubmissionBlocked) && (() => {
-          const premiumProfit = Number(userData.activePremium.commissionEarned ?? 0);
-          const upholdAmount = Number(userData.activePremium.topUpRequired ?? userData.holdAmount ?? 0);
-          const displayBalance = Math.max(0, userData.balance);
-          const totalAccountBalance = roundMoney(displayBalance + upholdAmount + premiumProfit);
-          const previousCommission = roundMoney(Number(userData.todayCommission ?? 0) - premiumProfit);
-          const todayCommissionTotal = Number(userData.todayCommission ?? 0);
-          return (
-          <div className="bg-gradient-to-br from-slate-800 to-slate-900 border border-red-500/60 rounded-xl p-6 mb-6 shadow-2xl">
-            {/* Freeze Banner Header */}
-            <div className="flex items-center gap-3 mb-5">
-              <Lock className="text-red-400 shrink-0" size={24} />
-              <p className="text-white text-sm leading-snug">
-                Your account is temporarily frozen due to a premium product. Complete the required action to unlock and receive your profit.
-              </p>
-            </div>
-
-            {/* Financial Breakdown */}
-            <div className="space-y-3">
-              {/* Current Balance — neutral, never negative */}
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300 text-sm">Current Balance</span>
-                <span className="text-white font-bold text-lg">${displayBalance.toFixed(2)}</span>
-              </div>
-
-              {/* Uphold Amount — red, always negative when frozen */}
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300 text-sm">Uphold Amount</span>
-                <span className="text-red-400 font-bold text-lg">-${upholdAmount.toFixed(2)}</span>
-              </div>
-
-              {/* Premium Profit — green emphasis */}
-              <div className="flex items-center justify-between bg-green-500/10 border border-green-500/30 rounded-lg px-3 py-2">
-                <span className="text-green-300 text-sm font-semibold">Premium Profit</span>
-                <span className="text-green-400 font-bold text-lg">You will earn ${premiumProfit.toFixed(2)} after unfreezing</span>
-              </div>
-
-              {/* Divider */}
-              <div className="border-t border-white/10 my-1" />
-
-              {/* Total Account Balance — neutral */}
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300 text-sm font-semibold">Total Account Balance</span>
-                <span className="text-white font-bold text-xl">${totalAccountBalance.toFixed(2)}</span>
-              </div>
-              <p className="text-gray-500 text-xs">
-                This includes base balance + premium product value + premium commission profit
-              </p>
-
-              {/* Divider */}
-              <div className="border-t border-white/10 my-1" />
-
-              {/* Today's Commission with breakdown */}
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300 text-sm">Today&apos;s Commission</span>
-                <span className="text-white font-bold text-lg">${todayCommissionTotal.toFixed(2)}</span>
-              </div>
-              <p className="text-gray-500 text-xs">
-                Includes: Previous commission ${previousCommission.toFixed(2)} + premium commission ${premiumProfit.toFixed(2)}
-              </p>
-            </div>
-
-            {/* Task Submission Paused */}
-            <div className="mt-5 bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3">
-              <p className="text-red-300 text-sm text-center font-medium">
-                Task submission is paused while your account is frozen for premium settlement.
-              </p>
-            </div>
-
-            {/* Deposit CTA when top-up needed */}
-            {upholdAmount > 0 && (
-              <Link to="/deposit" className="block mt-4 bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold py-3 px-4 rounded-lg text-center hover:from-red-600 hover:to-orange-600 transition-colors">
-                <DollarSign className="inline mr-1" size={18} />
-                Deposit ${upholdAmount.toFixed(2)} to Unfreeze
-              </Link>
-            )}
-          </div>
-          );
-        })()}
-
         {/* POST-UNFREEZE: Premium profit credited confirmation */}
         {!userData?.isFrozen && userData?.activePremium && Number(userData.activePremium.commissionEarned ?? 0) > 0 && (
           <div className="bg-green-500/10 border border-green-500/40 rounded-xl p-4 mb-6">
@@ -646,22 +565,6 @@ export default function Starting() {
           </div>
         ) : (
           <>
-            {vipFundingBlocked && (
-              <div className="bg-amber-500/20 border border-amber-400/60 rounded-lg p-4 mb-4">
-                <p className="text-amber-300 text-sm font-semibold text-center">Minimum balance required to start</p>
-                <p className="text-amber-200 text-xs text-center mt-1">VIP{userData?.vipLevel ?? 1} minimum available amount:</p>
-                <p className="text-amber-300 text-3xl font-extrabold text-center mt-1">${requiredFundsForVip.toFixed(2)}</p>
-                <p className="text-amber-100 text-xs text-center mt-2">Current available: ${availableFundsForSubmit.toFixed(2)}. Ask admin to top up or adjust your balance.</p>
-              </div>
-            )}
-            {premiumSubmissionBlocked && (
-              <div className="bg-red-500/20 border border-red-400/60 rounded-lg p-4 mb-4">
-                <p className="text-red-300 text-sm font-semibold text-center">Account Frozen — Premium Settlement</p>
-                <p className="text-red-200 text-xs text-center mt-1">Uphold amount:</p>
-                <p className="text-red-400 text-3xl font-extrabold text-center mt-1">-${premiumTopUpRequired.toFixed(2)}</p>
-                <p className="text-red-100 text-xs text-center mt-2">Task submission is paused while your account is frozen for premium settlement.</p>
-              </div>
-            )}
             <button
               className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
               onClick={handleSubmitTask}
