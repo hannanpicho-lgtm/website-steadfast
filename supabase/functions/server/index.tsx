@@ -1735,6 +1735,29 @@ function buildPremiumRequirementResponse(activePremium: any) {
   };
 }
 
+function sortPremiumAssignmentsByTrigger(assignments: any[]): any[] {
+  return [...assignments].sort((left, right) => {
+    const leftTrigger = Number.isFinite(Number(left?.triggerTaskNumber))
+      ? Math.max(1, Math.round(Number(left.triggerTaskNumber)))
+      : Number.MAX_SAFE_INTEGER;
+    const rightTrigger = Number.isFinite(Number(right?.triggerTaskNumber))
+      ? Math.max(1, Math.round(Number(right.triggerTaskNumber)))
+      : Number.MAX_SAFE_INTEGER;
+
+    if (leftTrigger !== rightTrigger) {
+      return leftTrigger - rightTrigger;
+    }
+
+    const leftAssignedAt = Date.parse(String(left?.assignedAt ?? ''));
+    const rightAssignedAt = Date.parse(String(right?.assignedAt ?? ''));
+    if (Number.isFinite(leftAssignedAt) && Number.isFinite(rightAssignedAt) && leftAssignedAt !== rightAssignedAt) {
+      return leftAssignedAt - rightAssignedAt;
+    }
+
+    return String(left?.id ?? '').localeCompare(String(right?.id ?? ''));
+  });
+}
+
 function userHasPendingPremiumRequirement(userData: any): boolean {
   const requiredAmount = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
   return Boolean(userData?.activePremium) && requiredAmount > 0;
@@ -4071,7 +4094,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
   // Admin-assigned premiums can be scheduled for a specific encounter position.
   // Activate the queued premium when the user reaches that submission number.
   const queuedPremiumAssignments = Array.isArray(normalizedUserData.premiumQueue)
-    ? normalizedUserData.premiumQueue
+    ? sortPremiumAssignmentsByTrigger(normalizedUserData.premiumQueue)
     : [];
   const queuedEncounterCandidate = !normalizedUserData.activePremium && queuedPremiumAssignments.length > 0
     ? queuedPremiumAssignments[0]
@@ -4080,7 +4103,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     ? Math.max(1, Math.round(Number(queuedEncounterCandidate?.triggerTaskNumber)))
     : nextSubmissionNumber;
   const shouldActivateQueuedPremium = Boolean(queuedEncounterCandidate)
-    && nextSubmissionNumber >= queuedTriggerTaskNumber;
+    && nextSubmissionNumber === queuedTriggerTaskNumber;
 
   if (shouldActivateQueuedPremium && queuedEncounterCandidate) {
     const activePremium = {
@@ -4124,6 +4147,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
   const premiumTriggerTaskNumber = Math.max(1, Number(productSystem.premiumTriggerTaskNumber ?? 10));
   const shouldTriggerPremium = Boolean(productSystem.premiumEnabled)
     && !normalizedUserData.activePremium
+    && queuedPremiumAssignments.length === 0
     && nextSubmissionNumber === premiumTriggerTaskNumber;
 
   if (shouldTriggerPremium) {
@@ -4569,9 +4593,18 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     if (!callerIsSuperAdmin && normalizedUserData.referredByAdminId !== callingAdmin?.id) {
       return c.json({ error: 'Forbidden' }, 403);
     }
+    const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
     const requestedTriggerTaskNumber = Number.isInteger(Number(triggerTaskNumber)) && Number(triggerTaskNumber) > 0
       ? Math.round(Number(triggerTaskNumber))
-      : Number(normalizedUserData.tasksCompleted ?? 0) + 1;
+      : nextSubmissionNumber;
+
+    if (requestedTriggerTaskNumber < nextSubmissionNumber) {
+      return c.json({
+        error: `Trigger position must be Task #${nextSubmissionNumber} or later for this user.`,
+        code: 'invalid_trigger_position',
+        minimumTriggerTaskNumber: nextSubmissionNumber,
+      }, 400);
+    }
 
     let bundledProducts: Array<typeof productCatalog[number]> = [];
     if (selectedBundledProductsInput.length > 0) {
@@ -4653,16 +4686,27 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       triggerTaskNumber: requestedTriggerTaskNumber,
     };
 
-    // Initialize premium queue if not exists
-    if (!normalizedUserData.premiumQueue) {
-      normalizedUserData.premiumQueue = [];
+    const existingQueue = Array.isArray(normalizedUserData.premiumQueue)
+      ? normalizedUserData.premiumQueue
+      : [];
+    const activePremiumId = typeof normalizedUserData.activePremium?.id === 'string'
+      ? normalizedUserData.activePremium.id
+      : null;
+
+    if (activePremiumId) {
+      const activeQueueEntry = existingQueue.find((entry: any) => entry?.id === activePremiumId) ?? normalizedUserData.activePremium;
+      const scheduledQueue = existingQueue.filter((entry: any) => entry?.id !== activePremiumId);
+      normalizedUserData.premiumQueue = [activeQueueEntry, ...sortPremiumAssignmentsByTrigger([...scheduledQueue, premiumAssignment])];
+    } else {
+      normalizedUserData.premiumQueue = sortPremiumAssignmentsByTrigger([...existingQueue, premiumAssignment]);
     }
 
-    // Add to queue
-    normalizedUserData.premiumQueue.push(premiumAssignment);
-    
-    // If this is the first in queue, activate it
-    if (normalizedUserData.premiumQueue.length === 1 && requestedTriggerTaskNumber <= (Number(normalizedUserData.tasksCompleted ?? 0) + 1)) {
+    const queuedHead = normalizedUserData.premiumQueue[0];
+    const shouldActivateImmediately = !normalizedUserData.activePremium
+      && queuedHead?.id === premiumAssignment.id
+      && requestedTriggerTaskNumber === nextSubmissionNumber;
+
+    if (shouldActivateImmediately) {
       premiumAssignment.status = negativeAmount > 0 ? 'awaiting_funds' : 'active';
       normalizedUserData.isFrozen = true;
       normalizedUserData.activePremium = premiumAssignment;
@@ -4737,28 +4781,10 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
 
     normalizedUserData.premiumQueue = normalizedUserData.premiumQueue.filter(p => p.id !== premium.id);
 
-    if (normalizedUserData.premiumQueue.length > 0) {
-      const nextPremium = normalizedUserData.premiumQueue[0];
-      normalizedUserData.activePremium = nextPremium;
-      normalizedUserData.isFrozen = true;
-
-      const newBalance = roundMoney(normalizedUserData.balance - nextPremium.totalBundleValue);
-      nextPremium.balanceBeforeAssignment = roundMoney(normalizedUserData.balance);
-      nextPremium.balanceAfterAssignment = newBalance;
-      const nextConfiguredUphold = Number.isFinite(Number(nextPremium.configuredUpholdAmount))
-        ? roundMoney(Math.max(0, Number(nextPremium.configuredUpholdAmount)))
-        : 0;
-      nextPremium.negativeAmount = nextConfiguredUphold > 0
-        ? nextConfiguredUphold
-        : roundMoney(Math.max(0, -newBalance));
-      nextPremium.topUpRequired = nextPremium.negativeAmount;
-
-      normalizedUserData.balance = newBalance;
-      normalizedUserData.holdAmount = roundMoney(Math.max(0, Number(nextPremium.topUpRequired ?? 0)));
-    } else {
-      normalizedUserData.isFrozen = false;
-      normalizedUserData.activePremium = null;
-    }
+    normalizedUserData.premiumQueue = sortPremiumAssignmentsByTrigger(normalizedUserData.premiumQueue);
+    normalizedUserData.isFrozen = false;
+    normalizedUserData.activePremium = null;
+    normalizedUserData.holdAmount = 0;
   } else {
     normalizedUserData.activePremium = premium;
   }
