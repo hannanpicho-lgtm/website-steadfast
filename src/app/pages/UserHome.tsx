@@ -60,14 +60,14 @@ const focusAreas = [
 ];
 
 const quickLinkConfig = [
-  { to: '/vip-levels', title: 'VIP', icon: Gift, color: '#f59e0b', accent: '#f59e0b' },
-  { to: '/activity', title: 'Activity', icon: Calendar, color: '#3b82f6', accent: '#3b82f6' },
-  { to: '/withdrawal', title: 'Withdrawal', icon: ArrowDownToLine, color: '#ef4444', accent: '#ef4444' },
-  { to: '/deposit', title: 'Deposit', icon: Wallet, color: '#10b981', accent: '#10b981' },
-  { to: '/terms-conditions', title: 'T & C', icon: ScrollText, color: '#8b5cf6', accent: '#8b5cf6' },
-  { to: '/certificate', title: 'Certificate', icon: Award, color: '#06b6d4', accent: '#06b6d4' },
-  { to: '/faqs', title: 'FAQs', icon: HelpCircle, color: '#ec4899', accent: '#ec4899' },
-  { to: '/about', title: 'About', icon: Info, color: '#6366f1', accent: '#6366f1' },
+  { to: '/vip-levels', title: 'VIP', icon: Gift, color: '#00D9FF', accent: '#00bce3' },
+  { to: '/activity', title: 'Activity', icon: Calendar, color: '#0b5f94', accent: '#083d5c' },
+  { to: '/withdrawal', title: 'Withdrawal', icon: ArrowDownToLine, color: '#f97316', accent: '#d97706' },
+  { to: '/deposit', title: 'Deposit', icon: Wallet, color: '#16a34a', accent: '#15803d' },
+  { to: '/terms-conditions', title: 'T & C', icon: ScrollText, color: '#64748b', accent: '#475569' },
+  { to: '/certificate', title: 'Certificate', icon: Award, color: '#0891b2', accent: '#0e7490' },
+  { to: '/faqs', title: 'FAQs', icon: HelpCircle, color: '#0ea5e9', accent: '#0284c7' },
+  { to: '/about', title: 'About', icon: Info, color: '#6366f1', accent: '#4f46e5' },
 ];
 
 function QuickLinkCard({ item }: { item: (typeof quickLinkConfig)[0] }) {
