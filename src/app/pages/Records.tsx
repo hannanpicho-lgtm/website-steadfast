@@ -87,6 +87,7 @@ type PendingPremiumItem = {
   price: number;
   profitRate: number;
   estimatedProfit: number;
+  image: string;
 };
 
 type PendingPremiumRecordItem = {
@@ -256,6 +257,7 @@ export default function Records() {
         price: primaryValue,
         profitRate: premiumRate,
         estimatedProfit: primaryValue * (premiumRate / 100),
+        image: typeof activePremium.image === 'string' && activePremium.image ? activePremium.image : (activeTasks[0]?.image ?? ''),
       },
       ...bundledProducts.map((entry, index) => {
         const itemPrice = Number(entry?.price ?? 0);
@@ -265,6 +267,7 @@ export default function Records() {
           price: itemPrice,
           profitRate: premiumRate,
           estimatedProfit: itemPrice * (premiumRate / 100),
+          image: typeof entry?.image === 'string' && entry.image ? entry.image : '',
         };
       }),
     ].filter((entry) => Number.isFinite(entry.price) && entry.price > 0);
@@ -418,13 +421,26 @@ export default function Records() {
                       <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Premium Product Items</p>
                       {product.items.map((item, itemIndex) => (
                         <div key={`${item.id}-${itemIndex}`} className="border border-gray-200 rounded-md p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <p className="text-sm font-semibold text-gray-900">{item.name}</p>
-                            <span className="text-xs font-semibold text-orange-700">{item.profitRate.toFixed(2)}%</span>
-                          </div>
-                          <div className="mt-1 flex items-center justify-between text-xs">
-                            <span className="text-gray-600">Value: <strong className="text-gray-900">${item.price.toFixed(2)}</strong></span>
-                            <span className="text-green-600 font-semibold">Profit: +${item.estimatedProfit.toFixed(2)}</span>
+                          <div className="flex items-center gap-3">
+                            {item.image ? (
+                              <div className="shrink-0 bg-gray-100 rounded-md w-12 h-12 flex items-center justify-center overflow-hidden">
+                                <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
+                              </div>
+                            ) : (
+                              <div className="shrink-0 bg-gray-100 rounded-md w-12 h-12 flex items-center justify-center text-gray-400">
+                                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-sm font-semibold text-gray-900 truncate">{item.name}</p>
+                                <span className="text-xs font-semibold text-orange-700 shrink-0">{item.profitRate.toFixed(2)}%</span>
+                              </div>
+                              <div className="mt-1 flex items-center justify-between text-xs">
+                                <span className="text-gray-600">Value: <strong className="text-gray-900">${item.price.toFixed(2)}</strong></span>
+                                <span className="text-green-600 font-semibold">Profit: +${item.estimatedProfit.toFixed(2)}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       ))}
