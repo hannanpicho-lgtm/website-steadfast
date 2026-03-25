@@ -4815,6 +4815,12 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
     normalizedUserData.premiumQueue = normalizedUserData.premiumQueue.filter(p => p.id !== premium.id);
 
     normalizedUserData.premiumQueue = sortPremiumAssignmentsByTrigger(normalizedUserData.premiumQueue);
+    
+    // Consolidate held amount back into final balance upon settlement
+    // Customer invested/topped-up this amount; they should receive it back as part of final settlement
+    const heldAmountBeingReleased = normalizedUserData.holdAmount;
+    normalizedUserData.balance = roundMoney(normalizedUserData.balance + heldAmountBeingReleased);
+    
     normalizedUserData.isFrozen = false;
     normalizedUserData.activePremium = null;
     normalizedUserData.holdAmount = 0;
