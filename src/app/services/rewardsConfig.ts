@@ -70,10 +70,10 @@ export const defaultRewardsConfig: RewardsConfig = {
     { id: 6, deposit: 10000, reward: 2400, label: 'Best Deal', color: 'bg-cyan-100', labelColor: 'bg-[#cf4d64]', enabled: true },
   ],
   accumulated: [
-    { id: 1, minDeposit: 1000, maxDeposit: 4999, rate: 0.003, enabled: true },
-    { id: 2, minDeposit: 5000, maxDeposit: 19999, rate: 0.005, enabled: true },
-    { id: 3, minDeposit: 20000, maxDeposit: 49999, rate: 0.008, enabled: true },
-    { id: 4, minDeposit: 50000, maxDeposit: null, rate: 0.01, enabled: true },
+    { id: 1, minDeposit: 1500, maxDeposit: 9999, rate: 0.04, enabled: true },
+    { id: 2, minDeposit: 10000, maxDeposit: 19999, rate: 0.08, enabled: true },
+    { id: 3, minDeposit: 20000, maxDeposit: 49999, rate: 0.12, enabled: true },
+    { id: 4, minDeposit: 50000, maxDeposit: null, rate: 0.20, enabled: true },
   ],
   productSystem: {
     productsPerSet: 10,

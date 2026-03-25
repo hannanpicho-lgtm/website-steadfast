@@ -832,10 +832,10 @@ const defaultRewardsConfig = {
     { id: 6, deposit: 10000, reward: 2400, label: 'Best Deal', color: 'bg-cyan-100', labelColor: 'bg-[#cf4d64]', enabled: true },
   ],
   accumulated: [
-    { id: 1, minDeposit: 1000, maxDeposit: 4999, rate: 0.003, enabled: true },
-    { id: 2, minDeposit: 5000, maxDeposit: 19999, rate: 0.005, enabled: true },
-    { id: 3, minDeposit: 20000, maxDeposit: 49999, rate: 0.008, enabled: true },
-    { id: 4, minDeposit: 50000, maxDeposit: null, rate: 0.01, enabled: true },
+    { id: 1, minDeposit: 1500, maxDeposit: 9999, rate: 0.04, enabled: true },
+    { id: 2, minDeposit: 10000, maxDeposit: 19999, rate: 0.08, enabled: true },
+    { id: 3, minDeposit: 20000, maxDeposit: 49999, rate: 0.12, enabled: true },
+    { id: 4, minDeposit: 50000, maxDeposit: null, rate: 0.20, enabled: true },
   ],
   productSystem: {
     productsPerSet: 10,
@@ -1789,32 +1789,38 @@ function normalizeRewardsConfigRecord(record: any) {
 }
 
 function hasLegacyResetBaseline(resetRewards: any[]) {
-  const legacyBaseline = [
-    { deposit: 100, reward: 28 },
-    { deposit: 500, reward: 158 },
-    { deposit: 1600, reward: 688 },
-    { deposit: 5500, reward: 1788 },
-    { deposit: 10000, reward: 3888 },
-    { deposit: 30000, reward: 12888 },
-  ];
+  const expectedDeposits = new Set([100, 500, 1000, 1600, 5500, 10000]);
 
-  if (!Array.isArray(resetRewards) || resetRewards.length !== legacyBaseline.length) {
-    return false;
+  if (!Array.isArray(resetRewards) || resetRewards.length !== expectedDeposits.size) {
+    return true;
   }
 
-  const normalizedPairs = resetRewards
-    .map((entry: any) => ({
-      deposit: roundMoney(Number(entry?.deposit ?? 0)),
-      reward: roundMoney(Number(entry?.reward ?? 0)),
-    }))
-    .sort((left, right) => left.deposit - right.deposit);
+  const actualDeposits = resetRewards.map((e: any) => roundMoney(Number(e?.deposit ?? 0)));
+  if (!actualDeposits.every((d) => expectedDeposits.has(d)) || new Set(actualDeposits).size !== expectedDeposits.size) {
+    return true;
+  }
 
-  return legacyBaseline.every((entry, index) => {
-    const current = normalizedPairs[index];
-    return current
-      && current.deposit === entry.deposit
-      && current.reward === entry.reward;
+  const legacyRewardByDeposit = new Map<number, number>([
+    [100, 28], [500, 158], [1600, 688], [5500, 1788], [10000, 3888], [30000, 12888],
+  ]);
+
+  return resetRewards.some((entry: any) => {
+    const deposit = roundMoney(Number(entry?.deposit ?? 0));
+    const reward = roundMoney(Number(entry?.reward ?? 0));
+    const legacyReward = legacyRewardByDeposit.get(deposit);
+    return legacyReward !== undefined && legacyReward === reward;
   });
+}
+
+function hasLegacyAccumulatedBaseline(accumulatedRewards: any[]) {
+  const expectedMinDeposits = new Set([1500, 10000, 20000, 50000]);
+
+  if (!Array.isArray(accumulatedRewards) || accumulatedRewards.length !== expectedMinDeposits.size) {
+    return true;
+  }
+
+  const actualMinDeposits = accumulatedRewards.map((e: any) => roundMoney(Number(e?.minDeposit ?? 0)));
+  return !actualMinDeposits.every((d) => expectedMinDeposits.has(d)) || new Set(actualMinDeposits).size !== expectedMinDeposits.size;
 }
 
 async function getRewardsConfigRecord() {
@@ -1829,6 +1835,10 @@ async function getRewardsConfigRecord() {
 
   if (hasLegacyResetBaseline(normalized.reset)) {
     normalized.reset = defaultRewardsConfig.reset.map((entry, index) => normalizeResetRewardRecord(entry, index));
+  }
+
+  if (hasLegacyAccumulatedBaseline(normalized.accumulated)) {
+    normalized.accumulated = defaultRewardsConfig.accumulated.map((entry, index) => normalizeAccumulatedRewardRecord(entry, index));
   }
 
   await kv.set(REWARDS_CONFIG_KEY, normalized);
