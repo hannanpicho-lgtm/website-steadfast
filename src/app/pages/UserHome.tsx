@@ -59,27 +59,55 @@ const focusAreas = [
   },
 ];
 
-const quickLinksData = [
-  { to: '/vip-levels', title: 'VIP', icon: Gift },
-  { to: '/activity', title: 'Activity', icon: Calendar },
-  { to: '/withdrawal', title: 'Withdrawal', icon: ArrowDownToLine },
-  { to: '/deposit', title: 'Deposit', icon: Wallet },
-  { to: '/terms-conditions', title: 'T & C', icon: ScrollText },
-  { to: '/certificate', title: 'Certificate', icon: Award },
-  { to: '/faqs', title: 'FAQs', icon: HelpCircle },
-  { to: '/about', title: 'About', icon: Info },
+const quickLinkConfig = [
+  { to: '/vip-levels', title: 'VIP', icon: Gift, color: '#f59e0b', accent: '#f59e0b' },
+  { to: '/activity', title: 'Activity', icon: Calendar, color: '#3b82f6', accent: '#3b82f6' },
+  { to: '/withdrawal', title: 'Withdrawal', icon: ArrowDownToLine, color: '#ef4444', accent: '#ef4444' },
+  { to: '/deposit', title: 'Deposit', icon: Wallet, color: '#10b981', accent: '#10b981' },
+  { to: '/terms-conditions', title: 'T & C', icon: ScrollText, color: '#8b5cf6', accent: '#8b5cf6' },
+  { to: '/certificate', title: 'Certificate', icon: Award, color: '#06b6d4', accent: '#06b6d4' },
+  { to: '/faqs', title: 'FAQs', icon: HelpCircle, color: '#ec4899', accent: '#ec4899' },
+  { to: '/about', title: 'About', icon: Info, color: '#6366f1', accent: '#6366f1' },
 ];
 
-function QuickLinkCard({ item }: { item: QuickLinkItem }) {
+function QuickLinkCard({ item }: { item: (typeof quickLinkConfig)[0] }) {
   const Icon = item.icon;
 
   return (
     <Link
       to={item.to}
-      className="flex h-[78px] flex-col items-center justify-center gap-1 rounded-lg border border-[#0b5f94] bg-[#0b5f94] px-1 text-white shadow-sm transition-colors duration-200 hover:bg-[#0e70ae] sm:h-[88px]"
+      className="group relative overflow-hidden flex h-[78px] flex-col items-center justify-center gap-1.5 rounded-xl px-1 text-white transition-all duration-300 hover:scale-110 hover:-translate-y-1 shadow-md hover:shadow-lg sm:h-[88px]"
+      style={{
+        background: `linear-gradient(135deg, ${item.color}00, ${item.color}08)`,
+        borderWidth: '2px',
+        borderImage: `linear-gradient(135deg, ${item.color}, ${item.color}99) 1`,
+      }}
     >
-      <Icon size={18} strokeWidth={2.2} className="sm:h-5 sm:w-5" />
-      <span className="px-1 text-center text-[0.72rem] font-semibold leading-tight tracking-tight sm:text-[0.86rem]">{item.title}</span>
+      {/* Animated background on hover */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{
+        background: `radial-gradient(circle at 50% 50%, ${item.color}20, transparent)`,
+      }} />
+
+      {/* Icon with slight rotation on hover */}
+      <div className="relative z-10 p-2 rounded-lg transition-all duration-300 group-hover:scale-125" style={{
+        background: item.color,
+        color: 'white',
+        boxShadow: `0 4px 12px ${item.color}40`,
+      }}>
+        <Icon size={18} strokeWidth={2.2} className="sm:h-5 sm:w-5" />
+      </div>
+
+      {/* Text with improved contrast */}
+      <span className="relative z-10 px-1 text-center text-[0.72rem] font-bold leading-tight tracking-tight text-[#0b2c44] sm:text-[0.86rem]">
+        {item.title}
+      </span>
+
+      {/* Bottom accent line that expands on hover */}
+      <div className="absolute bottom-0 left-0 right-0 h-[3px] origin-left transition-all duration-300 group-hover:scale-x-100" style={{
+        background: item.color,
+        transform: 'scaleX(0)',
+        boxShadow: `0 0 8px ${item.color}80`,
+      }} />
     </Link>
   );
 }
@@ -149,13 +177,10 @@ export default function UserHome() {
         </section>
 
         {/* Quick Access */}
-        <section className="mt-4 rounded-2xl border border-[#cfd8e3] bg-[#f1f3f5] p-3 shadow-sm sm:p-5">
-          <div className="mb-3 text-center sm:mb-4">
-            <p className="text-sm font-semibold text-[#33516b] sm:text-base">Quick Access</p>
-          </div>
-
+        <section className="mt-4 rounded-2xl border border-[#cfd8e3] bg-gradient-to-br from-white via-[#f8fafb] to-[#f1f3f5] p-4 sm:p-5 shadow-sm">
+          <p className="text-center text-[0.65rem] sm:text-xs font-bold tracking-[0.22em] text-[#0b5f94] uppercase mb-4 sm:mb-4">One-Tap Features</p>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
-            {quickLinksData.map((item) => (
+            {quickLinkConfig.map((item) => (
               <QuickLinkCard key={item.title} item={item} />
             ))}
           </div>
