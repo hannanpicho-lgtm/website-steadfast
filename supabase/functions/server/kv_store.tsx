@@ -29,6 +29,25 @@ export const set = async (key: string, value: any): Promise<void> => {
   }
 };
 
+// Try to create a key only if it does not already exist.
+export const setIfNotExists = async (key: string, value: any): Promise<boolean> => {
+  const supabase = client()
+  const { error } = await supabase.from("kv_store_a1c55d7e").insert({
+    key,
+    value,
+  });
+
+  if (!error) {
+    return true;
+  }
+
+  if (typeof error.code === 'string' && error.code === '23505') {
+    return false;
+  }
+
+  throw new Error(error.message);
+};
+
 // Get retrieves a key-value pair from the database.
 export const get = async (key: string): Promise<any> => {
   const supabase = client()
@@ -46,6 +65,27 @@ export const del = async (key: string): Promise<void> => {
   if (error) {
     throw new Error(error.message);
   }
+};
+
+// Delete a key only when a JSON field matches an expected value.
+export const delIfJsonFieldMatches = async (
+  key: string,
+  field: string,
+  expectedValue: string,
+): Promise<boolean> => {
+  const supabase = client()
+  const { data, error } = await supabase
+    .from("kv_store_a1c55d7e")
+    .delete()
+    .eq("key", key)
+    .filter(`value->>${field}`, 'eq', expectedValue)
+    .select('key');
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return Array.isArray(data) && data.length > 0;
 };
 
 // Sets multiple key-value pairs in the database.

@@ -11,6 +11,14 @@ const authClient = supabaseUrl && supabaseServiceRoleKey
   ? createClient(supabaseUrl, supabaseServiceRoleKey)
   : null;
 
+const appEnvironment = (Deno.env.get('APP_ENV')
+  ?? Deno.env.get('ENVIRONMENT')
+  ?? Deno.env.get('NODE_ENV')
+  ?? (Deno.env.get('DENO_DEPLOYMENT_ID') ? 'production' : 'development'))
+  .trim()
+  .toLowerCase();
+const isProductionEnvironment = appEnvironment === 'production';
+
 const ADMIN_RATE_LIMIT_WINDOW_MS = 60_000;
 const ADMIN_RATE_LIMIT_MAX_REQUESTS = 60;
 const adminRateLimitStore = new Map<string, { count: number; resetAt: number }>();
@@ -31,7 +39,7 @@ function isCorsOriginAllowed(origin: string | undefined): boolean {
   }
 
   if (configuredCorsAllowedOrigins.size === 0) {
-    return true;
+    return !isProductionEnvironment;
   }
 
   return configuredCorsAllowedOrigins.has(origin);
@@ -39,14 +47,90 @@ function isCorsOriginAllowed(origin: string | undefined): boolean {
 
 function resolveCorsOrigin(origin: string | undefined): string {
   if (!origin) {
-    return '*';
+    return isProductionEnvironment && configuredCorsAllowedOrigins.size === 0 ? '' : '*';
   }
 
   if (configuredCorsAllowedOrigins.size === 0) {
-    return origin;
+    return isProductionEnvironment ? '' : origin;
   }
 
   return configuredCorsAllowedOrigins.has(origin) ? origin : '';
+}
+
+function buildErrorBody(code: string, error: string, details: Record<string, unknown> = {}) {
+  return {
+    code,
+    error,
+    ...details,
+  };
+}
+
+function jsonError(
+  c: any,
+  status: number,
+  code: string,
+  error: string,
+  details: Record<string, unknown> = {},
+) {
+  return c.json(buildErrorBody(code, error, details), status);
+}
+
+function extractOriginFromUrlString(value: string | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+}
+
+function isUnsafeMethod(method: string): boolean {
+  const normalized = method.trim().toUpperCase();
+  return normalized === 'POST' || normalized === 'PUT' || normalized === 'PATCH' || normalized === 'DELETE';
+}
+
+function resolveSessionRequestOrigin(c: any): string | null {
+  const originHeader = c.req.header('origin');
+  if (originHeader) {
+    return originHeader.trim();
+  }
+
+  return extractOriginFromUrlString(c.req.header('referer'));
+}
+
+function ensureTrustedSessionOrigin(c: any) {
+  const requestOrigin = resolveSessionRequestOrigin(c);
+  const allowlistConfigured = configuredCorsAllowedOrigins.size > 0;
+
+  if (!allowlistConfigured) {
+    if (isProductionEnvironment) {
+      return jsonError(c, 503, 'cors_allowlist_required', 'Trusted origins are not configured for production session traffic.');
+    }
+
+    return null;
+  }
+
+  if (!requestOrigin) {
+    if (isUnsafeMethod(c.req.method)) {
+      return jsonError(c, 403, 'csrf_origin_required', 'Origin or Referer header is required for authenticated state changes.');
+    }
+
+    return null;
+  }
+
+  if (!configuredCorsAllowedOrigins.has(requestOrigin)) {
+    logStructuredEvent(c, 'session_origin_rejected', 'warn', {
+      origin: requestOrigin,
+      method: c.req.method,
+      path: c.req.path,
+    });
+    return jsonError(c, 403, 'csrf_origin_untrusted', 'Authenticated session request origin is not trusted.');
+  }
+
+  return null;
 }
 
 function resolveRequestId(c: any): string {
@@ -314,7 +398,7 @@ app.use('*', async (c, next) => {
       origin,
       allowlistConfigured: configuredCorsAllowedOrigins.size > 0,
     });
-    return c.json({ error: 'Origin not allowed' }, 403);
+    return jsonError(c, 403, 'origin_not_allowed', 'Origin not allowed');
   }
 
   await next();
@@ -735,8 +819,12 @@ function roundMoney(value: number): number {
 
 const TRANSACTION_KEY_PREFIX = 'transaction:';
 const WITHDRAWAL_KEY_PREFIX = 'withdrawal:';
+const FINANCIAL_LEDGER_KEY_PREFIX = 'financial-ledger:';
 const TASK_CATALOG_KEY_PREFIX = 'task-catalog:';
 const VIP_CONFIG_KEY_PREFIX = 'vip-config:';
+const DISTRIBUTED_LOCK_KEY_PREFIX = 'dist-lock:';
+const DISTRIBUTED_RATE_LIMIT_KEY_PREFIX = 'rate-limit:';
+const DISTRIBUTED_RATE_LIMIT_LOCK_PREFIX = 'rate-limit-lock:';
 const REWARDS_CONFIG_KEY = 'rewards-config:primary';
 const ADMIN_SALARY_PROJECT_KEY = 'admin-salary:project:primary';
 const ADMIN_SALARY_AUDIT_LOG_KEY = 'admin-salary:audit-log:primary';
@@ -2111,22 +2199,7 @@ async function createTransactionRecord(input: {
   description?: string;
   referenceId?: string;
 }) {
-  const timestamp = new Date().toISOString();
-  const transaction = normalizeTransactionRecord({
-    id: createFinanceId('tx'),
-    username: input.username,
-    type: input.type,
-    amount: roundMoney(input.amount),
-    status: input.status ?? 'Completed',
-    method: input.method ?? 'System',
-    txHash: input.txHash ?? '',
-    source: input.source ?? 'system',
-    description: input.description ?? '',
-    referenceId: input.referenceId ?? '',
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    date: timestamp,
-  });
+  const transaction = buildTransactionRecord(input);
 
   await kv.set(`${TRANSACTION_KEY_PREFIX}${transaction.id}`, transaction);
   return transaction;
@@ -2146,6 +2219,51 @@ async function listWithdrawalRecords(username?: string) {
     .map((record) => normalizeWithdrawalRecord(record))
     .filter((record) => !username || record.username === username)
     .sort((left, right) => new Date(right.requestedDate).getTime() - new Date(left.requestedDate).getTime());
+}
+
+function snapshotFinancialState(user: any) {
+  return {
+    balance: roundMoney(Number(user?.balance ?? 0)),
+    holdAmount: roundMoney(Number(user?.holdAmount ?? 0)),
+    financialStateVersion: Number.isFinite(Number(user?.financialStateVersion))
+      ? Math.max(0, Math.round(Number(user.financialStateVersion)))
+      : 0,
+  };
+}
+
+async function persistFinancialState(params: {
+  username: string;
+  user: any;
+  operation: string;
+  before: { balance: number; holdAmount: number; financialStateVersion: number };
+  writes?: Array<{ key: string; value: unknown }>;
+  ledgerMetadata?: Record<string, unknown>;
+}) {
+  const normalizedUser = normalizeUserRecord(params.user, params.username);
+  const nextVersion = params.before.financialStateVersion + 1;
+  normalizedUser.financialStateVersion = nextVersion;
+
+  const ledgerRecord = buildFinancialLedgerRecord({
+    username: params.username,
+    operation: params.operation,
+    stateVersion: nextVersion,
+    balanceBefore: params.before.balance,
+    balanceAfter: normalizedUser.balance,
+    holdBefore: params.before.holdAmount,
+    holdAfter: normalizedUser.holdAmount,
+    metadata: params.ledgerMetadata,
+  });
+
+  await persistKvEntries([
+    { key: `user:${params.username}`, value: normalizedUser },
+    { key: `${FINANCIAL_LEDGER_KEY_PREFIX}${ledgerRecord.id}`, value: ledgerRecord },
+    ...(params.writes ?? []),
+  ]);
+
+  return {
+    user: normalizedUser,
+    ledgerRecord,
+  };
 }
 
 function defaultUserRecord(username: string) {
@@ -2191,6 +2309,7 @@ function defaultUserRecord(username: string) {
     lastActivityLocation: null as string | null,
     createdAt: new Date().toISOString(),
     creditScore: 100,
+    financialStateVersion: 0,
   };
 }
 
@@ -2285,8 +2404,123 @@ function normalizeUserRecord(userData: any, username: string) {
   normalized.creditScore = Number.isFinite(Number(normalized.creditScore))
     ? Math.min(100, Math.max(0, Math.round(Number(normalized.creditScore))))
     : 100;
+  normalized.financialStateVersion = Number.isFinite(Number(normalized.financialStateVersion))
+    ? Math.max(0, Math.round(Number(normalized.financialStateVersion)))
+    : 0;
 
   return normalized;
+}
+
+function buildTransactionRecord(input: {
+  username: string;
+  type: 'Deposit' | 'Withdrawal' | 'Commission';
+  amount: number;
+  status?: 'Pending' | 'Completed' | 'Rejected' | 'Failed';
+  method?: string;
+  txHash?: string;
+  source?: string;
+  description?: string;
+  referenceId?: string;
+}) {
+  const timestamp = new Date().toISOString();
+  return normalizeTransactionRecord({
+    id: createFinanceId('tx'),
+    username: input.username,
+    type: input.type,
+    amount: roundMoney(input.amount),
+    status: input.status ?? 'Completed',
+    method: input.method ?? 'System',
+    txHash: input.txHash ?? '',
+    source: input.source ?? 'system',
+    description: input.description ?? '',
+    referenceId: input.referenceId ?? '',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    date: timestamp,
+  });
+}
+
+function buildFinancialLedgerRecord(input: {
+  username: string;
+  operation: string;
+  stateVersion: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  holdBefore: number;
+  holdAfter: number;
+  metadata?: Record<string, unknown>;
+}) {
+  const createdAt = new Date().toISOString();
+  return {
+    id: createFinanceId('led'),
+    username: input.username,
+    operation: input.operation,
+    stateVersion: input.stateVersion,
+    balanceBefore: roundMoney(input.balanceBefore),
+    balanceAfter: roundMoney(input.balanceAfter),
+    holdBefore: roundMoney(input.holdBefore),
+    holdAfter: roundMoney(input.holdAfter),
+    metadata: input.metadata ?? {},
+    createdAt,
+  };
+}
+
+async function persistKvEntries(entries: Array<{ key: string; value: unknown }>): Promise<void> {
+  if (entries.length === 0) {
+    return;
+  }
+
+  await kv.mset(
+    entries.map((entry) => entry.key),
+    entries.map((entry) => entry.value),
+  );
+}
+
+async function acquireDistributedLock(lockName: string, timeoutMs = 15_000, leaseMs = 45_000): Promise<() => Promise<void>> {
+  const lockKey = `${DISTRIBUTED_LOCK_KEY_PREFIX}${lockName}`;
+  const startedAt = Date.now();
+  const ownerToken = crypto.randomUUID();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const expiresAt = new Date(Date.now() + leaseMs).toISOString();
+    const acquired = await kv.setIfNotExists(lockKey, {
+      token: ownerToken,
+      expiresAt,
+      createdAt: new Date().toISOString(),
+    });
+    if (acquired) {
+      return async () => {
+        try {
+          await kv.delIfJsonFieldMatches(lockKey, 'token', ownerToken);
+        } catch {
+          // Best-effort release. The lease keeps stale locks bounded.
+        }
+      };
+    }
+
+    const existing = await kv.get(lockKey);
+    const expiresAtMs = Date.parse(String(existing?.expiresAt ?? ''));
+    if (Number.isFinite(expiresAtMs) && expiresAtMs <= Date.now()) {
+      await kv.del(lockKey).catch(() => undefined);
+    }
+
+    await delay(75);
+  }
+
+  throw new Error(`Timed out acquiring distributed lock '${lockName}'`);
+}
+
+async function withDistributedLock<T>(lockName: string, work: () => Promise<T>): Promise<T> {
+  const release = await acquireDistributedLock(lockName);
+  try {
+    return await work();
+  } finally {
+    await release();
+  }
+}
+
+async function withUserFinancialLock<T>(username: string, work: () => Promise<T>): Promise<T> {
+  return withDistributedLock(`financial:${username}`, work);
 }
 
 async function syncUserWithVipConfig(userData: any, username: string) {
@@ -2708,31 +2942,49 @@ async function creditParentReferralFromChildCommission(childUsername: string, ch
     return { rewarded: false, parentReward: 0 };
   }
 
-  parentUser.balance = roundMoney(Number(parentUser.balance ?? 0) + parentReward);
-  parentUser.referralEarnings = roundMoney(Number(parentUser.referralEarnings ?? 0) + parentReward);
-  if (!parentUser.children.includes(childUsername)) {
-    parentUser.children.push(childUsername);
-  }
+  await withUserFinancialLock(parentUsername, async () => {
+    const lockedParentUser = await getOrCreateUserRecord(parentUsername);
+    const before = snapshotFinancialState(lockedParentUser);
 
-  await kv.set(`user:${parentUsername}`, parentUser);
-  await kv.set(`referral:event:${Date.now()}:${childUsername}`, {
-    parentUsername,
-    childUsername,
-    type: 'child_checkin',
-    rate: REFERRAL_PARENT_RATE,
-    childCommission,
-    parentReward,
-    createdAt: new Date().toISOString(),
-  });
+    lockedParentUser.balance = roundMoney(Number(lockedParentUser.balance ?? 0) + parentReward);
+    lockedParentUser.referralEarnings = roundMoney(Number(lockedParentUser.referralEarnings ?? 0) + parentReward);
+    if (!lockedParentUser.children.includes(childUsername)) {
+      lockedParentUser.children.push(childUsername);
+    }
 
-  await createTransactionRecord({
-    username: parentUsername,
-    type: 'Commission',
-    amount: parentReward,
-    method: 'Referral',
-    source: 'referral',
-    description: `Referral commission from ${childUsername}`,
-    referenceId: childUsername,
+    const referralEvent = {
+      parentUsername,
+      childUsername,
+      type: 'child_checkin',
+      rate: REFERRAL_PARENT_RATE,
+      childCommission,
+      parentReward,
+      createdAt: new Date().toISOString(),
+    };
+    const transaction = buildTransactionRecord({
+      username: parentUsername,
+      type: 'Commission',
+      amount: parentReward,
+      method: 'Referral',
+      source: 'referral',
+      description: `Referral commission from ${childUsername}`,
+      referenceId: childUsername,
+    });
+
+    await persistFinancialState({
+      username: parentUsername,
+      user: lockedParentUser,
+      operation: 'referral_commission_credit',
+      before,
+      writes: [
+        { key: `referral:event:${Date.now()}:${childUsername}`, value: referralEvent },
+        { key: `${TRANSACTION_KEY_PREFIX}${transaction.id}`, value: transaction },
+      ],
+      ledgerMetadata: {
+        childUsername,
+        parentReward,
+      },
+    });
   });
 
   return {
@@ -2765,6 +3017,71 @@ const USER_RATE_LIMIT_WINDOW_MS = 60_000;
 const USER_RATE_LIMIT_MAX_REQUESTS = 30;
 const FORGOT_PASSWORD_RATE_LIMIT_MAX = 5;
 const userRateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+async function enforceSharedRateLimit(
+  c: any,
+  bucket: string,
+  maxRequests: number,
+  scope: 'admin' | 'user',
+) {
+  const source = requestSource(c);
+  const scopeIdentity = scope === 'admin'
+    ? String(c.get('adminUser')?.id ?? 'unknown-admin')
+    : source;
+  const counterKey = `${DISTRIBUTED_RATE_LIMIT_KEY_PREFIX}${scope}:${bucket}:${scopeIdentity}:${source}`;
+  const lockKey = `${DISTRIBUTED_RATE_LIMIT_LOCK_PREFIX}${scope}:${bucket}:${scopeIdentity}:${source}`;
+
+  return withDistributedLock(lockKey, async () => {
+    const now = Date.now();
+    const current = await kv.get(counterKey);
+    const resetAt = Number(current?.resetAt ?? 0);
+    const existingCount = Number(current?.count ?? 0);
+
+    if (!Number.isFinite(resetAt) || now > resetAt) {
+      await kv.set(counterKey, {
+        count: 1,
+        resetAt: now + USER_RATE_LIMIT_WINDOW_MS,
+      });
+      return null;
+    }
+
+    if (existingCount >= maxRequests) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((resetAt - now) / 1000));
+      c.header('Retry-After', String(retryAfterSeconds));
+      if (scope === 'admin') {
+        logAdminRateLimit(c, bucket, retryAfterSeconds);
+        recordRateLimitViolation(bucket, scopeIdentity, source, retryAfterSeconds).catch(err => console.error('Failed to record rate limit violation:', err));
+      } else {
+        logStructuredEvent(c, 'user_rate_limit_exceeded', 'warn', {
+          bucket,
+          retryAfterSeconds,
+          maxRequests,
+        });
+      }
+
+      return jsonError(
+        c,
+        429,
+        scope === 'admin' ? 'admin_rate_limit_exceeded' : 'user_rate_limit_exceeded',
+        scope === 'admin' ? 'Rate limit exceeded. Please retry shortly.' : 'Too many requests. Please retry shortly.',
+      );
+    }
+
+    await kv.set(counterKey, {
+      count: existingCount + 1,
+      resetAt,
+    });
+    return null;
+  });
+}
+
+async function enforceCriticalUserRateLimit(c: any, bucket: string, maxRequests = USER_RATE_LIMIT_MAX_REQUESTS) {
+  return enforceSharedRateLimit(c, bucket, maxRequests, 'user');
+}
+
+async function enforceCriticalAdminRateLimit(c: any, bucket: string, maxRequests = ADMIN_RATE_LIMIT_MAX_REQUESTS) {
+  return enforceSharedRateLimit(c, bucket, maxRequests, 'admin');
+}
 
 function enforceUserRateLimit(c: any, bucket: string, maxRequests = USER_RATE_LIMIT_MAX_REQUESTS) {
   const now = Date.now();
@@ -3764,7 +4081,12 @@ async function requireActiveUserSession(c: any): Promise<{ session: UserSessionR
       authType: 'session_cookie',
     });
     c.header('Set-Cookie', buildSessionClearCookieValue());
-    return { response: c.json({ error: 'Invalid or expired session' }, 401) };
+    return { response: jsonError(c, 401, 'invalid_or_expired_session', 'Invalid or expired session') };
+  }
+
+  const trustedOriginViolation = ensureTrustedSessionOrigin(c);
+  if (trustedOriginViolation) {
+    return { response: trustedOriginViolation };
   }
 
   return { session };
@@ -3824,7 +4146,7 @@ async function getUniqueReferralInviteCode(): Promise<string> {
 // POST /auth/signup — creates a persistent user account in KV and referral graph.
 app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
   try {
-    const rateLimited = enforceUserRateLimit(c, 'user:signup', 10);
+    const rateLimited = await enforceCriticalUserRateLimit(c, 'user:signup', 10);
     if (rateLimited) return rateLimited;
 
     const body = await c.req.json();
@@ -3940,7 +4262,7 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
 // POST /auth/login — verifies username + loginPassword and creates server-backed session.
 app.post('/make-server-a1c55d7e/auth/login', async (c) => {
   try {
-    const rateLimited = enforceUserRateLimit(c, 'user:login', LOGIN_RATE_LIMIT_MAX);
+    const rateLimited = await enforceCriticalUserRateLimit(c, 'user:login', LOGIN_RATE_LIMIT_MAX);
     if (rateLimited) return rateLimited;
 
     const body = await c.req.json();
@@ -4002,7 +4324,7 @@ app.post('/make-server-a1c55d7e/auth/login', async (c) => {
 // POST /auth/session/restore — validates the cookie-backed session and restores auth state.
 app.post('/make-server-a1c55d7e/auth/session/restore', async (c) => {
   try {
-    const rateLimited = enforceUserRateLimit(c, 'user:session-restore');
+    const rateLimited = await enforceCriticalUserRateLimit(c, 'user:session-restore');
     if (rateLimited) return rateLimited;
 
     const session = await getSessionFromRequest(c);
@@ -4050,7 +4372,7 @@ app.post('/make-server-a1c55d7e/auth/verify-token', async (c) => {
 // POST /auth/session/logout — revokes the current cookie-backed session.
 app.post('/make-server-a1c55d7e/auth/session/logout', async (c) => {
   try {
-    const rateLimited = enforceUserRateLimit(c, 'user:session-logout');
+    const rateLimited = await enforceCriticalUserRateLimit(c, 'user:session-logout');
     if (rateLimited) return rateLimited;
 
     const cookies = parseCookies(c.req.header('cookie'));
@@ -4091,238 +4413,277 @@ async function submitTaskForUser(c: any, username: string, body: any) {
 
   const productPrice = roundMoney(selectedTask.price);
 
-  const userKey = `user:${username}`;
-  const userData = await kv.get(userKey);
+  return withUserFinancialLock(username, async () => {
+    const userKey = `user:${username}`;
+    const userData = await kv.get(userKey);
 
-  if (!userData) {
-    return c.json({ error: 'User not found' }, 404);
-  }
+    if (!userData) {
+      return jsonError(c, 404, 'user_not_found', 'User not found');
+    }
 
-  const normalizedUserData = await syncUserWithVipConfig(userData, username);
-  const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
-  const requiredFunds = roundMoney(Number(vipConfig.investment ?? 0));
-  const availableFunds = roundMoney(Number(normalizedUserData.balance ?? 0) - Number(normalizedUserData.holdAmount ?? 0));
+    const normalizedUserData = await syncUserWithVipConfig(userData, username);
+    const before = snapshotFinancialState(normalizedUserData);
+    const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
+    const requiredFunds = roundMoney(Number(vipConfig.investment ?? 0));
+    const availableFunds = roundMoney(Number(normalizedUserData.balance ?? 0) - Number(normalizedUserData.holdAmount ?? 0));
 
-  if (availableFunds < requiredFunds) {
-    return c.json({
-      error: `Insufficient funds for VIP${normalizedUserData.vipLevel}. Minimum required: $${requiredFunds.toFixed(2)}.`,
-      code: 'insufficient_vip_funding',
-      requiredFunds,
-      availableFunds,
-      vipLevel: Number(normalizedUserData.vipLevel ?? 1),
-      user: normalizedUserData,
-      taskProgress: buildUserTaskProgress(normalizedUserData),
-    }, 409);
-  }
+    if (availableFunds < requiredFunds) {
+      return c.json({
+        error: `Insufficient funds for VIP${normalizedUserData.vipLevel}. Minimum required: $${requiredFunds.toFixed(2)}.`,
+        code: 'insufficient_vip_funding',
+        requiredFunds,
+        availableFunds,
+        vipLevel: Number(normalizedUserData.vipLevel ?? 1),
+        user: normalizedUserData,
+        taskProgress: buildUserTaskProgress(normalizedUserData),
+      }, 409);
+    }
 
-  if (normalizedUserData.pendingTaskReset) {
-    return c.json({
-      error: 'Current task set is complete. Please contact customer service for reset before continuing.',
-      code: 'task_set_reset_required',
-      disableSubmit: true,
-      user: normalizedUserData,
-      taskProgress: buildUserTaskProgress(normalizedUserData),
-    }, 409);
-  }
+    if (normalizedUserData.pendingTaskReset) {
+      return c.json({
+        error: 'Current task set is complete. Please contact customer service for reset before continuing.',
+        code: 'task_set_reset_required',
+        disableSubmit: true,
+        user: normalizedUserData,
+        taskProgress: buildUserTaskProgress(normalizedUserData),
+      }, 409);
+    }
 
-  if (normalizedUserData.tasksCompleted >= normalizedUserData.tasksLimit) {
-    return c.json({ error: 'Daily task limit reached' }, 400);
-  }
+    if (normalizedUserData.tasksCompleted >= normalizedUserData.tasksLimit) {
+      return jsonError(c, 400, 'daily_task_limit_reached', 'Daily task limit reached');
+    }
 
-  const rewardsConfig = await getRewardsConfigRecord();
-  const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
-  const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
+    const rewardsConfig = await getRewardsConfigRecord();
+    const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
+    const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
+    const queuedPremiumAssignments = Array.isArray(normalizedUserData.premiumQueue)
+      ? sortPremiumAssignmentsByTrigger(normalizedUserData.premiumQueue)
+      : [];
+    const queuedEncounterCandidate = !normalizedUserData.activePremium && queuedPremiumAssignments.length > 0
+      ? queuedPremiumAssignments[0]
+      : null;
+    const queuedTriggerTaskNumber = Number.isFinite(Number(queuedEncounterCandidate?.triggerTaskNumber))
+      ? Math.max(1, Math.round(Number(queuedEncounterCandidate?.triggerTaskNumber)))
+      : nextSubmissionNumber;
+    const shouldActivateQueuedPremium = Boolean(queuedEncounterCandidate)
+      && nextSubmissionNumber === queuedTriggerTaskNumber;
 
-  // Admin-assigned premiums can be scheduled for a specific encounter position.
-  // Activate the queued premium when the user reaches that submission number.
-  const queuedPremiumAssignments = Array.isArray(normalizedUserData.premiumQueue)
-    ? sortPremiumAssignmentsByTrigger(normalizedUserData.premiumQueue)
-    : [];
-  const queuedEncounterCandidate = !normalizedUserData.activePremium && queuedPremiumAssignments.length > 0
-    ? queuedPremiumAssignments[0]
-    : null;
-  const queuedTriggerTaskNumber = Number.isFinite(Number(queuedEncounterCandidate?.triggerTaskNumber))
-    ? Math.max(1, Math.round(Number(queuedEncounterCandidate?.triggerTaskNumber)))
-    : nextSubmissionNumber;
-  const shouldActivateQueuedPremium = Boolean(queuedEncounterCandidate)
-    && nextSubmissionNumber === queuedTriggerTaskNumber;
+    if (shouldActivateQueuedPremium && queuedEncounterCandidate) {
+      const activePremium = {
+        ...queuedEncounterCandidate,
+      };
+      const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
+      const totalBundleValue = roundMoney(Number(activePremium.totalBundleValue ?? 0));
+      const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - totalBundleValue);
+      const configuredUpholdAmount = Number.isFinite(Number(activePremium.configuredUpholdAmount))
+        ? Math.max(0, roundMoney(Number(activePremium.configuredUpholdAmount)))
+        : 0;
+      const topUpRequired = configuredUpholdAmount > 0
+        ? configuredUpholdAmount
+        : roundMoney(Math.max(0, -balanceAfterAssignment));
 
-  if (shouldActivateQueuedPremium && queuedEncounterCandidate) {
-    const activePremium = {
-      ...queuedEncounterCandidate,
+      activePremium.balanceBeforeAssignment = balanceBeforeAssignment;
+      activePremium.balanceAfterAssignment = balanceAfterAssignment;
+      activePremium.negativeAmount = topUpRequired;
+      activePremium.topUpRequired = topUpRequired;
+      activePremium.triggerTaskNumber = queuedTriggerTaskNumber;
+      activePremium.status = topUpRequired > 0 ? 'awaiting_funds' : 'active';
+
+      normalizedUserData.isFrozen = true;
+      normalizedUserData.activePremium = activePremium;
+      normalizedUserData.premiumQueue = [activePremium, ...queuedPremiumAssignments.slice(1)];
+      normalizedUserData.balance = balanceAfterAssignment;
+      normalizedUserData.holdAmount = topUpRequired;
+
+      await persistFinancialState({
+        username,
+        user: normalizedUserData,
+        operation: 'premium_assignment_activated_from_queue',
+        before,
+        writes: [
+          { key: `premium:${username}:${activePremium.id}`, value: activePremium },
+        ],
+        ledgerMetadata: {
+          premiumId: activePremium.id,
+          totalBundleValue,
+          topUpRequired,
+        },
+      });
+
+      return c.json({
+        error: 'Premium task encountered. Top-up is required before continuing task submission.',
+        code: 'premium_task_encountered',
+        disableSubmit: true,
+        premiumRequirement: buildPremiumRequirementResponse(activePremium),
+        user: normalizedUserData,
+      }, 409);
+    }
+
+    const premiumTriggerTaskNumber = Math.max(1, Number(productSystem.premiumTriggerTaskNumber ?? 10));
+    const shouldTriggerPremium = Boolean(productSystem.premiumEnabled)
+      && !normalizedUserData.activePremium
+      && queuedPremiumAssignments.length === 0
+      && nextSubmissionNumber === premiumTriggerTaskNumber;
+
+    if (shouldTriggerPremium) {
+      const premiumValue = computePremiumValueForVip(Number(normalizedUserData.vipLevel ?? 1), productSystem);
+      const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
+      const topUpRequired = resolveUpholdAmountForVip(Number(normalizedUserData.vipLevel ?? 1), premiumValue, balanceBeforeAssignment, productSystem);
+      const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - premiumValue);
+      const activePremium = {
+        id: `premium-rule-${Date.now()}`,
+        premiumProductValue: premiumValue,
+        premiumProductName: `Rule Premium (Task #${nextSubmissionNumber})`,
+        bundledProducts: [],
+        totalBundleValue: premiumValue,
+        balanceBeforeAssignment,
+        balanceAfterAssignment,
+        negativeAmount: topUpRequired,
+        topUpRequired,
+        triggerTaskNumber: premiumTriggerTaskNumber,
+        vipLevel: Number(normalizedUserData.vipLevel ?? 1),
+        valueMode: productSystem.premiumValueMode,
+        tasksCompleted: 0,
+        totalTasks: 1,
+        assignedAt: new Date().toISOString(),
+        assignedBy: 'system-rule-engine',
+        status: topUpRequired > 0 ? 'awaiting_funds' : 'active',
+        commissionEarned: 0,
+      };
+
+      normalizedUserData.isFrozen = true;
+      normalizedUserData.activePremium = activePremium;
+      normalizedUserData.premiumQueue = Array.isArray(normalizedUserData.premiumQueue)
+        ? [activePremium, ...normalizedUserData.premiumQueue]
+        : [activePremium];
+      normalizedUserData.balance = balanceAfterAssignment;
+      normalizedUserData.holdAmount = topUpRequired;
+
+      await persistFinancialState({
+        username,
+        user: normalizedUserData,
+        operation: 'premium_assignment_triggered',
+        before,
+        writes: [
+          { key: `premium:${username}:${activePremium.id}`, value: activePremium },
+        ],
+        ledgerMetadata: {
+          premiumId: activePremium.id,
+          premiumValue,
+          topUpRequired,
+          triggerTaskNumber: premiumTriggerTaskNumber,
+        },
+      });
+
+      return c.json({
+        error: 'Premium task encountered. Top-up is required before continuing task submission.',
+        code: 'premium_task_encountered',
+        disableSubmit: true,
+        premiumRequirement: buildPremiumRequirementResponse(activePremium),
+        user: normalizedUserData,
+      }, 409);
+    }
+
+    const commissionRate = vipConfig.commission;
+    const commission = roundMoney(productPrice * commissionRate);
+
+    normalizedUserData.tasksCompleted += 1;
+    normalizedUserData.tasksCompletedInSet += 1;
+    normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
+    normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);
+
+    if (normalizedUserData.tasksCompletedInSet >= normalizedUserData.tasksPerSet) {
+      normalizedUserData.completedTaskSets = Math.min(
+        normalizedUserData.completedTaskSets + 1,
+        normalizedUserData.taskSetCount,
+      );
+      normalizedUserData.tasksCompletedInSet = normalizedUserData.tasksPerSet;
+      normalizedUserData.pendingTaskReset = true;
+    }
+
+    const writes: Array<{ key: string; value: unknown }> = [];
+    if (Math.random() < 0.01) {
+      const luckyAmount = Math.floor(Math.random() * 100) + 50;
+      normalizedUserData.luckyBonus = roundMoney(normalizedUserData.luckyBonus + luckyAmount);
+      normalizedUserData.balance = roundMoney(normalizedUserData.balance + luckyAmount);
+      const luckyTx = buildTransactionRecord({
+        username,
+        type: 'Commission',
+        amount: luckyAmount,
+        method: 'Lucky Bonus',
+        source: 'lucky_bonus',
+        description: 'Lucky bonus reward',
+      });
+      writes.push({ key: `${TRANSACTION_KEY_PREFIX}${luckyTx.id}`, value: luckyTx });
+    }
+
+    const rewardResult = await applyAutomaticRewardsForUser(username, normalizedUserData);
+    const rewardedUserData = rewardResult.normalizedUser;
+    const referralPayout = await creditParentReferralFromChildCommission(username, commission);
+
+    const taskKey = `task:${username}:${Date.now()}`;
+    const taskRecord = {
+      taskId: selectedTask.id,
+      username,
+      productPrice,
+      commission,
+      isPremium: false,
+      merchant: selectedTask.merchant,
+      productName: selectedTask.product,
+      image: selectedTask.image,
+      rating: selectedTask.rating,
+      productUrl: selectedTask.productUrl,
+      timestamp: new Date().toISOString(),
+      tasksCompleted: rewardedUserData.tasksCompleted,
     };
-    const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
-    const totalBundleValue = roundMoney(Number(activePremium.totalBundleValue ?? 0));
-    const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - totalBundleValue);
-    const configuredUpholdAmount = Number.isFinite(Number(activePremium.configuredUpholdAmount))
-      ? Math.max(0, roundMoney(Number(activePremium.configuredUpholdAmount)))
-      : 0;
-    const topUpRequired = configuredUpholdAmount > 0
-      ? configuredUpholdAmount
-      : roundMoney(Math.max(0, -balanceAfterAssignment));
-
-    activePremium.balanceBeforeAssignment = balanceBeforeAssignment;
-    activePremium.balanceAfterAssignment = balanceAfterAssignment;
-    activePremium.negativeAmount = topUpRequired;
-    activePremium.topUpRequired = topUpRequired;
-    activePremium.triggerTaskNumber = queuedTriggerTaskNumber;
-    activePremium.status = topUpRequired > 0 ? 'awaiting_funds' : 'active';
-
-    normalizedUserData.isFrozen = true;
-    normalizedUserData.activePremium = activePremium;
-    normalizedUserData.premiumQueue = [activePremium, ...queuedPremiumAssignments.slice(1)];
-    normalizedUserData.balance = balanceAfterAssignment;
-    normalizedUserData.holdAmount = topUpRequired;
-
-    await kv.set(userKey, normalizedUserData);
-    await kv.set(`premium:${username}:${activePremium.id}`, activePremium);
-
-    return c.json({
-      error: 'Premium task encountered. Top-up is required before continuing task submission.',
-      code: 'premium_task_encountered',
-      disableSubmit: true,
-      premiumRequirement: buildPremiumRequirementResponse(activePremium),
-      user: normalizedUserData,
-    }, 409);
-  }
-
-  const premiumTriggerTaskNumber = Math.max(1, Number(productSystem.premiumTriggerTaskNumber ?? 10));
-  const shouldTriggerPremium = Boolean(productSystem.premiumEnabled)
-    && !normalizedUserData.activePremium
-    && queuedPremiumAssignments.length === 0
-    && nextSubmissionNumber === premiumTriggerTaskNumber;
-
-  if (shouldTriggerPremium) {
-    const premiumValue = computePremiumValueForVip(Number(normalizedUserData.vipLevel ?? 1), productSystem);
-    const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
-    const topUpRequired = resolveUpholdAmountForVip(Number(normalizedUserData.vipLevel ?? 1), premiumValue, balanceBeforeAssignment, productSystem);
-    const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - premiumValue);
-    const activePremium = {
-      id: `premium-rule-${Date.now()}`,
-      premiumProductValue: premiumValue,
-      premiumProductName: `Rule Premium (Task #${nextSubmissionNumber})`,
-      bundledProducts: [],
-      totalBundleValue: premiumValue,
-      balanceBeforeAssignment,
-      balanceAfterAssignment,
-      negativeAmount: topUpRequired,
-      topUpRequired,
-      triggerTaskNumber: premiumTriggerTaskNumber,
-      vipLevel: Number(normalizedUserData.vipLevel ?? 1),
-      valueMode: productSystem.premiumValueMode,
-      tasksCompleted: 0,
-      totalTasks: 1,
-      assignedAt: new Date().toISOString(),
-      assignedBy: 'system-rule-engine',
-      status: topUpRequired > 0 ? 'awaiting_funds' : 'active',
-      commissionEarned: 0,
-    };
-
-    normalizedUserData.isFrozen = true;
-    normalizedUserData.activePremium = activePremium;
-    normalizedUserData.premiumQueue = Array.isArray(normalizedUserData.premiumQueue)
-      ? [activePremium, ...normalizedUserData.premiumQueue]
-      : [activePremium];
-    normalizedUserData.balance = balanceAfterAssignment;
-    normalizedUserData.holdAmount = topUpRequired;
-
-    await kv.set(userKey, normalizedUserData);
-    await kv.set(`premium:${username}:${activePremium.id}`, activePremium);
-
-    return c.json({
-      error: 'Premium task encountered. Top-up is required before continuing task submission.',
-      code: 'premium_task_encountered',
-      disableSubmit: true,
-      premiumRequirement: buildPremiumRequirementResponse(activePremium),
-      user: normalizedUserData,
-    }, 409);
-  }
-
-  const commissionRate = vipConfig.commission;
-  const commission = roundMoney(productPrice * commissionRate);
-
-  normalizedUserData.tasksCompleted += 1;
-  normalizedUserData.tasksCompletedInSet += 1;
-  normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
-  normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);
-
-  if (normalizedUserData.tasksCompletedInSet >= normalizedUserData.tasksPerSet) {
-    normalizedUserData.completedTaskSets = Math.min(
-      normalizedUserData.completedTaskSets + 1,
-      normalizedUserData.taskSetCount,
-    );
-    normalizedUserData.tasksCompletedInSet = normalizedUserData.tasksPerSet;
-    normalizedUserData.pendingTaskReset = true;
-  }
-
-  if (Math.random() < 0.01) {
-    const luckyAmount = Math.floor(Math.random() * 100) + 50;
-    normalizedUserData.luckyBonus = roundMoney(normalizedUserData.luckyBonus + luckyAmount);
-    normalizedUserData.balance = roundMoney(normalizedUserData.balance + luckyAmount);
-
-    await createTransactionRecord({
+    const commissionTx = buildTransactionRecord({
       username,
       type: 'Commission',
-      amount: luckyAmount,
-      method: 'Lucky Bonus',
-      source: 'lucky_bonus',
-      description: 'Lucky bonus reward',
+      amount: commission,
+      method: 'System',
+      source: 'task',
+      description: 'Task commission credited',
+      referenceId: taskKey,
     });
-  }
 
-  const rewardResult = await applyAutomaticRewardsForUser(username, normalizedUserData);
-  const rewardedUserData = rewardResult.normalizedUser;
+    writes.push(
+      { key: taskKey, value: taskRecord },
+      { key: `${TRANSACTION_KEY_PREFIX}${commissionTx.id}`, value: commissionTx },
+    );
 
-  const referralPayout = await creditParentReferralFromChildCommission(username, commission);
+    const persisted = await persistFinancialState({
+      username,
+      user: rewardedUserData,
+      operation: 'task_submission_commission_credit',
+      before,
+      writes,
+      ledgerMetadata: {
+        taskId: selectedTask.id,
+        commission,
+        productPrice,
+      },
+    });
 
-  await kv.set(userKey, rewardedUserData);
-
-  const taskKey = `task:${username}:${Date.now()}`;
-  const taskRecord = {
-    taskId: selectedTask.id,
-    username,
-    productPrice,
-    commission,
-    isPremium: false,
-    merchant: selectedTask.merchant,
-    productName: selectedTask.product,
-    image: selectedTask.image,
-    rating: selectedTask.rating,
-    productUrl: selectedTask.productUrl,
-    timestamp: new Date().toISOString(),
-    tasksCompleted: rewardedUserData.tasksCompleted,
-  };
-  await kv.set(taskKey, taskRecord);
-
-  await createTransactionRecord({
-    username,
-    type: 'Commission',
-    amount: commission,
-    method: 'System',
-    source: 'task',
-    description: 'Task commission credited',
-    referenceId: taskKey,
-  });
-
-  return c.json({
-    success: true,
-    commission,
-    isPremium: false,
-    tasksCompleted: rewardedUserData.tasksCompleted,
-    tasksLimit: rewardedUserData.tasksLimit,
-    balance: rewardedUserData.balance,
-    todayCommission: rewardedUserData.todayCommission,
-    luckyBonus: rewardedUserData.luckyBonus,
-    parentReferralCommission: referralPayout.rewarded ? referralPayout.parentReward : 0,
-    parentReferralUsername: referralPayout.rewarded ? referralPayout.parentUsername : null,
-    taskProgress: buildUserTaskProgress(rewardedUserData),
-    task: selectedTask,
+    return c.json({
+      success: true,
+      commission,
+      isPremium: false,
+      tasksCompleted: persisted.user.tasksCompleted,
+      tasksLimit: persisted.user.tasksLimit,
+      balance: persisted.user.balance,
+      todayCommission: persisted.user.todayCommission,
+      taskProgress: buildUserTaskProgress(persisted.user),
+      parentReferralCommission: referralPayout.rewarded ? referralPayout.parentReward : 0,
+      parentReferralUsername: referralPayout.rewarded ? referralPayout.parentUsername : null,
+      rewardsApplied: rewardResult.rewardsApplied,
+      task: selectedTask,
+    });
   });
 }
 
 app.post('/make-server-a1c55d7e/me/submit-task', async (c) => {
   try {
-    const rateLimited = enforceUserRateLimit(c, 'user:submit-task');
+    const rateLimited = await enforceCriticalUserRateLimit(c, 'user:submit-task');
     if (rateLimited) return rateLimited;
 
     const sessionResult = await requireActiveUserSession(c);
@@ -4346,7 +4707,6 @@ app.post('/make-server-a1c55d7e/me/submit-task', async (c) => {
   }
 });
 
-// Get task records endpoint
 app.get('/make-server-a1c55d7e/me/tasks', async (c) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
@@ -4444,118 +4804,132 @@ async function submitWithdrawalRequest(c: any, username: string, body: any) {
   const idempotencyKey = resolveRequestIdempotencyKey(c, body);
 
   if (!walletAddress) {
-    return c.json({ error: 'walletAddress is required' }, 400);
+    return jsonError(c, 400, 'wallet_address_required', 'walletAddress is required');
   }
   if (!Number.isFinite(amount) || amount <= 0) {
-    return c.json({ error: 'Withdrawal amount must be greater than 0' }, 400);
+    return jsonError(c, 400, 'invalid_withdrawal_amount', 'Withdrawal amount must be greater than 0');
   }
   if (!transactionPassword) {
-    return c.json({ error: 'transactionPassword is required' }, 400);
+    return jsonError(c, 400, 'transaction_password_required', 'transactionPassword is required');
   }
 
-  const userKey = `user:${username}`;
-  const userData = await kv.get(userKey);
-  if (!userData) {
-    return c.json({ error: 'User not found' }, 404);
-  }
+  return withUserFinancialLock(username, async () => {
+    const userKey = `user:${username}`;
+    const userData = await kv.get(userKey);
+    if (!userData) {
+      return jsonError(c, 404, 'user_not_found', 'User not found');
+    }
 
-  const normalizedUserData = await syncUserWithVipConfig(userData, username);
-  const storedTransactionPassword = String((normalizedUserData as any).transactionPassword ?? '');
-  if (!storedTransactionPassword || !await verifyPassword(transactionPassword, storedTransactionPassword)) {
-    return c.json({ error: 'Transaction password is incorrect.' }, 401);
-  }
+    const normalizedUserData = await syncUserWithVipConfig(userData, username);
+    if (!(await verifyPassword(transactionPassword, String(normalizedUserData.transactionPassword ?? '')))) {
+      return jsonError(c, 401, 'invalid_transaction_password', 'Transaction password is incorrect.');
+    }
 
-  const minimumRequiredSets = 2;
-  if (Number(normalizedUserData.completedTaskSets ?? 0) < minimumRequiredSets) {
-    return c.json({
-      error: 'Complete at least 2 task sets before requesting a withdrawal.',
-      code: 'withdrawal_task_sets_required',
-      requiredTaskSets: minimumRequiredSets,
-      completedTaskSets: Number(normalizedUserData.completedTaskSets ?? 0),
-      taskProgress: buildUserTaskProgress(normalizedUserData),
-    }, 400);
-  }
+    if (Number(normalizedUserData.completedTaskSets ?? 0) < 2) {
+      return jsonError(c, 400, 'withdrawal_task_sets_required', 'Complete at least 2 task sets before requesting a withdrawal.');
+    }
 
-  if (idempotencyKey) {
-    const idempotencyStorageKey = `withdrawal-idempotency:${username}:${idempotencyKey}`;
-    const existingRecord = await kv.get(idempotencyStorageKey) as any;
-    const signature = `${amount}|${walletAddress}|${method}`;
-    if (existingRecord && typeof existingRecord === 'object') {
-      const previousSignature = typeof existingRecord.signature === 'string' ? existingRecord.signature : '';
-      if (previousSignature && previousSignature !== signature) {
-        return c.json({ error: 'Idempotency key has already been used with a different payload.' }, 409);
-      }
+    if (idempotencyKey) {
+      const idempotencyStorageKey = `withdrawal-idempotency:${username}:${idempotencyKey}`;
+      const existingRecord = await kv.get(idempotencyStorageKey) as any;
+      const signature = `${amount}|${walletAddress}|${method}`;
+      if (existingRecord && typeof existingRecord === 'object') {
+        const previousSignature = typeof existingRecord.signature === 'string' ? existingRecord.signature : '';
+        if (previousSignature && previousSignature !== signature) {
+          return jsonError(c, 409, 'withdrawal_idempotency_conflict', 'Idempotency key has already been used with a different payload.');
+        }
 
-      const existingWithdrawalId = typeof existingRecord.withdrawalId === 'string' ? existingRecord.withdrawalId : '';
-      if (existingWithdrawalId) {
-        const existingWithdrawal = await kv.get(`${WITHDRAWAL_KEY_PREFIX}${existingWithdrawalId}`);
-        if (existingWithdrawal) {
-          const normalizedExistingWithdrawal = normalizeWithdrawalRecord(existingWithdrawal);
-          return c.json({
-            success: true,
-            idempotentReplay: true,
-            withdrawal: normalizedExistingWithdrawal,
-            balance: normalizedUserData.balance,
-            holdAmount: normalizedUserData.holdAmount,
-            availableAmount: roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount),
-          });
+        const existingWithdrawalId = typeof existingRecord.withdrawalId === 'string' ? existingRecord.withdrawalId : '';
+        if (existingWithdrawalId) {
+          const existingWithdrawal = await kv.get(`${WITHDRAWAL_KEY_PREFIX}${existingWithdrawalId}`);
+          if (existingWithdrawal) {
+            const normalizedExistingWithdrawal = normalizeWithdrawalRecord(existingWithdrawal);
+            return c.json({
+              success: true,
+              idempotentReplay: true,
+              withdrawal: normalizedExistingWithdrawal,
+              balance: normalizedUserData.balance,
+              holdAmount: normalizedUserData.holdAmount,
+              availableAmount: roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount),
+            });
+          }
         }
       }
     }
-  }
 
-  const availableAmount = roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount);
-  if (amount > availableAmount) {
-    return c.json({ error: 'Withdrawal amount exceeds available balance' }, 400);
-  }
+    const availableAmount = roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount);
+    if (amount > availableAmount) {
+      return jsonError(c, 400, 'withdrawal_amount_exceeds_available_balance', 'Withdrawal amount exceeds available balance');
+    }
 
-  const transaction = await createTransactionRecord({
-    username,
-    type: 'Withdrawal',
-    amount,
-    status: 'Pending',
-    method,
-    source: 'withdrawal_request',
-    description: 'Withdrawal request submitted',
-  });
-
-  const withdrawal = normalizeWithdrawalRecord({
-    id: createFinanceId('wd'),
-    username,
-    amount,
-    walletAddress,
-    method,
-    status: 'Pending',
-    requestedDate: new Date().toISOString(),
-    transactionId: transaction.id,
-    txHash: '',
-  });
-
-  normalizedUserData.holdAmount = roundMoney(normalizedUserData.holdAmount + amount);
-
-  await kv.set(userKey, normalizedUserData);
-  await kv.set(`${WITHDRAWAL_KEY_PREFIX}${withdrawal.id}`, withdrawal);
-  if (idempotencyKey) {
-    await kv.set(`withdrawal-idempotency:${username}:${idempotencyKey}`, {
-      withdrawalId: withdrawal.id,
-      transactionId: transaction.id,
-      signature: `${amount}|${walletAddress}|${method}`,
-      createdAt: new Date().toISOString(),
+    const before = snapshotFinancialState(normalizedUserData);
+    const transaction = buildTransactionRecord({
+      username,
+      type: 'Withdrawal',
+      amount,
+      status: 'Pending',
+      method,
+      source: 'withdrawal_request',
+      description: 'Withdrawal request submitted',
     });
-  }
 
-  return c.json({
-    success: true,
-    withdrawal,
-    balance: normalizedUserData.balance,
-    holdAmount: normalizedUserData.holdAmount,
-    availableAmount: roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount),
+    const withdrawal = normalizeWithdrawalRecord({
+      id: createFinanceId('wd'),
+      username,
+      amount,
+      walletAddress,
+      method,
+      status: 'Pending',
+      requestedDate: new Date().toISOString(),
+      transactionId: transaction.id,
+      txHash: '',
+    });
+
+    normalizedUserData.holdAmount = roundMoney(normalizedUserData.holdAmount + amount);
+
+    const writes = [
+      { key: `${TRANSACTION_KEY_PREFIX}${transaction.id}`, value: transaction },
+      { key: `${WITHDRAWAL_KEY_PREFIX}${withdrawal.id}`, value: withdrawal },
+    ];
+    if (idempotencyKey) {
+      writes.push({
+        key: `withdrawal-idempotency:${username}:${idempotencyKey}`,
+        value: {
+          withdrawalId: withdrawal.id,
+          transactionId: transaction.id,
+          signature: `${amount}|${walletAddress}|${method}`,
+          createdAt: new Date().toISOString(),
+        },
+      });
+    }
+
+    const persisted = await persistFinancialState({
+      username,
+      user: normalizedUserData,
+      operation: 'withdrawal_request_submitted',
+      before,
+      writes,
+      ledgerMetadata: {
+        withdrawalId: withdrawal.id,
+        transactionId: transaction.id,
+        amount,
+        method,
+      },
+    });
+
+    return c.json({
+      success: true,
+      withdrawal,
+      balance: persisted.user.balance,
+      holdAmount: persisted.user.holdAmount,
+      availableAmount: roundMoney(persisted.user.balance - persisted.user.holdAmount),
+    });
   });
 }
 
 app.post('/make-server-a1c55d7e/me/withdrawals/request', async (c) => {
   try {
-    const rateLimited = enforceUserRateLimit(c, 'user:withdrawal-request');
+    const rateLimited = await enforceCriticalUserRateLimit(c, 'user:withdrawal-request');
     if (rateLimited) return rateLimited;
 
     const sessionResult = await requireActiveUserSession(c);
@@ -4593,7 +4967,7 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     if (unauthorized) {
       return unauthorized;
     }
-    const rateLimited = enforceAdminRateLimit(c, 'admin:assign-premium-bundle');
+    const rateLimited = await enforceCriticalAdminRateLimit(c, 'admin:assign-premium-bundle');
     if (rateLimited) {
       return rateLimited;
     }
@@ -4800,105 +5174,112 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
 
 async function completePremiumTaskForUser(c: any, username: string, productPrice: number) {
   if (typeof productPrice !== 'number' || !Number.isFinite(productPrice) || productPrice <= 0) {
-    return c.json({ error: 'productPrice must be a positive finite number' }, 400);
+    return jsonError(c, 400, 'invalid_product_price', 'productPrice must be a positive finite number');
   }
 
-  const userKey = `user:${username}`;
-  const userData = await kv.get(userKey);
+  return withUserFinancialLock(username, async () => {
+    const userKey = `user:${username}`;
+    const userData = await kv.get(userKey);
 
-  if (!userData || !userData.activePremium) {
-    return c.json({ error: 'No active premium assignment' }, 404);
-  }
+    if (!userData || !userData.activePremium) {
+      return jsonError(c, 404, 'premium_assignment_not_found', 'No active premium assignment');
+    }
 
-  const normalizedUserData = normalizeUserRecord(userData, username);
-  if (!normalizedUserData.activePremium) {
-    return c.json({ error: 'No active premium assignment' }, 404);
-  }
+    const normalizedUserData = normalizeUserRecord(userData, username);
+    if (!normalizedUserData.activePremium) {
+      return jsonError(c, 404, 'premium_assignment_not_found', 'No active premium assignment');
+    }
 
-  const premium = normalizedUserData.activePremium;
+    const before = snapshotFinancialState(normalizedUserData);
+    const premium = normalizedUserData.activePremium;
 
-  const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
-  const commissionRate = vipConfig.commission * 10;
-  const commission = roundMoney(productPrice * commissionRate);
+    const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
+    const commissionRate = vipConfig.commission * 10;
+    const commission = roundMoney(productPrice * commissionRate);
 
-  premium.tasksCompleted += 1;
-  premium.commissionEarned = roundMoney(Number(premium.commissionEarned ?? 0) + commission);
+    premium.tasksCompleted += 1;
+    premium.commissionEarned = roundMoney(Number(premium.commissionEarned ?? 0) + commission);
 
-  normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);
-  normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
-  const currentPremiumTopUpRequired = Number.isFinite(Number(premium.topUpRequired ?? premium.negativeAmount))
-    ? roundMoney(Math.max(0, Number(premium.topUpRequired ?? premium.negativeAmount)))
-    : 0;
-  normalizedUserData.holdAmount = currentPremiumTopUpRequired;
+    normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);
+    normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
+    const currentPremiumTopUpRequired = Number.isFinite(Number(premium.topUpRequired ?? premium.negativeAmount))
+      ? roundMoney(Math.max(0, Number(premium.topUpRequired ?? premium.negativeAmount)))
+      : 0;
+    normalizedUserData.holdAmount = currentPremiumTopUpRequired;
 
-  if (premium.tasksCompleted >= premium.totalTasks) {
-    premium.status = 'completed';
-    premium.completedAt = new Date().toISOString();
+    if (premium.tasksCompleted >= premium.totalTasks) {
+      premium.status = 'completed';
+      premium.completedAt = new Date().toISOString();
+      normalizedUserData.premiumQueue = normalizedUserData.premiumQueue.filter(p => p.id !== premium.id);
+      normalizedUserData.premiumQueue = sortPremiumAssignmentsByTrigger(normalizedUserData.premiumQueue);
+      const heldAmountBeingReleased = normalizedUserData.holdAmount;
+      normalizedUserData.balance = roundMoney(normalizedUserData.balance + heldAmountBeingReleased);
+      normalizedUserData.isFrozen = false;
+      normalizedUserData.activePremium = null;
+      normalizedUserData.holdAmount = 0;
+    } else {
+      normalizedUserData.activePremium = premium;
+    }
 
-    normalizedUserData.premiumQueue = normalizedUserData.premiumQueue.filter(p => p.id !== premium.id);
+    const premiumReferralPayout = await creditParentReferralFromChildCommission(username, commission);
+    const rewardResult = await applyAutomaticRewardsForUser(username, normalizedUserData);
+    const rewardedUserData = rewardResult.normalizedUser;
 
-    normalizedUserData.premiumQueue = sortPremiumAssignmentsByTrigger(normalizedUserData.premiumQueue);
-    
-    // Consolidate held amount back into final balance upon settlement
-    // Customer invested/topped-up this amount; they should receive it back as part of final settlement
-    const heldAmountBeingReleased = normalizedUserData.holdAmount;
-    normalizedUserData.balance = roundMoney(normalizedUserData.balance + heldAmountBeingReleased);
-    
-    normalizedUserData.isFrozen = false;
-    normalizedUserData.activePremium = null;
-    normalizedUserData.holdAmount = 0;
-  } else {
-    normalizedUserData.activePremium = premium;
-  }
+    const premiumKey = `premium:${username}:${premium.id}`;
+    const taskKey = `task:${username}:${Date.now()}`;
+    const taskRecord = {
+      username,
+      productPrice,
+      commission,
+      isPremium: true,
+      premiumBundleId: premium.id,
+      timestamp: new Date().toISOString(),
+    };
+    const transaction = buildTransactionRecord({
+      username,
+      type: 'Commission',
+      amount: commission,
+      method: 'Premium Task',
+      source: 'premium_task',
+      description: 'Premium task commission credited',
+      referenceId: premium.id,
+    });
 
-  const premiumReferralPayout = await creditParentReferralFromChildCommission(username, commission);
+    const persisted = await persistFinancialState({
+      username,
+      user: rewardedUserData,
+      operation: 'premium_task_commission_credit',
+      before,
+      writes: [
+        { key: premiumKey, value: premium },
+        { key: taskKey, value: taskRecord },
+        { key: `${TRANSACTION_KEY_PREFIX}${transaction.id}`, value: transaction },
+      ],
+      ledgerMetadata: {
+        premiumId: premium.id,
+        commission,
+        bundleCompleted: premium.status === 'completed',
+      },
+    });
 
-  const rewardResult = await applyAutomaticRewardsForUser(username, normalizedUserData);
-  const rewardedUserData = rewardResult.normalizedUser;
-
-  await kv.set(userKey, rewardedUserData);
-
-  const premiumKey = `premium:${username}:${premium.id}`;
-  await kv.set(premiumKey, premium);
-
-  const taskKey = `task:${username}:${Date.now()}`;
-  const taskRecord = {
-    username,
-    productPrice,
-    commission,
-    isPremium: true,
-    premiumBundleId: premium.id,
-    timestamp: new Date().toISOString(),
-  };
-  await kv.set(taskKey, taskRecord);
-
-  await createTransactionRecord({
-    username,
-    type: 'Commission',
-    amount: commission,
-    method: 'Premium Task',
-    source: 'premium_task',
-    description: 'Premium task commission credited',
-    referenceId: premium.id,
-  });
-
-  return c.json({
-    success: true,
-    commission,
-    tasksCompleted: premium.tasksCompleted,
-    totalTasks: premium.totalTasks,
-    balance: rewardedUserData.balance,
-    holdAmount: rewardedUserData.holdAmount,
-    bundleCompleted: premium.status === 'completed',
-    nextInQueue: rewardedUserData.premiumQueue.length > 0,
-    parentReferralCommission: premiumReferralPayout.rewarded ? premiumReferralPayout.parentReward : 0,
-    parentReferralUsername: premiumReferralPayout.rewarded ? premiumReferralPayout.parentUsername : null,
+    return c.json({
+      success: true,
+      commission,
+      tasksCompleted: premium.tasksCompleted,
+      totalTasks: premium.totalTasks,
+      balance: persisted.user.balance,
+      holdAmount: persisted.user.holdAmount,
+      bundleCompleted: premium.status === 'completed',
+      nextInQueue: persisted.user.premiumQueue.length > 0,
+      parentReferralCommission: premiumReferralPayout.rewarded ? premiumReferralPayout.parentReward : 0,
+      parentReferralUsername: premiumReferralPayout.rewarded ? premiumReferralPayout.parentUsername : null,
+    });
   });
 }
 
 app.post('/make-server-a1c55d7e/me/complete-premium-task', async (c) => {
   try {
-    const rateLimited = enforceUserRateLimit(c, 'user:complete-premium-task');
+    const rateLimited = await enforceCriticalUserRateLimit(c, 'user:complete-premium-task');
     if (rateLimited) return rateLimited;
 
     const sessionResult = await requireActiveUserSession(c);
@@ -4922,7 +5303,7 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
     if (unauthorized) {
       return unauthorized;
     }
-    const rateLimited = enforceAdminRateLimit(c, 'admin:cancel-premium');
+    const rateLimited = await enforceCriticalAdminRateLimit(c, 'admin:cancel-premium');
     if (rateLimited) {
       return rateLimited;
     }
@@ -6409,7 +6790,7 @@ app.post('/make-server-a1c55d7e/admin/withdrawals/:withdrawalId/review', async (
     if (unauthorized) {
       return unauthorized;
     }
-    const rateLimited = enforceAdminRateLimit(c, 'admin:withdrawal-review');
+    const rateLimited = await enforceCriticalAdminRateLimit(c, 'admin:withdrawal-review');
     if (rateLimited) {
       return rateLimited;
     }
@@ -7347,7 +7728,7 @@ app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
 // Change user login/transaction credentials from profile (server-backed session token required)
 app.post('/make-server-a1c55d7e/auth/change-credentials', async (c) => {
   try {
-    const rateLimited = enforceUserRateLimit(c, 'user:change-credentials', 8);
+    const rateLimited = await enforceCriticalUserRateLimit(c, 'user:change-credentials', 8);
     if (rateLimited) return rateLimited;
 
     const body = await c.req.json();
@@ -8124,7 +8505,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
 
-    const limited = enforceAdminRateLimit(c, 'admin-platform-users:reconcile-premium-settlements');
+    const limited = await enforceCriticalAdminRateLimit(c, 'admin-platform-users:reconcile-premium-settlements');
     if (limited) return limited;
 
     const body = await c.req.json().catch(() => ({} as any));
@@ -8414,7 +8795,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
 
-    const limited = enforceAdminRateLimit(c, 'admin-platform-users:balance-adjustment');
+    const limited = await enforceCriticalAdminRateLimit(c, 'admin-platform-users:balance-adjustment');
     if (limited) return limited;
 
     const requestedUsername = sanitizeUsername(c.req.param('username'));
