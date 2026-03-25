@@ -2547,15 +2547,6 @@ async function getUserRecordWithDailyReset(username: string) {
   const normalizedUserData = await getOrCreateUserRecord(canonicalUsername);
   await assignUsernameLookup(canonicalUsername);
 
-  const today = new Date().toISOString().split('T')[0];
-  const lastResetDay = extractIsoDatePrefix(normalizedUserData.lastReset);
-  if (lastResetDay !== today) {
-    // Keep task progress continuous across sessions; only rotate daily commission counters.
-    normalizedUserData.todayCommission = 0;
-    normalizedUserData.lastReset = today;
-    await kv.set(userKey, normalizedUserData);
-  }
-
   return {
     canonicalUsername,
     normalizedUserData,
