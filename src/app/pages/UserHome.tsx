@@ -37,16 +37,18 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
 }
 
 const clientBrands = [
-  { name: 'ROAR Organic',        logo: 'https://logo.clearbit.com/roarorganic.com' },
-  { name: 'Borghese',            logo: 'https://logo.clearbit.com/borghese.com' },
-  { name: 'Isaia Napoli',        logo: 'https://logo.clearbit.com/isaia.it' },
-  { name: 'Giadzy',              logo: 'https://logo.clearbit.com/giadzy.com' },
-  { name: 'UBS',                 logo: 'https://logo.clearbit.com/ubs.com' },
-  { name: 'BLAST',               logo: 'https://logo.clearbit.com/blast.com' },
-  { name: 'Fanchest',            logo: 'https://logo.clearbit.com/fanchest.com' },
-  { name: 'Pet Plate',           logo: 'https://logo.clearbit.com/petplate.com' },
-  { name: 'The Vitamin Shoppe',  logo: 'https://logo.clearbit.com/vitaminshoppe.com' },
-  { name: 'Magellan Jets',       logo: 'https://logo.clearbit.com/magellanjets.com' },
+  { name: 'ROAR',            sub: 'Organic',             nameColor: '#111827', subColor: '#0093cc', accent: '#0093cc', bg: '#ffffff', border: '#cceeff' },
+  { name: 'BORGHESE',        sub: '',                    nameColor: '#1a1008', subColor: '',        accent: '#3b2a1a', bg: '#ffffff', border: '#ddd4c8' },
+  { name: 'ISAIA',           sub: 'NAPOLI',              nameColor: '#cc0000', subColor: '#cc0000', accent: '#cc0000', bg: '#ffffff', border: '#fcc'    },
+  { name: 'GIADZY',          sub: '',                    nameColor: '#cc0000', subColor: '',        accent: '#cc0000', bg: '#ffffff', border: '#fcc'    },
+  { name: 'UBS',             sub: '',                    nameColor: '#e00000', subColor: '',        accent: '#e00000', bg: '#ffffff', border: '#fdd'    },
+  { name: 'BLAST',           sub: '',                    nameColor: '#1e1e1e', subColor: '',        accent: '#1e1e1e', bg: '#f8f8f8', border: '#d0d0d0' },
+  { name: 'FANCHEST',        sub: '',                    nameColor: '#ffffff', subColor: '',        accent: '#555555', bg: '#0a0a0a', border: '#333'    },
+  { name: 'PET PLATE',       sub: '',                    nameColor: '#0055b3', subColor: '',        accent: '#0055b3', bg: '#ffffff', border: '#bbd4ff' },
+  { name: 'THE VITAMIN SHOPPE', sub: '',                 nameColor: '#003087', subColor: '',        accent: '#003087', bg: '#ffffff', border: '#c8d8f4' },
+  { name: 'MAGELLAN JETS',   sub: 'ELEVATE EXPECTATIONS', nameColor: '#b5722e', subColor: '#b5722e', accent: '#c4883c', bg: '#fdf7ee', border: '#e8ccaa' },
+  { name: '',                sub: '',                    nameColor: '',        subColor: '',        accent: 'transparent', bg: 'transparent', border: 'transparent' },
+  { name: '',                sub: '',                    nameColor: '',        subColor: '',        accent: 'transparent', bg: 'transparent', border: 'transparent' },
 ];
 
 const clientSlides: (typeof clientBrands)[] = [];
@@ -141,40 +143,65 @@ export default function UserHome() {
         </section>
 
         {/* Our Clients Section */}
-        <section className="mt-5 rounded-2xl border border-[#d3dde8] bg-white py-6 shadow-sm sm:py-8">
+        <section className="mt-5 rounded-2xl border border-[#d3dde8] bg-white py-6 shadow-sm sm:py-8 overflow-hidden">
           <div className="px-4 sm:px-5">
-            <h2 className="mb-4 text-center text-[1.4rem] font-extrabold text-[#0b5f94] sm:mb-6 sm:text-3xl">Our Clients</h2>
-            <div className="overflow-hidden">
+            <p className="text-center text-[0.65rem] sm:text-xs font-bold tracking-[0.22em] text-[#0093cc] uppercase mb-1">TRUSTED BY LEADING BRANDS</p>
+            <h2 className="mb-5 text-center text-[1.4rem] font-extrabold text-[#0b5f94] sm:mb-7 sm:text-3xl">Our Clients</h2>
+            <div className="overflow-hidden rounded-xl">
               <div
                 className="flex transition-transform duration-500 ease-in-out"
                 style={{ transform: `translateX(-${clientIndex * 100}%)` }}
               >
                 {clientSlides.map((slide, slideIdx) => (
-                  <div key={slideIdx} className="min-w-full flex gap-3 px-1">
-                    {slide.map((brand) => (
-                      <div
-                        key={brand.name}
-                        className="flex-1 flex flex-col items-center justify-center rounded-lg border border-[#d3dde8] bg-white p-3 min-h-[90px] sm:min-h-[110px] shadow-sm gap-1.5"
-                      >
-                        <img
-                          src={brand.logo}
-                          alt={brand.name}
-                          className="max-h-9 sm:max-h-11 max-w-[80%] w-auto object-contain"
-                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-                        />
-                        <span className="text-[0.65rem] sm:text-[0.72rem] font-semibold text-[#2b4a6a] text-center leading-tight">{brand.name}</span>
-                      </div>
+                  <div key={slideIdx} className="min-w-full flex gap-2.5 sm:gap-3">
+                    {slide.map((brand, bi) => (
+                      brand.name ? (
+                        <div
+                          key={brand.name}
+                          className="flex-1 relative flex flex-col items-center justify-center rounded-xl overflow-hidden transition-all duration-300 hover:-translate-y-1.5 hover:scale-[1.03] cursor-default select-none"
+                          style={{
+                            background: brand.bg,
+                            border: `1.5px solid ${brand.border}`,
+                            minHeight: '96px',
+                            boxShadow: `0 2px 10px ${brand.accent}22, 0 1px 3px rgba(0,0,0,0.06)`,
+                          }}
+                        >
+                          {/* Top accent stripe */}
+                          <div className="absolute top-0 left-0 right-0 h-[3px] rounded-t-xl" style={{ background: brand.accent }} />
+                          <div className="flex flex-col items-center justify-center px-2 pt-3 pb-2.5 gap-0.5 w-full">
+                            <span
+                              className="font-black tracking-tight text-center leading-none text-[0.95rem] sm:text-lg"
+                              style={{ color: brand.nameColor }}
+                            >{brand.name}</span>
+                            {brand.sub && (
+                              <span
+                                className="text-[0.52rem] sm:text-[0.62rem] font-bold tracking-[0.18em] uppercase text-center mt-0.5"
+                                style={{ color: brand.subColor || brand.nameColor }}
+                              >{brand.sub}</span>
+                            )}
+                          </div>
+                          {/* Bottom glow line */}
+                          <div className="absolute bottom-0 left-[15%] right-[15%] h-[2px] rounded-full opacity-40" style={{ background: brand.accent }} />
+                        </div>
+                      ) : (
+                        <div key={`empty-${slideIdx}-${bi}`} className="flex-1" />
+                      )
                     ))}
                   </div>
                 ))}
               </div>
-              <div className="flex justify-center gap-2 mt-4">
+              {/* Expanding pill dot navigation */}
+              <div className="flex justify-center items-center gap-1.5 mt-5">
                 {clientSlides.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setClientIndex(i)}
-                    className={`h-2 w-2 rounded-full transition-colors duration-300 ${i === clientIndex ? 'bg-[#0b5f94]' : 'bg-[#b5d0e6]'}`}
-                    aria-label={`Show clients ${i * 3 + 1}–${Math.min(i * 3 + 3, clientBrands.length)}`}
+                    className="h-[5px] rounded-full transition-all duration-300"
+                    style={{
+                      width: i === clientIndex ? '22px' : '7px',
+                      background: i === clientIndex ? '#0b5f94' : '#b5d0e6',
+                    }}
+                    aria-label={`Show clients ${i * 3 + 1}–${Math.min(i * 3 + 3, 10)}`}
                   />
                 ))}
               </div>
