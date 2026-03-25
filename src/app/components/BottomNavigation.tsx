@@ -7,20 +7,23 @@ export function BottomNavigation() {
   const homePath = '/home';
   
   const isActive = (path: string) => location.pathname === path;
+  const isHomeActive = isActive(homePath);
   const isStartingActive = isActive('/starting');
+  const isRecordsActive = isActive('/records');
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#0f6ea8] bg-gradient-to-b from-[#0d689f] to-[#0b5f94] px-3 pb-[calc(0.9rem+env(safe-area-inset-bottom))] pt-3 text-white shadow-[0_-10px_28px_rgba(4,45,74,0.28)] backdrop-blur-sm">
       <div className="mx-auto grid w-full max-w-6xl grid-cols-3 items-end">
         <Link 
           to={homePath} 
-          className={`flex min-w-0 flex-col items-center gap-1 py-1.5 transition-all duration-300 ${isActive(homePath) ? 'text-white' : 'text-white/90 hover:text-white'}`}
+          className={`group flex min-w-0 flex-col items-center gap-1 py-1.5 transition-all duration-300 ${isHomeActive ? 'text-white' : 'text-white/90 hover:text-white'}`}
         >
-          <div className={`rounded-xl px-3 py-1.5 transition-all duration-300 ${isActive(homePath) ? 'bg-white/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_6px_14px_rgba(1,43,72,0.28)] ring-1 ring-white/30' : 'bg-transparent'}`}>
-            <Home size={25} strokeWidth={2.3} className={isActive(homePath) ? 'text-[#eaf8ff]' : 'text-white'} />
+          <div className={`relative overflow-hidden rounded-xl px-3 py-1.5 transition-all duration-300 ${isHomeActive ? 'bg-white/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_6px_14px_rgba(1,43,72,0.28)] ring-1 ring-white/30 platform-side-glow' : 'bg-transparent group-hover:bg-white/10'}`}>
+            <span className={`pointer-events-none absolute inset-0 ${isHomeActive ? 'platform-side-sheen' : 'opacity-0 group-hover:opacity-100 platform-side-hover-sheen'}`} />
+            <Home size={25} strokeWidth={2.3} className={`${isHomeActive ? 'text-[#eaf8ff] platform-side-float' : 'text-white'} relative z-[1]`} />
           </div>
-          <span className="text-[15px] font-semibold leading-none">Home</span>
-          <span className={`h-1 rounded-full bg-[#00D9FF] transition-all duration-300 ${isActive(homePath) ? 'w-6 opacity-100' : 'w-0 opacity-0'}`} />
+          <span className={`text-[15px] font-semibold leading-none ${isHomeActive ? 'platform-side-title-glow' : ''}`}>Home</span>
+          <span className={`h-1 rounded-full bg-[#00D9FF] transition-all duration-300 ${isHomeActive ? 'w-6 opacity-100 platform-side-underline-pulse' : 'w-0 opacity-0'}`} />
         </Link>
 
         <Link 
@@ -43,13 +46,14 @@ export function BottomNavigation() {
 
         <Link 
           to="/records" 
-          className={`flex min-w-0 flex-col items-center gap-1 py-1.5 transition-all duration-300 ${isActive('/records') ? 'text-white' : 'text-white/90 hover:text-white'}`}
+          className={`group flex min-w-0 flex-col items-center gap-1 py-1.5 transition-all duration-300 ${isRecordsActive ? 'text-white' : 'text-white/90 hover:text-white'}`}
         >
-          <div className={`rounded-xl px-3 py-1.5 transition-all duration-300 ${isActive('/records') ? 'bg-white/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_6px_14px_rgba(1,43,72,0.28)] ring-1 ring-white/30' : 'bg-transparent'}`}>
-            <FileCheck size={25} strokeWidth={2.3} className={isActive('/records') ? 'text-[#eaf8ff]' : 'text-white'} />
+          <div className={`relative overflow-hidden rounded-xl px-3 py-1.5 transition-all duration-300 ${isRecordsActive ? 'bg-white/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_6px_14px_rgba(1,43,72,0.28)] ring-1 ring-white/30 platform-side-glow' : 'bg-transparent group-hover:bg-white/10'}`}>
+            <span className={`pointer-events-none absolute inset-0 ${isRecordsActive ? 'platform-side-sheen' : 'opacity-0 group-hover:opacity-100 platform-side-hover-sheen'}`} />
+            <FileCheck size={25} strokeWidth={2.3} className={`${isRecordsActive ? 'text-[#eaf8ff] platform-side-float' : 'text-white'} relative z-[1]`} />
           </div>
-          <span className="text-[15px] font-semibold leading-none">Records</span>
-          <span className={`h-1 rounded-full bg-[#00D9FF] transition-all duration-300 ${isActive('/records') ? 'w-6 opacity-100' : 'w-0 opacity-0'}`} />
+          <span className={`text-[15px] font-semibold leading-none ${isRecordsActive ? 'platform-side-title-glow' : ''}`}>Records</span>
+          <span className={`h-1 rounded-full bg-[#00D9FF] transition-all duration-300 ${isRecordsActive ? 'w-6 opacity-100 platform-side-underline-pulse' : 'w-0 opacity-0'}`} />
         </Link>
       </div>
       <style>{`
@@ -76,6 +80,21 @@ export function BottomNavigation() {
         @keyframes platformSheenSweep {
           0% { transform: translateX(-130%); }
           100% { transform: translateX(130%); }
+        }
+
+        @keyframes platformSideGlow {
+          0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 14px rgba(1,43,72,0.28), 0 0 0 rgba(0,217,255,0); }
+          50% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 14px rgba(1,43,72,0.28), 0 0 16px rgba(0,217,255,0.18); }
+        }
+
+        @keyframes platformSideFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-1px); }
+        }
+
+        @keyframes platformSideUnderlinePulse {
+          0%, 100% { opacity: 0.85; }
+          50% { opacity: 1; }
         }
 
         .platform-icon-float {
@@ -106,6 +125,36 @@ export function BottomNavigation() {
         .platform-underline-pulse {
           animation: platformUnderlinePulse 2.2s ease-in-out infinite;
           box-shadow: 0 0 9px rgba(0, 217, 255, 0.48);
+        }
+
+        .platform-side-glow {
+          animation: platformSideGlow 2.6s ease-in-out infinite;
+        }
+
+        .platform-side-float {
+          animation: platformSideFloat 2.6s ease-in-out infinite;
+        }
+
+        .platform-side-sheen {
+          background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.28) 50%, transparent 80%);
+          transform: translateX(-130%);
+          animation: platformSheenSweep 3.2s ease-in-out infinite;
+          opacity: 0.45;
+        }
+
+        .platform-side-hover-sheen {
+          background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.2) 50%, transparent 80%);
+          transform: translateX(-130%);
+          animation: platformSheenSweep 1.8s ease-in-out infinite;
+        }
+
+        .platform-side-title-glow {
+          text-shadow: 0 0 7px rgba(77, 208, 255, 0.32);
+        }
+
+        .platform-side-underline-pulse {
+          animation: platformSideUnderlinePulse 2.4s ease-in-out infinite;
+          box-shadow: 0 0 7px rgba(0, 217, 255, 0.42);
         }
       `}</style>
     </nav>
