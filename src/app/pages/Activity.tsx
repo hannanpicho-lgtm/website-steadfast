@@ -94,6 +94,10 @@ export default function Activity() {
     10000: 'BEST DEAL',
   };
 
+  const resetColumnCardBg = ['bg-cyan-100', 'bg-yellow-50', 'bg-rose-100'];
+  const resetColumnBorderColor = ['border-cyan-200', 'border-yellow-200', 'border-rose-200'];
+  const resetColumnBadgeBg = ['bg-sky-500', 'bg-amber-500', 'bg-pink-700'];
+
   const orderedResetRewards = resetDisplayOrder
     .map((deposit) => resetRewards.find((reward) => Number(reward.deposit) === deposit))
     .filter((reward): reward is typeof resetRewards[number] => Boolean(reward));
@@ -330,35 +334,31 @@ export default function Activity() {
             <div className="space-y-3">
               {vipLevels.map((vip) => (
                 <div key={vip.level} className="bg-gray-700 rounded-lg p-3 sm:p-4 border-4 border-yellow-400">
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 sm:gap-2 items-start sm:items-center text-white">
+                  <div className="grid grid-cols-4 gap-1 sm:gap-2 items-center text-white">
                     {/* VIP Badge */}
-                    <div className="flex items-center gap-2">
-                      <div className={`${vip.color} w-12 h-12 rounded-lg flex items-center justify-center`}>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      <div className={`${vip.color} w-8 h-8 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center shrink-0`}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
                           <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
                         </svg>
                       </div>
-                      <span className="font-bold">VIP {vip.level}</span>
+                      <span className="font-bold text-[11px] sm:text-base leading-tight">VIP {vip.level}</span>
                     </div>
 
                     {/* Unlock Condition */}
-                    <div className="sm:text-center">
-                      <p className="text-xs text-gray-300 sm:hidden mb-1">Unlock Condition</p>
-                      <span className="text-cyan-300 font-bold text-base sm:text-lg">{vip.range}</span>
-                      <span className="text-gray-300 ml-1 text-sm">{vip.level === 5 ? 'USD or Above' : 'USD'}</span>
+                    <div className="text-center">
+                      <div className="text-cyan-300 font-bold text-[10px] sm:text-lg leading-tight">{vip.range}</div>
+                      <div className="text-gray-300 text-[9px] sm:text-sm">{vip.level === 5 ? 'or Above' : 'USD'}</div>
                     </div>
 
                     {/* Daily Work */}
-                    <div className="sm:text-center font-bold">
-                      <p className="text-xs text-gray-300 sm:hidden mb-1">Daily Work</p>
-                      {vip.products} tasks / set
+                    <div className="text-center font-bold text-[10px] sm:text-base">
+                      {vip.products} products/ Set
                     </div>
 
                     {/* Profit Rate */}
-                    <div className="sm:text-center font-bold text-lg sm:text-xl">
-                      <p className="text-xs text-gray-300 sm:hidden mb-1">Profit Rate</p>
-                      <p>{vip.rate}</p>
-                      <p className="text-xs sm:text-sm text-yellow-300">Premium {vip.premiumRate} (10x)</p>
+                    <div className="text-center font-bold text-[11px] sm:text-xl">
+                      {vip.rate}
                     </div>
                   </div>
                 </div>
@@ -425,20 +425,13 @@ export default function Activity() {
 
             {/* Rewards Grid */}
             <div className="grid grid-cols-3 gap-2.5 sm:gap-4">
-              {orderedResetRewards.map((reward) => {
+              {orderedResetRewards.map((reward, index) => {
                 const badge = resetBadgeByDeposit[Number(reward.deposit)] ?? '';
+                const colIdx = index % 3;
 
                 return (
-                  <div key={reward.id} className="relative">
-                    {badge ? (
-                      <div className={`${reward.labelColor} text-white text-[10px] sm:text-xs font-bold text-center rounded-full px-2 py-1 mb-1 shadow-sm`}>
-                        {badge}
-                      </div>
-                    ) : (
-                      <div className="h-6 mb-1" aria-hidden="true"></div>
-                    )}
-
-                    <div className="bg-cyan-100 rounded-2xl px-2 py-2.5 sm:px-3 sm:py-3 text-center border border-cyan-200 min-h-[132px] sm:min-h-[156px] flex flex-col justify-center">
+                  <div key={reward.id} className="flex flex-col items-stretch">
+                    <div className={`${resetColumnCardBg[colIdx]} rounded-2xl px-2 py-2.5 sm:px-3 sm:py-3 text-center border ${resetColumnBorderColor[colIdx]} min-h-[132px] sm:min-h-[156px] flex flex-col justify-center`}>
                       <p className="text-[9px] sm:text-xs text-slate-700 leading-tight">Deposit with</p>
                       <p className="text-xl sm:text-3xl font-extrabold text-slate-900 leading-none mt-1">{reward.deposit.toLocaleString()}</p>
                       <p className="text-[10px] sm:text-xs text-slate-700">USD</p>
@@ -447,6 +440,11 @@ export default function Activity() {
                       <p className="text-2xl sm:text-4xl font-extrabold text-slate-900 leading-none mt-1">{reward.reward.toLocaleString()}</p>
                       <p className="text-[10px] sm:text-xs text-slate-700">USD</p>
                     </div>
+                    {badge ? (
+                      <div className={`${resetColumnBadgeBg[colIdx]} text-white text-[10px] sm:text-xs font-bold text-center rounded-full px-2 py-1 mt-1.5 shadow-sm`}>
+                        {badge}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
@@ -460,24 +458,24 @@ export default function Activity() {
           
           <div className="space-y-4">
             {accumulatedRewards.map((reward, index) => (
-              <div key={index} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
-                <div className="flex-1 bg-gray-700 rounded-lg p-4 border-4 border-yellow-400">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-white">
+              <div key={index} className="flex flex-row items-center gap-2 sm:gap-4">
+                <div className="flex-1 bg-gray-700 rounded-lg p-3 sm:p-4 border-4 border-yellow-400">
+                  <div className="flex flex-row items-center justify-between gap-2 text-white">
                     <div>
-                      <div className="text-sm">Advances On Day (USD)</div>
-                      <div className="text-xl sm:text-2xl font-bold text-cyan-300">
+                      <div className="text-xs sm:text-sm">Advances On Day (USD)</div>
+                      <div className="text-base sm:text-2xl font-bold text-cyan-300">
                         {reward.maxDeposit === null
-                          ? `${reward.minDeposit.toLocaleString()}+`
+                          ? `${reward.minDeposit.toLocaleString()} - Above`
                           : `${reward.minDeposit.toLocaleString()} - ${reward.maxDeposit.toLocaleString()}`}
                       </div>
                     </div>
-                    <div className="text-sm">
+                    <div className="text-[10px] sm:text-sm text-right shrink-0">
                       Will Get<br/>Advance Deposit Reward
                     </div>
                   </div>
                 </div>
-                <div className="self-center sm:self-auto w-20 h-20 sm:w-24 sm:h-24 bg-yellow-300 rounded-full flex items-center justify-center border-4 border-[#0066b3]">
-                  <span className="text-2xl sm:text-3xl font-bold text-black">{(reward.rate * 100).toFixed(1)}%</span>
+                <div className="shrink-0 w-14 h-14 sm:w-24 sm:h-24 bg-yellow-300 rounded-full flex items-center justify-center border-4 border-[#0066b3]">
+                  <span className="text-lg sm:text-3xl font-bold text-black">{(reward.rate * 100).toFixed(0)}%</span>
                 </div>
               </div>
             ))}

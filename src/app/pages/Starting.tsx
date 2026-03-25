@@ -1038,8 +1038,8 @@ export default function Starting() {
               >
                 <span data-financial-sheen className={financialSheenFx} />
                 <div className="relative z-[1]">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-white/15 p-1.5">
+                <div className="flex flex-col items-center text-center gap-2 md:flex-row md:text-left md:gap-3">
+                  <div className="rounded-full bg-white/15 p-1.5 shrink-0">
                     <CreditCard size={15} />
                   </div>
                   <div>
@@ -1051,7 +1051,7 @@ export default function Starting() {
                     </p>
                   </div>
                 </div>
-                <p className="mt-2 text-[11px] text-white/75">
+                <p className="mt-2 text-center text-[11px] text-white/75 md:text-left">
                   {userData?.isFrozen ? 'Balance held before premium settlement.' : 'Funds currently available for new submissions.'}
                 </p>
                 </div>
@@ -1066,8 +1066,8 @@ export default function Starting() {
               >
                 <span data-financial-sheen className={financialSheenFx} />
                 <div className="relative z-[1]">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-white/15 p-1.5">
+                <div className="flex flex-col items-center text-center gap-2 md:flex-row md:text-left md:gap-3">
+                  <div className="rounded-full bg-white/15 p-1.5 shrink-0">
                     <Snowflake size={15} />
                   </div>
                   <div>
@@ -1077,7 +1077,7 @@ export default function Starting() {
                     </p>
                   </div>
                 </div>
-                <p className="mt-2 text-[11px] text-white/75">
+                <p className="mt-2 text-center text-[11px] text-white/75 md:text-left">
                   {userData?.isFrozen ? 'Reserved for the premium settlement requirement.' : 'Amount currently reserved from the working balance.'}
                 </p>
                 </div>
@@ -1112,7 +1112,7 @@ export default function Starting() {
                 data-tilt-mult="1"
               >
                 <span data-financial-sheen className={financialSheenFx} />
-                <div className="relative z-[1]">
+                <div className="relative z-[1] text-center">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Lucky Bonus</p>
                 <p className="mt-1 text-xl font-bold">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
                 <p className="mt-1.5 text-[11px] text-white/75">Bonus value currently carried on the account.</p>
@@ -1126,7 +1126,7 @@ export default function Starting() {
                 data-tilt-mult="1"
               >
                 <span data-financial-sheen className={financialSheenFx} />
-                <div className="relative z-[1]">
+                <div className="relative z-[1] text-center">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Working Status</p>
                 <p className="mt-1 text-xl font-bold">{userData?.isFrozen ? 'Settlement Review' : 'Ready To Submit'}</p>
                 <p className="mt-1.5 text-[11px] text-white/75">
