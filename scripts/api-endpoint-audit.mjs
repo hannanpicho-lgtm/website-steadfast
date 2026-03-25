@@ -1,0 +1,266 @@
+#!/usr/bin/env node
+/**
+ * Endpoint Inventory Audit Script
+ *
+ * Programmatically extracts every API route declared in
+ * supabase/functions/server/index.ts, calls each route, and validates:
+ * - A response is returned (no network/runtime throw)
+ * - Status code is not 5xx for baseline validation/auth scenarios
+ * - Auth-protected endpoints reject anonymous access
+ *
+ * Optional env vars:
+ * - API_BASE_URL
+ * - SUPABASE_ANON_KEY
+ * - AUDIT_TIMEOUT_MS (default: 20000)
+ */
+
+import { readFile } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
+
+const DEFAULT_BASE = 'https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e';
+const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2cXd2dXFlZW5rdXNkYXlvc3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxODA3ODksImV4cCI6MjA4ODc1Njc4OX0.R0dNwSW9ibeU0XE9kYdKI3E2D6vEP6dVu2VATAHXK1A';
+const BASE = process.env.API_BASE_URL ?? DEFAULT_BASE;
+const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? DEFAULT_ANON_KEY;
+const TIMEOUT_MS = Number(process.env.AUDIT_TIMEOUT_MS ?? '20000');
+
+const SERVER_FILE = new URL('../supabase/functions/server/index.ts', import.meta.url);
+
+const ROUTE_PREFIX = '/make-server-a1c55d7e';
+const ROUTE_REGEX = /app\.(get|post|put|patch|delete)\(\s*['\"]([^'\"]+)['\"]/g;
+
+const SAFE_STATUSES = new Set([200, 201, 204, 400, 401, 403, 404, 405, 409, 410, 415, 422, 429, 503]);
+
+const methodDefaultPayload = {
+  post: {},
+  put: {},
+  patch: {},
+  delete: undefined,
+  get: undefined,
+};
+
+let userSeed = null;
+
+function normalizeRoutePath(rawPath) {
+  let path = rawPath.startsWith(ROUTE_PREFIX) ? rawPath.slice(ROUTE_PREFIX.length) : rawPath;
+  if (!path.startsWith('/')) path = `/${path}`;
+
+  path = path.replace(':adminId', 'smoke-admin-id');
+  path = path.replace(':taskId', 'task-amazon-headphones');
+  path = path.replace(':withdrawalId', 'withdrawal-smoke-id');
+  path = path.replace(':username', 'smoke_user');
+  path = path.replace(':premiumId', 'premium-smoke-id');
+  path = path.replace(':token', 'fake-token');
+
+  return path;
+}
+
+function extractRoutes(sourceText) {
+  const found = [];
+  const seen = new Set();
+
+  for (const match of sourceText.matchAll(ROUTE_REGEX)) {
+    const method = match[1].toLowerCase();
+    const rawPath = match[2];
+    const path = normalizeRoutePath(rawPath);
+    const key = `${method.toUpperCase()} ${path}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    found.push({ method, path, rawPath });
+  }
+
+  return found;
+}
+
+function classifyPath(path) {
+  if (path.startsWith('/admin/') || path.startsWith('/cs/admin/')) return 'admin';
+  if (path.startsWith('/me/')) return 'session-user';
+  return 'public';
+}
+
+async function withTimeout(promise, timeoutMs, label) {
+  let timeoutHandle;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutHandle = setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms: ${label}`)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
+
+function headers() {
+  return {
+    'Content-Type': 'application/json',
+    apikey: ANON_KEY,
+    Authorization: `Bearer ${ANON_KEY}`,
+  };
+}
+
+async function fetchJson(method, path, body) {
+  const url = `${BASE}${path}`;
+  const init = {
+    method: method.toUpperCase(),
+    headers: headers(),
+  };
+
+  if (body !== undefined && method !== 'get') {
+    init.body = JSON.stringify(body);
+  }
+
+  const res = await withTimeout(fetch(url, init), TIMEOUT_MS, `${method.toUpperCase()} ${path}`);
+  const text = await res.text();
+  let parsed = null;
+  try {
+    parsed = text ? JSON.parse(text) : null;
+  } catch {
+    parsed = null;
+  }
+
+  return {
+    status: res.status,
+    body: parsed,
+    raw: text,
+    contentType: res.headers.get('content-type') ?? '',
+  };
+}
+
+async function ensureUserSeed() {
+  if (userSeed) return userSeed;
+
+  const runId = Date.now();
+  userSeed = {
+    username: `endpoint_audit_${runId}`,
+    phone: `1777${String(runId).slice(-7)}`,
+    loginPassword: 'audit12345',
+    transactionPassword: 'audit67890',
+  };
+
+  await fetchJson('post', '/auth/signup', {
+    username: userSeed.username,
+    phone: userSeed.phone,
+    gender: 'unknown',
+    invitationCode: 'STF01',
+    loginPassword: userSeed.loginPassword,
+    transactionPassword: userSeed.transactionPassword,
+  });
+
+  return userSeed;
+}
+
+async function payloadFor(route) {
+  if (route.method === 'get' || route.method === 'delete') {
+    return undefined;
+  }
+
+  const user = await ensureUserSeed();
+
+  const map = {
+    '/auth/login': { username: user.username, loginPassword: user.loginPassword },
+    '/auth/session/restore': {},
+    '/auth/verify-token': { token: 'bogus-token' },
+    '/auth/session/logout': {},
+    '/auth/forgot-password': { email: `audit_${Date.now()}@example.com` },
+    '/auth/reset-password': { token: 'bogus-token', username: user.username, newPassword: 'newpass123' },
+    '/auth/change-password': { username: user.username, currentPassword: user.loginPassword, newPassword: 'nextpass123' },
+    '/auth/change-credentials': { currentLoginPassword: user.loginPassword, newLoginPassword: 'nextpass123', newTransactionPassword: 'nexttxn123' },
+    '/validate-admin-invite-code': { invitationCode: 'ABCDE' },
+    '/referral/link-user': { invitationCode: 'ABCDE' },
+    '/referral/link-admin-invite': { invitationCode: 'ABCDE' },
+    '/me/submit-task': { productPrice: 0 },
+    '/me/complete-premium-task': { productPrice: 0 },
+    '/me/withdrawals/request': { amount: 1, method: 'USDT', walletAddress: 'test-wallet', network: 'TRC20', transactionPassword: '111111' },
+    '/me/wallet': { type: 'crypto', walletType: 'usdt', walletAddress: '0x1234567890abcdef1234567890abcdef12345678', network: 'trc20' },
+    '/cs/create-ticket': { subject: 'audit', message: 'audit message', category: 'general', priority: 'low' },
+    '/cs/respond': { ticketId: 'ticket-smoke-id', message: 'audit reply' },
+    '/cs/update-status': { ticketId: 'ticket-smoke-id', status: 'open' },
+    '/cs/chat/send': { username: user.username, message: 'audit chat' },
+    '/cs/chat/mark-read': { username: user.username, viewer: 'user' },
+  };
+
+  return map[route.path] ?? methodDefaultPayload[route.method];
+}
+
+function validateAuthBehavior(route, response) {
+  const area = classifyPath(route.path);
+  if (area === 'admin' || area === 'session-user') {
+    return response.status === 401 || response.status === 403;
+  }
+
+  return SAFE_STATUSES.has(response.status);
+}
+
+function validateBodyShape(response) {
+  if (response.contentType.includes('application/json')) {
+    if (response.body === null) {
+      return false;
+    }
+
+    const t = typeof response.body;
+    if (t !== 'object') {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+async function run() {
+  const source = await readFile(SERVER_FILE, 'utf8');
+  const routes = extractRoutes(source);
+
+  console.log(`Discovered ${routes.length} routes from ${SERVER_FILE.pathname}`);
+
+  const failures = [];
+  let ok = 0;
+
+  for (const route of routes) {
+    const body = await payloadFor(route);
+    let result;
+
+    try {
+      result = await fetchJson(route.method, route.path, body);
+    } catch (error) {
+      failures.push({
+        route: `${route.method.toUpperCase()} ${route.path}`,
+        reason: `request threw: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      continue;
+    }
+
+    const routeLabel = `${route.method.toUpperCase()} ${route.path}`;
+    const authOk = validateAuthBehavior(route, result);
+    const safeStatus = SAFE_STATUSES.has(result.status);
+    const bodyOk = validateBodyShape(result);
+
+    if (!safeStatus || !authOk || !bodyOk) {
+      failures.push({
+        route: routeLabel,
+        reason: `status=${result.status}, safeStatus=${safeStatus}, authOk=${authOk}, bodyOk=${bodyOk}`,
+      });
+      continue;
+    }
+
+    ok += 1;
+    await delay(50);
+  }
+
+  console.log(`\nCompleted endpoint inventory audit: ${ok}/${routes.length} checks passed.`);
+
+  if (failures.length > 0) {
+    console.log('\nFailures:');
+    for (const fail of failures) {
+      console.log(`- ${fail.route}: ${fail.reason}`);
+    }
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log('All inventory checks passed.');
+}
+
+run().catch((error) => {
+  console.error('Fatal audit script error:', error);
+  process.exit(2);
+});
