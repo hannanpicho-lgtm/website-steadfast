@@ -1,8 +1,8 @@
 import { UserCircle, Rocket, CreditCard, Snowflake, Loader2, Lock, AlertTriangle, DollarSign, ChevronLeft, ChevronRight, CheckCircle2, MessageCircle } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useEffect, useRef, useMemo, lazy, Suspense, type MouseEvent as ReactMouseEvent } from 'react';
 import { toast } from 'sonner';
-import { LiveChatBox } from '../components/LiveChatBox';
+const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
@@ -54,9 +54,9 @@ type TaskCatalogResponse = {
   };
 };
 
-const REQUEST_TIMEOUT_MS = 8000;
+const REQUEST_TIMEOUT_MS = 6000;
 const TASK_CATALOG_CACHE_KEY = 'starting:task-catalog:v1';
-const TASK_CATALOG_CACHE_TTL_MS = 2 * 60 * 1000;
+const TASK_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
 const STARTING_PERF_SAMPLES_KEY = 'starting:perf-samples:v1';
 const STARTING_PERF_MAX_SAMPLES = 30;
 
@@ -233,7 +233,7 @@ export default function Starting() {
   const username = sessionUsername;
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
-  const activeTasks = taskCatalog.filter((task) => task.status === 'Active');
+  const activeTasks = useMemo(() => taskCatalog.filter((task) => task.status === 'Active'), [taskCatalog]);
   const currentProduct = activeTasks.length > 0 ? activeTasks[currentProductIndex % activeTasks.length] : null;
 
   // Auto-advance carousel
@@ -418,23 +418,27 @@ export default function Starting() {
         setTaskRuleConfig(cachedTaskCatalog.ruleConfig ?? null);
       }
 
-      const [sessionResult, tasksResult] = await Promise.allSettled([
+      const [sessionResult, tasksResult, vipResult, rewardsResult] = await Promise.allSettled([
         withRetry(async () => {
           const startedAt = performance.now();
           const result = await fetchSessionUser();
           sessionFetchMs = roundMoney(performance.now() - startedAt);
           return result;
-        }, 2),
-        withRetry(async () => {
-          const startedAt = performance.now();
-          const result = await fetchJsonWithTimeout(`${serverUrl}/tasks/catalog`, {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-          },
-          });
-          catalogFetchMs = roundMoney(performance.now() - startedAt);
-          return result;
-        }, 2),
+        }, 1),
+        cachedTaskCatalog
+          ? Promise.resolve(cachedTaskCatalog)
+          : withRetry(async () => {
+              const startedAt = performance.now();
+              const result = await fetchJsonWithTimeout(`${serverUrl}/tasks/catalog`, {
+              headers: {
+                'Authorization': `Bearer ${publicAnonKey}`,
+              },
+              });
+              catalogFetchMs = roundMoney(performance.now() - startedAt);
+              return result;
+            }, 1),
+        withRetry(() => fetchPublicVipConfig(), 1),
+        withRetry(() => fetchPublicRewardsConfig(), 1),
       ]);
 
       if (sessionResult.status === 'fulfilled') {
@@ -453,6 +457,14 @@ export default function Starting() {
 
       if (sessionResult.status !== 'fulfilled' && tasksResult.status !== 'fulfilled') {
         throw new Error('Unable to load user and task data right now.');
+      }
+
+      if (vipResult.status === 'fulfilled') {
+        setVipConfigurations(vipResult.value);
+      }
+
+      if (rewardsResult.status === 'fulfilled') {
+        setRewardsConfig(rewardsResult.value);
       }
 
       setLoading(false);
@@ -475,22 +487,6 @@ export default function Starting() {
       };
       writeStartingPerfSample(perfSample);
       console.info('[StartingPerf] load sample', perfSample);
-
-      // Load non-critical configs in background so the page becomes usable faster.
-      void (async () => {
-        const [vipResult, rewardsResult] = await Promise.allSettled([
-          withRetry(() => fetchPublicVipConfig(), 2),
-          withRetry(() => fetchPublicRewardsConfig(), 2),
-        ]);
-
-        if (vipResult.status === 'fulfilled') {
-          setVipConfigurations(vipResult.value);
-        }
-
-        if (rewardsResult.status === 'fulfilled') {
-          setRewardsConfig(rewardsResult.value);
-        }
-      })();
     } catch (error) {
       console.error('Error fetching user data:', error);
       setLoadError('Connection is unstable. Please retry loading your data.');
@@ -786,6 +782,7 @@ export default function Starting() {
                   key={slide.id}
                   src={slide.image}
                   alt={getPrimaryLabel(slide.product)}
+                  loading="lazy"
                   className="max-h-[170px] sm:max-h-[180px] max-w-[180px] sm:max-w-[200px] w-full object-contain"
                 />
               </div>
@@ -842,6 +839,7 @@ export default function Starting() {
               <img
                 src={displayProduct?.image}
                 alt={displayProduct?.product || 'Task'}
+                loading="lazy"
                 className="w-full h-full object-contain"
               />
             </div>
@@ -1154,7 +1152,11 @@ export default function Starting() {
       </div>
 
       {/* Live Chat Box */}
-      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      {isChatOpen && (
+        <Suspense fallback={null}>
+          <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+        </Suspense>
+      )}
 
       {/* Bottom Navigation */}
       <BottomNavigation />

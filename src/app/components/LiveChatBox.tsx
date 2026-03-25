@@ -18,6 +18,8 @@ export function LiveChatBox({ isOpen, onClose, message }: LiveChatBoxProps) {
   });
 
   useEffect(() => {
+    if (!isOpen) return;
+
     const loadSupportLinks = async () => {
       try {
         const response = await fetch(`${serverUrl}/cs/support-links`, {
@@ -36,7 +38,7 @@ export function LiveChatBox({ isOpen, onClose, message }: LiveChatBoxProps) {
     };
 
     void loadSupportLinks();
-  }, [serverUrl]);
+  }, [isOpen, serverUrl]);
 
   if (!isOpen && !isUserLiveChatOpen) return null;
 
