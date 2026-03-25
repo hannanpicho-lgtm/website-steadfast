@@ -1,3 +1,54 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+
+/* ─── Global polish ──────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Subtle page-entrance animation driven by route lazy-loading */
+@keyframes sf-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Applied to every top-level route container */
+.sf-page-enter {
+  animation: sf-fade-in 0.28s ease both;
+}
+
+/* Focus-visible ring using platform accent */
+:focus-visible {
+  outline: 2px solid rgba(0, 217, 255, 0.55);
+  outline-offset: 2px;
+}
+
+/* Smooth colour / background transitions on interactive elements */
+button,
+a,
+input,
+select,
+textarea {
+  transition-property: color, background-color, border-color, box-shadow, opacity, filter;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+/* Scrollbar (Webkit) — subtle dark style that matches the platform */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 217, 255, 0.2);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 217, 255, 0.35);
+}

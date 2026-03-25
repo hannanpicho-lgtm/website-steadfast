@@ -4,6 +4,7 @@ import { Award, Calendar, Gift, HelpCircle, Info, ScrollText, Wallet, ArrowDownT
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { LiveChatBox } from '../components/LiveChatBox';
+import { OnboardingFlow, useOnboarding } from '../components/OnboardingFlow';
 
 type QuickLinkItem = {
   to: string;
@@ -137,6 +138,7 @@ for (let i = 0; i < clientBrands.length; i += 3) {
 export default function UserHome() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [clientIndex, setClientIndex] = useState(0);
+  const { shouldShow: showOnboarding, completeOnboarding } = useOnboarding();
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -147,6 +149,7 @@ export default function UserHome() {
 
   return (
     <div className="min-h-screen bg-[#e8edf2] pb-[calc(8.5rem+env(safe-area-inset-bottom))] sm:pb-28">
+      {showOnboarding && <OnboardingFlow onComplete={completeOnboarding} />}
       <Header onContactClick={() => setIsChatOpen(true)} />
 
       <main className="mx-auto max-w-6xl px-3 sm:px-6 pt-3 sm:pt-5">

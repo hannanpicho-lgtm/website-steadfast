@@ -215,31 +215,46 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-[#1f84b2] text-white flex flex-col">
-      <main className="flex-1 w-full max-w-6xl mx-auto px-5 sm:px-8 py-8 sm:py-10 flex flex-col items-center">
-        <div className="w-full max-w-[680px] text-center">
-          <div className="pt-4 sm:pt-8">
-            <img
-              src={steadfastLogo}
-              alt="Steadfast Digital Logo"
-              className="w-24 h-24 sm:w-28 sm:h-28 object-contain mx-auto"
-            />
-            <h1 className="mt-3 text-white text-[2.1rem] sm:text-[2.5rem] font-extrabold tracking-tight">steadfast</h1>
-            <p className="text-white/90 text-xl sm:text-2xl -mt-1">digital</p>
-            <p className="mt-8 text-[clamp(1.8rem,3.4vw,3rem)] font-bold tracking-tight">Creating Real Business Value</p>
+    <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(145deg, #080f1c 0%, #091628 55%, #060e1c 100%)' }}>
+      {/* Ambient glow orbs */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-48 -right-48 w-96 h-96 rounded-full opacity-[0.07]" style={{ background: '#00D9FF', filter: 'blur(80px)' }} />
+        <div className="absolute -bottom-32 -left-32 w-80 h-80 rounded-full opacity-[0.05]" style={{ background: '#5dade2', filter: 'blur(70px)' }} />
+      </div>
+
+      <main className="relative z-10 flex-1 w-full max-w-6xl mx-auto px-5 sm:px-8 py-8 sm:py-10 flex flex-col items-center">
+        <div className="w-full max-w-[560px] text-center">
+          {/* Logo + brand */}
+          <div className="pt-6 sm:pt-10 flex flex-col items-center">
+            <div className="relative mb-4">
+              <div className="absolute inset-0 rounded-full blur-2xl opacity-30" style={{ background: '#00D9FF' }} />
+              <img
+                src={steadfastLogo}
+                alt="Steadfast Digital Logo"
+                className="relative z-10 w-20 h-20 sm:w-24 sm:h-24 object-contain"
+              />
+            </div>
+            <h1 className="text-[2.2rem] sm:text-[2.6rem] font-extrabold tracking-tight" style={{ background: 'linear-gradient(135deg, #ffffff 30%, #7fdeff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              STEADFAST
+            </h1>
+            <p className="text-[#00D9FF]/70 text-base -mt-1 tracking-[0.22em] uppercase text-xs font-semibold">Digital</p>
+            <p className="mt-5 text-[clamp(1.5rem,3vw,2.4rem)] font-bold tracking-tight text-white/90">Creating Real Business Value</p>
           </div>
 
-          <div className="mt-16 sm:mt-20 space-y-4">
+          {/* Action buttons */}
+          <div className="mt-12 sm:mt-14 space-y-3">
             <Link
               to="/signup"
-              className="block w-full rounded-2xl bg-[#333b47] hover:bg-[#2d3440] text-white font-bold text-2xl py-4 transition-colors"
+              className="block w-full rounded-2xl font-bold text-xl sm:text-2xl py-4 transition-all duration-200 hover:brightness-110 hover:scale-[1.01]"
+              style={{ background: 'linear-gradient(135deg, #00D9FF, #0099cc)', color: '#060e1c', boxShadow: '0 4px 24px rgba(0,217,255,0.3)' }}
             >
               CREATE AN ACCOUNT
             </Link>
             <button
               type="button"
               onClick={() => setShowSignInForm((prev) => !prev)}
-              className="block w-full rounded-2xl bg-[#0d5f93] hover:bg-[#0a527f] text-white font-bold text-2xl py-4 transition-colors"
+              className="block w-full rounded-2xl font-bold text-xl sm:text-2xl py-4 transition-all duration-200 hover:brightness-110"
+              style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.85)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 2px 12px rgba(0,0,0,0.3)' }}
             >
               SIGN IN
             </button>
@@ -247,9 +262,12 @@ export default function Login() {
         </div>
 
         {showSignInForm ? (
-          <section className="w-full max-w-[680px] mt-7 rounded-2xl bg-white/95 text-[#1f2b38] p-5 sm:p-6 shadow-xl">
-            <h2 className="text-[#0f5f8d] text-2xl font-bold text-center mb-2">Sign In</h2>
-            <p className="text-[#3d4551] text-center text-sm mb-6">
+          <section
+            className="w-full max-w-[560px] mt-6 rounded-2xl p-5 sm:p-7"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', boxShadow: '0 16px 48px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)' }}
+          >
+            <h2 className="text-[#00D9FF] text-2xl font-bold text-center mb-1">Sign In</h2>
+            <p className="text-white/45 text-center text-sm mb-6">
               {adminRequired
                 ? 'Admin access now requires a Supabase Auth admin account.'
                 : 'Enter your username and password to access'}
@@ -270,18 +288,19 @@ export default function Login() {
               </div>
             ) : null}
 
-            <form onSubmit={handleLogin} className="space-y-5 max-w-xl mx-auto">
+            <form onSubmit={handleLogin} className="space-y-4 max-w-xl mx-auto">
           {/* Username/Phone */}
           <div>
             <input
               type="text"
-              placeholder={adminRequired ? 'Admin email address' : 'Username/Phone'}
+              placeholder={adminRequired ? 'Admin email address' : 'Username / Phone'}
               value={username}
               onChange={(e) => {
                 setUsername(e.target.value);
                 setErrorText('');
               }}
-              className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              className="w-full px-4 py-3 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/40"
+              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
               required
             />
           </div>
@@ -296,13 +315,14 @@ export default function Login() {
                 setPassword(e.target.value);
                 setErrorText('');
               }}
-              className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              className="w-full px-4 py-3 pr-12 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/40"
+              style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
               required
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-white/35 hover:text-white/70 transition-colors"
             >
               {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
@@ -314,7 +334,7 @@ export default function Login() {
               href={telegramUrl}
               target="_blank"
               rel="noreferrer"
-              className="text-sm text-[#005a87] hover:underline"
+              className="text-sm text-[#00D9FF]/70 hover:text-[#00D9FF] transition-colors"
             >
               Forgot your password?
             </a>
@@ -323,16 +343,17 @@ export default function Login() {
                 type="checkbox"
                 checked={rememberPassword}
                 onChange={(e) => setRememberPassword(e.target.checked)}
-                className="w-4 h-4 text-[#005a87] border-gray-300 rounded focus:ring-[#005a87]"
+                className="w-4 h-4 rounded accent-[#00D9FF]"
               />
-              <span className="text-sm text-[#3d4551]">Remember Password</span>
+              <span className="text-sm text-white/50">Remember me</span>
             </label>
           </div>
 
           {/* Sign In Button */}
           <button
             type="submit"
-            className="w-full bg-[#005a87] hover:bg-[#004a6f] text-white font-bold py-3 px-4 rounded-lg transition-colors uppercase tracking-wide"
+            className="w-full font-bold py-3 px-4 rounded-xl transition-all duration-200 uppercase tracking-wider hover:brightness-110"
+            style={{ background: 'linear-gradient(135deg, #00D9FF, #0099cc)', color: '#060e1c', boxShadow: '0 4px 20px rgba(0,217,255,0.25)' }}
           >
             SIGN IN
           </button>
@@ -351,23 +372,23 @@ export default function Login() {
           ) : null}
 
           {/* Sign Up Link */}
-          <p className="text-center text-sm text-[#3d4551]">
+          <p className="text-center text-sm text-white/40">
             Don't have an account yet?{' '}
-            <Link to="/signup" className="text-[#005a87] font-semibold hover:underline">
+            <Link to="/signup" className="text-[#00D9FF] font-semibold hover:underline">
               Sign Up
             </Link>
           </p>
 
           {/* Support Link */}
-          <p className="text-center text-sm text-[#3d4551]">
+          <p className="text-center text-sm text-white/40">
             Can't sign in?{' '}
             <a
               href={telegramUrl}
               target="_blank"
               rel="noreferrer"
-              className="text-[#005a87] font-semibold hover:underline"
+              className="text-[#00D9FF] font-semibold hover:underline"
             >
-              Contact our user support
+              Contact support
             </a>
           </p>
             </form>
@@ -375,27 +396,28 @@ export default function Login() {
         ) : null}
       </main>
 
-      <footer className="py-4 px-6">
-        <p className="text-center text-white/90 text-[15px]">© 2026 Steadfast Digital, Inc. All right reserved</p>
+      <footer className="relative z-10 py-4 px-6">
+        <p className="text-center text-white/25 text-[13px]">© 2026 Steadfast Digital, Inc. All rights reserved</p>
       </footer>
 
       {/* Welcome Modal */}
       {showWelcome && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-2xl p-8 max-w-md w-full text-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(6,14,28,0.88)', backdropFilter: 'blur(8px)' }}>
+          <div className="rounded-2xl p-8 max-w-md w-full text-center" style={{ background: 'linear-gradient(145deg, #0d1b2e, #111d30)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 40px rgba(0,217,255,0.1)' }}>
             <div className="mb-6">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-[#005a87] rounded-full mb-4">
-                <svg className="w-12 h-12 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-4" style={{ background: 'linear-gradient(135deg, #00D9FF22, #00D9FF11)', border: '1px solid rgba(0,217,255,0.3)', boxShadow: '0 0 30px rgba(0,217,255,0.2)' }}>
+                <svg className="w-10 h-10" fill="none" stroke="#00D9FF" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
               </div>
-              <h2 className="text-3xl font-bold mb-2 text-[#3d4551]">Welcome!</h2>
-              <p className="text-gray-600">You have successfully signed in to Steadfast Digital</p>
+              <h2 className="text-3xl font-bold mb-2 text-white">Welcome!</h2>
+              <p className="text-white/50">You've successfully signed in to Steadfast Digital</p>
             </div>
-            
+
             <button
               onClick={handleWelcomeClose}
-              className="w-full bg-[#005a87] hover:bg-[#004a6f] text-white font-bold py-3 px-6 rounded-lg transition-colors"
+              className="w-full font-bold py-3 px-6 rounded-xl transition-all duration-200 hover:brightness-110"
+              style={{ background: 'linear-gradient(135deg, #00D9FF, #0099cc)', color: '#060e1c', boxShadow: '0 4px 20px rgba(0,217,255,0.3)' }}
             >
               Continue
             </button>

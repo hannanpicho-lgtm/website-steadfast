@@ -140,32 +140,39 @@ export default function Signup() {
     navigate('/login', { replace: true });
   };
 
+  const inputCls = 'w-full px-4 py-3 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/40';
+  const inputStyle = { background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' };
+
   return (
-    <div className="min-h-screen bg-white">
-      {/* Dark Header */}
-      <header className="bg-[#3d4551] py-6 px-6">
-        <div className="max-w-2xl mx-auto text-center">
-          <div className="inline-flex items-center justify-center gap-3">
-            <img 
-              src={steadfastLogo} 
-              alt="Steadfast Digital Logo" 
-              className="w-11 h-11 object-contain"
-            />
-            <div className="text-left leading-tight">
-              <p className="text-[11px] uppercase tracking-[0.24em] text-[#a9bacd]">Steadfast Digital</p>
-              <p className="text-white text-[2rem] font-bold tracking-tight">STEADFAST</p>
-            </div>
+    <div className="min-h-screen flex flex-col" style={{ background: 'linear-gradient(145deg, #080f1c 0%, #091628 55%, #060e1c 100%)' }}>
+      {/* Ambient glow orbs */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-48 -right-48 w-96 h-96 rounded-full opacity-[0.07]" style={{ background: '#00D9FF', filter: 'blur(80px)' }} />
+        <div className="absolute -bottom-32 -left-32 w-80 h-80 rounded-full opacity-[0.05]" style={{ background: '#5dade2', filter: 'blur(70px)' }} />
+      </div>
+
+      {/* Header */}
+      <header className="relative z-10 py-5 px-6" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div className="max-w-2xl mx-auto flex items-center justify-center gap-3">
+          <div className="relative">
+            <div className="absolute inset-0 rounded-full blur-xl opacity-25" style={{ background: '#00D9FF' }} />
+            <img src={steadfastLogo} alt="Steadfast Digital Logo" className="relative z-10 w-9 h-9 object-contain" />
           </div>
-          <p className="text-[#d8e2ee] text-xs mt-3 tracking-wide">Create your account</p>
+          <div className="flex flex-col leading-tight">
+            <span className="text-[11px] uppercase tracking-[0.28em] font-semibold" style={{ color: 'rgba(255,255,255,0.35)' }}>Steadfast Digital</span>
+            <span className="text-white text-[1.5rem] font-extrabold tracking-tight -mt-0.5">STEADFAST</span>
+          </div>
         </div>
       </header>
 
       {/* Form Section */}
-      <div className="max-w-2xl mx-auto px-6 py-8">
-        <h1 className="text-[#005a87] text-3xl font-bold text-center mb-2">SIGN UP</h1>
-        <p className="text-[#3d4551] text-center text-sm mb-8">Enter your username and password to access</p>
+      <div className="relative z-10 max-w-2xl mx-auto w-full px-5 py-8">
+        <div className="text-center mb-7">
+          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Create Account</h1>
+          <p className="mt-1.5 text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Join Steadfast Digital and start earning</p>
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
           {/* Username */}
           <div>
             <input
@@ -173,26 +180,28 @@ export default function Signup() {
               placeholder="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              className={inputCls}
+              style={inputStyle}
               required
             />
-            <p className="mt-2 text-xs text-gray-500">
-              Allowed: letters, numbers, underscore (_), hyphen (-), and dot (.) only. Spaces are not allowed.
+            <p className="mt-1.5 text-xs px-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              Letters, numbers, underscore (_), hyphen (-), and dot (.) only. No spaces.
             </p>
           </div>
 
           {/* Phone Number */}
           <div className="relative">
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 border-r border-gray-300 pr-3">
-              <span className="text-2xl">🇺🇸</span>
-              <span className="text-gray-400">▼</span>
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center gap-2 pr-3" style={{ borderRight: '1px solid rgba(255,255,255,0.15)' }}>
+              <span className="text-xl">🇺🇸</span>
+              <span className="text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>▼</span>
             </div>
             <input
               type="tel"
-              placeholder="Enter a phone number"
+              placeholder="Phone number"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              className="w-full pl-24 pr-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              className={`${inputCls} pl-24`}
+              style={inputStyle}
               required
             />
           </div>
@@ -204,14 +213,12 @@ export default function Signup() {
               placeholder="Transaction Password"
               value={transactionPassword}
               onChange={(e) => setTransactionPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              className={`${inputCls} pr-12`}
+              style={inputStyle}
               required
             />
-            <button
-              type="button"
-              onClick={() => setShowTransactionPassword(!showTransactionPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
+            <button type="button" onClick={() => setShowTransactionPassword(!showTransactionPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors hover:text-white/70" style={{ color: 'rgba(255,255,255,0.35)' }}>
               {showTransactionPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
@@ -223,14 +230,12 @@ export default function Signup() {
               placeholder="Login Password"
               value={loginPassword}
               onChange={(e) => setLoginPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              className={`${inputCls} pr-12`}
+              style={inputStyle}
               required
             />
-            <button
-              type="button"
-              onClick={() => setShowLoginPassword(!showLoginPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
+            <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors hover:text-white/70" style={{ color: 'rgba(255,255,255,0.35)' }}>
               {showLoginPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
@@ -242,45 +247,34 @@ export default function Signup() {
               placeholder="Confirm Login Password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              className={`${inputCls} pr-12`}
+              style={inputStyle}
               required
             />
-            <button
-              type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
+            <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors hover:text-white/70" style={{ color: 'rgba(255,255,255,0.35)' }}>
               {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
           </div>
 
           {/* Gender */}
-          <div className="border-2 border-gray-300 rounded-lg px-4 py-3">
+          <div className="px-4 py-3 rounded-xl" style={inputStyle}>
             <div className="flex items-center justify-between">
-              <span className="text-gray-400">Gender</span>
+              <span className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Gender</span>
               <div className="flex items-center gap-6">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="gender"
-                    value="male"
-                    checked={gender === 'male'}
-                    onChange={(e) => setGender(e.target.value)}
-                    className="w-4 h-4 text-[#005a87] border-gray-300 focus:ring-[#005a87]"
-                  />
-                  <span className="text-[#3d4551]">Male</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="gender"
-                    value="female"
-                    checked={gender === 'female'}
-                    onChange={(e) => setGender(e.target.value)}
-                    className="w-4 h-4 text-[#005a87] border-gray-300 focus:ring-[#005a87]"
-                  />
-                  <span className="text-[#3d4551]">Female</span>
-                </label>
+                {(['male', 'female'] as const).map((g) => (
+                  <label key={g} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="gender"
+                      value={g}
+                      checked={gender === g}
+                      onChange={(e) => setGender(e.target.value)}
+                      className="w-4 h-4 accent-[#00D9FF]"
+                    />
+                    <span className="text-sm text-white/70 capitalize">{g}</span>
+                  </label>
+                ))}
               </div>
             </div>
           </div>
@@ -293,11 +287,12 @@ export default function Signup() {
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
               maxLength={5}
-              className="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-[#005a87] focus:outline-none text-[#3d4551] placeholder-gray-400"
+              className={inputCls}
+              style={inputStyle}
               required
             />
-            <p className="mt-2 text-xs text-gray-500">
-              Invitation code is required. It must be exactly 5 letters/numbers and include at least one number. For initial onboarding, use system code: STF01.
+            <p className="mt-1.5 text-xs px-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              Required — exactly 5 letters/numbers. System default: <span className="text-[#00D9FF]/70 font-mono">STF01</span>
             </p>
           </div>
 
@@ -315,43 +310,45 @@ export default function Signup() {
                 }}
                 onBlur={() => void validateAdminCode(adminCode)}
                 maxLength={5}
-                className={`w-full px-4 py-3 rounded-lg border-2 focus:outline-none text-[#3d4551] placeholder-gray-400 pr-10 ${
-                  adminCodeStatus === 'valid'
-                    ? 'border-green-400 focus:border-green-500'
-                    : adminCodeStatus === 'invalid'
-                      ? 'border-red-400 focus:border-red-500'
-                      : 'border-gray-300 focus:border-[#005a87]'
-                }`}
+                className={`${inputCls} pr-20`}
+                style={{
+                  ...inputStyle,
+                  borderColor: adminCodeStatus === 'valid' ? 'rgba(52,211,153,0.5)' : adminCodeStatus === 'invalid' ? 'rgba(248,113,113,0.5)' : undefined,
+                }}
               />
               {adminCodeStatus === 'checking' && (
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs">checking…</span>
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 text-xs">checking…</span>
               )}
               {adminCodeStatus === 'valid' && (
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500 text-xs font-semibold">✓ Valid</span>
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-emerald-400 text-xs font-semibold">✓ Valid</span>
               )}
               {adminCodeStatus === 'invalid' && (
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-red-500 text-xs font-semibold">✗ Invalid</span>
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-red-400 text-xs font-semibold">✗ Invalid</span>
               )}
             </div>
-            <p className="mt-2 text-xs text-gray-500">
-              If a staff member referred you, enter their 5-character admin referral code here. Leave blank if not applicable.
+            <p className="mt-1.5 text-xs px-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              If a staff member referred you, enter their 5-character admin referral code. Leave blank otherwise.
             </p>
           </div>
 
-          {errorText ? <p className="text-sm text-red-600">{errorText}</p> : null}
+          {errorText ? (
+            <div className="rounded-xl px-4 py-3 text-sm font-medium text-red-300" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)' }}>
+              {errorText}
+            </div>
+          ) : null}
 
           {/* Terms and Conditions */}
-          <div className="flex items-start gap-2">
+          <div className="flex items-start gap-3 pt-1">
             <input
               type="checkbox"
               id="accept-terms"
               checked={acceptTerms}
               onChange={(e) => setAcceptTerms(e.target.checked)}
-              className="w-4 h-4 mt-1 text-[#005a87] border-gray-300 rounded focus:ring-[#005a87]"
+              className="w-4 h-4 mt-0.5 accent-[#00D9FF] shrink-0"
             />
-            <label htmlFor="accept-terms" className="text-sm text-[#3d4551]">
-              Accept our's{' '}
-              <Link to="/terms-conditions" className="text-[#005a87] underline hover:text-[#004a6f]">
+            <label htmlFor="accept-terms" className="text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
+              I accept the{' '}
+              <Link to="/terms-conditions" className="text-[#00D9FF] underline-offset-2 hover:underline">
                 Terms and Conditions
               </Link>
             </label>
@@ -360,32 +357,24 @@ export default function Signup() {
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full bg-[#005a87] hover:bg-[#004a6f] text-white font-bold py-3 px-4 rounded-lg transition-colors"
+            className="w-full font-bold py-3.5 px-4 rounded-xl transition-all duration-200 hover:brightness-110 mt-1"
+            style={{ background: 'linear-gradient(135deg, #00D9FF, #0099cc)', color: '#060e1c', boxShadow: '0 4px 24px rgba(0,217,255,0.28)' }}
           >
-            Submit
+            Create Account
           </button>
 
-          {/* Already have account */}
-          <p className="text-center text-sm text-[#3d4551]">
+          <p className="text-center text-sm pt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>
             Already have an account?{' '}
-            <Link to="/login" className="text-[#005a87] font-semibold hover:underline">
+            <Link to="/login" className="text-[#00D9FF] font-semibold hover:underline">
               Sign In
-            </Link>
-          </p>
-
-          {/* Terms Notice */}
-          <p className="text-center text-xs text-gray-500">
-            By signing up, you agree to our{' '}
-            <Link to="/terms-conditions" className="text-[#005a87] underline hover:text-[#004a6f]">
-              Terms and Conditions
             </Link>
           </p>
         </form>
       </div>
 
       {/* Footer */}
-      <footer className="bg-[#3d4551] py-4 px-6 mt-12">
-        <p className="text-center text-white text-xs">
+      <footer className="relative z-10 py-4 px-6 mt-auto">
+        <p className="text-center text-[13px]" style={{ color: 'rgba(255,255,255,0.2)' }}>
           © 2026 Steadfast Digital, Inc. All rights reserved
         </p>
       </footer>
