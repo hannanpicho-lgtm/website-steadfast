@@ -59,54 +59,56 @@ const focusAreas = [
   },
 ];
 
-const quickLinkConfig = [
-  { to: '/vip-levels', title: 'VIP', icon: Gift, color: '#00D9FF', accent: '#00bce3' },
-  { to: '/activity', title: 'Activity', icon: Calendar, color: '#0b5f94', accent: '#083d5c' },
-  { to: '/withdrawal', title: 'Withdrawal', icon: ArrowDownToLine, color: '#f97316', accent: '#d97706' },
-  { to: '/deposit', title: 'Deposit', icon: Wallet, color: '#16a34a', accent: '#15803d' },
-  { to: '/terms-conditions', title: 'T & C', icon: ScrollText, color: '#64748b', accent: '#475569' },
-  { to: '/certificate', title: 'Certificate', icon: Award, color: '#0891b2', accent: '#0e7490' },
-  { to: '/faqs', title: 'FAQs', icon: HelpCircle, color: '#0ea5e9', accent: '#0284c7' },
-  { to: '/about', title: 'About', icon: Info, color: '#6366f1', accent: '#4f46e5' },
+const quickLinkConfig: QuickLinkItem[] = [
+  { to: '/vip-levels', title: 'VIP', icon: Gift },
+  { to: '/activity', title: 'Activity', icon: Calendar },
+  { to: '/withdrawal', title: 'Withdrawal', icon: ArrowDownToLine },
+  { to: '/deposit', title: 'Deposit', icon: Wallet },
+  { to: '/terms-conditions', title: 'T & C', icon: ScrollText },
+  { to: '/certificate', title: 'Certificate', icon: Award },
+  { to: '/faqs', title: 'FAQs', icon: HelpCircle },
+  { to: '/about', title: 'About', icon: Info },
 ];
 
-function QuickLinkCard({ item }: { item: (typeof quickLinkConfig)[0] }) {
+function QuickLinkCard({ item }: { item: QuickLinkItem }) {
   const Icon = item.icon;
+  const cardColor = '#00D9FF';
+  const cardHover = '#00c5e6';
+  const iconColor = '#063a5a';
 
   return (
     <Link
       to={item.to}
-      className="group relative overflow-hidden flex h-[78px] flex-col items-center justify-center gap-1.5 rounded-xl px-1 text-white transition-all duration-300 hover:scale-110 hover:-translate-y-1 shadow-md hover:shadow-lg sm:h-[88px]"
+      className="group relative overflow-hidden flex h-[78px] flex-col items-center justify-center gap-1.5 rounded-xl border border-[#00b6d6] px-1 transition-all duration-300 hover:scale-[1.03] hover:-translate-y-0.5 shadow-md sm:h-[88px]"
       style={{
-        background: `linear-gradient(135deg, ${item.color}00, ${item.color}08)`,
-        borderWidth: '2px',
-        borderImage: `linear-gradient(135deg, ${item.color}, ${item.color}99) 1`,
+        background: `linear-gradient(165deg, ${cardColor}, ${cardHover})`,
+        boxShadow: '0 8px 20px rgba(0, 173, 212, 0.26)',
       }}
     >
       {/* Animated background on hover */}
       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{
-        background: `radial-gradient(circle at 50% 50%, ${item.color}20, transparent)`,
+        background: 'radial-gradient(circle at 50% 35%, rgba(255,255,255,0.35), transparent 60%)',
       }} />
 
       {/* Icon with slight rotation on hover */}
       <div className="relative z-10 p-2 rounded-lg transition-all duration-300 group-hover:scale-125" style={{
-        background: item.color,
-        color: 'white',
-        boxShadow: `0 4px 12px ${item.color}40`,
+        background: 'rgba(255,255,255,0.2)',
+        color: iconColor,
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35)',
       }}>
         <Icon size={18} strokeWidth={2.2} className="sm:h-5 sm:w-5" />
       </div>
 
       {/* Text with improved contrast */}
-      <span className="relative z-10 px-1 text-center text-[0.72rem] font-bold leading-tight tracking-tight text-[#0b2c44] sm:text-[0.86rem]">
+      <span className="relative z-10 px-1 text-center text-[0.72rem] font-bold leading-tight tracking-tight text-[#062f49] sm:text-[0.86rem]">
         {item.title}
       </span>
 
       {/* Bottom accent line that expands on hover */}
       <div className="absolute bottom-0 left-0 right-0 h-[3px] origin-left transition-all duration-300 group-hover:scale-x-100" style={{
-        background: item.color,
+        background: 'rgba(6,58,90,0.75)',
         transform: 'scaleX(0)',
-        boxShadow: `0 0 8px ${item.color}80`,
+        boxShadow: '0 0 8px rgba(6,58,90,0.45)',
       }} />
     </Link>
   );
