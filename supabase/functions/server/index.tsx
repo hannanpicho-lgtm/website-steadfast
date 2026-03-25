@@ -749,6 +749,8 @@ const ADMIN_OBSERVABILITY_RATE_LIMIT_VIOLATIONS_KEY = 'admin-observability:rate-
 const ADMIN_OBSERVABILITY_MAX_RATE_LIMIT_VIOLATIONS = 200;
 const ADMIN_SALARY_MAX_RESTORE_POINTS = 10;
 const ADMIN_SALARY_MAX_AUDIT_EVENTS = 50;
+const PREMIUM_SETTLEMENT_FIX_DEPLOYED_AT_MS = new Date('2026-03-25T02:53:42.000Z').getTime();
+const RECONCILIATION_EPSILON = 0.009;
 
 const defaultTaskCatalog = [
   {
@@ -2589,6 +2591,21 @@ function restoreUserToNaturalState(userData: any) {
   return restored;
 }
 
+function sumCompletedCommissionTransactions(transactions: any[]): number {
+  const total = transactions
+    .filter((tx) => tx?.type === 'Commission' && String(tx?.status ?? 'Completed').toLowerCase() === 'completed')
+    .reduce((sum, tx) => sum + Number(tx?.amount ?? 0), 0);
+  return roundMoney(total);
+}
+
+function parseIsoDateMs(value: unknown): number | null {
+  if (typeof value !== 'string' || !value) {
+    return null;
+  }
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 async function syncUsersForVipLevels(levels: number[]) {
   const targetLevels = new Set(levels.map((level) => Math.max(1, Math.round(level))));
   const summaries = levels.map((level) => ({
@@ -3273,70 +3290,6 @@ async function buildEarningsSummaryResponse(username: string) {
   };
 }
 
-app.get('/make-server-a1c55d7e/me/referrals/summary', async (c) => {
-  try {
-    const sessionResult = await requireActiveUserSession(c);
-    if ('response' in sessionResult) {
-      return sessionResult.response;
-    }
-
-    return c.json(await buildReferralSummaryResponse(sessionResult.session.username));
-  } catch (error) {
-    console.error('Session referral summary error:', error);
-    return c.json({ error: 'Failed to fetch referral summary' }, 500);
-  }
-});
-
-app.get('/make-server-a1c55d7e/me/financials', async (c) => {
-  try {
-    const sessionResult = await requireActiveUserSession(c);
-    if ('response' in sessionResult) {
-      return sessionResult.response;
-    }
-
-    return c.json(await buildFinancialSummaryResponse(sessionResult.session.username));
-  } catch (error) {
-    console.error('Session financial summary error:', error);
-    return c.json({ error: 'Failed to fetch financial summary' }, 500);
-  }
-});
-
-app.get('/make-server-a1c55d7e/me/balance', async (c) => {
-  try {
-    const sessionResult = await requireActiveUserSession(c);
-    if ('response' in sessionResult) {
-      return sessionResult.response;
-    }
-
-    const financialSummary = await buildFinancialSummaryResponse(sessionResult.session.username);
-    return c.json({
-      username: financialSummary.username,
-      balance: financialSummary.balance,
-      holdAmount: financialSummary.holdAmount,
-      availableAmount: financialSummary.availableAmount,
-      totalBalance: financialSummary.summary.totalBalance,
-      isFrozen: financialSummary.summary.isFrozen,
-    });
-  } catch (error) {
-    console.error('Session balance summary error:', error);
-    return c.json({ error: 'Failed to fetch balance summary' }, 500);
-  }
-});
-
-app.get('/make-server-a1c55d7e/me/earnings', async (c) => {
-  try {
-    const sessionResult = await requireActiveUserSession(c);
-    if ('response' in sessionResult) {
-      return sessionResult.response;
-    }
-
-    return c.json(await buildEarningsSummaryResponse(sessionResult.session.username));
-  } catch (error) {
-    console.error('Session earnings summary error:', error);
-    return c.json({ error: 'Failed to fetch earnings summary' }, 500);
-  }
-});
-
 async function buildAdminPlatformUserAudit(username: string) {
   const canonicalUsername = (await resolveCanonicalUsername(username)) ?? username;
   const userData = await getOrCreateUserRecord(canonicalUsername);
@@ -3423,6 +3376,70 @@ async function buildAdminPlatformUserAudit(username: string) {
   };
 }
 
+app.get('/make-server-a1c55d7e/me/referrals/summary', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    return c.json(await buildReferralSummaryResponse(sessionResult.session.username));
+  } catch (error) {
+    console.error('Session referral summary error:', error);
+    return c.json({ error: 'Failed to fetch referral summary' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/financials', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    return c.json(await buildFinancialSummaryResponse(sessionResult.session.username));
+  } catch (error) {
+    console.error('Session financial summary error:', error);
+    return c.json({ error: 'Failed to fetch financial summary' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/balance', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const financialSummary = await buildFinancialSummaryResponse(sessionResult.session.username);
+    return c.json({
+      username: financialSummary.username,
+      balance: financialSummary.balance,
+      holdAmount: financialSummary.holdAmount,
+      availableAmount: financialSummary.availableAmount,
+      totalBalance: financialSummary.summary.totalBalance,
+      isFrozen: financialSummary.summary.isFrozen,
+    });
+  } catch (error) {
+    console.error('Session balance summary error:', error);
+    return c.json({ error: 'Failed to fetch balance summary' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/earnings', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    return c.json(await buildEarningsSummaryResponse(sessionResult.session.username));
+  } catch (error) {
+    console.error('Session earnings summary error:', error);
+    return c.json({ error: 'Failed to fetch earnings summary' }, 500);
+  }
+});
+
 app.get('/make-server-a1c55d7e/me/user', async (c) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
@@ -3479,11 +3496,11 @@ app.put('/make-server-a1c55d7e/me/wallet', async (c) => {
     const canonicalUsername = sessionResult.session.username;
     const userData = await getOrCreateUserRecord(canonicalUsername);
     const normalizedUserData = await syncUserWithVipConfig(userData, canonicalUsername);
-    const metadata = getClientRequestMetadata(c);
+    const clientMeta = getClientRequestMetadata(c);
     normalizedUserData.walletProfile = parsed.walletProfile;
     normalizedUserData.lastActivityAt = new Date().toISOString();
-    normalizedUserData.lastActivityIp = metadata.clientIp;
-    normalizedUserData.lastActivityLocation = metadata.location;
+    normalizedUserData.lastActivityIp = clientMeta.clientIp;
+    normalizedUserData.lastActivityLocation = clientMeta.location;
 
     await kv.set(`user:${canonicalUsername}`, normalizedUserData);
     await assignUsernameLookup(canonicalUsername);
@@ -3951,17 +3968,17 @@ app.post('/make-server-a1c55d7e/auth/login', async (c) => {
       return c.json({ error: 'Invalid username or password.' }, 401);
     }
 
-    const metadata = getClientRequestMetadata(c);
+    const mustChangePassword = Boolean((userData as any).mustChangePassword);
+    const clientMeta = getClientRequestMetadata(c);
     const normalizedUserData = normalizeUserRecord(userData, canonicalUsername);
     normalizedUserData.lastLoginAt = new Date().toISOString();
-    normalizedUserData.lastLoginIp = metadata.clientIp;
-    normalizedUserData.lastLoginLocation = metadata.location;
+    normalizedUserData.lastLoginIp = clientMeta.clientIp;
+    normalizedUserData.lastLoginLocation = clientMeta.location;
     normalizedUserData.lastActivityAt = normalizedUserData.lastLoginAt;
-    normalizedUserData.lastActivityIp = metadata.clientIp;
-    normalizedUserData.lastActivityLocation = metadata.location;
+    normalizedUserData.lastActivityIp = clientMeta.clientIp;
+    normalizedUserData.lastActivityLocation = clientMeta.location;
     await kv.set(userKey, normalizedUserData);
 
-    const mustChangePassword = Boolean((userData as any).mustChangePassword);
     const session = await createUserSession(canonicalUsername, mustChangePassword);
     c.header('Set-Cookie', buildSessionCookieValue(session.sessionId));
 
@@ -4686,7 +4703,7 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       ? roundMoney(Math.max(0, Number(premiumProductValue)))
       : 0;
     const totalBundleValue = roundMoney(sanitizedPremiumValue + bundledProductsTotal);
-    
+
     // Calculate balance after assignment
     const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
     const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - totalBundleValue);
@@ -7835,10 +7852,9 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
 
     const users = scopedUsers.map((u) => ({
       username: u.username,
-      phone: u.phone ?? '',
       vipLevel: u.vipLevel,
       balance: u.balance,
-      availableAmount: roundMoney(Number(u.balance ?? 0) - Number(u.holdAmount ?? 0)),
+      phone: typeof u.phone === 'string' && u.phone ? u.phone : '-',
       tasksCompleted: u.tasksCompleted,
       tasksLimit: u.tasksLimit,
       taskSetCount: u.taskSetCount,
@@ -7847,21 +7863,22 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
       completedTaskSets: u.completedTaskSets,
       pendingTaskReset: u.pendingTaskReset,
       holdAmount: u.holdAmount,
-      isSuspended: Boolean(u.isSuspended),
+      availableAmount: roundMoney(Number(u.balance ?? 0) - Number(u.holdAmount ?? 0)),
       isFrozen: u.isFrozen,
+      isSuspended: Boolean(u.isSuspended),
       walletProfile: normalizeStoredWalletProfile(u.walletProfile),
-      invitationCode: typeof u.invitationCode === 'string' ? u.invitationCode : null,
+      invitationCode: typeof u.invitationCode === 'string' && u.invitationCode ? u.invitationCode : null,
+      lastLoginAt: typeof u.lastLoginAt === 'string' && u.lastLoginAt ? u.lastLoginAt : null,
+      lastLoginIp: typeof u.lastLoginIp === 'string' && u.lastLoginIp ? u.lastLoginIp : null,
+      lastLoginLocation: typeof u.lastLoginLocation === 'string' && u.lastLoginLocation ? u.lastLoginLocation : null,
+      lastActivityAt: typeof u.lastActivityAt === 'string' && u.lastActivityAt ? u.lastActivityAt : null,
+      lastActivityIp: typeof u.lastActivityIp === 'string' && u.lastActivityIp ? u.lastActivityIp : null,
+      lastActivityLocation: typeof u.lastActivityLocation === 'string' && u.lastActivityLocation ? u.lastActivityLocation : null,
       referredByAdminId: u.referredByAdminId ?? null,
       referredByAdminName: u.referredByAdminId
         ? (adminNameMap.get(u.referredByAdminId) ?? u.referredByAdminId)
         : 'Direct',
       createdAt: typeof (u as any).createdAt === 'string' ? (u as any).createdAt : null,
-      lastLoginAt: typeof u.lastLoginAt === 'string' ? u.lastLoginAt : null,
-      lastLoginIp: typeof u.lastLoginIp === 'string' ? u.lastLoginIp : null,
-      lastLoginLocation: typeof u.lastLoginLocation === 'string' ? u.lastLoginLocation : null,
-      lastActivityAt: typeof u.lastActivityAt === 'string' ? u.lastActivityAt : null,
-      lastActivityIp: typeof u.lastActivityIp === 'string' ? u.lastActivityIp : null,
-      lastActivityLocation: typeof u.lastActivityLocation === 'string' ? u.lastActivityLocation : null,
       creditScore: typeof u.creditScore === 'number' ? u.creditScore : 100,
     }));
 
@@ -8093,6 +8110,227 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/recalculate-finan
   } catch (err) {
     console.error('admin/platform-users/recalculate-financial-state error:', err);
     return c.json({ error: 'Failed to recalculate financial state' }, 500);
+  }
+});
+
+app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlements', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-platform-users:reconcile-premium-settlements');
+    if (limited) return limited;
+
+    const body = await c.req.json().catch(() => ({} as any));
+    const requestedUsername = sanitizeUsername(body?.username);
+    const dryRun = body?.dryRun !== false;
+    const maxUsers = Number.isFinite(Number(body?.maxUsers))
+      ? Math.max(1, Math.min(500, Math.round(Number(body.maxUsers))))
+      : 200;
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+
+    let candidateUsers: string[] = [];
+    if (requestedUsername) {
+      const canonical = await resolveCanonicalUsername(requestedUsername);
+      if (!canonical) {
+        return c.json({ error: 'User not found' }, 404);
+      }
+      candidateUsers = [canonical];
+    } else {
+      const allUsers = await kv.getByPrefix('user:');
+      candidateUsers = allUsers
+        .map((entry) => sanitizeUsername(entry?.username))
+        .filter((entry): entry is string => Boolean(entry))
+        .slice(0, maxUsers);
+    }
+
+    const report: Array<any> = [];
+    let processed = 0;
+    let skippedUnauthorized = 0;
+    let usersChanged = 0;
+    let usersAutoUnfrozen = 0;
+    let commissionReconciliations = 0;
+    let settlementBackfills = 0;
+    let settlementBackfillAmount = 0;
+
+    for (const username of candidateUsers) {
+      const userKey = `user:${username}`;
+      const existingUser = await kv.get(userKey);
+      if (!existingUser) {
+        continue;
+      }
+
+      let normalizedUser = await syncUserWithVipConfig(existingUser, username);
+      if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
+        skippedUnauthorized += 1;
+        continue;
+      }
+
+      processed += 1;
+
+      const before = {
+        balance: roundMoney(Number(normalizedUser.balance ?? 0)),
+        todayCommission: roundMoney(Number(normalizedUser.todayCommission ?? 0)),
+        holdAmount: roundMoney(Number(normalizedUser.holdAmount ?? 0)),
+        isFrozen: Boolean(normalizedUser.isFrozen),
+      };
+
+      let changed = false;
+      const transactions = await listTransactionRecords(username);
+
+      const commissionTotal = sumCompletedCommissionTransactions(transactions);
+      if (Math.abs(commissionTotal - Number(normalizedUser.todayCommission ?? 0)) > RECONCILIATION_EPSILON) {
+        commissionReconciliations += 1;
+        changed = true;
+        normalizedUser.todayCommission = commissionTotal;
+      }
+
+      const outstandingTopUp = Number(normalizedUser?.activePremium?.topUpRequired ?? normalizedUser?.activePremium?.negativeAmount ?? 0);
+      const shouldAutoUnfreeze = Boolean(normalizedUser.isFrozen)
+        && Boolean(normalizedUser.activePremium)
+        && Number.isFinite(outstandingTopUp)
+        && outstandingTopUp <= 0;
+
+      if (shouldAutoUnfreeze) {
+        usersAutoUnfrozen += 1;
+        changed = true;
+        normalizedUser = restoreUserToNaturalState(normalizedUser);
+        normalizedUser.pendingTaskReset = false;
+      }
+
+      const premiumPrefix = `premium:${username}:`;
+      const premiumRecords = (await kv.getByPrefix(premiumPrefix))
+        .filter((premium) => typeof premium?.id === 'string')
+        .sort((left, right) => {
+          const leftMs = parseIsoDateMs(left?.completedAt) ?? 0;
+          const rightMs = parseIsoDateMs(right?.completedAt) ?? 0;
+          return leftMs - rightMs;
+        });
+
+      for (const premium of premiumRecords) {
+        if (String(premium?.status ?? '').toLowerCase() !== 'completed') {
+          continue;
+        }
+
+        const premiumId = String(premium.id);
+        const completionMs = parseIsoDateMs(premium?.completedAt);
+        const holdReleaseAmount = roundMoney(Math.max(
+          0,
+          Number(premium?.topUpRequired ?? premium?.negativeAmount ?? premium?.configuredUpholdAmount ?? 0),
+        ));
+        if (holdReleaseAmount <= 0) {
+          continue;
+        }
+
+        if (typeof premium?.settlementReleaseAppliedAt === 'string' && premium.settlementReleaseAppliedAt) {
+          continue;
+        }
+
+        if (completionMs !== null && completionMs >= PREMIUM_SETTLEMENT_FIX_DEPLOYED_AT_MS) {
+          continue;
+        }
+
+        const hasSettlementReleaseTx = transactions.some((tx) =>
+          tx?.referenceId === premiumId
+          && String(tx?.source ?? '').toLowerCase() === 'premium_settlement_release'
+          && String(tx?.status ?? 'Completed').toLowerCase() === 'completed',
+        );
+        if (hasSettlementReleaseTx) {
+          continue;
+        }
+
+        const hasPostCompletionNonPremiumActivity = completionMs !== null
+          ? transactions.some((tx) => {
+              const txMs = parseIsoDateMs(tx?.date ?? tx?.createdAt);
+              const txSource = String(tx?.source ?? '').toLowerCase();
+              if (txMs === null || txMs <= completionMs) {
+                return false;
+              }
+              return txSource !== 'premium_task' && txSource !== 'premium_settlement_release';
+            })
+          : true;
+
+        if (hasPostCompletionNonPremiumActivity) {
+          continue;
+        }
+
+        settlementBackfills += 1;
+        settlementBackfillAmount = roundMoney(settlementBackfillAmount + holdReleaseAmount);
+        changed = true;
+
+        if (!dryRun) {
+          normalizedUser.balance = roundMoney(Number(normalizedUser.balance ?? 0) + holdReleaseAmount);
+          const settlementTx = await createTransactionRecord({
+            username,
+            type: 'Deposit',
+            amount: holdReleaseAmount,
+            method: 'Premium Settlement Release',
+            source: 'premium_settlement_release',
+            description: 'Backfilled premium hold release after settlement-rule upgrade',
+            referenceId: premiumId,
+          });
+          transactions.unshift(settlementTx);
+
+          const premiumKey = `${premiumPrefix}${premiumId}`;
+          await kv.set(premiumKey, {
+            ...premium,
+            settlementReleaseAppliedAt: new Date().toISOString(),
+            settlementReleaseAmount: holdReleaseAmount,
+            settlementReleaseSource: 'reconcile-premium-settlements',
+          });
+        }
+      }
+
+      normalizedUser.balance = roundMoney(Number(normalizedUser.balance ?? 0));
+      normalizedUser.todayCommission = roundMoney(Number(normalizedUser.todayCommission ?? 0));
+      normalizedUser.holdAmount = roundMoney(Math.max(0, Number(normalizedUser.holdAmount ?? 0)));
+
+      if (changed) {
+        usersChanged += 1;
+        if (!dryRun) {
+          await kv.set(userKey, normalizedUser);
+        }
+      }
+
+      report.push({
+        username,
+        changed,
+        before,
+        after: {
+          balance: roundMoney(Number(normalizedUser.balance ?? 0)),
+          todayCommission: roundMoney(Number(normalizedUser.todayCommission ?? 0)),
+          holdAmount: roundMoney(Number(normalizedUser.holdAmount ?? 0)),
+          isFrozen: Boolean(normalizedUser.isFrozen),
+        },
+      });
+    }
+
+    const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-premium-settlement-reconcile',
+      actorEmail,
+      `Reconciled premium settlements (dryRun: ${dryRun ? 'yes' : 'no'}, processed: ${processed}, changed: ${usersChanged}, settlementBackfills: ${settlementBackfills}, amount: $${settlementBackfillAmount.toFixed(2)})`,
+    ).catch((e) => console.error('Failed to record admin-premium-settlement-reconcile audit event:', e));
+
+    return c.json({
+      success: true,
+      dryRun,
+      processed,
+      usersChanged,
+      skippedUnauthorized,
+      usersAutoUnfrozen,
+      commissionReconciliations,
+      settlementBackfills,
+      settlementBackfillAmount: roundMoney(settlementBackfillAmount),
+      report,
+    });
+  } catch (err) {
+    console.error('admin/platform-users/reconcile-premium-settlements error:', err);
+    return c.json({ error: 'Failed to reconcile premium settlements' }, 500);
   }
 });
 

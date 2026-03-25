@@ -749,6 +749,8 @@ const ADMIN_OBSERVABILITY_RATE_LIMIT_VIOLATIONS_KEY = 'admin-observability:rate-
 const ADMIN_OBSERVABILITY_MAX_RATE_LIMIT_VIOLATIONS = 200;
 const ADMIN_SALARY_MAX_RESTORE_POINTS = 10;
 const ADMIN_SALARY_MAX_AUDIT_EVENTS = 50;
+const PREMIUM_SETTLEMENT_FIX_DEPLOYED_AT_MS = new Date('2026-03-25T02:53:42.000Z').getTime();
+const RECONCILIATION_EPSILON = 0.009;
 
 const defaultTaskCatalog = [
   {
@@ -2587,6 +2589,21 @@ function restoreUserToNaturalState(userData: any) {
   restored.activePremium = null;
   restored.premiumQueue = [];
   return restored;
+}
+
+function sumCompletedCommissionTransactions(transactions: any[]): number {
+  const total = transactions
+    .filter((tx) => tx?.type === 'Commission' && String(tx?.status ?? 'Completed').toLowerCase() === 'completed')
+    .reduce((sum, tx) => sum + Number(tx?.amount ?? 0), 0);
+  return roundMoney(total);
+}
+
+function parseIsoDateMs(value: unknown): number | null {
+  if (typeof value !== 'string' || !value) {
+    return null;
+  }
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 async function syncUsersForVipLevels(levels: number[]) {
@@ -8093,6 +8110,227 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/recalculate-finan
   } catch (err) {
     console.error('admin/platform-users/recalculate-financial-state error:', err);
     return c.json({ error: 'Failed to recalculate financial state' }, 500);
+  }
+});
+
+app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlements', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-platform-users:reconcile-premium-settlements');
+    if (limited) return limited;
+
+    const body = await c.req.json().catch(() => ({} as any));
+    const requestedUsername = sanitizeUsername(body?.username);
+    const dryRun = body?.dryRun !== false;
+    const maxUsers = Number.isFinite(Number(body?.maxUsers))
+      ? Math.max(1, Math.min(500, Math.round(Number(body.maxUsers))))
+      : 200;
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+
+    let candidateUsers: string[] = [];
+    if (requestedUsername) {
+      const canonical = await resolveCanonicalUsername(requestedUsername);
+      if (!canonical) {
+        return c.json({ error: 'User not found' }, 404);
+      }
+      candidateUsers = [canonical];
+    } else {
+      const allUsers = await kv.getByPrefix('user:');
+      candidateUsers = allUsers
+        .map((entry) => sanitizeUsername(entry?.username))
+        .filter((entry): entry is string => Boolean(entry))
+        .slice(0, maxUsers);
+    }
+
+    const report: Array<any> = [];
+    let processed = 0;
+    let skippedUnauthorized = 0;
+    let usersChanged = 0;
+    let usersAutoUnfrozen = 0;
+    let commissionReconciliations = 0;
+    let settlementBackfills = 0;
+    let settlementBackfillAmount = 0;
+
+    for (const username of candidateUsers) {
+      const userKey = `user:${username}`;
+      const existingUser = await kv.get(userKey);
+      if (!existingUser) {
+        continue;
+      }
+
+      let normalizedUser = await syncUserWithVipConfig(existingUser, username);
+      if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
+        skippedUnauthorized += 1;
+        continue;
+      }
+
+      processed += 1;
+
+      const before = {
+        balance: roundMoney(Number(normalizedUser.balance ?? 0)),
+        todayCommission: roundMoney(Number(normalizedUser.todayCommission ?? 0)),
+        holdAmount: roundMoney(Number(normalizedUser.holdAmount ?? 0)),
+        isFrozen: Boolean(normalizedUser.isFrozen),
+      };
+
+      let changed = false;
+      const transactions = await listTransactionRecords(username);
+
+      const commissionTotal = sumCompletedCommissionTransactions(transactions);
+      if (Math.abs(commissionTotal - Number(normalizedUser.todayCommission ?? 0)) > RECONCILIATION_EPSILON) {
+        commissionReconciliations += 1;
+        changed = true;
+        normalizedUser.todayCommission = commissionTotal;
+      }
+
+      const outstandingTopUp = Number(normalizedUser?.activePremium?.topUpRequired ?? normalizedUser?.activePremium?.negativeAmount ?? 0);
+      const shouldAutoUnfreeze = Boolean(normalizedUser.isFrozen)
+        && Boolean(normalizedUser.activePremium)
+        && Number.isFinite(outstandingTopUp)
+        && outstandingTopUp <= 0;
+
+      if (shouldAutoUnfreeze) {
+        usersAutoUnfrozen += 1;
+        changed = true;
+        normalizedUser = restoreUserToNaturalState(normalizedUser);
+        normalizedUser.pendingTaskReset = false;
+      }
+
+      const premiumPrefix = `premium:${username}:`;
+      const premiumRecords = (await kv.getByPrefix(premiumPrefix))
+        .filter((premium) => typeof premium?.id === 'string')
+        .sort((left, right) => {
+          const leftMs = parseIsoDateMs(left?.completedAt) ?? 0;
+          const rightMs = parseIsoDateMs(right?.completedAt) ?? 0;
+          return leftMs - rightMs;
+        });
+
+      for (const premium of premiumRecords) {
+        if (String(premium?.status ?? '').toLowerCase() !== 'completed') {
+          continue;
+        }
+
+        const premiumId = String(premium.id);
+        const completionMs = parseIsoDateMs(premium?.completedAt);
+        const holdReleaseAmount = roundMoney(Math.max(
+          0,
+          Number(premium?.topUpRequired ?? premium?.negativeAmount ?? premium?.configuredUpholdAmount ?? 0),
+        ));
+        if (holdReleaseAmount <= 0) {
+          continue;
+        }
+
+        if (typeof premium?.settlementReleaseAppliedAt === 'string' && premium.settlementReleaseAppliedAt) {
+          continue;
+        }
+
+        if (completionMs !== null && completionMs >= PREMIUM_SETTLEMENT_FIX_DEPLOYED_AT_MS) {
+          continue;
+        }
+
+        const hasSettlementReleaseTx = transactions.some((tx) =>
+          tx?.referenceId === premiumId
+          && String(tx?.source ?? '').toLowerCase() === 'premium_settlement_release'
+          && String(tx?.status ?? 'Completed').toLowerCase() === 'completed',
+        );
+        if (hasSettlementReleaseTx) {
+          continue;
+        }
+
+        const hasPostCompletionNonPremiumActivity = completionMs !== null
+          ? transactions.some((tx) => {
+              const txMs = parseIsoDateMs(tx?.date ?? tx?.createdAt);
+              const txSource = String(tx?.source ?? '').toLowerCase();
+              if (txMs === null || txMs <= completionMs) {
+                return false;
+              }
+              return txSource !== 'premium_task' && txSource !== 'premium_settlement_release';
+            })
+          : true;
+
+        if (hasPostCompletionNonPremiumActivity) {
+          continue;
+        }
+
+        settlementBackfills += 1;
+        settlementBackfillAmount = roundMoney(settlementBackfillAmount + holdReleaseAmount);
+        changed = true;
+
+        if (!dryRun) {
+          normalizedUser.balance = roundMoney(Number(normalizedUser.balance ?? 0) + holdReleaseAmount);
+          const settlementTx = await createTransactionRecord({
+            username,
+            type: 'Deposit',
+            amount: holdReleaseAmount,
+            method: 'Premium Settlement Release',
+            source: 'premium_settlement_release',
+            description: 'Backfilled premium hold release after settlement-rule upgrade',
+            referenceId: premiumId,
+          });
+          transactions.unshift(settlementTx);
+
+          const premiumKey = `${premiumPrefix}${premiumId}`;
+          await kv.set(premiumKey, {
+            ...premium,
+            settlementReleaseAppliedAt: new Date().toISOString(),
+            settlementReleaseAmount: holdReleaseAmount,
+            settlementReleaseSource: 'reconcile-premium-settlements',
+          });
+        }
+      }
+
+      normalizedUser.balance = roundMoney(Number(normalizedUser.balance ?? 0));
+      normalizedUser.todayCommission = roundMoney(Number(normalizedUser.todayCommission ?? 0));
+      normalizedUser.holdAmount = roundMoney(Math.max(0, Number(normalizedUser.holdAmount ?? 0)));
+
+      if (changed) {
+        usersChanged += 1;
+        if (!dryRun) {
+          await kv.set(userKey, normalizedUser);
+        }
+      }
+
+      report.push({
+        username,
+        changed,
+        before,
+        after: {
+          balance: roundMoney(Number(normalizedUser.balance ?? 0)),
+          todayCommission: roundMoney(Number(normalizedUser.todayCommission ?? 0)),
+          holdAmount: roundMoney(Number(normalizedUser.holdAmount ?? 0)),
+          isFrozen: Boolean(normalizedUser.isFrozen),
+        },
+      });
+    }
+
+    const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-premium-settlement-reconcile',
+      actorEmail,
+      `Reconciled premium settlements (dryRun: ${dryRun ? 'yes' : 'no'}, processed: ${processed}, changed: ${usersChanged}, settlementBackfills: ${settlementBackfills}, amount: $${settlementBackfillAmount.toFixed(2)})`,
+    ).catch((e) => console.error('Failed to record admin-premium-settlement-reconcile audit event:', e));
+
+    return c.json({
+      success: true,
+      dryRun,
+      processed,
+      usersChanged,
+      skippedUnauthorized,
+      usersAutoUnfrozen,
+      commissionReconciliations,
+      settlementBackfills,
+      settlementBackfillAmount: roundMoney(settlementBackfillAmount),
+      report,
+    });
+  } catch (err) {
+    console.error('admin/platform-users/reconcile-premium-settlements error:', err);
+    return c.json({ error: 'Failed to reconcile premium settlements' }, 500);
   }
 });
 
