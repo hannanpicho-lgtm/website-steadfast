@@ -326,6 +326,10 @@ export default function Starting() {
   const displayEstimatedCommission = isPremiumTaskActive
     ? roundMoney(premiumDisplayPrice * (premiumCommissionRate / 100))
     : estimatedCommission;
+  const financialBlockBaseFx = 'relative overflow-hidden rounded-xl border border-white/20 bg-white/12 p-3 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform';
+  const financialBlockHoverFx = 'hover:-translate-y-1 hover:scale-[1.01] hover:border-white/50 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)]';
+  const financialBlockGlossFx = 'before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.20)_0%,rgba(255,255,255,0.04)_45%,rgba(4,34,93,0.06)_100%)]';
+  const financialBlockRingFx = 'after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[11px] after:border after:border-white/15 after:transition-all after:duration-300 hover:after:border-white/40';
 
   // Fetch user data on mount
   useEffect(() => {
@@ -890,7 +894,7 @@ export default function Starting() {
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="rounded-xl bg-white/12 p-3 backdrop-blur-sm">
+              <div className={`${financialBlockBaseFx} ${financialBlockHoverFx} ${financialBlockGlossFx} ${financialBlockRingFx}`}>
                 <div className="flex items-center gap-3">
                   <div className="rounded-full bg-white/15 p-1.5">
                     <CreditCard size={15} />
@@ -909,7 +913,7 @@ export default function Starting() {
                 </p>
               </div>
 
-              <div className="rounded-xl bg-white/12 p-3 backdrop-blur-sm">
+              <div className={`${financialBlockBaseFx} ${financialBlockHoverFx} ${financialBlockGlossFx} ${financialBlockRingFx}`}>
                 <div className="flex items-center gap-3">
                   <div className="rounded-full bg-white/15 p-1.5">
                     <Snowflake size={15} />
@@ -927,7 +931,7 @@ export default function Starting() {
               </div>
             </div>
 
-            <div className="mt-3 rounded-[18px] border border-white/15 bg-white/12 p-4 backdrop-blur-sm">
+            <div className="relative mt-3 overflow-hidden rounded-[18px] border border-white/20 bg-white/12 p-4 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform hover:-translate-y-1 hover:scale-[1.008] hover:border-white/50 hover:shadow-[0_16px_30px_rgba(5,42,107,0.4)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.20)_0%,rgba(255,255,255,0.04)_45%,rgba(4,34,93,0.06)_100%)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[15px] after:border after:border-white/15 after:transition-all after:duration-300 hover:after:border-white/40">
               <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">Total Account Balance</p>
               <p className="mt-1.5 text-center text-[1.75rem] font-bold">{totalAccountBalanceDisplay.toFixed(2)} USD</p>
               <p className="mt-1.5 text-center text-[11px] text-white/75">
@@ -938,12 +942,12 @@ export default function Starting() {
             </div>
 
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="rounded-xl bg-[#083b93]/35 p-3">
+              <div className="relative overflow-hidden rounded-xl border border-white/15 bg-[#083b93]/35 p-3 transition-all duration-300 ease-out will-change-transform hover:-translate-y-1 hover:scale-[1.01] hover:border-white/45 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.03)_45%,rgba(4,34,93,0.10)_100%)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[11px] after:border after:border-white/10 after:transition-all after:duration-300 hover:after:border-white/30">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Lucky Bonus</p>
                 <p className="mt-1 text-xl font-bold">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
                 <p className="mt-1.5 text-[11px] text-white/75">Bonus value currently carried on the account.</p>
               </div>
-              <div className="rounded-xl bg-[#083b93]/35 p-3">
+              <div className="relative overflow-hidden rounded-xl border border-white/15 bg-[#083b93]/35 p-3 transition-all duration-300 ease-out will-change-transform hover:-translate-y-1 hover:scale-[1.01] hover:border-white/45 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.03)_45%,rgba(4,34,93,0.10)_100%)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[11px] after:border after:border-white/10 after:transition-all after:duration-300 hover:after:border-white/30">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Working Status</p>
                 <p className="mt-1 text-xl font-bold">{userData?.isFrozen ? 'Settlement Review' : 'Ready To Submit'}</p>
                 <p className="mt-1.5 text-[11px] text-white/75">
