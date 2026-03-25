@@ -36,11 +36,23 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
   );
 }
 
-const clients = [
-  { name: 'Steadfast Growth Partners', color: 'text-[#005a87]' },
-  { name: 'Performance Commerce Network', color: 'text-teal-600' },
-  { name: 'Enterprise Media Group', color: 'text-[#0f172a]' },
+const clientBrands = [
+  { name: 'ROAR Organic',        logo: 'https://logo.clearbit.com/roarorganic.com' },
+  { name: 'Borghese',            logo: 'https://logo.clearbit.com/borghese.com' },
+  { name: 'Isaia Napoli',        logo: 'https://logo.clearbit.com/isaia.it' },
+  { name: 'Giadzy',              logo: 'https://logo.clearbit.com/giadzy.com' },
+  { name: 'UBS',                 logo: 'https://logo.clearbit.com/ubs.com' },
+  { name: 'BLAST',               logo: 'https://logo.clearbit.com/blast.com' },
+  { name: 'Fanchest',            logo: 'https://logo.clearbit.com/fanchest.com' },
+  { name: 'Pet Plate',           logo: 'https://logo.clearbit.com/petplate.com' },
+  { name: 'The Vitamin Shoppe',  logo: 'https://logo.clearbit.com/vitaminshoppe.com' },
+  { name: 'Magellan Jets',       logo: 'https://logo.clearbit.com/magellanjets.com' },
 ];
+
+const clientSlides: (typeof clientBrands)[] = [];
+for (let i = 0; i < clientBrands.length; i += 3) {
+  clientSlides.push(clientBrands.slice(i, i + 3));
+}
 
 export default function UserHome() {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -48,8 +60,8 @@ export default function UserHome() {
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setClientIndex(i => (i + 1) % clients.length);
-    }, 2500);
+      setClientIndex(i => (i + 1) % clientSlides.length);
+    }, 3000);
     return () => clearInterval(timer);
   }, []);
 
@@ -137,21 +149,32 @@ export default function UserHome() {
                 className="flex transition-transform duration-500 ease-in-out"
                 style={{ transform: `translateX(-${clientIndex * 100}%)` }}
               >
-                {clients.map((client) => (
-                  <div key={client.name} className="min-w-full flex justify-center px-4">
-                    <div className="w-full min-h-[100px] rounded-lg border border-[#b5d0e6] bg-[#f8fbfd] p-5 shadow-sm sm:min-h-[130px] sm:p-8 flex items-center justify-center">
-                      <span className={`text-2xl sm:text-3xl font-bold ${client.color}`}>{client.name}</span>
-                    </div>
+                {clientSlides.map((slide, slideIdx) => (
+                  <div key={slideIdx} className="min-w-full flex gap-3 px-1">
+                    {slide.map((brand) => (
+                      <div
+                        key={brand.name}
+                        className="flex-1 flex flex-col items-center justify-center rounded-lg border border-[#d3dde8] bg-white p-3 min-h-[90px] sm:min-h-[110px] shadow-sm gap-1.5"
+                      >
+                        <img
+                          src={brand.logo}
+                          alt={brand.name}
+                          className="max-h-9 sm:max-h-11 max-w-[80%] w-auto object-contain"
+                          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+                        />
+                        <span className="text-[0.65rem] sm:text-[0.72rem] font-semibold text-[#2b4a6a] text-center leading-tight">{brand.name}</span>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
               <div className="flex justify-center gap-2 mt-4">
-                {clients.map((_, i) => (
+                {clientSlides.map((_, i) => (
                   <button
                     key={i}
                     onClick={() => setClientIndex(i)}
                     className={`h-2 w-2 rounded-full transition-colors duration-300 ${i === clientIndex ? 'bg-[#0b5f94]' : 'bg-[#b5d0e6]'}`}
-                    aria-label={`Show client ${i + 1}`}
+                    aria-label={`Show clients ${i * 3 + 1}–${Math.min(i * 3 + 3, clientBrands.length)}`}
                   />
                 ))}
               </div>

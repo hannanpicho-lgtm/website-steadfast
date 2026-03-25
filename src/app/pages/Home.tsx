@@ -51,7 +51,11 @@ const workHighlights = [
   },
 ];
 
-const clientNames = ['AgEagle', 'NYU Langone Health', 'Organicgirl', 'Newmans Own', 'UNDP', 'Forward Labs'];
+const clientNames = [
+  'AgEagle', 'NYU Langone Health', 'Organicgirl', 'Newmans Own', 'UNDP', 'Forward Labs',
+  'ROAR Organic', 'Borghese', 'Isaia Napoli', 'Giadzy', 'UBS', 'BLAST',
+  'Fanchest', 'Pet Plate', 'The Vitamin Shoppe', 'Magellan Jets',
+];
 
 export default function Home() {
   return (

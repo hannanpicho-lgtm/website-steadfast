@@ -56,7 +56,8 @@ import {
   AlertTriangle,
   Info,
   MessageSquare,
-  Copy
+  Copy,
+  CheckCircle
 } from 'lucide-react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { buildAdminAuthHeaders, supabase } from '../services/supabaseAuth';
@@ -394,6 +395,7 @@ export default function Admin() {
   const [userTaskControlSaving, setUserTaskControlSaving] = useState(false);
   const [premiumReconcileSaving, setPremiumReconcileSaving] = useState(false);
   const [premiumReconcileAllSaving, setPremiumReconcileAllSaving] = useState(false);
+  const [reconcileReport, setReconcileReport] = useState<{ processed: number; changed: number; settlementFixes: number; amount: number; target: string } | null>(null);
   const [userBalanceAdjustmentDraft, setUserBalanceAdjustmentDraft] = useState<UserBalanceAdjustmentDraft | null>(null);
   const [userBalanceAdjustmentSaving, setUserBalanceAdjustmentSaving] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
@@ -829,12 +831,15 @@ export default function Admin() {
       const changed = Number(payload?.usersChanged ?? 0);
       const settlementFixes = Number(payload?.settlementBackfills ?? 0);
       const amount = Number(payload?.settlementBackfillAmount ?? 0);
+      const processed = Number(payload?.processed ?? (isSingleUserRun ? 1 : 0));
 
-      if (isSingleUserRun) {
-        toast.success(`Premium reconciliation completed for ${params?.username} (changed: ${changed}, settlement fixes: ${settlementFixes}, amount: $${amount.toFixed(2)}).`);
-      } else {
-        toast.success(`Premium reconciliation completed for ${Number(payload?.processed ?? 0)} user(s) (changed: ${changed}, settlement fixes: ${settlementFixes}, amount: $${amount.toFixed(2)}).`);
-      }
+      setReconcileReport({
+        processed,
+        changed,
+        settlementFixes,
+        amount,
+        target: isSingleUserRun ? (params?.username ?? 'user') : `All Users (up to ${params?.maxUsers ?? 500})`,
+      });
     } catch (error) {
       handleAdminRequestError(
         error,
@@ -4980,6 +4985,54 @@ export default function Admin() {
                 Confirm Restore
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reconciliation Report Modal */}
+      {reconcileReport && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1e2536] border border-emerald-500/30 rounded-xl shadow-2xl w-full max-w-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <CheckCircle size={20} className="text-emerald-400" />
+                <h3 className="text-lg font-bold text-white">Reconciliation Report</h3>
+              </div>
+              <button onClick={() => setReconcileReport(null)} className="text-gray-400 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-sm text-gray-400 mb-4">
+              Target: <span className="text-white font-medium">{reconcileReport.target}</span>
+            </p>
+            <div className="space-y-1">
+              <div className="flex justify-between items-center py-2 border-b border-white/10">
+                <span className="text-sm text-gray-300">Accounts Processed</span>
+                <span className="text-sm font-bold text-white">{reconcileReport.processed}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-white/10">
+                <span className="text-sm text-gray-300">Accounts Changed</span>
+                <span className="text-sm font-bold text-emerald-400">{reconcileReport.changed}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-white/10">
+                <span className="text-sm text-gray-300">No Change Needed</span>
+                <span className="text-sm font-bold text-gray-400">{Math.max(0, reconcileReport.processed - reconcileReport.changed)}</span>
+              </div>
+              <div className="flex justify-between items-center py-2 border-b border-white/10">
+                <span className="text-sm text-gray-300">Settlement Backfills</span>
+                <span className="text-sm font-bold text-blue-300">{reconcileReport.settlementFixes}</span>
+              </div>
+              <div className="flex justify-between items-center py-2">
+                <span className="text-sm font-semibold text-gray-200">Total Amount Released</span>
+                <span className="text-base font-extrabold text-emerald-300">${reconcileReport.amount.toFixed(2)}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setReconcileReport(null)}
+              className="mt-5 w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-2.5 rounded-lg transition-colors text-sm"
+            >
+              Done
+            </button>
           </div>
         </div>
       )}
