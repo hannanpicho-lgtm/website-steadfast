@@ -1,6 +1,16 @@
-import React from 'react';
-import { Plus, Search, Download, Eye, Edit, Key, Check, X, Trash2, RefreshCw, Shield, DollarSign, Star, WandSparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, Search, Download, Eye, Edit, Key, Check, X, Trash2, RefreshCw, Shield, DollarSign, Star, WandSparkles, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { toast } from 'sonner';
+
+type UserSortCol = 'username' | 'vipLevel' | 'balance' | 'status' | 'registered' | '';
+type SortDir = 'asc' | 'desc';
+
+function SortIcon({ col, sortCol, sortDir }: { col: string; sortCol: UserSortCol; sortDir: SortDir }) {
+  if (sortCol !== col) return <ChevronsUpDown size={13} className="ml-1 inline opacity-40" />;
+  return sortDir === 'asc'
+    ? <ChevronUp size={13} className="ml-1 inline text-[#00D9FF]" />
+    : <ChevronDown size={13} className="ml-1 inline text-[#00D9FF]" />;
+}
 
 interface UserManagementProps {
   platformUsers: any[];
@@ -55,6 +65,18 @@ export default function UserManagement({
   reconcilingPremiumUser,
   reconcilingPremiumAll,
 }: UserManagementProps) {
+  const [sortCol, setSortCol] = useState<UserSortCol>('');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  const handleSort = (col: UserSortCol) => {
+    if (sortCol === col) {
+      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortCol(col);
+      setSortDir('asc');
+    }
+  };
+
   type DisplayUser = {
     id: number;
     username: string;
@@ -92,10 +114,23 @@ export default function UserManagement({
     const matchesFilter = filterStatus === 'all' || user.status.toLowerCase() === filterStatus;
     return matchesSearch && matchesFilter;
   });
-  const totalUserPages = Math.max(1, Math.ceil(filteredUsers.length / usersPerPage));
+  const sortedUsers = sortCol
+    ? [...filteredUsers].sort((a, b) => {
+        let aVal: any, bVal: any;
+        if (sortCol === 'username') { aVal = a.username.toLowerCase(); bVal = b.username.toLowerCase(); }
+        else if (sortCol === 'vipLevel') { aVal = a.vipLevel; bVal = b.vipLevel; }
+        else if (sortCol === 'balance') { aVal = a.balance; bVal = b.balance; }
+        else if (sortCol === 'status') { aVal = a.status; bVal = b.status; }
+        else { aVal = new Date(a.registered).getTime(); bVal = new Date(b.registered).getTime(); }
+        if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
+        return 0;
+      })
+    : filteredUsers;
+  const totalUserPages = Math.max(1, Math.ceil(sortedUsers.length / usersPerPage));
   const safeUserPage = Math.min(userPage, totalUserPages);
   const userStartIndex = (safeUserPage - 1) * usersPerPage;
-  const paginatedUsers = filteredUsers.slice(userStartIndex, userStartIndex + usersPerPage);
+  const paginatedUsers = sortedUsers.slice(userStartIndex, userStartIndex + usersPerPage);
 
   return (
     <div className="space-y-6">
@@ -170,15 +205,25 @@ export default function UserManagement({
       <div className="bg-[#252b3d] rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-[#1a1f2e] border-b border-gray-700">
+            <thead className="sticky top-0 z-10 bg-[#1a1f2e] border-b border-gray-700">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Username</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white" onClick={() => handleSort('username')}>
+                  Username<SortIcon col="username" sortCol={sortCol} sortDir={sortDir} />
+                </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Contact</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">VIP Level</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Balance</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Registered</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white" onClick={() => handleSort('vipLevel')}>
+                  VIP Level<SortIcon col="vipLevel" sortCol={sortCol} sortDir={sortDir} />
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white" onClick={() => handleSort('balance')}>
+                  Balance<SortIcon col="balance" sortCol={sortCol} sortDir={sortDir} />
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white" onClick={() => handleSort('status')}>
+                  Status<SortIcon col="status" sortCol={sortCol} sortDir={sortDir} />
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white" onClick={() => handleSort('registered')}>
+                  Registered<SortIcon col="registered" sortCol={sortCol} sortDir={sortDir} />
+                </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Referred By</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Set Status</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
@@ -344,8 +389,8 @@ export default function UserManagement({
       {/* Pagination */}
       <div className="flex items-center justify-between bg-[#252b3d] px-6 py-4 rounded-lg">
         <p className="text-sm text-gray-400">
-          Showing {filteredUsers.length === 0 ? 0 : userStartIndex + 1}
-          -{Math.min(userStartIndex + paginatedUsers.length, filteredUsers.length)} of {filteredUsers.length} results
+          Showing {sortedUsers.length === 0 ? 0 : userStartIndex + 1}
+          –{Math.min(userStartIndex + paginatedUsers.length, sortedUsers.length)} of {sortedUsers.length} results
         </p>
         <div className="flex items-center gap-2">
           <button

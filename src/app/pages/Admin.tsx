@@ -385,8 +385,8 @@ type ModalType = 'add-user' | 'edit-user' | 'view-user' | 'delete-user' | 'adjus
 export default function Admin() {
   const navigate = useNavigate();
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
-  const productsPerPage = 8;
-  const usersPerPage = 5;
+  const productsPerPage = 12;
+  const usersPerPage = 15;
   const [activeMenu, setActiveMenu] = useState('home');
   const [searchTerm, setSearchTerm] = useState('');
   const [modalType, setModalType] = useState<ModalType>(null);

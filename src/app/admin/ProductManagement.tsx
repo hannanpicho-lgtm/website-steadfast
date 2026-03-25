@@ -193,7 +193,7 @@ export default function ProductManagement({
                   <p className="text-green-400 font-bold text-lg">{(normalizeNumber(product?.commission) * 100).toFixed(1)}%</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex items-center gap-2">
                 <button 
                   onClick={() => { setSelectedItem(product); setModalType('view-product'); }}
                   className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-[#1a1f2e] hover:bg-[#00D9FF] hover:text-[#1a1f2e] text-gray-300 rounded transition-colors text-xs"
