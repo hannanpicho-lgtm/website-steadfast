@@ -1,6 +1,6 @@
 import { UserCircle, Rocket, CreditCard, Snowflake, Loader2, Lock, AlertTriangle, DollarSign, ChevronLeft, ChevronRight, CheckCircle2, MessageCircle } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
 import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -327,9 +327,58 @@ export default function Starting() {
     ? roundMoney(premiumDisplayPrice * (premiumCommissionRate / 100))
     : estimatedCommission;
   const financialBlockBaseFx = 'relative overflow-hidden rounded-xl border border-white/20 bg-white/12 p-3 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform';
-  const financialBlockHoverFx = 'hover:-translate-y-1 hover:scale-[1.01] hover:border-white/50 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)]';
+  const financialBlockHoverFx = 'hover:border-white/50 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)]';
   const financialBlockGlossFx = 'before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.20)_0%,rgba(255,255,255,0.04)_45%,rgba(4,34,93,0.06)_100%)]';
   const financialBlockRingFx = 'after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[11px] after:border after:border-white/15 after:transition-all after:duration-300 hover:after:border-white/40';
+  const financialSheenFx = 'pointer-events-none absolute inset-y-0 -left-[55%] w-[45%] bg-[linear-gradient(110deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.45)_48%,rgba(255,255,255,0)_100%)] opacity-0';
+
+  const handleFinancialBlockMouseMove = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (typeof window === 'undefined' || !window.matchMedia('(pointer: fine)').matches) {
+      return;
+    }
+
+    const block = event.currentTarget;
+    const rect = block.getBoundingClientRect();
+    const tiltMultiplier = Number(block.dataset.tiltMult ?? 1);
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
+    const rotateY = ((offsetX / rect.width) - 0.5) * (6 * tiltMultiplier);
+    const rotateX = (0.5 - (offsetY / rect.height)) * (6 * tiltMultiplier);
+    block.style.transform = `perspective(960px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) translateZ(0)`;
+  };
+
+  const resetFinancialBlockTilt = (event: ReactMouseEvent<HTMLDivElement>) => {
+    event.currentTarget.style.transform = 'perspective(960px) rotateX(0deg) rotateY(0deg) translateZ(0)';
+  };
+
+  const primeFinancialBlockFx = (event: ReactMouseEvent<HTMLDivElement>) => {
+    const block = event.currentTarget;
+    if (block.dataset.sheenPlayed === 'true') {
+      return;
+    }
+
+    block.dataset.sheenPlayed = 'true';
+    const sheen = block.querySelector<HTMLElement>('[data-financial-sheen]');
+    if (!sheen) {
+      return;
+    }
+
+    sheen.style.transition = 'none';
+    sheen.style.transform = 'translateX(-135%)';
+    sheen.style.opacity = '0';
+
+    requestAnimationFrame(() => {
+      window.setTimeout(() => {
+        sheen.style.transition = 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease';
+        sheen.style.opacity = '1';
+        sheen.style.transform = 'translateX(235%)';
+
+        window.setTimeout(() => {
+          sheen.style.opacity = '0';
+        }, 620);
+      }, 120);
+    });
+  };
 
   // Fetch user data on mount
   useEffect(() => {
@@ -887,14 +936,34 @@ export default function Starting() {
               <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/90">
                 Financial Summary
               </div>
-              <Rocket className="mx-auto mt-3" size={26} />
-              <h3 className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Today's Commission</h3>
-              <p className="mt-2 text-3xl font-bold leading-none">{todayCommissionDisplay.toFixed(2)} USD</p>
-              <p className="mt-2 text-xs text-white/80">Updated from completed submissions in the current working day.</p>
+
+              <div
+                className={`${financialBlockBaseFx} ${financialBlockHoverFx} ${financialBlockGlossFx} ${financialBlockRingFx} mt-3 px-4 py-4`}
+                onMouseMove={handleFinancialBlockMouseMove}
+                onMouseLeave={resetFinancialBlockTilt}
+                onMouseEnter={primeFinancialBlockFx}
+                data-tilt-mult="1.1"
+              >
+                <span data-financial-sheen className={financialSheenFx} />
+                <div className="relative z-[1]">
+                  <Rocket className="mx-auto" size={26} />
+                  <h3 className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Today's Commission</h3>
+                  <p className="mt-2 text-3xl font-bold leading-none">{todayCommissionDisplay.toFixed(2)} USD</p>
+                  <p className="mt-2 text-xs text-white/80">Updated from completed submissions in the current working day.</p>
+                </div>
+              </div>
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className={`${financialBlockBaseFx} ${financialBlockHoverFx} ${financialBlockGlossFx} ${financialBlockRingFx}`}>
+              <div
+                className={`${financialBlockBaseFx} ${financialBlockHoverFx} ${financialBlockGlossFx} ${financialBlockRingFx}`}
+                onMouseMove={handleFinancialBlockMouseMove}
+                onMouseLeave={resetFinancialBlockTilt}
+                onMouseEnter={primeFinancialBlockFx}
+                data-tilt-mult="1"
+              >
+                <span data-financial-sheen className={financialSheenFx} />
+                <div className="relative z-[1]">
                 <div className="flex items-center gap-3">
                   <div className="rounded-full bg-white/15 p-1.5">
                     <CreditCard size={15} />
@@ -911,9 +980,18 @@ export default function Starting() {
                 <p className="mt-2 text-[11px] text-white/75">
                   {userData?.isFrozen ? 'Balance held before premium settlement.' : 'Funds currently available for new submissions.'}
                 </p>
+                </div>
               </div>
 
-              <div className={`${financialBlockBaseFx} ${financialBlockHoverFx} ${financialBlockGlossFx} ${financialBlockRingFx}`}>
+              <div
+                className={`${financialBlockBaseFx} ${financialBlockHoverFx} ${financialBlockGlossFx} ${financialBlockRingFx}`}
+                onMouseMove={handleFinancialBlockMouseMove}
+                onMouseLeave={resetFinancialBlockTilt}
+                onMouseEnter={primeFinancialBlockFx}
+                data-tilt-mult="1"
+              >
+                <span data-financial-sheen className={financialSheenFx} />
+                <div className="relative z-[1]">
                 <div className="flex items-center gap-3">
                   <div className="rounded-full bg-white/15 p-1.5">
                     <Snowflake size={15} />
@@ -928,31 +1006,59 @@ export default function Starting() {
                 <p className="mt-2 text-[11px] text-white/75">
                   {userData?.isFrozen ? 'Reserved for the premium settlement requirement.' : 'Amount currently reserved from the working balance.'}
                 </p>
+                </div>
               </div>
             </div>
 
-            <div className="relative mt-3 overflow-hidden rounded-[18px] border border-white/20 bg-white/12 p-4 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform hover:-translate-y-1 hover:scale-[1.008] hover:border-white/50 hover:shadow-[0_16px_30px_rgba(5,42,107,0.4)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.20)_0%,rgba(255,255,255,0.04)_45%,rgba(4,34,93,0.06)_100%)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[15px] after:border after:border-white/15 after:transition-all after:duration-300 hover:after:border-white/40">
-              <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">Total Account Balance</p>
-              <p className="mt-1.5 text-center text-[1.75rem] font-bold">{totalAccountBalanceDisplay.toFixed(2)} USD</p>
-              <p className="mt-1.5 text-center text-[11px] text-white/75">
-                {userData?.isFrozen
-                  ? 'Includes pre-freeze balance, current hold amount, and projected premium profit.'
-                  : 'Reflects the active account balance across the current task cycle.'}
-              </p>
+            <div
+              className="relative mt-3 overflow-hidden rounded-[18px] border border-white/20 bg-white/12 p-4 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform hover:border-white/60 hover:shadow-[0_20px_34px_rgba(5,42,107,0.46)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.24)_0%,rgba(255,255,255,0.06)_45%,rgba(4,34,93,0.08)_100%)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[15px] after:border after:border-white/15 after:transition-all after:duration-300 hover:after:border-white/45"
+              onMouseMove={handleFinancialBlockMouseMove}
+              onMouseLeave={resetFinancialBlockTilt}
+              onMouseEnter={primeFinancialBlockFx}
+              data-tilt-mult="1.2"
+            >
+              <span data-financial-sheen className={financialSheenFx} />
+              <div className="relative z-[1]">
+                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">Total Account Balance</p>
+                <p className="mt-1.5 text-center text-[1.75rem] font-bold">{totalAccountBalanceDisplay.toFixed(2)} USD</p>
+                <p className="mt-1.5 text-center text-[11px] text-white/75">
+                  {userData?.isFrozen
+                    ? 'Includes pre-freeze balance, current hold amount, and projected premium profit.'
+                    : 'Reflects the active account balance across the current task cycle.'}
+                </p>
+              </div>
             </div>
 
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="relative overflow-hidden rounded-xl border border-white/15 bg-[#083b93]/35 p-3 transition-all duration-300 ease-out will-change-transform hover:-translate-y-1 hover:scale-[1.01] hover:border-white/45 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.03)_45%,rgba(4,34,93,0.10)_100%)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[11px] after:border after:border-white/10 after:transition-all after:duration-300 hover:after:border-white/30">
+              <div
+                className="relative overflow-hidden rounded-xl border border-white/15 bg-[#083b93]/35 p-3 transition-all duration-300 ease-out will-change-transform hover:border-white/45 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.03)_45%,rgba(4,34,93,0.10)_100%)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[11px] after:border after:border-white/10 after:transition-all after:duration-300 hover:after:border-white/30"
+                onMouseMove={handleFinancialBlockMouseMove}
+                onMouseLeave={resetFinancialBlockTilt}
+                onMouseEnter={primeFinancialBlockFx}
+                data-tilt-mult="1"
+              >
+                <span data-financial-sheen className={financialSheenFx} />
+                <div className="relative z-[1]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Lucky Bonus</p>
                 <p className="mt-1 text-xl font-bold">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
                 <p className="mt-1.5 text-[11px] text-white/75">Bonus value currently carried on the account.</p>
+                </div>
               </div>
-              <div className="relative overflow-hidden rounded-xl border border-white/15 bg-[#083b93]/35 p-3 transition-all duration-300 ease-out will-change-transform hover:-translate-y-1 hover:scale-[1.01] hover:border-white/45 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.03)_45%,rgba(4,34,93,0.10)_100%)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[11px] after:border after:border-white/10 after:transition-all after:duration-300 hover:after:border-white/30">
+              <div
+                className="relative overflow-hidden rounded-xl border border-white/15 bg-[#083b93]/35 p-3 transition-all duration-300 ease-out will-change-transform hover:border-white/45 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.03)_45%,rgba(4,34,93,0.10)_100%)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[11px] after:border after:border-white/10 after:transition-all after:duration-300 hover:after:border-white/30"
+                onMouseMove={handleFinancialBlockMouseMove}
+                onMouseLeave={resetFinancialBlockTilt}
+                onMouseEnter={primeFinancialBlockFx}
+                data-tilt-mult="1"
+              >
+                <span data-financial-sheen className={financialSheenFx} />
+                <div className="relative z-[1]">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Working Status</p>
                 <p className="mt-1 text-xl font-bold">{userData?.isFrozen ? 'Settlement Review' : 'Ready To Submit'}</p>
                 <p className="mt-1.5 text-[11px] text-white/75">
                   {userData?.isFrozen ? 'Submission remains paused until the premium requirement is cleared.' : 'The account can continue processing eligible tasks.'}
                 </p>
+                </div>
               </div>
             </div>
           </div>
