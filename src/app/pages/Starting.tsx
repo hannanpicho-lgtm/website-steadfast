@@ -851,9 +851,6 @@ export default function Starting() {
             <p className="text-yellow-100 font-semibold text-center mb-2">
               Current set complete: {userData?.tasksCompletedInSet ?? 0} / {userData?.tasksPerSet ?? 0} tasks
             </p>
-            <p className="text-white/90 text-sm text-center mb-5">
-              Your current task set is complete. An admin must reset the next set before you can continue with unfinished work.
-            </p>
             <button
               onClick={() => setIsChatOpen(true)}
               className="w-full flex items-center justify-center gap-2 bg-white text-[#7a4a00] font-bold py-3 rounded-lg hover:bg-yellow-50 transition-colors text-lg"
