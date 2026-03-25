@@ -684,7 +684,7 @@ export default function Admin() {
   };
 
   const handleResetUserTaskSet = async (user: PlatformUser) => {
-    await updatePlatformUserTaskControls(user.username, { resetCurrentSet: true }, `Task set reset for ${user.username}`);
+    await updatePlatformUserTaskControls(user.username, {  resetCurrentSet: true }, `Task set reset for ${user.username}`);
   };
 
   const handleRestorePlatformUser = async (user: PlatformUser) => {
