@@ -331,7 +331,7 @@ app.use(
     origin: (origin) => resolveCorsOrigin(origin),
     credentials: true,
     allowHeaders: ["Content-Type", "Authorization", "apikey", "x-admin-secret", "x-user-jwt"],
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length", "X-Request-Id"],
     maxAge: 600,
   }),
@@ -3294,6 +3294,35 @@ async function buildAdminPlatformUserAudit(username: string) {
   const holdAmount = roundMoney(Number(normalizedUser.holdAmount ?? 0));
   const availableAmount = roundMoney(balance - holdAmount);
 
+  // Compute display values matching the frontend Starting.tsx financial summary panel.
+  // For frozen accounts (active premium), project the same totals the user sees.
+  const isFrozen = Boolean(normalizedUser.isFrozen);
+  const activePremium = normalizedUser.activePremium ?? null;
+  const preFreezeBalance = isFrozen && activePremium
+    ? roundMoney(Number(activePremium.balanceBeforeAssignment ?? balance))
+    : balance;
+  const displayHoldAmount = isFrozen && activePremium
+    ? roundMoney(Math.max(0, Number(activePremium.topUpRequired ?? activePremium.negativeAmount ?? holdAmount ?? 0)))
+    : holdAmount;
+  const premiumDisplayPrice = isFrozen && activePremium
+    ? roundMoney(Number(activePremium.totalBundleValue ?? activePremium.premiumProductValue ?? 0))
+    : 0;
+  const vipConfigForDisplay = await getVipConfigForLevel(Number(normalizedUser.vipLevel ?? 1));
+  const premiumCommRate = (vipConfigForDisplay.commission ?? 0.005) * 10;
+  const projectedPremiumProfit = premiumDisplayPrice > 0 ? roundMoney(premiumDisplayPrice * premiumCommRate) : 0;
+  const frozenPremiumProfit = isFrozen && activePremium
+    ? (Number(activePremium.commissionEarned ?? 0) > 0
+      ? roundMoney(Number(activePremium.commissionEarned))
+      : projectedPremiumProfit)
+    : 0;
+  // totalBalance and todayCommission match the frontend's totalAccountBalanceDisplay / todayCommissionDisplay
+  const displayTotalBalance = isFrozen
+    ? roundMoney(Math.max(0, preFreezeBalance) + displayHoldAmount + frozenPremiumProfit)
+    : balance;
+  const displayTodayCommission = isFrozen
+    ? roundMoney(Number(normalizedUser.todayCommission ?? 0) + frozenPremiumProfit)
+    : roundMoney(Number(normalizedUser.todayCommission ?? 0));
+
   return {
     username: canonicalUsername,
     phone: normalizedUser.phone || '-',
@@ -3303,18 +3332,18 @@ async function buildAdminPlatformUserAudit(username: string) {
     referredByAdminId: normalizedUser.referredByAdminId ?? null,
     walletProfile: normalizeStoredWalletProfile(normalizedUser.walletProfile),
     accountStatus: {
-      isFrozen: Boolean(normalizedUser.isFrozen),
+      isFrozen,
       isSuspended: Boolean(normalizedUser.isSuspended),
       pendingTaskReset: Boolean(normalizedUser.pendingTaskReset),
       activePremiumStatus: typeof normalizedUser.activePremium?.status === 'string' ? normalizedUser.activePremium.status : null,
     },
     financialCard: {
       vipLevel: Number(normalizedUser.vipLevel ?? 1),
-      balance,
-      holdAmount,
-      availableAmount,
-      totalBalance: roundMoney(balance + holdAmount),
-      todayCommission: roundMoney(Number(normalizedUser.todayCommission ?? 0)),
+      balance: isFrozen ? preFreezeBalance : balance,
+      holdAmount: displayHoldAmount,
+      availableAmount: isFrozen ? 0 : availableAmount,
+      totalBalance: displayTotalBalance,
+      todayCommission: displayTodayCommission,
       luckyBonus: roundMoney(Number(normalizedUser.luckyBonus ?? 0)),
       creditScore: typeof normalizedUser.creditScore === 'number' ? normalizedUser.creditScore : 100,
     },

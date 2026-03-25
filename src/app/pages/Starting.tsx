@@ -415,8 +415,15 @@ export default function Starting() {
         const errorPayload = await response.json().catch(() => ({}));
         if (
           response.status === 409
-          && (errorPayload?.code === 'premium_task_encountered'
-            || errorPayload?.code === 'task_set_reset_required'
+          && errorPayload?.code === 'premium_task_encountered'
+          && errorPayload?.user
+        ) {
+          setUserData(errorPayload.user);
+          return;
+        }
+        if (
+          response.status === 409
+          && (errorPayload?.code === 'task_set_reset_required'
             || errorPayload?.code === 'insufficient_vip_funding')
           && errorPayload?.user
         ) {
@@ -757,6 +764,11 @@ export default function Starting() {
                 `Starting (${userData?.tasksCompleted || 0} / ${userData?.tasksLimit || 40})`
               )}
             </button>
+            {isPremiumTaskActive && (
+              <div className="bg-amber-500/10 border border-amber-500/40 rounded-xl px-4 py-3 mb-6 text-center">
+                <p className="text-amber-300 text-sm font-semibold">Contact Customer Service for more information.</p>
+              </div>
+            )}
           </>
         )}
 
