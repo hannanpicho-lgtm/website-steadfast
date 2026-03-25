@@ -57,6 +57,22 @@ type TaskCatalogResponse = {
 const REQUEST_TIMEOUT_MS = 8000;
 const TASK_CATALOG_CACHE_KEY = 'starting:task-catalog:v1';
 const TASK_CATALOG_CACHE_TTL_MS = 2 * 60 * 1000;
+const STARTING_PERF_SAMPLES_KEY = 'starting:perf-samples:v1';
+const STARTING_PERF_MAX_SAMPLES = 30;
+
+type StartingPerfSample = {
+  recordedAt: string;
+  path: string;
+  routeToInteractiveMs: number;
+  fetchPhaseMs: number;
+  sessionFetchMs: number | null;
+  catalogFetchMs: number | null;
+  sessionLoadOk: boolean;
+  catalogLoadOk: boolean;
+  usedCachedCatalog: boolean;
+  navDomContentLoadedMs: number | null;
+  navResponseStartMs: number | null;
+};
 
 function roundMoney(value: number): number {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
@@ -140,6 +156,45 @@ function writeTaskCatalogCache(payload: TaskCatalogResponse) {
   }
 }
 
+function readStartingPerfSamples(): StartingPerfSample[] {
+  try {
+    const rawValue = localStorage.getItem(STARTING_PERF_SAMPLES_KEY);
+    if (!rawValue) {
+      return [];
+    }
+
+    const parsed = JSON.parse(rawValue);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStartingPerfSample(sample: StartingPerfSample) {
+  try {
+    const existingSamples = readStartingPerfSamples();
+    const nextSamples = [sample, ...existingSamples].slice(0, STARTING_PERF_MAX_SAMPLES);
+    localStorage.setItem(STARTING_PERF_SAMPLES_KEY, JSON.stringify(nextSamples));
+  } catch {
+    // Ignore storage failures; metrics should never block user flow.
+  }
+}
+
+function getNavigationTimingSnapshot() {
+  const navEntry = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined;
+  if (!navEntry) {
+    return {
+      navDomContentLoadedMs: null,
+      navResponseStartMs: null,
+    };
+  }
+
+  return {
+    navDomContentLoadedMs: roundMoney(navEntry.domContentLoadedEventEnd),
+    navResponseStartMs: roundMoney(navEntry.responseStart),
+  };
+}
+
 function getPrimaryLabel(value: string | null | undefined, fallback = 'Product'): string {
   if (typeof value !== 'string') {
     return fallback;
@@ -172,6 +227,7 @@ export default function Starting() {
   const [taskRuleConfig, setTaskRuleConfig] = useState<TaskCatalogResponse['ruleConfig'] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const connectionToastShownRef = useRef(false);
+  const routeEntryTimeRef = useRef(performance.now());
   
   const sessionUsername = getCurrentUsername();
   const username = sessionUsername;
@@ -296,21 +352,36 @@ export default function Starting() {
     }
 
     try {
+      const fetchStart = performance.now();
+      let sessionFetchMs: number | null = null;
+      let catalogFetchMs: number | null = null;
+
       setLoading(true);
       setLoadError(null);
       const cachedTaskCatalog = readTaskCatalogCache();
+      const usedCachedCatalog = Boolean(cachedTaskCatalog);
       if (cachedTaskCatalog) {
         setTaskCatalog(Array.isArray(cachedTaskCatalog.tasks) ? cachedTaskCatalog.tasks : []);
         setTaskRuleConfig(cachedTaskCatalog.ruleConfig ?? null);
       }
 
       const [sessionResult, tasksResult] = await Promise.allSettled([
-        withRetry(() => fetchSessionUser(), 2),
-        withRetry(() => fetchJsonWithTimeout(`${serverUrl}/tasks/catalog`, {
+        withRetry(async () => {
+          const startedAt = performance.now();
+          const result = await fetchSessionUser();
+          sessionFetchMs = roundMoney(performance.now() - startedAt);
+          return result;
+        }, 2),
+        withRetry(async () => {
+          const startedAt = performance.now();
+          const result = await fetchJsonWithTimeout(`${serverUrl}/tasks/catalog`, {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`,
           },
-        }), 2),
+          });
+          catalogFetchMs = roundMoney(performance.now() - startedAt);
+          return result;
+        }, 2),
       ]);
 
       if (sessionResult.status === 'fulfilled') {
@@ -332,6 +403,25 @@ export default function Starting() {
       }
 
       setLoading(false);
+
+      const fetchPhaseMs = roundMoney(performance.now() - fetchStart);
+      const routeToInteractiveMs = roundMoney(performance.now() - routeEntryTimeRef.current);
+      const navTiming = getNavigationTimingSnapshot();
+      const perfSample: StartingPerfSample = {
+        recordedAt: new Date().toISOString(),
+        path: location.pathname,
+        routeToInteractiveMs,
+        fetchPhaseMs,
+        sessionFetchMs,
+        catalogFetchMs,
+        sessionLoadOk: sessionResult.status === 'fulfilled',
+        catalogLoadOk: tasksResult.status === 'fulfilled',
+        usedCachedCatalog,
+        navDomContentLoadedMs: navTiming.navDomContentLoadedMs,
+        navResponseStartMs: navTiming.navResponseStartMs,
+      };
+      writeStartingPerfSample(perfSample);
+      console.info('[StartingPerf] load sample', perfSample);
 
       // Load non-critical configs in background so the page becomes usable faster.
       void (async () => {
