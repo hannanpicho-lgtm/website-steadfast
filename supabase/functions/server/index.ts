@@ -2481,7 +2481,7 @@ async function persistKvEntries(entries: Array<{ key: string; value: unknown }>)
   );
 }
 
-async function acquireDistributedLock(lockName: string, timeoutMs = 15_000, leaseMs = 45_000): Promise<() => Promise<void>> {
+async function acquireDistributedLock(lockName: string, timeoutMs = 8_000, leaseMs = 30_000): Promise<() => Promise<void>> {
   const lockKey = `${DISTRIBUTED_LOCK_KEY_PREFIX}${lockName}`;
   const startedAt = Date.now();
   const ownerToken = crypto.randomUUID();
@@ -2509,7 +2509,7 @@ async function acquireDistributedLock(lockName: string, timeoutMs = 15_000, leas
       await kv.del(lockKey).catch(() => undefined);
     }
 
-    await delay(75);
+    await delay(50);
   }
 
   throw new Error(`Timed out acquiring distributed lock '${lockName}'`);
@@ -2790,9 +2790,10 @@ function buildUserTaskProgress(userData: any) {
 async function getUserRecordWithDailyReset(username: string) {
   const canonicalUsername = (await resolveCanonicalUsername(username)) ?? username;
   const userKey = `user:${canonicalUsername}`;
-
-  const normalizedUserData = await getOrCreateUserRecord(canonicalUsername);
-  await assignUsernameLookup(canonicalUsername);
+  const userData = await kv.get(userKey);
+  const normalizedUserData = userData
+    ? await syncUserWithVipConfig(userData, canonicalUsername)
+    : await getOrCreateUserRecord(canonicalUsername);
 
   return {
     canonicalUsername,
@@ -3792,8 +3793,10 @@ app.get('/make-server-a1c55d7e/me/wallet', async (c) => {
     }
 
     const canonicalUsername = sessionResult.session.username;
-    const userData = await getOrCreateUserRecord(canonicalUsername);
-    await assignUsernameLookup(canonicalUsername);
+    const existingUser = await kv.get(`user:${canonicalUsername}`);
+    const userData = existingUser
+      ? await syncUserWithVipConfig(existingUser, canonicalUsername)
+      : await getOrCreateUserRecord(canonicalUsername);
 
     return c.json({
       username: canonicalUsername,
