@@ -1,5 +1,5 @@
 import React from 'react';
-import { Plus, Search, Download, Eye, Edit, Key, Check, X, Trash2, RefreshCw, Shield, DollarSign, Star } from 'lucide-react';
+import { Plus, Search, Download, Eye, Edit, Key, Check, X, Trash2, RefreshCw, Shield, DollarSign, Star, WandSparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface UserManagementProps {
@@ -23,6 +23,10 @@ interface UserManagementProps {
   onResetCredentials: (user: any) => void | Promise<void>;
   onSetCreditScore: (user: any) => void | Promise<void>;
   onRecalculateFinancialState: (user: any) => void | Promise<void>;
+  onReconcilePremiumUser: (user: any) => void | Promise<void>;
+  onReconcilePremiumAll: () => void | Promise<void>;
+  reconcilingPremiumUser: boolean;
+  reconcilingPremiumAll: boolean;
 }
 
 export default function UserManagement({
@@ -46,6 +50,10 @@ export default function UserManagement({
   onResetCredentials,
   onSetCreditScore,
   onRecalculateFinancialState,
+  onReconcilePremiumUser,
+  onReconcilePremiumAll,
+  reconcilingPremiumUser,
+  reconcilingPremiumAll,
 }: UserManagementProps) {
   type DisplayUser = {
     id: number;
@@ -105,15 +113,29 @@ export default function UserManagement({
         </div>
       )}
       {/* Header Actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold text-white">User Management</h2>
           <p className="text-gray-400 text-sm mt-1">Manage all registered users and their accounts</p>
         </div>
-        <button onClick={() => setModalType('add-user')} className="flex items-center gap-2 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-4 py-2 rounded-lg font-semibold transition-colors">
-          <Plus size={18} />
-          Add User
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (confirm('Run premium reconciliation for all visible users now?')) {
+                void onReconcilePremiumAll();
+              }
+            }}
+            disabled={reconcilingPremiumAll}
+            className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <WandSparkles size={18} className={reconcilingPremiumAll ? 'animate-pulse' : ''} />
+            {reconcilingPremiumAll ? 'Reconciling All...' : 'Reconcile All Premium'}
+          </button>
+          <button onClick={() => setModalType('add-user')} className="flex items-center gap-2 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-4 py-2 rounded-lg font-semibold transition-colors">
+            <Plus size={18} />
+            Add User
+          </button>
+        </div>
       </div>
 
       {/* Search and Filter Bar */}
@@ -268,6 +290,18 @@ export default function UserManagement({
                         title="Recalculate Financial State"
                       >
                         <RefreshCw size={16} className="text-gray-400 hover:text-cyan-400" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Reconcile premium settlement for ${user.username}?`)) {
+                            void onReconcilePremiumUser(user);
+                          }
+                        }}
+                        disabled={reconcilingPremiumUser || reconcilingPremiumAll}
+                        className="p-1 hover:bg-[#1a1f2e] rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Reconcile Premium Settlement"
+                      >
+                        <WandSparkles size={16} className="text-gray-400 hover:text-emerald-400" />
                       </button>
                       <button 
                         onClick={() => {

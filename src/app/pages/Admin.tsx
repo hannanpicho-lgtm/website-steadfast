@@ -392,6 +392,8 @@ export default function Admin() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [userTaskControlDraft, setUserTaskControlDraft] = useState<UserTaskControlDraft | null>(null);
   const [userTaskControlSaving, setUserTaskControlSaving] = useState(false);
+  const [premiumReconcileSaving, setPremiumReconcileSaving] = useState(false);
+  const [premiumReconcileAllSaving, setPremiumReconcileAllSaving] = useState(false);
   const [userBalanceAdjustmentDraft, setUserBalanceAdjustmentDraft] = useState<UserBalanceAdjustmentDraft | null>(null);
   const [userBalanceAdjustmentSaving, setUserBalanceAdjustmentSaving] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
@@ -790,6 +792,62 @@ export default function Admin() {
       toast.success(`Financial state recalculated for ${user.username} (${beforeBalance.toFixed(2)} -> ${afterBalance.toFixed(2)} USD).`);
     } catch (error) {
       handleAdminRequestError(error, `Failed to recalculate financial state for ${user.username}`);
+    }
+  };
+
+  const handleReconcilePremiumSettlements = async (params?: {
+    username?: string;
+    dryRun?: boolean;
+    maxUsers?: number;
+  }) => {
+    const isSingleUserRun = Boolean(params?.username);
+    if (isSingleUserRun) {
+      setPremiumReconcileSaving(true);
+    } else {
+      setPremiumReconcileAllSaving(true);
+    }
+
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/platform-users/reconcile-premium-settlements`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          username: params?.username,
+          dryRun: params?.dryRun ?? false,
+          maxUsers: params?.maxUsers,
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Failed to reconcile premium settlements (${response.status})`);
+      }
+
+      await loadPlatformUsers();
+
+      const changed = Number(payload?.usersChanged ?? 0);
+      const settlementFixes = Number(payload?.settlementBackfills ?? 0);
+      const amount = Number(payload?.settlementBackfillAmount ?? 0);
+
+      if (isSingleUserRun) {
+        toast.success(`Premium reconciliation completed for ${params?.username} (changed: ${changed}, settlement fixes: ${settlementFixes}, amount: $${amount.toFixed(2)}).`);
+      } else {
+        toast.success(`Premium reconciliation completed for ${Number(payload?.processed ?? 0)} user(s) (changed: ${changed}, settlement fixes: ${settlementFixes}, amount: $${amount.toFixed(2)}).`);
+      }
+    } catch (error) {
+      handleAdminRequestError(
+        error,
+        isSingleUserRun
+          ? `Failed to reconcile premium settlements for ${params?.username}`
+          : 'Failed to reconcile premium settlements for all users',
+      );
+    } finally {
+      if (isSingleUserRun) {
+        setPremiumReconcileSaving(false);
+      } else {
+        setPremiumReconcileAllSaving(false);
+      }
     }
   };
 
@@ -2803,7 +2861,7 @@ export default function Admin() {
                     <p className="text-white font-semibold mt-1">${(selectedItem.holdAmount ?? 0).toFixed(2)}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                   <button
                     type="button"
                     onClick={() => void handleResetUserTaskSet(selectedItem)}
@@ -2831,10 +2889,18 @@ export default function Admin() {
                   <button
                     type="button"
                     onClick={() => void handleRecalculateFinancialState(selectedItem)}
-                    disabled={userTaskControlSaving}
+                    disabled={userTaskControlSaving || premiumReconcileSaving}
                     className="bg-cyan-500 hover:bg-cyan-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Recalculate Financial State
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleReconcilePremiumSettlements({ username: selectedItem.username })}
+                    disabled={userTaskControlSaving || premiumReconcileSaving || premiumReconcileAllSaving}
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {premiumReconcileSaving ? 'Reconciling...' : 'Reconcile Premium'}
                   </button>
                 </div>
               </div>
@@ -4495,6 +4561,10 @@ export default function Admin() {
               onResetCredentials={handleResetUserCredentials}
               onSetCreditScore={handleSetCreditScore}
               onRecalculateFinancialState={handleRecalculateFinancialState}
+              onReconcilePremiumUser={(user) => handleReconcilePremiumSettlements({ username: user.username })}
+              onReconcilePremiumAll={() => handleReconcilePremiumSettlements({ maxUsers: 500 })}
+              reconcilingPremiumUser={premiumReconcileSaving}
+              reconcilingPremiumAll={premiumReconcileAllSaving}
             />
           </Suspense>
         );
