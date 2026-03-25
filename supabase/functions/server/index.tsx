@@ -2330,8 +2330,14 @@ async function syncUserWithVipConfig(userData: any, username: string) {
   );
 
   if (normalized.completedTaskSets >= normalized.taskSetCount) {
-    normalized.tasksCompletedInSet = 0;
-    normalized.pendingTaskReset = false;
+    // Do NOT clear pendingTaskReset here — it is set when a user finishes their
+    // final task and must remain true until the admin explicitly resets the set.
+    // Clearing it here caused the admin panel to show "Ready" / prevent resets
+    // even though the user had genuinely completed all tasks.
+    if (!normalized.pendingTaskReset) {
+      // Only zero out in-set counter when not awaiting an admin reset
+      normalized.tasksCompletedInSet = 0;
+    }
   } else {
     normalized.tasksCompletedInSet = Math.min(
       Math.max(0, normalized.tasksCompletedInSet),
