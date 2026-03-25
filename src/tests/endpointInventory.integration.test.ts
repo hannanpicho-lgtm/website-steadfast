@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const BASE = process.env.API_BASE_URL ?? 'https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e';
 const ANON_KEY = process.env.SUPABASE_ANON_KEY
   ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2cXd2dXFlZW5rdXNkYXlvc3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxODA3ODksImV4cCI6MjA4ODc1Njc4OX0.R0dNwSW9ibeU0XE9kYdKI3E2D6vEP6dVu2VATAHXK1A';
+const ADMIN_TEST_JWT = process.env.SUPABASE_ADMIN_TEST_JWT ?? '';
 const ROUTE_PREFIX = '/make-server-a1c55d7e';
 const ROUTE_REGEX = /app\.(get|post|put|patch|delete)\(\s*['\"]([^'\"]+)['\"]/g;
 
@@ -51,13 +52,14 @@ function classify(pathname: string): 'public' | 'admin' | 'session-user' {
   return 'public';
 }
 
-async function request(method: string, pathName: string, body?: unknown) {
+async function request(method: string, pathName: string, body?: unknown, mode: 'anon' | 'admin' = 'anon') {
   const init: RequestInit = {
     method: method.toUpperCase(),
     headers: {
       'Content-Type': 'application/json',
       apikey: ANON_KEY,
       Authorization: `Bearer ${ANON_KEY}`,
+      ...(mode === 'admin' && ADMIN_TEST_JWT ? { 'x-user-jwt': ADMIN_TEST_JWT } : {}),
     },
   };
 
@@ -172,6 +174,29 @@ describe('Endpoint inventory coverage', () => {
     expect(
       failures,
       `Auth guard failures:\n${JSON.stringify(failures.slice(0, 10), null, 2)}`,
+    ).toEqual([]);
+  }, 240000);
+
+  const maybeAdmin = ADMIN_TEST_JWT ? it : it.skip;
+  maybeAdmin('admin endpoints return non-401 safe responses when admin JWT is provided', async () => {
+    const failures: Array<{ route: string; status: number }> = [];
+
+    for (const route of routes) {
+      if (classify(route.path) !== 'admin') continue;
+
+      const body = await payloadFor(route);
+      const result = await request(route.method, route.path, body, 'admin');
+      if (!SAFE_STATUSES.has(result.status) || result.status === 401) {
+        failures.push({
+          route: `${route.method.toUpperCase()} ${route.path}`,
+          status: result.status,
+        });
+      }
+    }
+
+    expect(
+      failures,
+      `Admin endpoint failures:\n${JSON.stringify(failures.slice(0, 10), null, 2)}`,
     ).toEqual([]);
   }, 240000);
 });

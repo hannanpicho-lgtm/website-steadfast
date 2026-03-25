@@ -11,6 +11,7 @@
  * Optional env vars:
  * - API_BASE_URL
  * - SUPABASE_ANON_KEY
+ * - SUPABASE_ADMIN_TEST_JWT
  * - AUDIT_TIMEOUT_MS (default: 20000)
  */
 
@@ -21,6 +22,7 @@ const DEFAULT_BASE = 'https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make
 const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2cXd2dXFlZW5rdXNkYXlvc3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxODA3ODksImV4cCI6MjA4ODc1Njc4OX0.R0dNwSW9ibeU0XE9kYdKI3E2D6vEP6dVu2VATAHXK1A';
 const BASE = process.env.API_BASE_URL ?? DEFAULT_BASE;
 const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? DEFAULT_ANON_KEY;
+const ADMIN_TEST_JWT = process.env.SUPABASE_ADMIN_TEST_JWT ?? '';
 const TIMEOUT_MS = Number(process.env.AUDIT_TIMEOUT_MS ?? '20000');
 
 const SERVER_FILE = new URL('../supabase/functions/server/index.ts', import.meta.url);
@@ -90,19 +92,28 @@ async function withTimeout(promise, timeoutMs, label) {
   }
 }
 
-function headers() {
-  return {
+function headers(mode = 'anon') {
+  const base = {
     'Content-Type': 'application/json',
     apikey: ANON_KEY,
     Authorization: `Bearer ${ANON_KEY}`,
   };
+
+  if (mode === 'admin' && ADMIN_TEST_JWT) {
+    return {
+      ...base,
+      'x-user-jwt': ADMIN_TEST_JWT,
+    };
+  }
+
+  return base;
 }
 
-async function fetchJson(method, path, body) {
+async function fetchJson(method, path, body, mode = 'anon') {
   const url = `${BASE}${path}`;
   const init = {
     method: method.toUpperCase(),
-    headers: headers(),
+    headers: headers(mode),
   };
 
   if (body !== undefined && method !== 'get') {
@@ -206,6 +217,15 @@ function validateBodyShape(response) {
   return true;
 }
 
+function validateAdminBehavior(route, response) {
+  const area = classifyPath(route.path);
+  if (area !== 'admin') {
+    return true;
+  }
+
+  return SAFE_STATUSES.has(response.status) && response.status !== 401;
+}
+
 async function run() {
   const source = await readFile(SERVER_FILE, 'utf8');
   const routes = extractRoutes(source);
@@ -214,6 +234,7 @@ async function run() {
 
   const failures = [];
   let ok = 0;
+  let adminOk = 0;
 
   for (const route of routes) {
     const body = await payloadFor(route);
@@ -246,7 +267,41 @@ async function run() {
     await delay(50);
   }
 
+  if (ADMIN_TEST_JWT) {
+    for (const route of routes.filter((candidate) => classifyPath(candidate.path) === 'admin')) {
+      const body = await payloadFor(route);
+      let result;
+
+      try {
+        result = await fetchJson(route.method, route.path, body, 'admin');
+      } catch (error) {
+        failures.push({
+          route: `${route.method.toUpperCase()} ${route.path}`,
+          reason: `admin request threw: ${error instanceof Error ? error.message : String(error)}`,
+        });
+        continue;
+      }
+
+      const bodyOk = validateBodyShape(result);
+      const adminAuthOk = validateAdminBehavior(route, result);
+      if (!bodyOk || !adminAuthOk) {
+        failures.push({
+          route: `${route.method.toUpperCase()} ${route.path}`,
+          reason: `admin status=${result.status}, adminAuthOk=${adminAuthOk}, bodyOk=${bodyOk}`,
+        });
+        continue;
+      }
+
+      adminOk += 1;
+      await delay(50);
+    }
+  }
+
   console.log(`\nCompleted endpoint inventory audit: ${ok}/${routes.length} checks passed.`);
+  if (ADMIN_TEST_JWT) {
+    const adminRouteCount = routes.filter((candidate) => classifyPath(candidate.path) === 'admin').length;
+    console.log(`Admin-authenticated audit: ${adminOk}/${adminRouteCount} checks passed.`);
+  }
 
   if (failures.length > 0) {
     console.log('\nFailures:');
