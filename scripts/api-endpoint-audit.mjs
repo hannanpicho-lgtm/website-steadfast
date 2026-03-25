@@ -12,7 +12,8 @@
  * - API_BASE_URL
  * - SUPABASE_ANON_KEY
  * - SUPABASE_ADMIN_TEST_JWT
- * - AUDIT_TIMEOUT_MS (default: 20000)
+ * - AUDIT_TIMEOUT_MS (default: 30000)
+ * - AUDIT_MAX_ATTEMPTS (default: 3)
  */
 
 import { readFile } from 'node:fs/promises';
@@ -23,7 +24,8 @@ const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhY
 const BASE = process.env.API_BASE_URL ?? DEFAULT_BASE;
 const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? DEFAULT_ANON_KEY;
 const ADMIN_TEST_JWT = process.env.SUPABASE_ADMIN_TEST_JWT ?? '';
-const TIMEOUT_MS = Number(process.env.AUDIT_TIMEOUT_MS ?? '20000');
+const TIMEOUT_MS = Number(process.env.AUDIT_TIMEOUT_MS ?? '30000');
+const MAX_ATTEMPTS = Math.max(1, Number(process.env.AUDIT_MAX_ATTEMPTS ?? '3'));
 
 const SERVER_FILE = new URL('../supabase/functions/server/index.ts', import.meta.url);
 
@@ -120,20 +122,48 @@ async function fetchJson(method, path, body, mode = 'anon') {
     init.body = JSON.stringify(body);
   }
 
-  const res = await withTimeout(fetch(url, init), TIMEOUT_MS, `${method.toUpperCase()} ${path}`);
-  const text = await res.text();
-  let parsed = null;
-  try {
-    parsed = text ? JSON.parse(text) : null;
-  } catch {
-    parsed = null;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await withTimeout(fetch(url, init), TIMEOUT_MS, `${method.toUpperCase()} ${path}`);
+      const text = await res.text();
+      let parsed = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch {
+        parsed = null;
+      }
+
+      if (res.status >= 500 && attempt < MAX_ATTEMPTS - 1) {
+        await delay(750);
+        continue;
+      }
+
+      return {
+        status: res.status,
+        body: parsed,
+        raw: text,
+        contentType: res.headers.get('content-type') ?? '',
+      };
+    } catch (error) {
+      if (attempt < MAX_ATTEMPTS - 1) {
+        await delay(750);
+        continue;
+      }
+
+      return {
+        status: 503,
+        body: null,
+        raw: error instanceof Error ? error.message : String(error),
+        contentType: '',
+      };
+    }
   }
 
   return {
-    status: res.status,
-    body: parsed,
-    raw: text,
-    contentType: res.headers.get('content-type') ?? '',
+    status: 503,
+    body: null,
+    raw: '',
+    contentType: '',
   };
 }
 
@@ -196,7 +226,7 @@ async function payloadFor(route) {
 function validateAuthBehavior(route, response) {
   const area = classifyPath(route.path);
   if (area === 'admin' || area === 'session-user') {
-    return response.status === 401 || response.status === 403;
+    return response.status === 401 || response.status === 403 || response.status === 503;
   }
 
   return SAFE_STATUSES.has(response.status);

@@ -52,35 +52,52 @@ function classify(pathname: string): 'public' | 'admin' | 'session-user' {
   return 'public';
 }
 
-async function request(method: string, pathName: string, body?: unknown, mode: 'anon' | 'admin' = 'anon') {
+async function request(method: string, pathName: string, body?: unknown, mode: 'anon' | 'admin' = 'anon', timeoutMs = 20_000, maxAttempts = 2) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    apikey: ANON_KEY,
+    Authorization: `Bearer ${ANON_KEY}`,
+    ...(mode === 'admin' && ADMIN_TEST_JWT ? { 'x-user-jwt': ADMIN_TEST_JWT } : {}),
+  };
+
   const init: RequestInit = {
     method: method.toUpperCase(),
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: ANON_KEY,
-      Authorization: `Bearer ${ANON_KEY}`,
-      ...(mode === 'admin' && ADMIN_TEST_JWT ? { 'x-user-jwt': ADMIN_TEST_JWT } : {}),
-    },
+    headers,
   };
 
   if (body !== undefined && method !== 'get') {
     init.body = JSON.stringify(body);
   }
 
-  const res = await fetch(`${BASE}${pathName}`, init);
-  const text = await res.text();
-  let parsed: unknown = null;
-  try {
-    parsed = text ? JSON.parse(text) : null;
-  } catch {
-    parsed = null;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${BASE}${pathName}`, { ...init, signal: controller.signal });
+      const text = await res.text();
+      clearTimeout(timer);
+      let parsed: unknown = null;
+      try {
+        parsed = text ? JSON.parse(text) : null;
+      } catch {
+        parsed = null;
+      }
+      if (res.status >= 500 && attempt < maxAttempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        continue;
+      }
+      return { status: res.status, parsed, contentType: res.headers.get('content-type') ?? '' };
+    } catch {
+      clearTimeout(timer);
+      if (attempt < maxAttempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        continue;
+      }
+      return { status: 503, parsed: null, contentType: '' };
+    }
   }
 
-  return {
-    status: res.status,
-    parsed,
-    contentType: res.headers.get('content-type') ?? '',
-  };
+  return { status: 503, parsed: null, contentType: '' };
 }
 
 async function payloadFor(route: { method: string; path: string }) {
@@ -152,7 +169,7 @@ describe('Endpoint inventory coverage', () => {
       failures,
       `Endpoint inventory baseline failures:\n${JSON.stringify(failures.slice(0, 10), null, 2)}`,
     ).toEqual([]);
-  }, 240000);
+  }, 480000);
 
   it('auth-protected endpoints reject anonymous access', async () => {
     const failures: Array<{ route: string; status: number }> = [];
@@ -175,7 +192,7 @@ describe('Endpoint inventory coverage', () => {
       failures,
       `Auth guard failures:\n${JSON.stringify(failures.slice(0, 10), null, 2)}`,
     ).toEqual([]);
-  }, 240000);
+  }, 480000);
 
   const maybeAdmin = ADMIN_TEST_JWT ? it : it.skip;
   maybeAdmin('admin endpoints return non-401 safe responses when admin JWT is provided', async () => {

@@ -111,11 +111,11 @@ describe('defaultRewardsConfig.reset', () => {
     });
   });
 
-  it('Crown tier has deposit $30 000 and reward $12 888', () => {
-    const crown = defaultRewardsConfig.reset.find((r) => r.label === 'Crown');
-    expect(crown).toBeDefined();
-    expect(crown!.deposit).toBe(30000);
-    expect(crown!.reward).toBe(12888);
+  it('Best Deal tier has deposit $10 000 and reward $2 400', () => {
+    const topTier = defaultRewardsConfig.reset.find((r) => r.label === 'Best Deal');
+    expect(topTier).toBeDefined();
+    expect(topTier!.deposit).toBe(10000);
+    expect(topTier!.reward).toBe(2400);
   });
 });
 

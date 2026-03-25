@@ -9246,17 +9246,12 @@ app.get('/make-server-a1c55d7e/me/support', async (c) => {
     const username = sessionResult.session.username;
 
     const userTicketsKey = `user:${username}:tickets`;
-    const ticketIds = await kv.get(userTicketsKey) || [];
+    const ticketIds: string[] = await kv.get(userTicketsKey) || [];
 
-    const tickets = [];
-    for (const ticketId of ticketIds) {
-      const ticket = await kv.get(`ticket:${ticketId}`);
-      if (ticket) {
-        tickets.push(ticket);
-      }
-    }
+    const fetched = await Promise.all(ticketIds.map(id => kv.get(`ticket:${id}`)));
+    const tickets = fetched.filter(Boolean);
 
-    tickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    tickets.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return c.json(tickets);
   } catch (error) {
