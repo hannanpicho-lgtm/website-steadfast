@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router';
-import { Award, Calendar, Gift, HelpCircle, Info, ScrollText, Wallet, ArrowDownToLine } from 'lucide-react';
+import { Award, Calendar, Gift, HelpCircle, Info, ScrollText, Wallet, ArrowDownToLine, Search, Share2, Megaphone, Handshake, Brain, Zap } from 'lucide-react';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { LiveChatBox } from '../components/LiveChatBox';
@@ -11,7 +11,55 @@ type QuickLinkItem = {
   icon: typeof Gift;
 };
 
-const quickLinks: QuickLinkItem[] = [
+const focusAreas = [
+  { 
+    title: 'Search', 
+    desc: 'Google and Bing built for efficient ROAS.',
+    icon: Search,
+    color: '#0093cc',
+    bg: 'from-[#e0f2fe] to-[#cffafe]',
+    accent: '#0284c7',
+    badge: '01'
+  },
+  { 
+    title: 'Paid Social',
+    desc: 'Meta, TikTok, and LinkedIn for conversion lift.',
+    icon: Share2,
+    color: '#a855f7',
+    bg: 'from-[#f3e8ff] to-[#e9d5ff]',
+    accent: '#9333ea',
+    badge: '02'
+  },
+  { 
+    title: 'Paid Content',
+    desc: 'Native placements that expand qualified reach.',
+    icon: Megaphone,
+    color: '#f97316',
+    bg: 'from-[#fed7aa] to-[#ffedd5]',
+    accent: '#ea580c',
+    badge: '03'
+  },
+  { 
+    title: 'Affiliate',
+    desc: 'Partnership channels aligned to core buyers.',
+    icon: Handshake,
+    color: '#059669',
+    bg: 'from-[#d1fae5] to-[#a7f3d0]',
+    accent: '#047857',
+    badge: '04'
+  },
+  { 
+    title: 'Strategy',
+    desc: 'Unified data guiding budget and growth pace.',
+    icon: Brain,
+    color: '#4f46e5',
+    bg: 'from-[#e0e7ff] to-[#ddd6fe]',
+    accent: '#4338ca',
+    badge: '05'
+  },
+];
+
+const quickLinksData = [
   { to: '/vip-levels', title: 'VIP', icon: Gift },
   { to: '/activity', title: 'Activity', icon: Calendar },
   { to: '/withdrawal', title: 'Withdrawal', icon: ArrowDownToLine },
@@ -107,37 +155,68 @@ export default function UserHome() {
           </div>
 
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
-            {quickLinks.map((item) => (
+            {quickLinksData.map((item) => (
               <QuickLinkCard key={item.title} item={item} />
             ))}
           </div>
         </section>
 
         {/* Areas of Focus Section */}
-        <section className="mt-5 rounded-2xl border border-[#d3dde8] bg-white py-6 shadow-sm sm:py-8">
-          <div className="px-4 sm:px-5">
-            <h2 className="mb-4 text-center text-[1.4rem] font-extrabold text-[#0b5f94] sm:mb-6 sm:text-3xl">Areas of Focus</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5 sm:gap-3">
-              <div className="rounded-lg border border-[#b5d0e6] bg-[#f8fbfd] p-2.5 min-h-[76px]">
-                <h3 className="mb-0.5 text-[0.9rem] font-bold text-[#0b5f94]">Search</h3>
-                <p className="text-xs font-medium leading-relaxed text-[#1f3f5b]">Google and Bing built for efficient ROAS.</p>
-              </div>
-              <div className="rounded-lg border border-[#b5d0e6] bg-[#f8fbfd] p-2.5 min-h-[76px]">
-                <h3 className="mb-0.5 text-[0.9rem] font-bold text-[#0b5f94]">Paid Social</h3>
-                <p className="text-xs font-medium leading-relaxed text-[#1f3f5b]">Meta, TikTok, and LinkedIn for conversion lift.</p>
-              </div>
-              <div className="rounded-lg border border-[#b5d0e6] bg-[#f8fbfd] p-2.5 min-h-[76px]">
-                <h3 className="mb-0.5 text-[0.9rem] font-bold text-[#0b5f94]">Paid Content</h3>
-                <p className="text-xs font-medium leading-relaxed text-[#1f3f5b]">Native placements that expand qualified reach.</p>
-              </div>
-              <div className="rounded-lg border border-[#b5d0e6] bg-[#f8fbfd] p-2.5 min-h-[76px]">
-                <h3 className="mb-0.5 text-[0.9rem] font-bold text-[#0b5f94]">Affiliate</h3>
-                <p className="text-xs font-medium leading-relaxed text-[#1f3f5b]">Partnership channels aligned to core buyers.</p>
-              </div>
-              <div className="rounded-lg border border-[#b5d0e6] bg-[#f8fbfd] p-2.5 min-h-[76px]">
-                <h3 className="mb-0.5 text-[0.9rem] font-bold text-[#0b5f94]">Strategy</h3>
-                <p className="text-xs font-medium leading-relaxed text-[#1f3f5b]">Unified data guiding budget and growth pace.</p>
-              </div>
+        <section className="mt-5 rounded-2xl border border-[#d3dde8] bg-gradient-to-br from-[#f8fafc] via-white to-[#f1f5f9] py-8 shadow-sm sm:py-10 overflow-hidden relative">
+          {/* Background pattern overlay */}
+          <div className="absolute inset-0 opacity-[0.025] pointer-events-none" style={{
+            backgroundImage: 'radial-gradient(circle at 20% 50%, #0b5f94 0%, transparent 50%), radial-gradient(circle at 80% 80%, #0093cc 0%, transparent 50%)',
+          }} />
+          
+          <div className="px-4 sm:px-5 relative z-10">
+            <p className="text-center text-[0.65rem] sm:text-xs font-bold tracking-[0.22em] text-[#0093cc] uppercase mb-1">CORE CAPABILITIES</p>
+            <h2 className="mb-7 text-center text-[1.4rem] font-extrabold text-[#0b5f94] sm:mb-8 sm:text-3xl">Areas of Focus</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5 sm:gap-4">
+              {focusAreas.map((area) => {
+                const IconComponent = area.icon;
+                return (
+                  <div
+                    key={area.title}
+                    className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${area.bg} border border-white/40 p-4 sm:p-5 min-h-[140px] sm:min-h-[160px] backdrop-blur-sm transition-all duration-300 hover:scale-105 hover:-translate-y-2 hover:shadow-[0_20px_60px_rgba(0,0,0,0.12)] cursor-default`}
+                    style={{
+                      boxShadow: `0 8px 24px ${area.color}15, inset 0 1px 0 rgba(255,255,255,0.6)`,
+                    }}
+                  >
+                    {/* Top gradient accent bar */}
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r" style={{ background: `linear-gradient(90deg, ${area.color}, transparent)` }} />
+                    
+                    {/* Badge */}
+                    <div className="absolute -top-2 -right-2 w-12 h-12 rounded-full flex items-center justify-center font-black text-xs" style={{
+                      background: `linear-gradient(135deg, ${area.color}, ${area.accent})`,
+                      color: 'white',
+                      boxShadow: `0 4px 15px ${area.color}40`,
+                    }}>
+                      {area.badge}
+                    </div>
+
+                    {/* Icon circle */}
+                    <div className="mb-3 inline-flex p-2.5 rounded-xl transition-all duration-300" style={{
+                      background: area.color,
+                      color: 'white',
+                      boxShadow: `0 4px 12px ${area.color}30, inset 0 1px 0 rgba(255,255,255,0.2)`,
+                    }}>
+                      <IconComponent size={22} strokeWidth={2.2} />
+                    </div>
+
+                    <h3 className="mb-1.5 text-base font-bold leading-tight transition-colors duration-300" style={{ color: area.accent }}>
+                      {area.title}
+                    </h3>
+                    <p className="text-xs font-medium leading-relaxed text-[#1f3f5b] opacity-90 group-hover:opacity-100 transition-opacity">
+                      {area.desc}
+                    </p>
+
+                    {/* Animated bottom glow line */}
+                    <div className="absolute bottom-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{
+                      background: `linear-gradient(90deg, transparent, ${area.color}, transparent)`,
+                    }} />
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
