@@ -496,6 +496,11 @@ async function requireAdmin(c: any) {
 
   const authHeaderToken = authorization.slice('Bearer '.length).trim();
   const forwardedUserJwt = c.req.header('x-user-jwt')?.trim() ?? '';
+  const isGatewayToken = authHeaderToken === supabaseAnonKey || authHeaderToken === supabaseServiceRoleKey;
+  if (!forwardedUserJwt && isGatewayToken) {
+    logAdminAuthFailure(c, 'gateway_token_without_user_jwt');
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
   const tokenSource = forwardedUserJwt ? 'x-user-jwt' : 'authorization';
   const accessToken = forwardedUserJwt || authHeaderToken;
   if (!accessToken) {
