@@ -36,6 +36,7 @@ export default function Profile() {
   });
 
   const username = getCurrentUsername();
+  const menuRowHoverFx = 'w-full flex items-center justify-between p-4 transition-all duration-300 hover:bg-[linear-gradient(102deg,rgba(255,255,255,0.98)_0%,rgba(255,245,181,0.34)_52%,rgba(255,255,255,0.98)_100%)] hover:shadow-[inset_0_-14px_0_rgba(255,245,181,0.22)]';
 
   useEffect(() => {
     const forceFromQuery = new URLSearchParams(window.location.search).get('forcePasswordChange') === '1';
@@ -300,7 +301,7 @@ export default function Profile() {
           <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
             <button 
               onClick={() => navigate('/connect-wallet')}
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+              className={menuRowHoverFx}
             >
               <div className="flex items-center gap-3">
                 <LinkIcon size={20} />
@@ -319,7 +320,7 @@ export default function Profile() {
           <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
             <button 
               onClick={() => navigate('/deposit')}
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+              className={menuRowHoverFx}
             >
               <div className="flex items-center gap-3">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -336,7 +337,7 @@ export default function Profile() {
           <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
             <button 
               onClick={() => navigate('/withdrawal')}
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+              className={menuRowHoverFx}
             >
               <div className="flex items-center gap-3">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -359,7 +360,7 @@ export default function Profile() {
           <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
             <button 
               onClick={() => setNotificationsOpen(!notificationsOpen)}
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+              className={menuRowHoverFx}
             >
               <div className="flex items-center gap-3">
                 <Bell size={20} />
@@ -381,7 +382,7 @@ export default function Profile() {
           <div className="bg-white rounded-lg mb-3 border border-[#1f2937]">
             <Link
               to="/support"
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+              className={menuRowHoverFx}
             >
               <div className="flex items-center gap-3">
                 <MessageSquare size={20} className="text-blue-500" />
@@ -395,7 +396,7 @@ export default function Profile() {
           <div className="bg-white rounded-lg mb-3 border border-[#1f2937]">
             <Link
               to="/faqs"
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+              className={menuRowHoverFx}
             >
               <div className="flex items-center gap-3">
                 <HelpCircle size={20} />
@@ -409,7 +410,7 @@ export default function Profile() {
           <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
             <button 
               onClick={() => setLanguageOpen(!languageOpen)}
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+              className={menuRowHoverFx}
             >
               <div className="flex items-center gap-3">
                 <Globe size={20} />
@@ -448,7 +449,7 @@ export default function Profile() {
             <Link
               to="/login"
               onClick={() => logoutCurrentUser()}
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+              className={menuRowHoverFx}
             >
               <div className="flex items-center gap-3">
                 <LogOut size={20} />
