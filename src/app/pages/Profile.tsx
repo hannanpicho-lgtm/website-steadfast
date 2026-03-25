@@ -160,13 +160,13 @@ export default function Profile() {
   const creditScore = Math.min(100, Math.max(0, Math.round(Number(financialSummary?.creditScore ?? 100))));
 
   return (
-    <div className="size-full overflow-auto pb-20 bg-gray-50">
+    <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
       {/* Header */}
-      <header className="bg-white text-[#0066cc] py-4 px-6 flex items-center justify-between shadow-sm sticky top-0 z-10">
+      <header className="bg-[#1a2637]/95 text-white py-4 px-6 flex items-center justify-between shadow-sm sticky top-0 z-10 border-b border-[#2c3f58] backdrop-blur-sm">
         <Link to="/home">
-          <ArrowLeft size={24} className="cursor-pointer hover:text-[#0055aa]" />
+          <ArrowLeft size={24} className="cursor-pointer hover:text-[#00D9FF] transition-colors" />
         </Link>
-        <h1 className="text-xl font-bold">My Profile</h1>
+        <h1 className="text-xl font-bold text-white">My Profile</h1>
         <div className="w-6"></div>
       </header>
 
@@ -183,7 +183,7 @@ export default function Profile() {
           </div>
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="text-sm text-[#0066cc] flex items-center gap-1 hover:underline"
+            className="text-sm text-[#00D9FF] flex items-center gap-1 hover:underline"
           >
             <PencilLine size={14} />
             <span>Edit Profile Image</span>
@@ -251,20 +251,20 @@ export default function Profile() {
 
         {/* My Profile Section */}
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-[#0066cc] mb-3">My Profile</h3>
+          <h3 className="text-lg font-bold text-[#00D9FF] mb-3">My Profile</h3>
 
           {mustChangePassword ? (
-            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+            <div className="mb-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-amber-200">
               <p className="text-sm font-semibold">Password update required</p>
-              <p className="mt-1 text-xs">Your credentials were reset by admin. Update your login and transaction passwords now.</p>
+              <p className="mt-1 text-xs text-amber-300">Your credentials were reset by admin. Update your login and transaction passwords now.</p>
             </div>
           ) : null}
 
           {/* Account Info */}
-          <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
+          <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
             <button 
               onClick={() => setAccountInfoOpen(!accountInfoOpen)}
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors text-white"
             >
               <div className="flex items-center gap-3">
                 <User size={20} />
@@ -276,32 +276,32 @@ export default function Profile() {
               />
             </button>
             {accountInfoOpen && (
-              <div className="px-4 pb-4 border-t border-gray-100">
+              <div className="px-4 pb-4 border-t border-white/10">
                 <div className="py-2">
-                  <p className="text-sm text-gray-600 mb-1">Username</p>
-                  <p className="font-semibold">{username ?? 'ugreen'}</p>
+                  <p className="text-sm text-gray-400 mb-1">Username</p>
+                  <p className="font-semibold text-white">{username ?? 'ugreen'}</p>
                 </div>
                 <div className="py-2">
-                  <p className="text-sm text-gray-600 mb-1">VIP Level</p>
-                  <p className="font-semibold">VIP {vipLevel}</p>
+                  <p className="text-sm text-gray-400 mb-1">VIP Level</p>
+                  <p className="font-semibold text-white">VIP {vipLevel}</p>
                 </div>
                 <div className="py-2">
-                  <p className="text-sm text-gray-600 mb-1">Registration Date</p>
-                  <p className="font-semibold">{financialSummary?.createdAt ? new Date(financialSummary.createdAt).toLocaleDateString() : 'Not available'}</p>
+                  <p className="text-sm text-gray-400 mb-1">Registration Date</p>
+                  <p className="font-semibold text-white">{financialSummary?.createdAt ? new Date(financialSummary.createdAt).toLocaleDateString() : 'Not available'}</p>
                 </div>
                 <div className="py-2">
-                  <p className="text-sm text-gray-600 mb-1">Email</p>
-                  <p className="font-semibold">Not provided</p>
+                  <p className="text-sm text-gray-400 mb-1">Email</p>
+                  <p className="font-semibold text-white">Not provided</p>
                 </div>
               </div>
             )}
           </div>
 
           {/* Bind Wallet */}
-          <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
+          <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
             <button 
               onClick={() => navigate('/connect-wallet')}
-              className={menuRowHoverFx}
+              className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors text-white"
             >
               <div className="flex items-center gap-3">
                 <LinkIcon size={20} />
@@ -314,13 +314,13 @@ export default function Profile() {
 
         {/* My Financial Section */}
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-[#0066cc] mb-3">My Financial</h3>
+          <h3 className="text-lg font-bold text-[#00D9FF] mb-3">My Financial</h3>
           
           {/* Deposit */}
-          <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
+          <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
             <button 
               onClick={() => navigate('/deposit')}
-              className={menuRowHoverFx}
+              className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors text-white"
             >
               <div className="flex items-center gap-3">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -334,10 +334,10 @@ export default function Profile() {
           </div>
 
           {/* Withdraw */}
-          <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
+          <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
             <button 
               onClick={() => navigate('/withdrawal')}
-              className={menuRowHoverFx}
+              className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors text-white"
             >
               <div className="flex items-center gap-3">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -354,13 +354,13 @@ export default function Profile() {
 
         {/* Other Section */}
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-[#0066cc] mb-3">Other</h3>
+          <h3 className="text-lg font-bold text-[#00D9FF] mb-3">Other</h3>
           
           {/* Notifications */}
-          <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
+          <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
             <button 
               onClick={() => setNotificationsOpen(!notificationsOpen)}
-              className={menuRowHoverFx}
+              className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors text-white"
             >
               <div className="flex items-center gap-3">
                 <Bell size={20} />
@@ -372,17 +372,17 @@ export default function Profile() {
               />
             </button>
             {notificationsOpen && (
-              <div className="px-4 pb-4 border-t border-gray-100">
-                <p className="text-sm text-gray-600">No new notifications</p>
+              <div className="px-4 pb-4 border-t border-white/10">
+                <p className="text-sm text-gray-400">No new notifications</p>
               </div>
             )}
           </div>
 
           {/* Customer Support */}
-          <div className="bg-white rounded-lg mb-3 border border-[#1f2937]">
+          <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
             <Link
               to="/support"
-              className={menuRowHoverFx}
+              className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors text-white"
             >
               <div className="flex items-center gap-3">
                 <MessageSquare size={20} className="text-blue-500" />
@@ -393,10 +393,10 @@ export default function Profile() {
           </div>
 
           {/* FAQs */}
-          <div className="bg-white rounded-lg mb-3 border border-[#1f2937]">
+          <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
             <Link
               to="/faqs"
-              className={menuRowHoverFx}
+              className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors text-white"
             >
               <div className="flex items-center gap-3">
                 <HelpCircle size={20} />
@@ -407,10 +407,10 @@ export default function Profile() {
           </div>
 
           {/* Change Language */}
-          <div className="bg-white rounded-lg mb-3 border border-[#1f2937] overflow-hidden">
+          <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
             <button 
               onClick={() => setLanguageOpen(!languageOpen)}
-              className={menuRowHoverFx}
+              className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors text-white"
             >
               <div className="flex items-center gap-3">
                 <Globe size={20} />
@@ -422,34 +422,34 @@ export default function Profile() {
               />
             </button>
             {languageOpen && (
-              <div className="px-4 pb-4 border-t border-gray-100">
-                <div className="space-y-2">
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50 font-semibold text-[#0066cc]">English</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Español</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">中文</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Français</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Deutsch</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Português</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">العربية</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">हिन्दी</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Bahasa Indonesia</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">日本語</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">한국어</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Русский</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Türkçe</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">Tiếng Việt</button>
-                  <button className="block w-full text-left py-2 px-3 rounded hover:bg-gray-50">ภาษาไทย</button>
+              <div className="px-4 pb-4 border-t border-white/10">
+                <div className="space-y-1">
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 font-semibold text-[#00D9FF]">English</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Español</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">中文</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Français</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Deutsch</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Português</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">العربية</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">हिन्दी</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Bahasa Indonesia</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">日本語</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">한국어</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Русский</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Türkçe</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Tiếng Việt</button>
+                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">ภาษาไทย</button>
                 </div>
               </div>
             )}
           </div>
 
           {/* Logout */}
-          <div className="bg-white rounded-lg border border-[#1f2937]">
+          <div className="bg-[#252d42]/80 border border-white/10 rounded-xl overflow-hidden backdrop-blur-sm">
             <Link
               to="/login"
               onClick={() => logoutCurrentUser()}
-              className={menuRowHoverFx}
+              className="w-full flex items-center justify-between p-4 hover:bg-red-500/10 transition-colors text-white hover:text-red-400"
             >
               <div className="flex items-center gap-3">
                 <LogOut size={20} />

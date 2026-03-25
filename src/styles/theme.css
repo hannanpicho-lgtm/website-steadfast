@@ -195,7 +195,7 @@
   }
 
   .animate-marquee {
-    animation: marquee 20s linear infinite;
+    animation: marquee 10s linear infinite;
   }
 
   @keyframes carousel {
@@ -272,18 +272,18 @@
 
 @layer components {
   .btn-mobile-icon {
-    @apply inline-flex items-center justify-center rounded-lg bg-[#0066b3] text-white shadow-sm transition-colors hover:bg-[#0052a3] active:scale-95;
+    @apply inline-flex items-center justify-center rounded-xl bg-gradient-to-br from-[#00D9FF] to-[#0099cc] text-[#08111f] font-bold shadow-[0_2px_10px_rgba(0,217,255,0.35)] transition-all hover:shadow-[0_4px_16px_rgba(0,217,255,0.55)] hover:scale-105 active:scale-95;
     width: 2.5rem;
     height: 2.5rem;
   }
 
   .btn-mobile-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-[#0066b3] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#0052a3] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#00D9FF] to-[#0099cc] px-5 py-2.5 text-sm font-bold text-[#08111f] shadow-[0_2px_10px_rgba(0,217,255,0.35)] transition-all hover:shadow-[0_4px_16px_rgba(0,217,255,0.55)] hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none;
     min-height: 2.75rem;
   }
 
   .btn-mobile-primary-block {
-    @apply inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#0066b3] px-4 py-3.5 text-base font-bold text-white shadow-sm transition-colors hover:bg-[#0052a3] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#00D9FF] to-[#0099cc] px-4 py-3.5 text-base font-bold text-[#08111f] shadow-[0_4px_20px_rgba(0,217,255,0.4)] transition-all hover:shadow-[0_6px_28px_rgba(0,217,255,0.6)] hover:scale-[1.01] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none;
     min-height: 3rem;
   }
 

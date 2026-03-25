@@ -39,7 +39,7 @@ export function Header({ onContactClick }: HeaderProps) {
           {onContactClick && (
             <button 
               onClick={onContactClick}
-              className="rounded-lg bg-[#56b6ea] px-3.5 py-1.5 text-xs font-semibold text-[#17314a] transition-colors hover:bg-[#69c3f2] sm:px-5 sm:py-2 sm:text-sm"
+              className="rounded-lg bg-gradient-to-r from-[#00D9FF] to-[#00b4d8] px-3.5 py-1.5 text-xs font-bold text-[#08111f] shadow-[0_2px_10px_rgba(0,217,255,0.35)] transition-all hover:shadow-[0_4px_16px_rgba(0,217,255,0.55)] hover:scale-105 active:scale-95 sm:px-5 sm:py-2 sm:text-sm"
             >
               Contact
             </button>

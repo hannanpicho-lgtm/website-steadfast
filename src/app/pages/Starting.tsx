@@ -659,14 +659,93 @@ export default function Starting() {
       {/* Header */}
       <Header onContactClick={() => setIsChatOpen(true)} />
 
-      {/* Ticker Banner */}
-      <div className="bg-[#00D9FF] text-[#1a1f2e] py-3 px-6 overflow-hidden">
-        <div className="animate-marquee whitespace-nowrap font-semibold">
-          <span className="mx-8">SleepAre8: user wins 77.00 USD prize in the task</span>
-          <span className="mx-8">Fugene55: user wins 15,257.00 USD prize in the task</span>
-          <span className="mx-8">jhoman1988: user wins prize in the task</span>
-          <span className="mx-8">SleepAre8: user wins 77.00 USD prize in the task</span>
-          <span className="mx-8">Fugene55: user wins 15,257.00 USD prize in the task</span>
+      {/* Live Ticker Banner */}
+      <div className="relative overflow-hidden bg-[linear-gradient(90deg,#04182e_0%,#072240_50%,#04182e_100%)] border-y border-[#00D9FF]/20 py-2.5">
+        {/* Edge fade masks */}
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#04182e] to-transparent z-10" />
+        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[#04182e] to-transparent z-10" />
+        {/* LIVE badge */}
+        <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20 flex items-center gap-1.5 bg-[#00D9FF]/10 border border-[#00D9FF]/40 rounded-full px-2.5 py-1">
+          <span className="relative flex h-2 w-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+          </span>
+          <span className="text-[10px] font-bold tracking-widest text-[#00D9FF] uppercase">Live</span>
+        </div>
+        {/* Scrolling winners */}
+        <div className="pl-28 animate-marquee whitespace-nowrap">
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">Fugene55</span> just won <span className="text-[#00D9FF] font-bold">$15,257.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">RewardKing_89</span> just won <span className="text-[#00D9FF] font-bold">$12,450.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">SleepAre8</span> just won <span className="text-[#00D9FF] font-bold">$77.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">PlatinumUser7</span> just won <span className="text-[#00D9FF] font-bold">$18,000.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">Diamond_Quest88</span> just won <span className="text-[#00D9FF] font-bold">$22,300.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">Lamar_K</span> just won <span className="text-[#00D9FF] font-bold">$4,820.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">CryptoEagle9</span> just won <span className="text-[#00D9FF] font-bold">$5,750.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">MastermindQ</span> just won <span className="text-[#00D9FF] font-bold">$14,500.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">jhoman1988</span> just won <span className="text-[#00D9FF] font-bold">$2,350.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">ProfitPilot</span> just won <span className="text-[#00D9FF] font-bold">$9,100.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">TechMaster_Pro</span> just won <span className="text-[#00D9FF] font-bold">$3,125.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">GoldenPath_X</span> just won <span className="text-[#00D9FF] font-bold">$8,900.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">SunriseEarner</span> just won <span className="text-[#00D9FF] font-bold">$2,888.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">LuckyV1be</span> just won <span className="text-[#00D9FF] font-bold">$1,250.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">Wealth_Wave</span> just won <span className="text-[#00D9FF] font-bold">$325.75 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">StarTrader_22</span> just won <span className="text-[#00D9FF] font-bold">$490.50 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">BlueSky_Finance</span> just won <span className="text-[#00D9FF] font-bold">$625.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">TradingLion</span> just won <span className="text-[#00D9FF] font-bold">$750.25 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          {/* duplicate set for seamless loop */}
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">Fugene55</span> just won <span className="text-[#00D9FF] font-bold">$15,257.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">RewardKing_89</span> just won <span className="text-[#00D9FF] font-bold">$12,450.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">SleepAre8</span> just won <span className="text-[#00D9FF] font-bold">$77.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">PlatinumUser7</span> just won <span className="text-[#00D9FF] font-bold">$18,000.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">Diamond_Quest88</span> just won <span className="text-[#00D9FF] font-bold">$22,300.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">Lamar_K</span> just won <span className="text-[#00D9FF] font-bold">$4,820.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">CryptoEagle9</span> just won <span className="text-[#00D9FF] font-bold">$5,750.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">MastermindQ</span> just won <span className="text-[#00D9FF] font-bold">$14,500.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">jhoman1988</span> just won <span className="text-[#00D9FF] font-bold">$2,350.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">ProfitPilot</span> just won <span className="text-[#00D9FF] font-bold">$9,100.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">TechMaster_Pro</span> just won <span className="text-[#00D9FF] font-bold">$3,125.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">GoldenPath_X</span> just won <span className="text-[#00D9FF] font-bold">$8,900.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">SunriseEarner</span> just won <span className="text-[#00D9FF] font-bold">$2,888.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">LuckyV1be</span> just won <span className="text-[#00D9FF] font-bold">$1,250.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">Wealth_Wave</span> just won <span className="text-[#00D9FF] font-bold">$325.75 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">StarTrader_22</span> just won <span className="text-[#00D9FF] font-bold">$490.50 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">BlueSky_Finance</span> just won <span className="text-[#00D9FF] font-bold">$625.00 USD</span></span>
+          <span className="text-[#00D9FF]/30 mx-1">•</span>
+          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">TradingLion</span> just won <span className="text-[#00D9FF] font-bold">$750.25 USD</span></span>
         </div>
       </div>
 
@@ -680,7 +759,7 @@ export default function Starting() {
           </div>
           <Link 
             to="/vip-levels"
-            className="flex items-center gap-2 bg-gradient-to-r from-orange-400 to-orange-500 text-white px-4 py-2 rounded-full hover:from-orange-500 hover:to-orange-600 transition-all cursor-pointer"
+            className="flex items-center gap-2 bg-gradient-to-br from-amber-300 via-orange-400 to-yellow-500 text-white px-4 py-2 rounded-full shadow-[0_4px_14px_rgba(251,146,60,0.5)] hover:shadow-[0_6px_20px_rgba(251,146,60,0.7)] hover:scale-105 transition-all cursor-pointer"
           >
             <span className="font-bold">VIP{userData?.vipLevel || 1}</span>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
@@ -695,7 +774,7 @@ export default function Starting() {
             {/* Prev button */}
             <button
               onClick={() => setCarouselIndex(i => (i - 1 + activeTasks.length) % activeTasks.length)}
-              className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 bg-gray-100 hover:bg-gray-200 rounded-full p-1 transition-colors"
+              className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white backdrop-blur-sm border border-gray-200 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
             >
               <ChevronLeft size={20} className="text-gray-600" />
             </button>
@@ -721,7 +800,7 @@ export default function Starting() {
             {/* Next button */}
             <button
               onClick={() => setCarouselIndex(i => (i + 1) % activeTasks.length)}
-              className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 bg-gray-100 hover:bg-gray-200 rounded-full p-1 transition-colors"
+              className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white backdrop-blur-sm border border-gray-200 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
             >
               <ChevronRight size={20} className="text-gray-600" />
             </button>
@@ -883,7 +962,7 @@ export default function Starting() {
         ) : (
           <>
             <button
-              className={`w-full bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-4 rounded-lg mb-6 text-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${submitting ? 'animate-pulse' : ''}`}
+              className={`w-full bg-gradient-to-r from-[#00D9FF] to-[#0099cc] hover:from-[#00c5e6] hover:to-[#0088bb] text-[#08111f] font-bold py-4 rounded-xl mb-6 text-xl transition-all shadow-[0_4px_20px_rgba(0,217,255,0.4)] hover:shadow-[0_6px_28px_rgba(0,217,255,0.6)] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none ${submitting ? 'animate-pulse' : ''}`}
               onClick={handleSubmitTask}
               disabled={submitting || (!currentProduct && !isPremiumTaskActive) || premiumSubmissionBlocked || vipFundingBlocked || taskSetResetRequired || isAccountSuspended}
             >
@@ -1062,10 +1141,10 @@ export default function Starting() {
         </div>
 
         {/* Important Notice */}
-        <div className="bg-white rounded-lg p-6 text-center shadow-sm mb-6">
-          <h3 className="text-xl font-bold mb-2">Important Notice</h3>
-          <p className="text-sm text-gray-700 mb-1">Online Support Hours: 9Am - 10PM EST</p>
-          <p className="text-sm text-gray-700">Please contact online support for your assistance</p>
+        <div className="bg-[#252d42]/80 border border-[#00D9FF]/20 rounded-xl p-6 text-center shadow-lg mb-6 backdrop-blur-sm">
+          <h3 className="text-xl font-bold text-white mb-2">Important Notice</h3>
+          <p className="text-sm text-gray-300 mb-1">Online Support Hours: 9Am - 10PM EST</p>
+          <p className="text-sm text-gray-300">Please contact online support for your assistance</p>
         </div>
 
         {/* Footer */}

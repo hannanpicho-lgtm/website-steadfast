@@ -50,6 +50,7 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
   const [assignments, setAssignments] = useState<PremiumAssignmentRecord[]>([]);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
   const [selectedAssignment, setSelectedAssignment] = useState<PremiumAssignmentRecord | null>(null);
+  const [userSearch, setUserSearch] = useState('');
   const adminAuthRedirectedRef = useRef(false);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
@@ -72,6 +73,9 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
 
   // Calculate preview
   const selectedUser = useMemo(() => users.find((u) => u.username === selectedUsername), [users, selectedUsername]);
+  const filteredUsers = userSearch
+    ? users.filter((u) => u.username.toLowerCase().includes(userSearch.toLowerCase()))
+    : users;
   const hasExplicitPremiumValue = premiumValue.trim() !== '';
   const premiumVal = parseFloat(premiumValue) || 0;
   const bundledProducts = useMemo(() => {
@@ -106,7 +110,7 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
   const vipCommissionRate = vipConfigs.find((c) => c.level === vipLevelNum)?.commission ?? 0.005;
   const premiumCommissionRate = vipCommissionRate * 10; // 10× multiplier for premium tasks
   const premiumBundleCommission = Math.round(premiumCommissionRate * totalBundleValue * 100) / 100;
-  const totalAccountBalance = Math.round((topUpRequired + userBalance + premiumBundleCommission) * 100) / 100;
+  const totalAccountBalance = Math.round((userBalance + topUpRequired + premiumBundleCommission) * 100) / 100;
   const preBundleCommission = selectedUser?.totalCommission ?? 0;
   const projectedTotalCommission = Math.round((preBundleCommission + premiumBundleCommission) * 100) / 100;
 
@@ -264,18 +268,27 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
               <label className="block text-gray-300 text-sm font-semibold mb-2">
                 Select User <span className="text-red-400">*</span>
               </label>
-              <select
-                value={selectedUsername}
-                onChange={(e) => setSelectedUsername(e.target.value)}
-                className="w-full bg-[#1a1f2e] text-white border border-gray-600 rounded px-4 py-2 focus:outline-none focus:border-[#00D9FF]"
-              >
-                <option value="">-- Select User --</option>
-                {users.map(user => (
-                  <option key={user.id} value={user.username}>
-                    {user.username} - VIP{user.vipLevel.slice(-1)} - Balance: ${user.balance.toFixed(2)}
-                  </option>
-                ))}
-              </select>
+              <div>
+                <input
+                  type="text"
+                  placeholder="Search by username..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="w-full bg-[#1a1f2e] text-white border border-gray-600 rounded-t px-4 py-2 focus:outline-none focus:border-[#00D9FF] placeholder-gray-500 text-sm border-b-0"
+                />
+                <select
+                  value={selectedUsername}
+                  onChange={(e) => setSelectedUsername(e.target.value)}
+                  className="w-full bg-[#1a1f2e] text-white border border-gray-600 rounded-b px-4 py-2 focus:outline-none focus:border-[#00D9FF]"
+                >
+                  <option value="">-- Select User --</option>
+                  {filteredUsers.map(user => (
+                    <option key={user.id} value={user.username}>
+                      {user.username} - VIP{user.vipLevel.slice(-1)} - Balance: ${user.balance.toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {/* Premium Product Value */}
@@ -487,25 +500,46 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
                   </div>
                 )}
 
-                {/* Post-assignment account summary */}
-                <div className="bg-green-500/10 border border-green-500/30 rounded p-3 space-y-2">
-                  <p className="text-green-300 text-xs font-semibold uppercase tracking-wide mb-1">After Assignment — User Financial Card</p>
+                {/* STATE 1: During Assignment — Frozen State */}
+                <div className="bg-red-500/10 border border-red-500/30 rounded p-3 space-y-2">
+                  <p className="text-red-300 text-xs font-semibold uppercase tracking-wide mb-1">🔒 During Assignment — Account Frozen</p>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-400">Current Account Balance (Before Freeze):</span>
+                    <span className="text-gray-400">Original Balance:</span>
                     <span className="text-white">${userBalance.toFixed(2)}</span>
                   </div>
+                  {topUpRequired > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-400">Top-up Deposited:</span>
+                      <span className="text-yellow-300">+${topUpRequired.toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-400">Uphold Amount:</span>
-                    <span className="text-red-400">-${topUpRequired.toFixed(2)}</span>
+                    <span className="text-gray-400">Bundle Held (Frozen):</span>
+                    <span className="text-red-400">-${totalBundleValue.toFixed(2)}</span>
+                  </div>
+                  <div className="border-t border-red-500/30 pt-2 flex items-center justify-between">
+                    <span className="text-red-300 font-bold">Available Balance:</span>
+                    <span className="text-red-300 font-bold text-lg">$0.00</span>
+                  </div>
+                  <p className="text-red-300/70 text-xs">Account is locked. User must complete all {1 + bundledProducts.length} bundled tasks.</p>
+                </div>
+
+                {/* STATE 2: After Completion — Unfrozen */}
+                <div className="bg-green-500/10 border border-green-500/30 rounded p-3 space-y-2">
+                  <p className="text-green-300 text-xs font-semibold uppercase tracking-wide mb-1">🔓 After Completion — Account Unfrozen</p>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-400">Frozen Amount Released:</span>
+                    <span className="text-white">+${totalBundleValue.toFixed(2)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-400">Premium Commission ({(premiumCommissionRate * 100).toFixed(1)}%):</span>
                     <span className="text-green-400">+${premiumBundleCommission.toFixed(2)}</span>
                   </div>
                   <div className="border-t border-green-500/30 pt-2 flex items-center justify-between">
-                    <span className="text-green-300 font-bold">Total Account Balance:</span>
+                    <span className="text-green-300 font-bold">Projected Total Balance:</span>
                     <span className="text-green-300 font-bold text-lg">${totalAccountBalance.toFixed(2)}</span>
                   </div>
+                  <p className="text-green-300/70 text-xs">User receives frozen funds back + commission earned on the bundle.</p>
                 </div>
 
                 {/* Commission breakdown */}

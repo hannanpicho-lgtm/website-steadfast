@@ -187,7 +187,7 @@ export default function Withdrawal() {
   const latestWithdrawal = withdrawals[0] ?? null;
 
   return (
-    <div className="size-full overflow-auto bg-gray-50">
+    <div className="size-full overflow-auto bg-[#1a1f2e]">
       {/* Header */}
       <Header onContactClick={() => setIsChatOpen(true)} />
 
@@ -202,7 +202,7 @@ export default function Withdrawal() {
             >
               <ChevronLeft size={20} />
             </button>
-            <h1 className="text-2xl font-bold text-[#0066b3]">Withdrawal</h1>
+            <h1 className="text-2xl font-bold text-[#00D9FF]">Withdrawal</h1>
           </div>
           <button onClick={() => navigate('/withdrawal-history')} className="btn-mobile-primary self-start sm:self-auto">
             <ScrollText size={20} />
@@ -211,49 +211,49 @@ export default function Withdrawal() {
         </div>
 
         {/* Total Balance Card */}
-        <div className="bg-white rounded-lg p-6 mb-6 shadow-sm">
-          <h2 className="text-lg font-semibold text-[#0066b3] mb-3">Total Balance</h2>
+        <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mb-6 backdrop-blur-sm">
+          <h2 className="text-lg font-semibold text-[#00D9FF] mb-3">Total Balance</h2>
           <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-4xl font-bold">{loading ? '...' : walletData?.balance.toFixed(2) ?? '0.00'}</span>
-            <span className="text-lg text-gray-600">USD</span>
+            <span className="text-4xl font-bold text-white">{loading ? '...' : walletData?.balance.toFixed(2) ?? '0.00'}</span>
+            <span className="text-lg text-gray-400">USD</span>
           </div>
-          <p className="text-sm italic">You will receive your withdrawal within an hour</p>
+          <p className="text-sm italic text-gray-400">You will receive your withdrawal within an hour</p>
         </div>
 
         {/* Balance Details */}
-        <div className="space-y-3 mb-6">
-          <div className="flex items-center justify-between py-3">
-            <span className="text-[#0066b3] font-semibold">Available Amount</span>
-            <span className="font-bold">{loading ? '...' : `${availableAmount.toFixed(2)} USD`}</span>
+        <div className="space-y-0 mb-6 bg-[#252d42]/80 border border-white/10 rounded-xl px-4 backdrop-blur-sm">
+          <div className="flex items-center justify-between py-4 border-b border-white/10">
+            <span className="text-[#00D9FF] font-semibold">Available Amount</span>
+            <span className="font-bold text-white">{loading ? '...' : `${availableAmount.toFixed(2)} USD`}</span>
           </div>
-          <div className="flex items-center justify-between py-3">
-            <span className="text-[#0066b3] font-semibold">Freeze Amount</span>
-            <span className="font-bold">{loading ? '...' : `${(walletData?.holdAmount ?? 0).toFixed(2)} USD`}</span>
+          <div className="flex items-center justify-between py-4">
+            <span className="text-[#00D9FF] font-semibold">Freeze Amount</span>
+            <span className="font-bold text-white">{loading ? '...' : `${(walletData?.holdAmount ?? 0).toFixed(2)} USD`}</span>
           </div>
         </div>
 
         {/* Withdraw Amount Form */}
         <form onSubmit={handleSubmit}>
-          <h3 className="text-xl font-bold mb-4">WITHDRAW AMOUNT</h3>
+          <h3 className="text-xl font-bold mb-4 text-white">WITHDRAW AMOUNT</h3>
 
           {/* Withdraw Account */}
           <div className="mb-4">
-            <label className="block text-sm font-semibold mb-2">Withdraw Account</label>
+            <label className="block text-sm font-semibold mb-2 text-gray-300">Withdraw Account</label>
             <div className="relative">
               <input
                 type="text"
                 placeholder="Withdraw Account"
                 value={walletAddress}
                 onChange={(event) => setWalletAddress(event.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-[#0066b3] text-gray-400"
+                className="w-full px-4 py-3 bg-[#252d42] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#00D9FF] transition-colors"
               />
-              <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+              <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
             </div>
           </div>
 
           {/* Withdraw Amount */}
           <div className="mb-4">
-            <label className="block text-sm font-semibold mb-2">Withdraw Amount</label>
+            <label className="block text-sm font-semibold mb-2 text-gray-300">Withdraw Amount</label>
             <div className="relative">
               <input
                 type="number"
@@ -261,7 +261,7 @@ export default function Withdrawal() {
                 onChange={(e) => setWithdrawAmount(e.target.value)}
                 min="0"
                 step="0.01"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-[#0066b3]"
+                className="w-full px-4 py-3 bg-[#252d42] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#00D9FF] transition-colors"
               />
               <button
                 type="button"
@@ -275,19 +275,19 @@ export default function Withdrawal() {
 
           {/* Transaction Password */}
           <div className="mb-6">
-            <label className="block text-sm font-semibold mb-2">Transaction Password</label>
+            <label className="block text-sm font-semibold mb-2 text-gray-300">Transaction Password</label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
                 placeholder="Transaction Password"
                 value={transactionPassword}
                 onChange={(e) => setTransactionPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-[#0066b3] text-gray-400"
+                className="w-full px-4 py-3 bg-[#252d42] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#00D9FF] transition-colors"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-200 transition-colors"
               >
                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
@@ -304,33 +304,33 @@ export default function Withdrawal() {
           </button>
         </form>
 
-        <div className="bg-white rounded-lg p-6 mt-6 shadow-sm">
+        <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mt-6 backdrop-blur-sm">
           <div className="flex items-center justify-between gap-4 mb-3">
-            <h3 className="text-lg font-semibold text-[#0066b3]">Latest Withdrawal</h3>
+            <h3 className="text-lg font-semibold text-[#00D9FF]">Latest Withdrawal</h3>
             {loading && <Loader2 className="animate-spin text-[#0066b3]" size={18} />}
           </div>
           {latestWithdrawal ? (
-            <div className="space-y-2 text-sm text-gray-600">
+            <div className="space-y-2 text-sm text-gray-400">
               <div className="flex items-center justify-between gap-3">
                 <span>Amount</span>
-                <span className="font-semibold text-gray-900">${latestWithdrawal.amount.toFixed(2)}</span>
+                <span className="font-semibold text-white">${latestWithdrawal.amount.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span>Status</span>
                 <span className={`font-semibold ${
-                  latestWithdrawal.status === 'Approved' ? 'text-green-600' :
-                  latestWithdrawal.status === 'Rejected' ? 'text-red-600' : 'text-yellow-600'
+                  latestWithdrawal.status === 'Approved' ? 'text-green-400' :
+                  latestWithdrawal.status === 'Rejected' ? 'text-red-400' : 'text-yellow-400'
                 }`}>
                   {latestWithdrawal.status}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span>Requested</span>
-                <span className="font-medium text-gray-900">{new Date(latestWithdrawal.requestedDate).toLocaleString()}</span>
+                <span className="font-medium text-white">{new Date(latestWithdrawal.requestedDate).toLocaleString()}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span>Account</span>
-                <span className="font-medium text-gray-900">{latestWithdrawal.walletAddress}</span>
+                <span className="font-medium text-white">{latestWithdrawal.walletAddress}</span>
               </div>
             </div>
           ) : (
@@ -339,7 +339,7 @@ export default function Withdrawal() {
         </div>
 
         {/* Footer */}
-        <div className="text-center text-sm text-gray-500 mt-12 mb-24">
+        <div className="text-center text-sm text-gray-600 mt-12 mb-24">
           <p>© 2026 Steadfast Digital, Inc. All rights reserved</p>
         </div>
       </div>

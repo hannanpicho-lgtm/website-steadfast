@@ -98,13 +98,13 @@ export default function Deposit() {
   const visibleTx = activeTab === 'recent' ? recentTx : depositTx;
 
   const statusColor = (status: string) => {
-    if (status === 'Approved' || status === 'Completed') return 'text-green-600 bg-green-50';
-    if (status === 'Rejected') return 'text-red-600 bg-red-50';
-    return 'text-yellow-600 bg-yellow-50';
+    if (status === 'Approved' || status === 'Completed') return 'text-green-400 bg-green-500/10';
+    if (status === 'Rejected') return 'text-red-400 bg-red-500/10';
+    return 'text-yellow-400 bg-yellow-500/10';
   };
 
   return (
-    <div className="size-full overflow-auto bg-gray-50">
+    <div className="size-full overflow-auto bg-[#1a1f2e]">
       {/* Header */}
       <Header onContactClick={() => setIsChatOpen(true)} />
 
@@ -115,25 +115,25 @@ export default function Deposit() {
           <button onClick={() => navigate(-1)} className="btn-mobile-icon">
             <ChevronLeft size={20} />
           </button>
-          <h1 className="text-2xl font-bold text-[#0066b3] flex-1 text-center mr-10">Deposit</h1>
+          <h1 className="text-2xl font-bold text-[#00D9FF] flex-1 text-center mr-10">Deposit</h1>
         </div>
 
         {loading ? (
           <div className="flex justify-center items-center min-h-[300px]">
-            <Loader2 size={32} className="animate-spin text-[#0066b3]" />
+            <Loader2 size={32} className="animate-spin text-[#00D9FF]" />
           </div>
         ) : (
           <>
             {/* Available Balance Card */}
-            <div className="bg-white rounded-lg p-6 mb-6 shadow-sm">
+            <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mb-6 backdrop-blur-sm">
               <div className="flex items-start justify-between mb-4">
                 <div>
-                  <h2 className="text-lg font-semibold text-[#0066b3] mb-2">Available Balance</h2>
+                  <h2 className="text-lg font-semibold text-[#00D9FF] mb-2">Available Balance</h2>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-bold">
+                    <span className="text-4xl font-bold text-white">
                       {(userData?.balance ?? 0).toFixed(2)}
                     </span>
-                    <span className="text-lg text-gray-600">USD</span>
+                    <span className="text-lg text-gray-400">USD</span>
                   </div>
                 </div>
                 <button onClick={handleTopUp} className="btn-mobile-primary">
@@ -143,13 +143,13 @@ export default function Deposit() {
             </div>
 
             {/* Total Balance Card */}
-            <div className="bg-white rounded-lg p-6 mb-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-[#0066b3] mb-2">Total Balance</h2>
+            <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mb-6 backdrop-blur-sm">
+              <h2 className="text-lg font-semibold text-[#00D9FF] mb-2">Total Balance</h2>
               <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-bold">
+                <span className="text-4xl font-bold text-white">
                   {((userData?.balance ?? 0) + (userData?.holdAmount ?? 0)).toFixed(2)}
                 </span>
-                <span className="text-lg text-gray-600">USD</span>
+                <span className="text-lg text-gray-400">USD</span>
               </div>
             </div>
 
@@ -159,8 +159,8 @@ export default function Deposit() {
                 onClick={() => setActiveTab('recent')}
                 className={`btn-mobile-tab ${
                   activeTab === 'recent'
-                    ? 'bg-gray-800 text-white shadow-sm'
-                    : 'bg-white text-gray-800 hover:bg-gray-100'
+                    ? 'bg-[#00D9FF] text-[#08111f] shadow-[0_2px_12px_rgba(0,217,255,0.4)]'
+                    : 'bg-[#252d42] text-gray-300 hover:bg-[#2f3a52]'
                 }`}
               >
                 Recent Activity
@@ -169,8 +169,8 @@ export default function Deposit() {
                 onClick={() => setActiveTab('transaction')}
                 className={`btn-mobile-tab ${
                   activeTab === 'transaction'
-                    ? 'bg-gray-800 text-white shadow-sm'
-                    : 'bg-white text-gray-800 hover:bg-gray-100'
+                    ? 'bg-[#00D9FF] text-[#08111f] shadow-[0_2px_12px_rgba(0,217,255,0.4)]'
+                    : 'bg-[#252d42] text-gray-300 hover:bg-[#2f3a52]'
                 }`}
               >
                 Transaction Activity
@@ -179,19 +179,19 @@ export default function Deposit() {
 
             {/* Activity Content */}
             {visibleTx.length === 0 ? (
-              <div className="bg-white rounded-lg p-12 text-center min-h-[200px] flex items-center justify-center shadow-sm">
+              <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-12 text-center min-h-[200px] flex items-center justify-center">
                 <p className="text-gray-400">No transactions found</p>
               </div>
             ) : (
               <div className="space-y-3">
                 {visibleTx.map((tx) => (
-                  <div key={tx.id} className="bg-white rounded-lg p-4 shadow-sm flex items-center justify-between">
+                  <div key={tx.id} className="bg-[#252d42]/80 border border-white/10 rounded-xl p-4 flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-gray-800 truncate">{tx.type}</p>
+                      <p className="font-semibold text-white truncate">{tx.type}</p>
                       {tx.description && (
-                        <p className="text-xs text-gray-500 truncate">{tx.description}</p>
+                        <p className="text-xs text-gray-400 truncate">{tx.description}</p>
                       )}
-                      <p className="text-xs text-gray-400 mt-1">
+                      <p className="text-xs text-gray-500 mt-1">
                         {new Date(tx.date).toLocaleDateString(undefined, {
                           year: 'numeric',
                           month: 'short',
@@ -200,7 +200,7 @@ export default function Deposit() {
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1 ml-4">
-                      <span className="font-bold text-gray-900">
+                      <span className="font-bold text-white">
                         {tx.amount >= 0 ? '+' : ''}
                         {Number(tx.amount).toFixed(2)} USD
                       </span>
@@ -216,7 +216,7 @@ export default function Deposit() {
         )}
 
         {/* Footer */}
-        <div className="text-center text-sm text-gray-500 mt-12 mb-24">
+        <div className="text-center text-sm text-gray-600 mt-12 mb-24">
           <p>© 2026 Steadfast Digital, Inc. All rights reserved</p>
         </div>
       </div>
