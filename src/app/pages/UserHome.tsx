@@ -71,45 +71,61 @@ const quickLinkConfig: QuickLinkItem[] = [
   { to: '/about', title: 'About', icon: Info },
 ];
 
+const quickLinkAccents: Record<string, string> = {
+  '/vip-levels':       '#f59e0b',
+  '/activity':         '#00D9FF',
+  '/withdrawal':       '#10b981',
+  '/deposit':          '#8b5cf6',
+  '/terms-conditions': '#94a3b8',
+  '/certificate':      '#fbbf24',
+  '/faqs':             '#06b6d4',
+  '/about':            '#f43f5e',
+};
+
 function QuickLinkCard({ item }: { item: QuickLinkItem }) {
   const Icon = item.icon;
-  const cardColor = '#00D9FF';
-  const cardHover = '#00c5e6';
-  const iconColor = '#063a5a';
+  const accent = quickLinkAccents[item.to] ?? '#00D9FF';
 
   return (
     <Link
       to={item.to}
-      className="group relative overflow-hidden flex h-[78px] flex-col items-center justify-center gap-1.5 rounded-xl border border-[#00b6d6] px-1 transition-all duration-300 hover:scale-[1.03] hover:-translate-y-0.5 shadow-md sm:h-[88px]"
+      className="group relative overflow-hidden flex h-[78px] flex-col items-center justify-center gap-1.5 rounded-xl border border-[#00b6d6]/60 px-1 transition-all duration-300 hover:scale-[1.06] hover:-translate-y-1.5 sm:h-[88px]"
       style={{
-        background: `linear-gradient(165deg, ${cardColor}, ${cardHover})`,
-        boxShadow: '0 8px 20px rgba(0, 173, 212, 0.26)',
+        background: 'linear-gradient(165deg, #00D9FF, #00a8c8)',
+        boxShadow: '0 4px 14px rgba(0,173,212,0.22)',
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.boxShadow = `0 10px 28px ${accent}55, 0 4px 14px rgba(0,173,212,0.22)`;
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 14px rgba(0,173,212,0.22)';
       }}
     >
-      {/* Animated background on hover */}
+      {/* Unique per-card accent top stripe */}
+      <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: accent }} />
+
+      {/* Hover radial glow */}
       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{
-        background: 'radial-gradient(circle at 50% 35%, rgba(255,255,255,0.35), transparent 60%)',
+        background: 'radial-gradient(circle at 50% 30%, rgba(255,255,255,0.42), transparent 65%)',
       }} />
 
-      {/* Icon with slight rotation on hover */}
-      <div className="relative z-10 p-2 rounded-lg transition-all duration-300 group-hover:scale-125" style={{
-        background: 'rgba(255,255,255,0.2)',
-        color: iconColor,
+      {/* Icon circle */}
+      <div className="relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-110" style={{
+        background: 'rgba(255,255,255,0.22)',
+        color: '#062f49',
         boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35)',
       }}>
-        <Icon size={18} strokeWidth={2.2} className="sm:h-5 sm:w-5" />
+        <Icon size={16} strokeWidth={2.2} className="sm:w-[18px] sm:h-[18px]" />
       </div>
 
-      {/* Text with improved contrast */}
+      {/* Label */}
       <span className="relative z-10 px-1 text-center text-[0.72rem] font-bold leading-tight tracking-tight text-[#062f49] sm:text-[0.86rem]">
         {item.title}
       </span>
 
-      {/* Bottom accent line that expands on hover */}
-      <div className="absolute bottom-0 left-0 right-0 h-[3px] origin-left transition-all duration-300 group-hover:scale-x-100" style={{
-        background: 'rgba(6,58,90,0.75)',
-        transform: 'scaleX(0)',
-        boxShadow: '0 0 8px rgba(6,58,90,0.45)',
+      {/* Bottom accent line — width animation, no inline-transform override bug */}
+      <div className="absolute bottom-0 left-0 h-[3px] w-0 group-hover:w-full transition-[width] duration-300" style={{
+        background: accent,
       }} />
     </Link>
   );
@@ -183,7 +199,8 @@ export default function UserHome() {
 
         {/* Quick Access */}
         <section className="mt-4 rounded-2xl border border-[#cfd8e3] bg-gradient-to-br from-white via-[#f8fafb] to-[#f1f3f5] p-4 sm:p-5 shadow-sm">
-          <p className="text-center text-[0.65rem] sm:text-xs font-bold tracking-[0.22em] text-[#0b5f94] uppercase mb-4 sm:mb-4">One-Tap Features</p>
+          <p className="text-center text-[0.65rem] sm:text-xs font-bold tracking-[0.22em] text-[#0b5f94] uppercase mb-1">Quick Access</p>
+          <h2 className="text-center text-[1.1rem] sm:text-[1.25rem] font-extrabold text-[#0f172a] mb-4">One-Tap Features</h2>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
             {quickLinkConfig.map((item) => (
               <QuickLinkCard key={item.title} item={item} />

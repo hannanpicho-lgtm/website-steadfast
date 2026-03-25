@@ -251,7 +251,7 @@ export default function Activity() {
         {/* Workday Rewards Scheme Section */}
         <div className="mb-8">
           <div
-            className="mx-auto w-full max-w-[380px] rounded-none p-4 sm:p-5"
+            className="w-full rounded-2xl p-5 sm:p-7"
             style={{
               background:
                 'linear-gradient(150deg, #0f7fc0 0%, #0a63a3 55%, #0a5a96 100%), repeating-linear-gradient(145deg, rgba(255,255,255,0.08) 0, rgba(255,255,255,0.08) 10px, transparent 10px, transparent 22px)',
