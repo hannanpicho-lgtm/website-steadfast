@@ -1,18 +1,31 @@
-﻿import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle, PencilLine } from 'lucide-react';
+﻿import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle, PencilLine, Mars, Venus, UserRound } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
-import profileImage from '../../assets/3df251a778530e24e8d83eda03085a2dc309c248.png';
+import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { getCurrentUsername, logoutCurrentUser } from '../services/referralSystem';
 import { changeUserCredentials, isPasswordChangeRequired } from '../services/serverAuth';
 import { fetchReferralSummary } from '../services/referralReadModel';
 import { fetchFinancialSummary, type FinancialSummaryResponse } from '../services/financialReadModel';
 import { fetchBonusFeed, type BonusFeedItem } from '../services/bonusFeed';
 
+function getStoredProfileImage(username: string | null): string | null {
+  if (!username) {
+    return null;
+  }
+
+  try {
+    return localStorage.getItem(`profile-image-${username}`);
+  } catch {
+    return null;
+  }
+}
+
 export default function Profile() {
   const navigate = useNavigate();
+  const username = getCurrentUsername();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [accountInfoOpen, setAccountInfoOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -30,15 +43,8 @@ export default function Profile() {
   const [newTransactionPassword, setNewTransactionPassword] = useState('');
   const [updatingCredentials, setUpdatingCredentials] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [profileImageSrc, setProfileImageSrc] = useState<string>(() => {
-    try {
-      return localStorage.getItem(`profile-image-${getCurrentUsername()}`) ?? profileImage;
-    } catch {
-      return profileImage;
-    }
-  });
+  const [profileImageSrc, setProfileImageSrc] = useState<string | null>(() => getStoredProfileImage(getCurrentUsername()));
 
-  const username = getCurrentUsername();
   const menuRowHoverFx = 'w-full flex items-center justify-between p-4 transition-all duration-300 hover:bg-[linear-gradient(102deg,rgba(255,255,255,0.98)_0%,rgba(255,245,181,0.34)_52%,rgba(255,255,255,0.98)_100%)] hover:shadow-[inset_0_-14px_0_rgba(255,245,181,0.22)]';
 
   useEffect(() => {
@@ -51,6 +57,10 @@ export default function Profile() {
       setSecurityCredentialsOpen(true);
     }
   }, [mustChangePassword]);
+
+  useEffect(() => {
+    setProfileImageSrc(getStoredProfileImage(username));
+  }, [username]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -197,6 +207,19 @@ export default function Profile() {
   const automaticBonusTotal = bonusPreview
     .filter((item) => item.assignmentMode === 'automatic')
     .reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
+  const profileGender = typeof financialSummary?.gender === 'string'
+    ? financialSummary.gender.trim().toLowerCase()
+    : 'unknown';
+  const avatarToneClass = profileGender === 'female'
+    ? 'from-[#f472b6] via-[#fb7185] to-[#f59e0b]'
+    : profileGender === 'male'
+      ? 'from-[#38bdf8] via-[#0ea5e9] to-[#2563eb]'
+      : 'from-[#64748b] via-[#475569] to-[#1e293b]';
+  const AvatarGlyph = profileGender === 'female'
+    ? Venus
+    : profileGender === 'male'
+      ? Mars
+      : UserRound;
 
   return (
     <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
@@ -214,11 +237,19 @@ export default function Profile() {
         {/* Profile Image Section */}
         <div className="flex flex-col items-center mb-6">
           <div className="relative mb-3">
-            <img 
-              src={profileImageSrc}
-              alt="Profile" 
-              className="w-24 h-24 rounded-full object-cover bg-gray-200 border-2 border-[#d9b48c] shadow-sm"
-            />
+            <Avatar className="h-24 w-24 border-2 border-[#d9b48c] shadow-sm">
+              {profileImageSrc ? (
+                <AvatarImage src={profileImageSrc} alt="Profile" className="object-cover" />
+              ) : null}
+              <AvatarFallback className={`bg-gradient-to-br ${avatarToneClass} text-white`}>
+                <div className="flex h-full w-full flex-col items-center justify-center gap-1">
+                  <AvatarGlyph size={28} strokeWidth={2.2} />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.18em]">
+                    {profileGender === 'female' ? 'Female' : profileGender === 'male' ? 'Male' : 'User'}
+                  </span>
+                </div>
+              </AvatarFallback>
+            </Avatar>
           </div>
           <button
             onClick={() => fileInputRef.current?.click()}
