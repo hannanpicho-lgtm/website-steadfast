@@ -83,6 +83,31 @@ try {
       throw "Rollback deploy failed with exit code $LASTEXITCODE."
     }
 
+    $apiBaseUrl = "https://$ProjectRef.supabase.co/functions/v1/$FunctionName"
+    Write-Host "[ROLLBACK] Verifying live version and route health..."
+    & node scripts/verify-live-version.mjs --base $apiBaseUrl --expected-function $FunctionName --verify-route-health true --fail-on-stale false
+    if ($LASTEXITCODE -ne 0) {
+      throw "Post-rollback live verification failed with exit code $LASTEXITCODE."
+    }
+
+    $reportsDir = Join-Path $repoRoot "deployment_reports/supabase"
+    New-Item -ItemType Directory -Force -Path $reportsDir | Out-Null
+    $rollbackTimestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+    $rollbackReportPath = Join-Path $reportsDir "rollback_${FunctionName}_$rollbackTimestamp.json"
+    $rollbackReport = [ordered]@{
+      timestampUtc = (Get-Date).ToUniversalTime().ToString("o")
+      projectRef = $ProjectRef
+      functionName = $FunctionName
+      targetCommitSha = $CommitSha
+      sourceHeadBeforeRollback = $currentHead
+      verification = [ordered]@{
+        command = "node scripts/verify-live-version.mjs --base $apiBaseUrl --expected-function $FunctionName --verify-route-health true --fail-on-stale false"
+        success = $true
+      }
+    }
+    ($rollbackReport | ConvertTo-Json -Depth 6) | Out-File -FilePath $rollbackReportPath -Encoding utf8
+    Write-Host "[ROLLBACK] Report: $rollbackReportPath"
+
     Write-Host "[ROLLBACK] Rollback deploy succeeded."
   }
   finally {

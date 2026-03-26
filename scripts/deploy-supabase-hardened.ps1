@@ -123,6 +123,8 @@ try {
   $before = Get-FunctionState -Project $ProjectRef -Name $FunctionName
   $deployTimestampUtc = (Get-Date).ToUniversalTime().ToString("o")
   $apiBaseUrl = "https://$ProjectRef.supabase.co/functions/v1/$FunctionName"
+  $preEnvAuditPath = $null
+  $postEnvAuditPath = $null
 
   Write-Host "[HARDENED-DEPLOY] Project: $ProjectRef"
   Write-Host "[HARDENED-DEPLOY] Function: $FunctionName"
@@ -130,6 +132,17 @@ try {
   Write-Host "[HARDENED-DEPLOY] Before: version=$($before.Version) updated=$($before.UpdatedAtUtc.ToString('u'))"
 
   $previousPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  $preEnvAuditRaw = & node scripts/record-deploy-env.mjs --phase pre --project-ref $ProjectRef --function-name $FunctionName --base-url $apiBaseUrl 2>&1
+  $preEnvAuditExitCode = $LASTEXITCODE
+  $ErrorActionPreference = $previousPreference
+  if ($preEnvAuditExitCode -ne 0) {
+    $joined = ($preEnvAuditRaw | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+    throw "Pre-deploy environment audit failed.`n$joined"
+  }
+  $preEnvAuditPath = (($preEnvAuditRaw | Out-String).Trim() -split "`r?`n")[-1]
+  Write-Host "[HARDENED-DEPLOY] Pre-deploy env audit: $preEnvAuditPath"
+
   $ErrorActionPreference = "Continue"
   $secretsOutput = & supabase secrets set DEPLOY_COMMIT_SHA=$($gitState.HeadLong) DEPLOY_COMMIT_SHORT=$($gitState.HeadShort) DEPLOYED_AT_UTC=$deployTimestampUtc DEPLOY_TARGET_FUNCTION=$FunctionName --project-ref $ProjectRef 2>&1
   $secretsExitCode = $LASTEXITCODE
@@ -161,11 +174,13 @@ try {
   }
 
   $previousApiBase = $env:API_BASE_URL
+  $previousTrustedOrigin = $env:TRUSTED_ORIGIN
   $env:API_BASE_URL = $apiBaseUrl
+  $env:TRUSTED_ORIGIN = "https://steadfastworkbench.org"
   $liveVersionJson = $null
   try {
     Invoke-CheckedCommand -Label "Live /version verification" -Command {
-      node scripts/verify-live-version.mjs --base $apiBaseUrl --expected-function $FunctionName --expected-commit $($gitState.HeadLong) --fail-on-stale
+      node scripts/verify-live-version.mjs --base $apiBaseUrl --expected-function $FunctionName --expected-commit $($gitState.HeadLong) --fail-on-stale --verify-route-health true
     }
 
     # Capture live version payload for stale check in alerts log
@@ -183,9 +198,22 @@ try {
         npm run audit:endpoints
       }
     }
+
+    $previousPreference2 = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $postEnvAuditRaw = & node scripts/record-deploy-env.mjs --phase post --project-ref $ProjectRef --function-name $FunctionName --base-url $apiBaseUrl 2>&1
+    $postEnvAuditExitCode = $LASTEXITCODE
+    $ErrorActionPreference = $previousPreference2
+    if ($postEnvAuditExitCode -ne 0) {
+      $joined = ($postEnvAuditRaw | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+      throw "Post-deploy environment audit failed.`n$joined"
+    }
+    $postEnvAuditPath = (($postEnvAuditRaw | Out-String).Trim() -split "`r?`n")[-1]
+    Write-Host "[HARDENED-DEPLOY] Post-deploy env audit: $postEnvAuditPath"
   }
   finally {
     $env:API_BASE_URL = $previousApiBase
+    $env:TRUSTED_ORIGIN = $previousTrustedOrigin
   }
 
   $smokeRan = $false
@@ -241,6 +269,8 @@ try {
       enforcedTargetMatch = (-not $AllowNonProductionFunction.IsPresent)
       postDeployValidationSkipped = $SkipPostDeployValidation.IsPresent
       liveVersionAtDeployTime = $liveVersionJson
+      preDeployEnvAuditReport = $preEnvAuditPath
+      postDeployEnvAuditReport = $postEnvAuditPath
     }
     deployOutput = ($deployOutput | ForEach-Object { $_.ToString() })
   }
