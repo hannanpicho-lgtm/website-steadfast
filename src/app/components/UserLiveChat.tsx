@@ -1,150 +1,45 @@
-import { useState, useEffect, useRef } from 'react';
-import { X, Send, MessageCircle, Loader2, Paperclip, Smile, Download, FileText, Image as ImageIcon, Video, Music2 } from 'lucide-react';
-import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { Clock3, Download, FileText, Image as ImageIcon, Loader2, MessageCircle, Music2, Paperclip, Send, ShieldCheck, Smile, Sparkles, Video, Wifi, WifiOff, X } from 'lucide-react';
 import { getCurrentUsername } from '../services/referralSystem';
-
-interface ChatMessage {
-  id: string;
-  message: string;
-  sender: string;
-  isAdmin: boolean;
-  timestamp: string;
-  read: boolean;
-}
-
-type ChatAttachmentType = 'image' | 'video' | 'audio' | 'file';
-
-type ChatAttachment = {
-  type: ChatAttachmentType;
-  dataUrl: string;
-  name: string;
-  mimeType: string;
-  size: number;
-};
+import {
+  type ChatAttachment,
+  type ChatMessage,
+  type ChatThreadSummary,
+  MAX_CHAT_ATTACHMENT_SIZE_BYTES,
+  buildAttachmentLabel,
+  decodeChatMessage,
+  downloadAttachment,
+  encodeChatMessage,
+  fetchUserChatMessages,
+  fetchUserChatSummary,
+  formatChatResponseTime,
+  getAttachmentType,
+  markUserChatRead,
+  sendUserChatMessage,
+} from '../services/chatSupport';
 
 interface UserLiveChatProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-const CHAT_IMAGE_PREFIX = '__img__:';
-const CHAT_ATTACHMENT_PREFIX = '__att__:';
-const CHAT_ATTACHMENT_PREFIX_LEGACY = '__att_:';
-const MAX_CHAT_ATTACHMENT_SIZE_BYTES = 250 * 1024;
 const QUICK_EMOJIS = ['😀', '😁', '😂', '😊', '😉', '😍', '🤩', '😎', '🙂', '😌', '🤝', '👏', '👍', '🙏', '💪', '🎯', '🎉', '✨', '🔥', '💯', '✅', '⭐', '💡', '📌'];
+const QUICK_REPLY_CHIPS = [
+  'I need help with withdrawal review',
+  'Please reset my task set',
+  'I need help with my bonus',
+  'Can you verify my latest transaction?',
+];
 
-function getAttachmentType(file: File): ChatAttachmentType {
-  if (file.type.startsWith('image/')) {
-    return 'image';
+function getConnectionTone(connectionState: 'connecting' | 'live' | 'reconnecting') {
+  if (connectionState === 'live') {
+    return 'bg-emerald-400/20 text-emerald-100';
   }
-  if (file.type.startsWith('video/')) {
-    return 'video';
+  if (connectionState === 'reconnecting') {
+    return 'bg-amber-400/20 text-amber-100';
   }
-  if (file.type.startsWith('audio/')) {
-    return 'audio';
-  }
-  return 'file';
-}
-
-function buildAttachmentLabel(type: ChatAttachmentType) {
-  switch (type) {
-    case 'image':
-      return 'Image';
-    case 'video':
-      return 'Video';
-    case 'audio':
-      return 'Audio';
-    default:
-      return 'File';
-  }
-}
-
-function isChatAttachmentType(value: unknown): value is ChatAttachmentType {
-  return value === 'image' || value === 'video' || value === 'audio' || value === 'file';
-}
-
-function downloadAttachment(attachment: ChatAttachment) {
-  const link = document.createElement('a');
-  link.href = attachment.dataUrl;
-  link.download = attachment.name || `attachment-${Date.now()}`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
-function decodeChatMessage(rawMessage: string) {
-  const isAttachmentPayload = rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX) || rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX_LEGACY);
-  if (isAttachmentPayload) {
-    try {
-      const payloadString = rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX)
-        ? rawMessage.slice(CHAT_ATTACHMENT_PREFIX.length)
-        : rawMessage.slice(CHAT_ATTACHMENT_PREFIX_LEGACY.length);
-      const payload = JSON.parse(payloadString) as {
-        text?: string;
-        attachment?: Record<string, unknown>;
-      };
-      const candidateAttachment = payload.attachment;
-      const normalizedAttachment: ChatAttachment | null = candidateAttachment
-        && typeof candidateAttachment === 'object'
-        && typeof candidateAttachment.dataUrl === 'string'
-        && isChatAttachmentType(candidateAttachment.type)
-        ? {
-            type: candidateAttachment.type,
-            dataUrl: candidateAttachment.dataUrl,
-            name: typeof candidateAttachment.name === 'string' ? candidateAttachment.name : 'attachment',
-            mimeType: typeof candidateAttachment.mimeType === 'string' ? candidateAttachment.mimeType : '',
-            size: Number.isFinite(Number(candidateAttachment.size)) ? Number(candidateAttachment.size) : 0,
-          }
-        : null;
-      return {
-        text: typeof payload.text === 'string' ? payload.text : '',
-        attachment: normalizedAttachment,
-      };
-    } catch {
-      return {
-        text: 'Attachment could not be previewed. Please resend a smaller file.',
-        attachment: null,
-      };
-    }
-  }
-
-  if (!rawMessage.startsWith(CHAT_IMAGE_PREFIX)) {
-    return { text: rawMessage, attachment: null };
-  }
-
-  const payload = rawMessage.slice(CHAT_IMAGE_PREFIX.length);
-  const newlineIndex = payload.indexOf('\n');
-  if (newlineIndex === -1) {
-    return {
-      text: '',
-      attachment: {
-        type: 'image' as const,
-        dataUrl: payload.trim(),
-        name: 'chat-image',
-        mimeType: 'image/*',
-        size: 0,
-      },
-    };
-  }
-
-  return {
-    text: payload.slice(newlineIndex + 1),
-    attachment: {
-      type: 'image' as const,
-      dataUrl: payload.slice(0, newlineIndex).trim(),
-      name: 'chat-image',
-      mimeType: 'image/*',
-      size: 0,
-    },
-  };
-}
-
-function encodeChatMessage(text: string, attachment: ChatAttachment | null) {
-  if (!attachment) {
-    return text;
-  }
-
-  return `${CHAT_ATTACHMENT_PREFIX}${JSON.stringify({ text, attachment })}`;
+  return 'bg-white/15 text-white';
 }
 
 export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
@@ -156,100 +51,145 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
   const [showEmojiPanel, setShowEmojiPanel] = useState(false);
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [connectionState, setConnectionState] = useState<'connecting' | 'live' | 'reconnecting'>('connecting');
+  const [threadSummary, setThreadSummary] = useState<ChatThreadSummary | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
   const username = getCurrentUsername();
+  const draftStorageKey = username ? `live-chat-draft:${username}` : null;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const fetchMessages = async (silent = false) => {
-    if (!username) return;
+  const loadConversation = async (silent = false) => {
+    if (!username) {
+      return;
+    }
+
     try {
-      if (!silent) setLoading(true);
-      const response = await fetch(`${serverUrl}/cs/chat/${username}`, {
-        credentials: 'include',
-        headers: { Authorization: `Bearer ${publicAnonKey}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(data);
+      if (!silent) {
+        setLoading(true);
+      }
+
+      setConnectionState((prev) => (silent && prev === 'live' ? 'live' : 'connecting'));
+
+      const [nextMessages, nextSummary] = await Promise.all([
+        fetchUserChatMessages(username),
+        fetchUserChatSummary(),
+      ]);
+
+      setMessages(nextMessages);
+      setThreadSummary(nextSummary);
+      setConnectionState('live');
+
+      if (Number(nextSummary.unreadAdminCount ?? 0) > 0) {
+        const markedCount = await markUserChatRead();
+        if (markedCount > 0) {
+          setThreadSummary((current) => current ? {
+            ...current,
+            unreadAdminCount: Math.max(0, Number(current.unreadAdminCount ?? 0) - markedCount),
+          } : current);
+          setMessages((current) => current.map((message) => (
+            message.isAdmin ? { ...message, read: true } : message
+          )));
+        }
       }
     } catch {
-      // silently ignore
+      setConnectionState('reconnecting');
+      if (!silent) {
+        toast.error('Chat connection is temporarily unavailable. Retrying in the background.');
+      }
     } finally {
-      if (!silent) setLoading(false);
-    }
-  };
-
-  const markRead = async () => {
-    if (!username) return;
-    try {
-      await fetch(`${serverUrl}/cs/chat/mark-read`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${publicAnonKey}`,
-        },
-        body: JSON.stringify({ username, viewer: 'user' }),
-      });
-    } catch {
-      // silently ignore
+      if (!silent) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
-    if (!isOpen) return;
-    fetchMessages();
-    markRead();
+    if (!isOpen) {
+      return;
+    }
+
+    if (draftStorageKey) {
+      try {
+        const persistedDraft = localStorage.getItem(draftStorageKey);
+        if (persistedDraft) {
+          setNewMessage(persistedDraft);
+        }
+      } catch {
+        // ignore storage read failures
+      }
+    }
+
+    void loadConversation();
     pollRef.current = window.setInterval(() => {
-      fetchMessages(true);
-      markRead();
-    }, 3000);
+      void loadConversation(true);
+    }, 4000);
+
     return () => {
-      if (pollRef.current !== null) window.clearInterval(pollRef.current);
+      if (pollRef.current !== null) {
+        window.clearInterval(pollRef.current);
+      }
     };
-  }, [isOpen, username]);
+  }, [draftStorageKey, isOpen, username]);
+
+  useEffect(() => {
+    if (!draftStorageKey) {
+      return;
+    }
+
+    try {
+      if (newMessage.trim()) {
+        localStorage.setItem(draftStorageKey, newMessage);
+      } else {
+        localStorage.removeItem(draftStorageKey);
+      }
+    } catch {
+      // ignore storage write failures
+    }
+  }, [draftStorageKey, newMessage]);
 
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const sendCurrentMessage = async () => {
     const trimmedMessage = newMessage.trim();
-    if ((!trimmedMessage && !selectedAttachment) || !username) return;
-
-    const outgoingMessage = encodeChatMessage(trimmedMessage, selectedAttachment);
+    if ((!trimmedMessage && !selectedAttachment) || !username) {
+      return;
+    }
 
     try {
       setSending(true);
-      const response = await fetch(`${serverUrl}/cs/chat/send`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${publicAnonKey}`,
-        },
-        body: JSON.stringify({ username, message: outgoingMessage, isAdmin: false }),
-      });
-      if (response.ok) {
-        setNewMessage('');
-        setSelectedAttachment(null);
-        setAttachmentError('');
-        setShowEmojiPanel(false);
-        await fetchMessages(true);
+      await sendUserChatMessage(encodeChatMessage(trimmedMessage, selectedAttachment));
+      setNewMessage('');
+      setSelectedAttachment(null);
+      setAttachmentError('');
+      setShowEmojiPanel(false);
+
+      if (draftStorageKey) {
+        try {
+          localStorage.removeItem(draftStorageKey);
+        } catch {
+          // ignore storage write failures
+        }
       }
+
+      await loadConversation(true);
     } catch {
-      // silently ignore
+      toast.error('Message could not be delivered. Please retry.');
+      setConnectionState('reconnecting');
     } finally {
       setSending(false);
     }
+  };
+
+  const handleSend = async (event: React.FormEvent) => {
+    event.preventDefault();
+    await sendCurrentMessage();
   };
 
   const handlePickAttachment = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -286,7 +226,20 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
     setNewMessage((prev) => `${prev}${emoji}`);
   };
 
-  if (!isOpen) return null;
+  const appendQuickReply = (value: string) => {
+    setNewMessage((prev) => (prev.trim() ? `${prev.trim()}\n${value}` : value));
+  };
+
+  const handleComposerKeyDown = async (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      await sendCurrentMessage();
+    }
+  };
+
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <>
@@ -332,60 +285,104 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
         </div>
       ) : null}
 
-      {/* Overlay */}
-      <div className="fixed inset-0 bg-black/50 z-[60]" onClick={onClose} />
+      <div className="fixed inset-0 z-[60] bg-black/50" onClick={onClose} />
 
-      {/* Chat panel */}
-      <div className="fixed bottom-24 right-6 w-[360px] flex flex-col bg-[#1a1f2e] rounded-xl shadow-2xl z-[60] border border-gray-700 overflow-hidden" style={{ height: '480px' }}>
-        {/* Header */}
-        <div className="bg-gradient-to-r from-cyan-500 to-blue-500 px-4 py-3 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-              <MessageCircle size={18} className="text-white" />
+      <div className="fixed bottom-24 right-6 z-[60] flex h-[620px] w-[390px] max-w-[calc(100vw-18px)] flex-col overflow-hidden rounded-[30px] border border-cyan-200/20 bg-[linear-gradient(180deg,#08141c_0%,#0d1d29_100%)] shadow-[0_28px_70px_rgba(2,12,19,0.52)]">
+        <div className="shrink-0 border-b border-white/10 bg-[linear-gradient(120deg,rgba(72,223,255,0.94)_0%,rgba(18,196,217,0.88)_100%)] px-5 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950/10">
+                <MessageCircle size={18} className="text-white" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-950">Steadfast Live Care</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${getConnectionTone(connectionState)}`}>
+                    {connectionState === 'live' ? <Wifi size={10} /> : <WifiOff size={10} />}
+                    {connectionState === 'live' ? 'Live' : connectionState === 'reconnecting' ? 'Retrying' : 'Connecting'}
+                  </span>
+                  <span className="text-[11px] font-medium text-slate-900/70">Session-secured support</span>
+                </div>
+              </div>
             </div>
-            <div>
-              <p className="text-white font-bold text-sm">Steadfast Online CS</p>
-              <p className="text-white/80 text-xs">We typically reply instantly</p>
+
+            <button onClick={onClose} className="rounded-xl p-2 text-slate-950/80 transition-colors hover:bg-white/20 hover:text-slate-950">
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="rounded-2xl bg-slate-950/12 px-3 py-2 text-slate-950">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-950/65">Unread</p>
+              <p className="mt-1 text-sm font-bold">{Number(threadSummary?.unreadAdminCount ?? 0)}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-950/12 px-3 py-2 text-slate-950">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-950/65">Response</p>
+              <p className="mt-1 text-sm font-bold">{formatChatResponseTime(threadSummary?.averageAdminResponseMs ?? null)}</p>
+            </div>
+            <div className="rounded-2xl bg-slate-950/12 px-3 py-2 text-slate-950">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-950/65">State</p>
+              <p className="mt-1 text-sm font-bold capitalize">{String(threadSummary?.responseState ?? 'idle').replace('-', ' ')}</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white hover:bg-white/20 rounded p-1 transition-colors">
-            <X size={20} />
-          </button>
         </div>
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        <div className="flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(43,88,112,0.28),transparent_40%),linear-gradient(180deg,rgba(7,20,28,0.96)_0%,rgba(9,17,24,0.96)_100%)] px-4 py-4">
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-slate-200">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <ShieldCheck size={16} className="text-cyan-300" />
+              Human support, account-linked history, and attachment-aware replies.
+            </div>
+            <div className="mt-2 flex items-center gap-3 text-xs text-slate-300/70">
+              <span className="inline-flex items-center gap-1"><Clock3 size={12} /> 9AM - 10PM EST</span>
+              <span className="inline-flex items-center gap-1"><Sparkles size={12} /> Modern support inbox</span>
+            </div>
+          </div>
+
           {loading ? (
-            <div className="flex justify-center items-center h-full">
+            <div className="flex h-full items-center justify-center">
               <Loader2 className="animate-spin text-cyan-400" size={28} />
             </div>
           ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <MessageCircle className="text-gray-600 mb-3" size={40} />
-              <p className="text-gray-400 text-sm">No messages yet</p>
-              <p className="text-gray-500 text-xs mt-1">Send a message to start the conversation</p>
+            <div className="flex h-full flex-col items-center justify-center text-center">
+              <MessageCircle className="mb-3 text-slate-600" size={40} />
+              <p className="text-sm text-slate-300">No messages yet</p>
+              <p className="mt-1 text-xs text-slate-400">Start with a short request or tap a suggested prompt below.</p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {QUICK_REPLY_CHIPS.slice(0, 3).map((chip) => (
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => appendQuickReply(chip)}
+                    className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-semibold text-cyan-100"
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
             messages.map((msg) => {
               const decoded = decodeChatMessage(msg.message);
               const attachment = decoded.attachment;
+
               return (
                 <div key={msg.id} className={`flex ${msg.isAdmin ? 'justify-start' : 'justify-end'}`}>
                   <div
-                    className={`max-w-[75%] rounded-2xl px-3 py-2 text-sm ${
+                    className={`max-w-[78%] rounded-2xl px-3 py-2 text-sm ${
                       msg.isAdmin
-                        ? 'bg-[#252b3d] text-gray-200 rounded-tl-sm'
-                        : 'bg-cyan-500 text-white rounded-tr-sm'
+                        ? 'rounded-tl-sm bg-[#252b3d] text-gray-200'
+                        : 'rounded-tr-sm bg-cyan-500 text-white'
                     }`}
                   >
-                    {msg.isAdmin && (
-                      <p className="text-[10px] font-semibold text-cyan-400 mb-1">Support</p>
-                    )}
+                    {msg.isAdmin ? <p className="mb-1 text-[10px] font-semibold text-cyan-400">Support</p> : null}
+
                     {attachment?.type === 'image' ? (
                       <button type="button" onClick={() => setPreviewAttachment(attachment)} className="mb-2 block w-full overflow-hidden rounded-lg">
-                        <img src={attachment.dataUrl} alt={attachment.name || 'Chat attachment'} className="w-full max-h-52 object-cover rounded-lg" />
+                        <img src={attachment.dataUrl} alt={attachment.name || 'Chat attachment'} className="max-h-52 w-full rounded-lg object-cover" />
                       </button>
                     ) : null}
+
                     {attachment?.type === 'video' ? (
                       <div className="mb-2 rounded-lg bg-black/20 p-2">
                         <video controls src={attachment.dataUrl} className="max-h-52 w-full rounded-lg" />
@@ -398,6 +395,7 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
                         </div>
                       </div>
                     ) : null}
+
                     {attachment?.type === 'audio' ? (
                       <div className="mb-2 rounded-lg bg-black/20 p-3">
                         <audio controls src={attachment.dataUrl} className="w-full" />
@@ -410,6 +408,7 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
                         </div>
                       </div>
                     ) : null}
+
                     {attachment?.type === 'file' ? (
                       <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-white/15 bg-black/10 px-3 py-2">
                         <div className="flex min-w-0 items-center gap-2">
@@ -425,11 +424,12 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
                         </button>
                       </div>
                     ) : null}
-                    {decoded.text ? <p className="whitespace-pre-wrap">{decoded.text}</p> : null}
+
                     {decoded.text ? <p className="whitespace-pre-wrap break-words">{decoded.text}</p> : null}
-                    <p className={`text-[10px] mt-1 ${msg.isAdmin ? 'text-gray-500' : 'text-white/70'}`}>
-                      {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+                    <div className={`mt-1 flex items-center justify-between gap-3 text-[10px] ${msg.isAdmin ? 'text-gray-500' : 'text-white/70'}`}>
+                      <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      {!msg.isAdmin ? <span>{msg.read ? 'Seen by support' : 'Delivered'}</span> : null}
+                    </div>
                   </div>
                 </div>
               );
@@ -438,8 +438,20 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
-        <form onSubmit={handleSend} className="px-3 py-3 border-t border-gray-700 shrink-0">
+        <form onSubmit={handleSend} className="shrink-0 border-t border-white/10 bg-[#09131b] px-3 py-3">
+          <div className="mb-3 flex flex-wrap gap-2">
+            {QUICK_REPLY_CHIPS.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => appendQuickReply(chip)}
+                className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold text-slate-200 transition-colors hover:border-cyan-300/30 hover:bg-cyan-300/10 hover:text-cyan-100"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+
           {selectedAttachment ? (
             <div className="mb-2 flex items-center justify-between gap-3 rounded-xl border border-gray-700 bg-[#111827] px-3 py-2">
               <div className="flex min-w-0 items-center gap-2">
@@ -471,13 +483,13 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
           {attachmentError ? <p className="mb-2 text-xs text-amber-400">{attachmentError}</p> : null}
 
           {showEmojiPanel ? (
-            <div className="mb-2 p-2 rounded-lg border border-gray-700 bg-[#111827] flex flex-wrap gap-1.5">
+            <div className="mb-2 flex flex-wrap gap-1.5 rounded-lg border border-gray-700 bg-[#111827] p-2">
               {QUICK_EMOJIS.map((emoji) => (
                 <button
                   key={emoji}
                   type="button"
                   onClick={() => appendEmoji(emoji)}
-                  className="text-lg leading-none hover:scale-110 transition-transform"
+                  className="text-lg leading-none transition-transform hover:scale-110"
                 >
                   {emoji}
                 </button>
@@ -485,7 +497,7 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
             </div>
           ) : null}
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-end gap-2">
             <input
               ref={fileInputRef}
               type="file"
@@ -493,36 +505,42 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
               onChange={handlePickAttachment}
               className="hidden"
             />
+
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-9 h-9 bg-[#252b3d] hover:bg-[#2f374a] rounded-full flex items-center justify-center transition-colors shrink-0"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-[#252b3d] transition-colors hover:bg-[#2f374a] shrink-0"
               aria-label="Attach file"
             >
               <Paperclip size={16} className="text-gray-200" />
             </button>
+
             <button
               type="button"
               onClick={() => setShowEmojiPanel((prev) => !prev)}
-              className="w-9 h-9 bg-[#252b3d] hover:bg-[#2f374a] rounded-full flex items-center justify-center transition-colors shrink-0"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-[#252b3d] transition-colors hover:bg-[#2f374a] shrink-0"
               aria-label="Open emoji picker"
             >
               <Smile size={16} className="text-gray-200" />
             </button>
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type a message..."
-            className="flex-1 bg-[#252b3d] border border-gray-600 rounded-full px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-cyan-500"
-          />
-          <button
-            type="submit"
-            disabled={(!newMessage.trim() && !selectedAttachment) || sending}
-            className="w-9 h-9 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 rounded-full flex items-center justify-center transition-colors shrink-0"
-          >
-            {sending ? <Loader2 size={16} className="animate-spin text-white" /> : <Send size={16} className="text-white" />}
-          </button>
+
+            <textarea
+              value={newMessage}
+              onChange={(event) => setNewMessage(event.target.value)}
+              onKeyDown={handleComposerKeyDown}
+              rows={1}
+              placeholder="Describe the issue, upload evidence, or ask for a reset..."
+              className="max-h-28 min-h-[44px] flex-1 resize-none rounded-3xl border border-gray-600 bg-[#252b3d] px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-cyan-500 focus:outline-none"
+            />
+
+            <button
+              type="submit"
+              disabled={sending || (!newMessage.trim() && !selectedAttachment)}
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-cyan-500 transition-colors hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-50 shrink-0"
+              aria-label="Send message"
+            >
+              {sending ? <Loader2 size={18} className="animate-spin text-white" /> : <Send size={18} className="text-white" />}
+            </button>
           </div>
         </form>
       </div>

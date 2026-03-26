@@ -7487,6 +7487,136 @@ app.post("/make-server-a1c55d7e/cs/update-status", async (c) => {
 });
 
 // Create live chat message
+type ChatAttachmentType = 'image' | 'video' | 'audio' | 'file';
+type ChatResponseState = 'idle' | 'awaiting-support' | 'support-replied';
+
+const CHAT_IMAGE_PREFIX = '__img__:';
+const CHAT_ATTACHMENT_PREFIX = '__att__:';
+const CHAT_ATTACHMENT_PREFIX_LEGACY = '__att_:';
+
+function decodeChatMessagePreview(rawMessage: unknown): { text: string; attachmentType: ChatAttachmentType | null } {
+  const safeRawMessage = typeof rawMessage === 'string' ? rawMessage : '';
+  if (!safeRawMessage) {
+    return { text: '', attachmentType: null };
+  }
+
+  if (safeRawMessage.startsWith(CHAT_ATTACHMENT_PREFIX) || safeRawMessage.startsWith(CHAT_ATTACHMENT_PREFIX_LEGACY)) {
+    try {
+      const payloadString = safeRawMessage.startsWith(CHAT_ATTACHMENT_PREFIX)
+        ? safeRawMessage.slice(CHAT_ATTACHMENT_PREFIX.length)
+        : safeRawMessage.slice(CHAT_ATTACHMENT_PREFIX_LEGACY.length);
+      const payload = JSON.parse(payloadString) as {
+        text?: unknown;
+        attachment?: Record<string, unknown>;
+      };
+      const attachmentType = payload?.attachment?.type;
+      return {
+        text: typeof payload?.text === 'string' ? payload.text.trim() : '',
+        attachmentType: attachmentType === 'image' || attachmentType === 'video' || attachmentType === 'audio' || attachmentType === 'file'
+          ? attachmentType
+          : null,
+      };
+    } catch {
+      return {
+        text: 'Attachment message',
+        attachmentType: null,
+      };
+    }
+  }
+
+  if (!safeRawMessage.startsWith(CHAT_IMAGE_PREFIX)) {
+    return { text: safeRawMessage.trim(), attachmentType: null };
+  }
+
+  const payload = safeRawMessage.slice(CHAT_IMAGE_PREFIX.length);
+  const newlineIndex = payload.indexOf('\n');
+  return {
+    text: newlineIndex === -1 ? '' : payload.slice(newlineIndex + 1).trim(),
+    attachmentType: 'image',
+  };
+}
+
+function buildChatMessagePreview(rawMessage: unknown): { preview: string; attachmentType: ChatAttachmentType | null } {
+  const decoded = decodeChatMessagePreview(rawMessage);
+  if (decoded.attachmentType) {
+    const label = decoded.attachmentType.charAt(0).toUpperCase() + decoded.attachmentType.slice(1);
+    return {
+      preview: decoded.text ? `[${label}] ${decoded.text}` : `[${label}]`,
+      attachmentType: decoded.attachmentType,
+    };
+  }
+
+  return {
+    preview: decoded.text || 'New message',
+    attachmentType: null,
+  };
+}
+
+function computeAverageAdminResponseMs(messages: any[]): number | null {
+  const durations: number[] = [];
+  let pendingUserTimestamp: number | null = null;
+
+  for (const message of messages) {
+    const timestampValue = new Date(String(message?.timestamp ?? '')).getTime();
+    if (!Number.isFinite(timestampValue)) {
+      continue;
+    }
+
+    if (Boolean(message?.isAdmin)) {
+      if (pendingUserTimestamp !== null) {
+        durations.push(Math.max(0, timestampValue - pendingUserTimestamp));
+        pendingUserTimestamp = null;
+      }
+      continue;
+    }
+
+    if (pendingUserTimestamp === null) {
+      pendingUserTimestamp = timestampValue;
+    }
+  }
+
+  if (durations.length === 0) {
+    return null;
+  }
+
+  return Math.round(durations.reduce((sum, duration) => sum + duration, 0) / durations.length);
+}
+
+function buildChatThreadSummary(username: string, messages: any[]) {
+  const safeMessages = Array.isArray(messages)
+    ? messages.filter((message) => message && typeof message === 'object')
+    : [];
+  const lastMessage = safeMessages.length > 0 ? safeMessages[safeMessages.length - 1] : null;
+  const preview = buildChatMessagePreview(lastMessage?.message ?? '');
+  const unreadUserMessages = safeMessages.filter((message) => message?.read === false && !Boolean(message?.isAdmin)).length;
+  const unreadAdminMessages = safeMessages.filter((message) => message?.read === false && Boolean(message?.isAdmin)).length;
+  const latestUserMessage = [...safeMessages].reverse().find((message) => !Boolean(message?.isAdmin) && typeof message?.timestamp === 'string');
+  const latestAdminMessage = [...safeMessages].reverse().find((message) => Boolean(message?.isAdmin) && typeof message?.timestamp === 'string');
+  const lastSenderRole: 'user' | 'admin' | 'system' = lastMessage
+    ? (Boolean(lastMessage?.isAdmin) ? 'admin' : 'user')
+    : 'system';
+  const responseState: ChatResponseState = safeMessages.length === 0
+    ? 'idle'
+    : (lastSenderRole === 'user' ? 'awaiting-support' : 'support-replied');
+
+  return {
+    username,
+    lastMessage: typeof lastMessage?.message === 'string' ? lastMessage.message : '',
+    lastMessagePreview: preview.preview,
+    lastMessageTime: typeof lastMessage?.timestamp === 'string' ? lastMessage.timestamp : '',
+    unreadCount: unreadUserMessages,
+    totalMessages: safeMessages.length,
+    pendingUserMessages: unreadUserMessages,
+    unreadAdminCount: unreadAdminMessages,
+    lastSenderRole,
+    latestUserMessageAt: typeof latestUserMessage?.timestamp === 'string' ? latestUserMessage.timestamp : null,
+    latestAdminMessageAt: typeof latestAdminMessage?.timestamp === 'string' ? latestAdminMessage.timestamp : null,
+    responseState,
+    averageAdminResponseMs: computeAverageAdminResponseMs(safeMessages),
+    lastMessageAttachmentType: preview.attachmentType,
+  };
+}
+
 app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
   try {
     const { username: rawChatUsername, message, isAdmin } = await c.req.json();
@@ -7533,22 +7663,26 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
       username = sessionResult.session.username;
     }
     
-    if (!username || !message) {
+    const normalizedMessage = typeof message === 'string' ? message : '';
+
+    if (!username || !normalizedMessage.trim()) {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
     const chatKey = `chat:${username}`;
     const chatMessages = await kv.get(chatKey) || [];
+    const messageTimestamp = new Date().toISOString();
     
     const newMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-      message,
+      message: normalizedMessage,
       conversationUsername: username,
       sender: isAdmin
         ? (mapAuthUserToAdminRecord(c.get('adminUser') ?? {}).username || c.get('adminUser')?.email || c.get('adminUser')?.id || 'support')
         : username,
       isAdmin: isAdmin || false,
-      timestamp: new Date().toISOString(),
+      timestamp: messageTimestamp,
+      deliveredAt: messageTimestamp,
       read: false,
     };
     
@@ -7740,14 +7874,8 @@ app.get("/make-server-a1c55d7e/cs/admin/chats", async (c) => {
       .filter(row => Array.isArray(row.value) && row.value.length > 0)
       .map(({ key, value: messages }) => {
         const usernameFromKey = sanitizeUsername(key.slice(chatPrefix.length)) || 'unknown';
-        const lastMessage = messages[messages.length - 1];
-        const unreadCount = messages.filter((msg: any) => !msg.read && !msg.isAdmin).length;
         return {
-          username: usernameFromKey,
-          lastMessage: lastMessage.message,
-          lastMessageTime: lastMessage.timestamp,
-          unreadCount,
-          totalMessages: messages.length,
+          ...buildChatThreadSummary(usernameFromKey, messages),
         };
       });
     
@@ -7757,6 +7885,23 @@ app.get("/make-server-a1c55d7e/cs/admin/chats", async (c) => {
   } catch (error) {
     console.error('Error fetching all chats:', error);
     return c.json({ error: 'Failed to fetch all chats' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/chat/summary', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const username = sessionResult.session.username;
+    const messages = await kv.get(`chat:${username}`) || [];
+
+    return c.json(buildChatThreadSummary(username, messages));
+  } catch (error) {
+    console.error('Error fetching user chat summary:', error);
+    return c.json({ error: 'Failed to fetch chat summary' }, 500);
   }
 });
 

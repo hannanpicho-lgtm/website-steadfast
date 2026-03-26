@@ -2028,6 +2028,12 @@ describe('Admin route success path', () => {
     });
     expect(status).toBe(200);
     expect(Array.isArray(body)).toBe(true);
+    if (body.length > 0) {
+      expect(typeof body[0].lastMessagePreview).toBe('string');
+      expect(typeof body[0].pendingUserMessages).toBe('number');
+      expect(typeof body[0].unreadAdminCount).toBe('number');
+      expect(['idle', 'awaiting-support', 'support-replied']).toContain(body[0].responseState);
+    }
   });
 
   it('GET/PUT /admin/salary/project works with valid admin JWT', async () => {

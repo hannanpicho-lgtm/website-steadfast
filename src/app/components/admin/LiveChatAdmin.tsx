@@ -19,6 +19,7 @@ import {
   Music2
 } from 'lucide-react';
 import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
+import { formatChatResponseTime } from '../../services/chatSupport';
 import React from 'react';
 
 interface ChatMessage {
@@ -33,9 +34,18 @@ interface ChatMessage {
 interface ChatSummary {
   username: string;
   lastMessage: string;
+  lastMessagePreview: string;
   lastMessageTime: string;
   unreadCount: number;
   totalMessages: number;
+  pendingUserMessages: number;
+  unreadAdminCount: number;
+  lastSenderRole: 'user' | 'admin' | 'system';
+  latestUserMessageAt: string | null;
+  latestAdminMessageAt: string | null;
+  responseState: 'idle' | 'awaiting-support' | 'support-replied';
+  averageAdminResponseMs: number | null;
+  lastMessageAttachmentType: ChatAttachmentType | null;
 }
 
 type ChatAttachmentType = 'image' | 'video' | 'audio' | 'file';
@@ -393,6 +403,7 @@ export default function LiveChatAdmin() {
   const filteredChats = chatSummaries.filter(chat =>
     chat.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  const selectedChatSummary = chatSummaries.find((chat) => chat.username === selectedChat) ?? null;
 
   return (
     <>
@@ -494,18 +505,15 @@ export default function LiveChatAdmin() {
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-600 truncate mb-1">
-                    {(() => {
-                      const decoded = decodeChatMessage(chat.lastMessage);
-                      if (decoded.attachment) {
-                        return `[${buildAttachmentLabel(decoded.attachment.type)}] ${decoded.text}`.trim();
-                      }
-                      if (chat.lastMessage.startsWith(CHAT_ATTACHMENT_PREFIX) || chat.lastMessage.startsWith(CHAT_ATTACHMENT_PREFIX_LEGACY)) {
-                        return 'Attachment message';
-                      }
-                      return chat.lastMessage;
-                    })()}
-                  </p>
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${chat.responseState === 'awaiting-support' ? 'bg-amber-100 text-amber-700' : chat.responseState === 'support-replied' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {chat.responseState.replace('-', ' ')}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
+                      Avg {formatChatResponseTime(chat.averageAdminResponseMs)}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-600 truncate mb-1">{chat.lastMessagePreview || chat.lastMessage}</p>
                   <p className="text-xs text-gray-400 flex items-center gap-1">
                     <Clock size={12} />
                     {new Date(chat.lastMessageTime).toLocaleString()}
@@ -529,9 +537,16 @@ export default function LiveChatAdmin() {
                 </div>
                 <div>
                   <p className="font-semibold text-gray-900">{selectedChat}</p>
-                  <div className="flex items-center gap-1">
-                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                    <p className="text-xs text-gray-500">Online</p>
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${selectedChatSummary?.responseState === 'awaiting-support' ? 'bg-amber-100 text-amber-700' : selectedChatSummary?.responseState === 'support-replied' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                      {String(selectedChatSummary?.responseState ?? 'idle').replace('-', ' ')}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
+                      Avg {formatChatResponseTime(selectedChatSummary?.averageAdminResponseMs ?? null)}
+                    </span>
+                    <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700">
+                      Pending {Number(selectedChatSummary?.pendingUserMessages ?? 0)}
+                    </span>
                   </div>
                 </div>
               </div>
