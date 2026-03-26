@@ -776,6 +776,8 @@ function roundMoney(value: number): number {
 
 const TRANSACTION_KEY_PREFIX = 'transaction:';
 const WITHDRAWAL_KEY_PREFIX = 'withdrawal:';
+const FINANCIAL_LEDGER_KEY_PREFIX = 'financial-ledger:';
+const DISTRIBUTED_LOCK_KEY_PREFIX = 'financial-lock:';
 const TASK_CATALOG_KEY_PREFIX = 'task-catalog:';
 const VIP_CONFIG_KEY_PREFIX = 'vip-config:';
 const REWARDS_CONFIG_SCHEMA_VERSION = 2;
@@ -2237,6 +2239,112 @@ async function listTransactionRecords(username?: string) {
     .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
 }
 
+type FinancialLedgerEntry = {
+  id: string;
+  username: string;
+  operation: string;
+  reason: string;
+  actor: string;
+  deltaBalance: number;
+  deltaHoldAmount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  holdAmountBefore: number;
+  holdAmountAfter: number;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+};
+
+async function waitMs(ms: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function withFinancialAccountLock<T>(
+  username: string,
+  operation: string,
+  action: () => Promise<T>,
+): Promise<T> {
+  const lockKey = `${DISTRIBUTED_LOCK_KEY_PREFIX}${username}`;
+  const owner = `${operation}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
+  const maxAttempts = 40;
+  const lockTtlMs = 10_000;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const expiresAt = Date.now() + lockTtlMs;
+    const acquired = await kv.setIfNotExists(lockKey, { owner, operation, expiresAt, acquiredAt: new Date().toISOString() });
+    if (acquired) {
+      try {
+        return await action();
+      } finally {
+        await kv.delIfJsonFieldMatches(lockKey, 'owner', owner).catch(() => {
+          // Best-effort lock release.
+        });
+      }
+    }
+
+    const existingLock = await kv.get(lockKey).catch(() => null);
+    const existingExpiry = Number(existingLock?.expiresAt ?? 0);
+    if (Number.isFinite(existingExpiry) && existingExpiry > 0 && existingExpiry <= Date.now()) {
+      const staleOwner = String(existingLock?.owner ?? '');
+      if (staleOwner) {
+        await kv.delIfJsonFieldMatches(lockKey, 'owner', staleOwner).catch(() => {
+          // Best-effort stale lock cleanup.
+        });
+      }
+    }
+
+    await waitMs(50 + (attempt % 5) * 20);
+  }
+
+  throw new Error(`Financial lock timeout for user '${username}' during '${operation}'.`);
+}
+
+async function persistFinancialUserStateWithLedger(input: {
+  username: string;
+  operation: string;
+  reason: string;
+  actor: string;
+  userKey: string;
+  userRecord: any;
+  beforeBalance: number;
+  beforeHoldAmount: number;
+  metadata?: Record<string, unknown>;
+}): Promise<FinancialLedgerEntry | null> {
+  const afterBalance = roundMoney(Number(input.userRecord?.balance ?? 0));
+  const afterHoldAmount = roundMoney(Number(input.userRecord?.holdAmount ?? 0));
+  const beforeBalance = roundMoney(Number(input.beforeBalance ?? 0));
+  const beforeHoldAmount = roundMoney(Number(input.beforeHoldAmount ?? 0));
+
+  const deltaBalance = roundMoney(afterBalance - beforeBalance);
+  const deltaHoldAmount = roundMoney(afterHoldAmount - beforeHoldAmount);
+  const changed = Math.abs(deltaBalance) > RECONCILIATION_EPSILON || Math.abs(deltaHoldAmount) > RECONCILIATION_EPSILON;
+
+  let ledgerEntry: FinancialLedgerEntry | null = null;
+  if (changed) {
+    const createdAt = new Date().toISOString();
+    const entryId = createFinanceId('fledger');
+    ledgerEntry = {
+      id: entryId,
+      username: input.username,
+      operation: input.operation,
+      reason: input.reason,
+      actor: input.actor,
+      deltaBalance,
+      deltaHoldAmount,
+      balanceBefore: beforeBalance,
+      balanceAfter: afterBalance,
+      holdAmountBefore: beforeHoldAmount,
+      holdAmountAfter: afterHoldAmount,
+      metadata: input.metadata,
+      createdAt,
+    };
+    await kv.set(`${FINANCIAL_LEDGER_KEY_PREFIX}${input.username}:${createdAt}:${entryId}`, ledgerEntry);
+  }
+
+  await kv.set(input.userKey, input.userRecord);
+  return ledgerEntry;
+}
+
 async function listWithdrawalRecords(username?: string) {
   const records = await kv.getByPrefix(WITHDRAWAL_KEY_PREFIX);
   return records
@@ -2799,45 +2907,65 @@ async function creditParentReferralFromChildCommission(childUsername: string, ch
     return { rewarded: false, parentReward: 0 };
   }
 
-  const parentUser = await getOrCreateUserRecord(parentUsername);
-  const parentReward = roundMoney(childCommission * REFERRAL_PARENT_RATE);
-  if (parentReward <= 0) {
-    return { rewarded: false, parentReward: 0 };
-  }
+  return withFinancialAccountLock(parentUsername, 'referral-parent-credit', async () => {
+    const parentUser = await getOrCreateUserRecord(parentUsername);
+    const parentReward = roundMoney(childCommission * REFERRAL_PARENT_RATE);
+    if (parentReward <= 0) {
+      return { rewarded: false, parentReward: 0 };
+    }
 
-  parentUser.balance = roundMoney(Number(parentUser.balance ?? 0) + parentReward);
-  parentUser.referralEarnings = roundMoney(Number(parentUser.referralEarnings ?? 0) + parentReward);
-  if (!parentUser.children.includes(childUsername)) {
-    parentUser.children.push(childUsername);
-  }
+    const beforeBalance = roundMoney(Number(parentUser.balance ?? 0));
+    const beforeHoldAmount = roundMoney(Number(parentUser.holdAmount ?? 0));
 
-  await kv.set(`user:${parentUsername}`, parentUser);
-  await kv.set(`referral:event:${Date.now()}:${childUsername}`, {
-    parentUsername,
-    childUsername,
-    type: 'child_checkin',
-    rate: REFERRAL_PARENT_RATE,
-    childCommission,
-    parentReward,
-    createdAt: new Date().toISOString(),
+    parentUser.balance = roundMoney(Number(parentUser.balance ?? 0) + parentReward);
+    parentUser.referralEarnings = roundMoney(Number(parentUser.referralEarnings ?? 0) + parentReward);
+    if (!parentUser.children.includes(childUsername)) {
+      parentUser.children.push(childUsername);
+    }
+
+    await persistFinancialUserStateWithLedger({
+      username: parentUsername,
+      operation: 'referral-parent-credit',
+      reason: `Referral commission from child user '${childUsername}'.`,
+      actor: 'system-referral-engine',
+      userKey: `user:${parentUsername}`,
+      userRecord: parentUser,
+      beforeBalance,
+      beforeHoldAmount,
+      metadata: {
+        childUsername,
+        rate: REFERRAL_PARENT_RATE,
+        childCommission,
+        parentReward,
+      },
+    });
+    await kv.set(`referral:event:${Date.now()}:${childUsername}`, {
+      parentUsername,
+      childUsername,
+      type: 'child_checkin',
+      rate: REFERRAL_PARENT_RATE,
+      childCommission,
+      parentReward,
+      createdAt: new Date().toISOString(),
+    });
+
+    await createTransactionRecord({
+      username: parentUsername,
+      type: 'Commission',
+      amount: parentReward,
+      method: 'Referral',
+      source: 'referral',
+      description: `Referral commission from ${childUsername}`,
+      referenceId: childUsername,
+    });
+
+    return {
+      rewarded: true,
+      parentUsername,
+      parentReward,
+      parentInviteCode: invitedByCode,
+    };
   });
-
-  await createTransactionRecord({
-    username: parentUsername,
-    type: 'Commission',
-    amount: parentReward,
-    method: 'Referral',
-    source: 'referral',
-    description: `Referral commission from ${childUsername}`,
-    referenceId: childUsername,
-  });
-
-  return {
-    rewarded: true,
-    parentUsername,
-    parentReward,
-    parentInviteCode: invitedByCode,
-  };
 }
 
 function sanitizePremiumId(value: unknown): string | null {
@@ -4053,17 +4181,38 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
     await kv.set(`referral:invite:${generatedInviteCode}`, username);
 
     const parentUsername = parentUsernameRaw;
-    const parentData = await getOrCreateUserRecord(parentUsername);
-    if (!Array.isArray(parentData.children)) {
-      parentData.children = [];
-    }
-    if (!parentData.children.includes(username)) {
-      parentData.children.push(username);
-    }
-    const parentReward = roundMoney(100 * REFERRAL_PARENT_RATE);
-    parentData.balance = roundMoney(Number(parentData.balance ?? 0) + parentReward);
-    parentData.referralEarnings = roundMoney(Number(parentData.referralEarnings ?? 0) + parentReward);
-    await kv.set(`user:${parentUsername}`, parentData);
+    const parentReward = await withFinancialAccountLock(parentUsername, 'signup-referral-parent-credit', async () => {
+      const parentData = await getOrCreateUserRecord(parentUsername);
+      if (!Array.isArray(parentData.children)) {
+        parentData.children = [];
+      }
+      if (!parentData.children.includes(username)) {
+        parentData.children.push(username);
+      }
+
+      const referralReward = roundMoney(100 * REFERRAL_PARENT_RATE);
+      const beforeBalance = roundMoney(Number(parentData.balance ?? 0));
+      const beforeHoldAmount = roundMoney(Number(parentData.holdAmount ?? 0));
+      parentData.balance = roundMoney(Number(parentData.balance ?? 0) + referralReward);
+      parentData.referralEarnings = roundMoney(Number(parentData.referralEarnings ?? 0) + referralReward);
+
+      await persistFinancialUserStateWithLedger({
+        username: parentUsername,
+        operation: 'signup-referral-parent-credit',
+        reason: `Referral reward credited from child signup '${username}'.`,
+        actor: username,
+        userKey: `user:${parentUsername}`,
+        userRecord: parentData,
+        beforeBalance,
+        beforeHoldAmount,
+        metadata: {
+          childUsername: username,
+          parentReward: referralReward,
+        },
+      });
+
+      return referralReward;
+    });
 
     return c.json({
       ok: true,
@@ -4211,6 +4360,10 @@ app.post('/make-server-a1c55d7e/auth/session/logout', async (c) => {
 });
 
 async function submitTaskForUser(c: any, username: string, body: any) {
+  return withFinancialAccountLock(username, 'submit-task', async () => submitTaskForUserLocked(c, username, body));
+}
+
+async function submitTaskForUserLocked(c: any, username: string, body: any) {
   const requestedTaskId = sanitizeTaskId(body?.taskId);
   const requestedProductPrice = typeof body?.productPrice === 'number' ? body.productPrice : Number(body?.productPrice);
 
@@ -4242,6 +4395,8 @@ async function submitTaskForUser(c: any, username: string, body: any) {
   }
 
   const normalizedUserData = await syncUserWithVipConfig(userData, username);
+  const beforeBalance = roundMoney(Number(normalizedUserData.balance ?? 0));
+  const beforeHoldAmount = roundMoney(Number(normalizedUserData.holdAmount ?? 0));
   const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
   const requiredFunds = roundMoney(Number(vipConfig.investment ?? 0));
   const availableFunds = roundMoney(Number(normalizedUserData.balance ?? 0) - Number(normalizedUserData.holdAmount ?? 0));
@@ -4317,7 +4472,20 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     normalizedUserData.balance = balanceAfterAssignment;
     normalizedUserData.holdAmount = topUpRequired;
 
-    await kv.set(userKey, normalizedUserData);
+    await persistFinancialUserStateWithLedger({
+      username,
+      operation: 'submit-task-premium-encounter',
+      reason: 'Premium assignment activated from queue during task submission.',
+      actor: username,
+      userKey,
+      userRecord: normalizedUserData,
+      beforeBalance,
+      beforeHoldAmount,
+      metadata: {
+        premiumId: activePremium.id,
+        triggerTaskNumber: queuedTriggerTaskNumber,
+      },
+    });
     await kv.set(`premium:${username}:${activePremium.id}`, activePremium);
 
     return c.json({
@@ -4369,7 +4537,20 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     normalizedUserData.balance = balanceAfterAssignment;
     normalizedUserData.holdAmount = topUpRequired;
 
-    await kv.set(userKey, normalizedUserData);
+    await persistFinancialUserStateWithLedger({
+      username,
+      operation: 'submit-task-system-premium-encounter',
+      reason: 'System premium trigger activated during task submission.',
+      actor: 'system-rule-engine',
+      userKey,
+      userRecord: normalizedUserData,
+      beforeBalance,
+      beforeHoldAmount,
+      metadata: {
+        premiumId: activePremium.id,
+        triggerTaskNumber: premiumTriggerTaskNumber,
+      },
+    });
     await kv.set(`premium:${username}:${activePremium.id}`, activePremium);
 
     return c.json({
@@ -4418,7 +4599,23 @@ async function submitTaskForUser(c: any, username: string, body: any) {
 
   const referralPayout = await creditParentReferralFromChildCommission(username, commission);
 
-  await kv.set(userKey, rewardedUserData);
+  await persistFinancialUserStateWithLedger({
+    username,
+    operation: 'submit-task-complete',
+    reason: 'Task commission and automatic rewards settlement.',
+    actor: username,
+    userKey,
+    userRecord: rewardedUserData,
+    beforeBalance,
+    beforeHoldAmount,
+    metadata: {
+      taskId: selectedTask.id,
+      productPrice,
+      commission,
+      rewardsApplied: rewardResult.rewardsApplied.length,
+      parentReferralRewarded: Boolean(referralPayout.rewarded),
+    },
+  });
 
   const taskKey = `task:${username}:${Date.now()}`;
   const taskRecord = {
@@ -4580,6 +4777,10 @@ app.get('/make-server-a1c55d7e/me/withdrawals', async (c) => {
 });
 
 async function submitWithdrawalRequest(c: any, username: string, body: any) {
+  return withFinancialAccountLock(username, 'withdrawal-request', async () => submitWithdrawalRequestLocked(c, username, body));
+}
+
+async function submitWithdrawalRequestLocked(c: any, username: string, body: any) {
   const walletAddress = sanitizeWalletAddress(body?.walletAddress);
   const method = sanitizeFinanceMethod(body?.method, 'USDT');
   const amount = roundMoney(Number(body?.amount ?? 0));
@@ -4603,6 +4804,8 @@ async function submitWithdrawalRequest(c: any, username: string, body: any) {
   }
 
   const normalizedUserData = await syncUserWithVipConfig(userData, username);
+  const beforeBalance = roundMoney(Number(normalizedUserData.balance ?? 0));
+  const beforeHoldAmount = roundMoney(Number(normalizedUserData.holdAmount ?? 0));
   const storedTransactionPassword = String((normalizedUserData as any).transactionPassword ?? '');
   if (!storedTransactionPassword || !await verifyPassword(transactionPassword, storedTransactionPassword)) {
     return c.json({ error: 'Transaction password is incorrect.' }, 401);
@@ -4676,7 +4879,22 @@ async function submitWithdrawalRequest(c: any, username: string, body: any) {
 
   normalizedUserData.holdAmount = roundMoney(normalizedUserData.holdAmount + amount);
 
-  await kv.set(userKey, normalizedUserData);
+  await persistFinancialUserStateWithLedger({
+    username,
+    operation: 'withdrawal-request',
+    reason: 'Withdrawal requested; funds moved to hold until admin review.',
+    actor: username,
+    userKey,
+    userRecord: normalizedUserData,
+    beforeBalance,
+    beforeHoldAmount,
+    metadata: {
+      withdrawalId: withdrawal.id,
+      transactionId: transaction.id,
+      amount,
+      method,
+    },
+  });
   await kv.set(`${WITHDRAWAL_KEY_PREFIX}${withdrawal.id}`, withdrawal);
   if (idempotencyKey) {
     await kv.set(`withdrawal-idempotency:${username}:${idempotencyKey}`, {
@@ -4767,173 +4985,206 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       return c.json({ error: 'User not found' }, 404);
     }
 
-    const userKey = `user:${canonicalUsername}`;
-    const userData = await kv.get(userKey);
-    
-    if (!userData) {
-      return c.json({ error: 'User not found' }, 404);
-    }
+    const assignmentResult = await withFinancialAccountLock(canonicalUsername, 'admin-assign-premium-bundle', async () => {
+      const userKey = `user:${canonicalUsername}`;
+      const userData = await kv.get(userKey);
 
-    const normalizedUserData = normalizeUserRecord(userData, canonicalUsername);
-    if (!callerIsSuperAdmin && normalizedUserData.referredByAdminId !== callingAdmin?.id) {
-      return c.json({ error: 'Forbidden' }, 403);
-    }
-    const existingPremiumQueue = Array.isArray(normalizedUserData.premiumQueue)
-      ? normalizedUserData.premiumQueue
-      : [];
-    const hasPendingPremium = Boolean(normalizedUserData.activePremium)
-      || existingPremiumQueue.some((entry: any) => {
-        const status = String(entry?.status ?? '').toLowerCase();
-        return status !== 'completed' && status !== 'cancelled';
-      });
-    if (hasPendingPremium) {
-      return c.json({
-        error: 'User already has a pending premium assignment. Complete or cancel it before assigning a new one.',
-        code: 'existing_pending_premium',
-      }, 409);
-    }
-    const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
-    const requestedTriggerTaskNumber = Number.isInteger(Number(triggerTaskNumber)) && Number(triggerTaskNumber) > 0
-      ? Math.round(Number(triggerTaskNumber))
-      : nextSubmissionNumber;
-
-    if (requestedTriggerTaskNumber < nextSubmissionNumber) {
-      return c.json({
-        error: `Trigger position must be Task #${nextSubmissionNumber} or later for this user.`,
-        code: 'invalid_trigger_position',
-        minimumTriggerTaskNumber: nextSubmissionNumber,
-      }, 400);
-    }
-
-    let bundledProducts: Array<typeof productCatalog[number]> = [];
-    if (selectedBundledProductsInput.length > 0) {
-      if (selectedBundledProductsInput.length > 3) {
-        return c.json({ error: 'No more than 3 bundled products can be selected' }, 400);
+      if (!userData) {
+        return { response: c.json({ error: 'User not found' }, 404) } as const;
       }
-      const seenProductIds = new Set<number>();
-      for (const selectedProduct of selectedBundledProductsInput) {
-        const selectedId = Number(selectedProduct?.id);
-        if (!Number.isInteger(selectedId)) {
-          return c.json({ error: 'Each selected bundled product must include a valid id' }, 400);
-        }
-        if (seenProductIds.has(selectedId)) {
-          continue;
-        }
-        const catalogProduct = productCatalog.find((product) => product.id === selectedId);
-        if (!catalogProduct) {
-          return c.json({ error: `Invalid bundled product id: ${selectedId}` }, 400);
-        }
-        const requestedPrice = Number(selectedProduct?.price);
-        const resolvedPrice = Number.isFinite(requestedPrice) && requestedPrice > 0
-          ? roundMoney(requestedPrice)
-          : roundMoney(catalogProduct.price);
-        bundledProducts.push({
-          ...catalogProduct,
-          price: resolvedPrice,
+
+      const normalizedUserData = normalizeUserRecord(userData, canonicalUsername);
+      if (!callerIsSuperAdmin && normalizedUserData.referredByAdminId !== callingAdmin?.id) {
+        return { response: c.json({ error: 'Forbidden' }, 403) } as const;
+      }
+      const existingPremiumQueue = Array.isArray(normalizedUserData.premiumQueue)
+        ? normalizedUserData.premiumQueue
+        : [];
+      const hasPendingPremium = Boolean(normalizedUserData.activePremium)
+        || existingPremiumQueue.some((entry: any) => {
+          const status = String(entry?.status ?? '').toLowerCase();
+          return status !== 'completed' && status !== 'cancelled';
         });
-        seenProductIds.add(selectedId);
+      if (hasPendingPremium) {
+        return {
+          response: c.json({
+            error: 'User already has a pending premium assignment. Complete or cancel it before assigning a new one.',
+            code: 'existing_pending_premium',
+          }, 409),
+        } as const;
       }
-      if (!bundledProducts.length) {
-        return c.json({ error: 'At least one bundled product must be selected' }, 400);
-      }
-    } else {
-      const normalizedBundledCount = Math.round(parsedBundledCount);
-      if (![1, 2, 3].includes(normalizedBundledCount)) {
-        return c.json({ error: 'Bundled product count must be 1, 2, or 3' }, 400);
-      }
-      const sortedProducts = [...productCatalog].sort((a, b) => b.price - a.price);
-      bundledProducts = sortedProducts.slice(0, normalizedBundledCount);
-    }
-    const effectiveBundledCount = bundledProducts.length;
-    
-    // Calculate total bundle value
-    const bundledProductsTotal = roundMoney(bundledProducts.reduce((sum, p) => sum + p.price, 0));
-    const sanitizedPremiumValue = Number.isFinite(Number(premiumProductValue))
-      ? roundMoney(Math.max(0, Number(premiumProductValue)))
-      : 0;
-    const totalBundleValue = roundMoney(sanitizedPremiumValue + bundledProductsTotal);
 
-    // Calculate balance after assignment
-    const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
-    const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - totalBundleValue);
-    // Use admin-defined uphold amount if provided (deterministic), otherwise calculate
-    const negativeAmount = Number.isFinite(Number(upholdAmountOverride)) && Number(upholdAmountOverride) > 0
-      ? roundMoney(Number(upholdAmountOverride))
-      : roundMoney(Math.max(0, -balanceAfterAssignment));
-    
-    // Create premium assignment
-    const premiumAssignment = {
-      id: `premium-${Date.now()}`,
-      premiumProductValue: sanitizedPremiumValue,
-      premiumProductName: sanitizedPremiumValue > 0 ? `Premium Product ($${sanitizedPremiumValue})` : 'Premium Product',
-      bundledProducts,
-      totalBundleValue,
-      balanceBeforeAssignment,
-      balanceAfterAssignment,
-      negativeAmount,
-      configuredUpholdAmount: Number.isFinite(Number(upholdAmountOverride)) && Number(upholdAmountOverride) > 0
+      const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
+      const requestedTriggerTaskNumber = Number.isInteger(Number(triggerTaskNumber)) && Number(triggerTaskNumber) > 0
+        ? Math.round(Number(triggerTaskNumber))
+        : nextSubmissionNumber;
+
+      if (requestedTriggerTaskNumber < nextSubmissionNumber) {
+        return {
+          response: c.json({
+            error: `Trigger position must be Task #${nextSubmissionNumber} or later for this user.`,
+            code: 'invalid_trigger_position',
+            minimumTriggerTaskNumber: nextSubmissionNumber,
+          }, 400),
+        } as const;
+      }
+
+      let bundledProducts: Array<typeof productCatalog[number]> = [];
+      if (selectedBundledProductsInput.length > 0) {
+        if (selectedBundledProductsInput.length > 3) {
+          return { response: c.json({ error: 'No more than 3 bundled products can be selected' }, 400) } as const;
+        }
+        const seenProductIds = new Set<number>();
+        for (const selectedProduct of selectedBundledProductsInput) {
+          const selectedId = Number(selectedProduct?.id);
+          if (!Number.isInteger(selectedId)) {
+            return { response: c.json({ error: 'Each selected bundled product must include a valid id' }, 400) } as const;
+          }
+          if (seenProductIds.has(selectedId)) {
+            continue;
+          }
+          const catalogProduct = productCatalog.find((product) => product.id === selectedId);
+          if (!catalogProduct) {
+            return { response: c.json({ error: `Invalid bundled product id: ${selectedId}` }, 400) } as const;
+          }
+          const requestedPrice = Number(selectedProduct?.price);
+          const resolvedPrice = Number.isFinite(requestedPrice) && requestedPrice > 0
+            ? roundMoney(requestedPrice)
+            : roundMoney(catalogProduct.price);
+          bundledProducts.push({
+            ...catalogProduct,
+            price: resolvedPrice,
+          });
+          seenProductIds.add(selectedId);
+        }
+        if (!bundledProducts.length) {
+          return { response: c.json({ error: 'At least one bundled product must be selected' }, 400) } as const;
+        }
+      } else {
+        const normalizedBundledCount = Math.round(parsedBundledCount);
+        if (![1, 2, 3].includes(normalizedBundledCount)) {
+          return { response: c.json({ error: 'Bundled product count must be 1, 2, or 3' }, 400) } as const;
+        }
+        const sortedProducts = [...productCatalog].sort((a, b) => b.price - a.price);
+        bundledProducts = sortedProducts.slice(0, normalizedBundledCount);
+      }
+      const effectiveBundledCount = bundledProducts.length;
+
+      const bundledProductsTotal = roundMoney(bundledProducts.reduce((sum, p) => sum + p.price, 0));
+      const sanitizedPremiumValue = Number.isFinite(Number(premiumProductValue))
+        ? roundMoney(Math.max(0, Number(premiumProductValue)))
+        : 0;
+      const totalBundleValue = roundMoney(sanitizedPremiumValue + bundledProductsTotal);
+
+      const beforeBalance = roundMoney(Number(normalizedUserData.balance ?? 0));
+      const beforeHoldAmount = roundMoney(Number(normalizedUserData.holdAmount ?? 0));
+      const balanceAfterAssignment = roundMoney(beforeBalance - totalBundleValue);
+      const negativeAmount = Number.isFinite(Number(upholdAmountOverride)) && Number(upholdAmountOverride) > 0
         ? roundMoney(Number(upholdAmountOverride))
-        : 0,
-      topUpRequired: negativeAmount,
-      tasksCompleted: 0,
-      totalTasks: 1 + effectiveBundledCount, // Premium + bundled products
-      assignedAt: new Date().toISOString(),
-      assignedBy: adminUsername || 'admin',
-      status: 'scheduled',
-      commissionEarned: 0,
-      encounterPosition: requestedTriggerTaskNumber,
-      triggerTaskNumber: requestedTriggerTaskNumber,
-    };
+        : roundMoney(Math.max(0, -balanceAfterAssignment));
 
-    const existingQueue = Array.isArray(normalizedUserData.premiumQueue)
-      ? normalizedUserData.premiumQueue
-      : [];
-    const activePremiumId = typeof normalizedUserData.activePremium?.id === 'string'
-      ? normalizedUserData.activePremium.id
-      : null;
+      const premiumAssignment = {
+        id: `premium-${Date.now()}`,
+        premiumProductValue: sanitizedPremiumValue,
+        premiumProductName: sanitizedPremiumValue > 0 ? `Premium Product ($${sanitizedPremiumValue})` : 'Premium Product',
+        bundledProducts,
+        totalBundleValue,
+        balanceBeforeAssignment: beforeBalance,
+        balanceAfterAssignment,
+        negativeAmount,
+        configuredUpholdAmount: Number.isFinite(Number(upholdAmountOverride)) && Number(upholdAmountOverride) > 0
+          ? roundMoney(Number(upholdAmountOverride))
+          : 0,
+        topUpRequired: negativeAmount,
+        tasksCompleted: 0,
+        totalTasks: 1 + effectiveBundledCount,
+        assignedAt: new Date().toISOString(),
+        assignedBy: adminUsername || 'admin',
+        status: 'scheduled',
+        commissionEarned: 0,
+        encounterPosition: requestedTriggerTaskNumber,
+        triggerTaskNumber: requestedTriggerTaskNumber,
+      };
 
-    if (activePremiumId) {
-      const activeQueueEntry = existingQueue.find((entry: any) => entry?.id === activePremiumId) ?? normalizedUserData.activePremium;
-      const scheduledQueue = existingQueue.filter((entry: any) => entry?.id !== activePremiumId);
-      normalizedUserData.premiumQueue = [activeQueueEntry, ...sortPremiumAssignmentsByTrigger([...scheduledQueue, premiumAssignment])];
-    } else {
-      normalizedUserData.premiumQueue = sortPremiumAssignmentsByTrigger([...existingQueue, premiumAssignment]);
+      const existingQueue = Array.isArray(normalizedUserData.premiumQueue)
+        ? normalizedUserData.premiumQueue
+        : [];
+      const activePremiumId = typeof normalizedUserData.activePremium?.id === 'string'
+        ? normalizedUserData.activePremium.id
+        : null;
+
+      if (activePremiumId) {
+        const activeQueueEntry = existingQueue.find((entry: any) => entry?.id === activePremiumId) ?? normalizedUserData.activePremium;
+        const scheduledQueue = existingQueue.filter((entry: any) => entry?.id !== activePremiumId);
+        normalizedUserData.premiumQueue = [activeQueueEntry, ...sortPremiumAssignmentsByTrigger([...scheduledQueue, premiumAssignment])];
+      } else {
+        normalizedUserData.premiumQueue = sortPremiumAssignmentsByTrigger([...existingQueue, premiumAssignment]);
+      }
+
+      const queuedHead = normalizedUserData.premiumQueue[0];
+      const shouldActivateImmediately = !normalizedUserData.activePremium
+        && queuedHead?.id === premiumAssignment.id
+        && requestedTriggerTaskNumber === nextSubmissionNumber;
+
+      if (shouldActivateImmediately) {
+        premiumAssignment.status = negativeAmount > 0 ? 'awaiting_funds' : 'active';
+        normalizedUserData.isFrozen = true;
+        normalizedUserData.activePremium = premiumAssignment;
+        normalizedUserData.balance = balanceAfterAssignment;
+        normalizedUserData.holdAmount = negativeAmount;
+        await persistFinancialUserStateWithLedger({
+          username: canonicalUsername,
+          operation: 'admin-assign-premium-bundle',
+          reason: 'Premium bundle assignment activated immediately and reserved user balance/hold.',
+          actor: adminUsername,
+          userKey,
+          userRecord: normalizedUserData,
+          beforeBalance,
+          beforeHoldAmount,
+          metadata: {
+            premiumId: premiumAssignment.id,
+            totalBundleValue,
+            topUpRequired: negativeAmount,
+            triggerTaskNumber: requestedTriggerTaskNumber,
+          },
+        });
+      } else {
+        await kv.set(userKey, normalizedUserData);
+      }
+
+      const premiumKey = `premium:${canonicalUsername}:${premiumAssignment.id}`;
+      await kv.set(premiumKey, premiumAssignment);
+
+      return {
+        premiumAssignment,
+        balanceAfter: balanceAfterAssignment,
+        topUpRequired: negativeAmount,
+        queuePosition: normalizedUserData.premiumQueue.length,
+        sanitizedPremiumValue,
+        effectiveBundledCount,
+        requestedTriggerTaskNumber,
+        totalBundleValue,
+      } as const;
+    });
+
+    if ('response' in assignmentResult) {
+      return assignmentResult.response;
     }
-
-    const queuedHead = normalizedUserData.premiumQueue[0];
-    const shouldActivateImmediately = !normalizedUserData.activePremium
-      && queuedHead?.id === premiumAssignment.id
-      && requestedTriggerTaskNumber === nextSubmissionNumber;
-
-    if (shouldActivateImmediately) {
-      premiumAssignment.status = negativeAmount > 0 ? 'awaiting_funds' : 'active';
-      normalizedUserData.isFrozen = true;
-      normalizedUserData.activePremium = premiumAssignment;
-      normalizedUserData.balance = balanceAfterAssignment;
-      normalizedUserData.holdAmount = negativeAmount;
-    }
-    
-    await kv.set(userKey, normalizedUserData);
-    
-    // Save premium assignment record
-    const premiumKey = `premium:${canonicalUsername}:${premiumAssignment.id}`;
-    await kv.set(premiumKey, premiumAssignment);
-
     const assignActorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
       ? callingAdmin.email
       : String(callingAdmin?.id ?? 'unknown');
     await recordObservabilityAuditEvent(
       'admin-premium-bundle-assign',
       assignActorEmail,
-      `Assigned premium bundle ($${sanitizedPremiumValue}, ${effectiveBundledCount} bundled product${effectiveBundledCount !== 1 ? 's' : ''}) to user '${canonicalUsername}' for task #${requestedTriggerTaskNumber} — total value $${totalBundleValue}`,
+      `Assigned premium bundle ($${assignmentResult.sanitizedPremiumValue}, ${assignmentResult.effectiveBundledCount} bundled product${assignmentResult.effectiveBundledCount !== 1 ? 's' : ''}) to user '${canonicalUsername}' for task #${assignmentResult.requestedTriggerTaskNumber} — total value $${assignmentResult.totalBundleValue}`,
     ).catch((e) => console.error('Failed to record admin-premium-bundle-assign audit event:', e));
 
     return c.json({
       success: true,
-      premiumAssignment,
-      balanceAfter: balanceAfterAssignment,
-      topUpRequired: negativeAmount,
-      queuePosition: normalizedUserData.premiumQueue.length,
+      premiumAssignment: assignmentResult.premiumAssignment,
+      balanceAfter: assignmentResult.balanceAfter,
+      topUpRequired: assignmentResult.topUpRequired,
+      queuePosition: assignmentResult.queuePosition,
     });
   } catch (error) {
     console.error('Error assigning premium bundle:', error);
@@ -4942,6 +5193,10 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
 })
 
 async function completePremiumTaskForUser(c: any, username: string, productPrice: number) {
+  return withFinancialAccountLock(username, 'complete-premium-task', async () => completePremiumTaskForUserLocked(c, username, productPrice));
+}
+
+async function completePremiumTaskForUserLocked(c: any, username: string, productPrice: number) {
   if (typeof productPrice !== 'number' || !Number.isFinite(productPrice) || productPrice <= 0) {
     return c.json({ error: 'productPrice must be a positive finite number' }, 400);
   }
@@ -4954,6 +5209,8 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
   }
 
   const normalizedUserData = normalizeUserRecord(userData, username);
+  const beforeBalance = roundMoney(Number(normalizedUserData.balance ?? 0));
+  const beforeHoldAmount = roundMoney(Number(normalizedUserData.holdAmount ?? 0));
   if (!normalizedUserData.activePremium) {
     return c.json({ error: 'No active premium assignment' }, 404);
   }
@@ -4999,7 +5256,26 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
   const rewardResult = await applyAutomaticRewardsForUser(username, normalizedUserData);
   const rewardedUserData = rewardResult.normalizedUser;
 
-  await kv.set(userKey, rewardedUserData);
+  await persistFinancialUserStateWithLedger({
+    username,
+    operation: 'complete-premium-task',
+    reason: premium.status === 'completed'
+      ? 'Premium task completion with hold release settlement.'
+      : 'Premium task commission credit.',
+    actor: username,
+    userKey,
+    userRecord: rewardedUserData,
+    beforeBalance,
+    beforeHoldAmount,
+    metadata: {
+      premiumId: premium.id,
+      commission,
+      premiumStatus: premium.status,
+      tasksCompleted: premium.tasksCompleted,
+      totalTasks: premium.totalTasks,
+      parentReferralRewarded: Boolean(premiumReferralPayout.rewarded),
+    },
+  });
 
   const premiumKey = `premium:${username}:${premium.id}`;
   await kv.set(premiumKey, premium);
@@ -5116,50 +5392,68 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
 
     const username = premiumOwner.username;
 
-    const userKey = `user:${username}`;
-    const userData = await kv.get(userKey);
-    
-    if (!userData) {
-      return c.json({ error: 'User not found' }, 404);
-    }
+    const cancelResult = await withFinancialAccountLock(username, 'admin-cancel-premium', async () => {
+      const userKey = `user:${username}`;
+      const userData = await kv.get(userKey);
 
-    // Find and remove from queue
-    const premiumIndex = userData.premiumQueue.findIndex(p => p.id === premiumId);
-    if (premiumIndex === -1) {
-      return c.json({ error: 'Premium assignment not found' }, 404);
-    }
-
-    const cancelledPremium = userData.premiumQueue[premiumIndex];
-    cancelledPremium.status = 'cancelled';
-    cancelledPremium.cancelledAt = new Date().toISOString();
-    
-    // If cancelling active premium
-    if (userData.activePremium?.id === premiumId) {
-      // Restore balance
-      userData.balance = cancelledPremium.balanceBeforeAssignment;
-      userData.holdAmount = 0;
-      
-      // Remove from queue
-      userData.premiumQueue.splice(premiumIndex, 1);
-      
-      // Activate next if exists
-      if (userData.premiumQueue.length > 0) {
-        userData.activePremium = userData.premiumQueue[0];
-        userData.isFrozen = true;
-      } else {
-        userData.activePremium = null;
-        userData.isFrozen = false;
+      if (!userData) {
+        return { response: c.json({ error: 'User not found' }, 404) } as const;
       }
-    } else {
-      // Just remove from queue
-      userData.premiumQueue.splice(premiumIndex, 1);
+
+      const normalizedUserData = normalizeUserRecord(userData, username);
+      const premiumIndex = normalizedUserData.premiumQueue.findIndex((p) => p.id === premiumId);
+      if (premiumIndex === -1) {
+        return { response: c.json({ error: 'Premium assignment not found' }, 404) } as const;
+      }
+
+      const cancelledPremium = normalizedUserData.premiumQueue[premiumIndex];
+      cancelledPremium.status = 'cancelled';
+      cancelledPremium.cancelledAt = new Date().toISOString();
+
+      const beforeBalance = roundMoney(Number(normalizedUserData.balance ?? 0));
+      const beforeHoldAmount = roundMoney(Number(normalizedUserData.holdAmount ?? 0));
+      const wasActivePremium = normalizedUserData.activePremium?.id === premiumId;
+      if (wasActivePremium) {
+        normalizedUserData.balance = roundMoney(Number(cancelledPremium.balanceBeforeAssignment ?? normalizedUserData.balance ?? 0));
+        normalizedUserData.holdAmount = 0;
+        normalizedUserData.premiumQueue.splice(premiumIndex, 1);
+
+        if (normalizedUserData.premiumQueue.length > 0) {
+          normalizedUserData.activePremium = normalizedUserData.premiumQueue[0];
+          normalizedUserData.isFrozen = true;
+        } else {
+          normalizedUserData.activePremium = null;
+          normalizedUserData.isFrozen = false;
+        }
+
+        await persistFinancialUserStateWithLedger({
+          username,
+          operation: 'admin-cancel-premium',
+          reason: `Cancelled active premium assignment '${premiumId}' and restored customer balance state.`,
+          actor: username,
+          userKey,
+          userRecord: normalizedUserData,
+          beforeBalance,
+          beforeHoldAmount,
+          metadata: {
+            premiumId,
+            cancelledBundleValue: roundMoney(Number(cancelledPremium.totalBundleValue ?? 0)),
+          },
+        });
+      } else {
+        normalizedUserData.premiumQueue.splice(premiumIndex, 1);
+        await kv.set(userKey, normalizedUserData);
+      }
+
+      const premiumKey = `premium:${username}:${premiumId}`;
+      await kv.set(premiumKey, cancelledPremium);
+
+      return { cancelledPremium } as const;
+    });
+
+    if ('response' in cancelResult) {
+      return cancelResult.response;
     }
-    
-    await kv.set(userKey, userData);
-    
-    // Update premium record
-    const premiumKey = `premium:${username}:${premiumId}`;
-    await kv.set(premiumKey, cancelledPremium);
 
     const cancelActorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
       ? callingAdmin.email
@@ -5167,7 +5461,7 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
     await recordObservabilityAuditEvent(
       'admin-premium-cancel',
       cancelActorEmail,
-      `Cancelled premium assignment '${premiumId}' ($${cancelledPremium.totalBundleValue ?? 0}) for user '${username}'`,
+      `Cancelled premium assignment '${premiumId}' ($${cancelResult.cancelledPremium.totalBundleValue ?? 0}) for user '${username}'`,
     ).catch((e) => console.error('Failed to record admin-premium-cancel audit event:', e));
 
     return c.json({ success: true, message: 'Premium assignment cancelled' });
@@ -6584,47 +6878,74 @@ app.post('/make-server-a1c55d7e/admin/withdrawals/:withdrawalId/review', async (
     }
 
     const userKey = `user:${withdrawal.username}`;
-    const userData = await kv.get(userKey);
-    if (!userData) {
-      return c.json({ error: 'User not found' }, 404);
-    }
+    const reviewResult = await withFinancialAccountLock(withdrawal.username, 'admin-withdrawal-review', async () => {
+      const userData = await kv.get(userKey);
+      if (!userData) {
+        return { response: c.json({ error: 'User not found' }, 404) } as const;
+      }
 
-    const normalizedUserData = normalizeUserRecord(userData, withdrawal.username);
-    if (!callerIsSuperAdmin && normalizedUserData.referredByAdminId !== callingAdmin?.id) {
-      return c.json({ error: 'Forbidden' }, 403);
-    }
+      const normalizedUserData = normalizeUserRecord(userData, withdrawal.username);
+      if (!callerIsSuperAdmin && normalizedUserData.referredByAdminId !== callingAdmin?.id) {
+        return { response: c.json({ error: 'Forbidden' }, 403) } as const;
+      }
 
-    const reviewedAt = new Date().toISOString();
-    withdrawal.status = action === 'approve' ? 'Approved' : 'Rejected';
-    withdrawal.reviewedAt = reviewedAt;
-    withdrawal.reviewerId = callingAdmin?.id ?? null;
-    withdrawal.reviewerEmail = typeof callingAdmin?.email === 'string' ? callingAdmin.email : null;
-    withdrawal.txHash = txHash;
-    withdrawal.rejectionReason = action === 'reject' ? rejectionReason : '';
+      const beforeBalance = roundMoney(Number(normalizedUserData.balance ?? 0));
+      const beforeHoldAmount = roundMoney(Number(normalizedUserData.holdAmount ?? 0));
+      const reviewedAt = new Date().toISOString();
+      withdrawal.status = action === 'approve' ? 'Approved' : 'Rejected';
+      withdrawal.reviewedAt = reviewedAt;
+      withdrawal.reviewerId = callingAdmin?.id ?? null;
+      withdrawal.reviewerEmail = typeof callingAdmin?.email === 'string' ? callingAdmin.email : null;
+      withdrawal.txHash = txHash;
+      withdrawal.rejectionReason = action === 'reject' ? rejectionReason : '';
 
-    if (action === 'approve') {
-      normalizedUserData.holdAmount = roundMoney(Math.max(0, normalizedUserData.holdAmount - withdrawal.amount));
-      normalizedUserData.balance = roundMoney(normalizedUserData.balance - withdrawal.amount);
-    } else {
-      normalizedUserData.holdAmount = roundMoney(Math.max(0, normalizedUserData.holdAmount - withdrawal.amount));
-    }
+      if (action === 'approve') {
+        normalizedUserData.holdAmount = roundMoney(Math.max(0, normalizedUserData.holdAmount - withdrawal.amount));
+        normalizedUserData.balance = roundMoney(normalizedUserData.balance - withdrawal.amount);
+      } else {
+        normalizedUserData.holdAmount = roundMoney(Math.max(0, normalizedUserData.holdAmount - withdrawal.amount));
+      }
 
-    const transactionKey = `${TRANSACTION_KEY_PREFIX}${withdrawal.transactionId}`;
-    const existingTransaction = await kv.get(transactionKey);
-    if (existingTransaction) {
-      const updatedTransaction = normalizeTransactionRecord({
-        ...existingTransaction,
-        status: action === 'approve' ? 'Completed' : 'Rejected',
-        txHash,
-        updatedAt: reviewedAt,
-        date: reviewedAt,
-        description: action === 'approve' ? 'Withdrawal approved by admin' : 'Withdrawal rejected by admin',
+      const transactionKey = `${TRANSACTION_KEY_PREFIX}${withdrawal.transactionId}`;
+      const existingTransaction = await kv.get(transactionKey);
+      if (existingTransaction) {
+        const updatedTransaction = normalizeTransactionRecord({
+          ...existingTransaction,
+          status: action === 'approve' ? 'Completed' : 'Rejected',
+          txHash,
+          updatedAt: reviewedAt,
+          date: reviewedAt,
+          description: action === 'approve' ? 'Withdrawal approved by admin' : 'Withdrawal rejected by admin',
+        });
+        await kv.set(transactionKey, updatedTransaction);
+      }
+
+      await kv.set(withdrawalKey, withdrawal);
+      await persistFinancialUserStateWithLedger({
+        username: withdrawal.username,
+        operation: 'admin-withdrawal-review',
+        reason: action === 'approve'
+          ? `Admin approved withdrawal '${withdrawal.id}'.`
+          : `Admin rejected withdrawal '${withdrawal.id}' and released held funds.`,
+        actor: String(callingAdmin?.email ?? callingAdmin?.id ?? 'admin'),
+        userKey,
+        userRecord: normalizedUserData,
+        beforeBalance,
+        beforeHoldAmount,
+        metadata: {
+          action,
+          withdrawalId,
+          amount: withdrawal.amount,
+          txHash,
+        },
       });
-      await kv.set(transactionKey, updatedTransaction);
-    }
 
-    await kv.set(withdrawalKey, withdrawal);
-    await kv.set(userKey, normalizedUserData);
+      return { normalizedUserData } as const;
+    });
+
+    if ('response' in reviewResult) {
+      return reviewResult.response;
+    }
 
     const reviewActorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
       ? callingAdmin.email
@@ -6642,9 +6963,9 @@ app.post('/make-server-a1c55d7e/admin/withdrawals/:withdrawalId/review', async (
     return c.json({
       success: true,
       withdrawal,
-      balance: normalizedUserData.balance,
-      holdAmount: normalizedUserData.holdAmount,
-      availableAmount: roundMoney(normalizedUserData.balance - normalizedUserData.holdAmount),
+      balance: reviewResult.normalizedUserData.balance,
+      holdAmount: reviewResult.normalizedUserData.holdAmount,
+      availableAmount: roundMoney(reviewResult.normalizedUserData.balance - reviewResult.normalizedUserData.holdAmount),
     });
   } catch (error) {
     console.error('Error reviewing withdrawal request:', error);
@@ -8086,59 +8407,93 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
 
     const callingAdmin = c.get('adminUser');
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
-    const userKey = `user:${username}`;
-    const existingUser = await kv.get(userKey);
-    if (!existingUser) {
-      return c.json({ error: 'User not found' }, 404);
-    }
-
-    const normalizedUser = await syncUserWithVipConfig(existingUser, username);
-    if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
-      return c.json({ error: 'Forbidden' }, 403);
-    }
-
     const body = await c.req.json();
-    const nextTaskSetCount = Number.isFinite(Number(body?.taskSetCount))
-      ? Math.max(1, Math.round(Number(body.taskSetCount)))
-      : normalizedUser.taskSetCount;
-    const vipConfig = await getVipConfigForLevel(Number(normalizedUser.vipLevel ?? 1));
-    const nextTasksPerSet = Math.max(1, Math.round(Number(vipConfig.dailyTasks ?? normalizedUser.tasksPerSet ?? 1)));
     const shouldResetCurrentSet = body?.resetCurrentSet === true;
     const shouldUnfreezeAccount = body?.restoreNaturalState === true || body?.unfreezeAccount === true;
     const shouldSuspendAccount = body?.suspendAccount === true;
     const shouldUnsuspendAccount = body?.unsuspendAccount === true;
-
-    normalizedUser.taskSetCountOverride = nextTaskSetCount;
-    normalizedUser.tasksPerSetOverride = null;
-    normalizedUser.taskSetCount = nextTaskSetCount;
-    normalizedUser.tasksPerSet = nextTasksPerSet;
-    normalizedUser.tasksLimit = nextTaskSetCount * nextTasksPerSet;
-    normalizedUser.tasksCompleted = Math.min(normalizedUser.tasksCompleted, normalizedUser.tasksLimit);
-
-    if (shouldResetCurrentSet) {
-      if (!normalizedUser.pendingTaskReset && normalizedUser.tasksCompletedInSet < normalizedUser.tasksPerSet) {
-        return c.json({ error: 'Current task set is not yet complete.' }, 400);
+    const taskControlResult = await withFinancialAccountLock(username, 'admin-task-controls', async () => {
+      const userKey = `user:${username}`;
+      const existingUser = await kv.get(userKey);
+      if (!existingUser) {
+        return { response: c.json({ error: 'User not found' }, 404) } as const;
       }
-      normalizedUser.completedTaskSets = Math.min(normalizedUser.completedTaskSets + 1, normalizedUser.taskSetCount);
-      normalizedUser.tasksCompletedInSet = 0;
-      normalizedUser.pendingTaskReset = false;
-    }
 
-    if (shouldSuspendAccount) {
-      normalizedUser.isSuspended = true;
-    }
+      const normalizedUser = await syncUserWithVipConfig(existingUser, username);
+      if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
+        return { response: c.json({ error: 'Forbidden' }, 403) } as const;
+      }
 
-    if (shouldUnsuspendAccount) {
-      normalizedUser.isSuspended = false;
-    }
+      const nextTaskSetCount = Number.isFinite(Number(body?.taskSetCount))
+        ? Math.max(1, Math.round(Number(body.taskSetCount)))
+        : normalizedUser.taskSetCount;
+      const vipConfig = await getVipConfigForLevel(Number(normalizedUser.vipLevel ?? 1));
+      const nextTasksPerSet = Math.max(1, Math.round(Number(vipConfig.dailyTasks ?? normalizedUser.tasksPerSet ?? 1)));
+      const beforeBalance = roundMoney(Number(normalizedUser.balance ?? 0));
+      const beforeHoldAmount = roundMoney(Number(normalizedUser.holdAmount ?? 0));
 
-    if (shouldUnfreezeAccount) {
-      const restored = restoreUserToNaturalState(normalizedUser);
-      Object.assign(normalizedUser, restored);
-      normalizedUser.pendingTaskReset = false;
-    }
+      normalizedUser.taskSetCountOverride = nextTaskSetCount;
+      normalizedUser.tasksPerSetOverride = null;
+      normalizedUser.taskSetCount = nextTaskSetCount;
+      normalizedUser.tasksPerSet = nextTasksPerSet;
+      normalizedUser.tasksLimit = nextTaskSetCount * nextTasksPerSet;
+      normalizedUser.tasksCompleted = Math.min(normalizedUser.tasksCompleted, normalizedUser.tasksLimit);
 
-    await kv.set(userKey, normalizedUser);
+      if (shouldResetCurrentSet) {
+        if (!normalizedUser.pendingTaskReset && normalizedUser.tasksCompletedInSet < normalizedUser.tasksPerSet) {
+          return { response: c.json({ error: 'Current task set is not yet complete.' }, 400) } as const;
+        }
+        normalizedUser.completedTaskSets = Math.min(normalizedUser.completedTaskSets + 1, normalizedUser.taskSetCount);
+        normalizedUser.tasksCompletedInSet = 0;
+        normalizedUser.pendingTaskReset = false;
+      }
+
+      if (shouldSuspendAccount) {
+        normalizedUser.isSuspended = true;
+      }
+
+      if (shouldUnsuspendAccount) {
+        normalizedUser.isSuspended = false;
+      }
+
+      if (shouldUnfreezeAccount) {
+        const restored = restoreUserToNaturalState(normalizedUser);
+        Object.assign(normalizedUser, restored);
+        normalizedUser.pendingTaskReset = false;
+      }
+
+      const financialChanged = beforeBalance !== roundMoney(Number(normalizedUser.balance ?? 0))
+        || beforeHoldAmount !== roundMoney(Number(normalizedUser.holdAmount ?? 0));
+      if (financialChanged) {
+        await persistFinancialUserStateWithLedger({
+          username,
+          operation: 'admin-task-controls',
+          reason: 'Admin task controls update changed financial freeze/hold state.',
+          actor: username,
+          userKey,
+          userRecord: normalizedUser,
+          beforeBalance,
+          beforeHoldAmount,
+          metadata: {
+            restoreNaturalState: shouldUnfreezeAccount,
+            suspendAccount: shouldSuspendAccount,
+            unsuspendAccount: shouldUnsuspendAccount,
+          },
+        });
+      } else {
+        await kv.set(userKey, normalizedUser);
+      }
+
+      return {
+        normalizedUser,
+        nextTaskSetCount,
+        nextTasksPerSet,
+      } as const;
+    });
+
+    if ('response' in taskControlResult) {
+      return taskControlResult.response;
+    }
 
     const taskCtrlActorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
       ? callingAdmin.email
@@ -8155,13 +8510,13 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
     await recordObservabilityAuditEvent(
       'admin-user-task-controls-update',
       taskCtrlActorEmail,
-      `Modified task controls for user '${username}' (taskSetCount: ${nextTaskSetCount}, vipTasksPerSet: ${nextTasksPerSet}, action: ${ctrlAction})`,
+      `Modified task controls for user '${username}' (taskSetCount: ${taskControlResult.nextTaskSetCount}, vipTasksPerSet: ${taskControlResult.nextTasksPerSet}, action: ${ctrlAction})`,
     ).catch((e) => console.error('Failed to record admin-user-task-controls-update audit event:', e));
 
     return c.json({
       success: true,
-      user: normalizedUser,
-      taskProgress: buildUserTaskProgress(normalizedUser),
+      user: taskControlResult.normalizedUser,
+      taskProgress: buildUserTaskProgress(taskControlResult.normalizedUser),
     });
   } catch (err) {
     console.error('admin/platform-users/task-controls error:', err);
@@ -8189,55 +8544,86 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/recalculate-finan
       return c.json({ error: 'User not found' }, 404);
     }
 
-    const userKey = `user:${canonicalUsername}`;
-    const existingUser = await kv.get(userKey);
-    if (!existingUser) {
-      return c.json({ error: 'User not found' }, 404);
+    const recalcResult = await withFinancialAccountLock(canonicalUsername, 'admin-financial-recalculate', async () => {
+      const userKey = `user:${canonicalUsername}`;
+      const existingUser = await kv.get(userKey);
+      if (!existingUser) {
+        return { response: c.json({ error: 'User not found' }, 404) } as const;
+      }
+
+      const normalizedUser = await syncUserWithVipConfig(existingUser, canonicalUsername);
+      if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
+        return { response: c.json({ error: 'Forbidden' }, 403) } as const;
+      }
+
+      const before = {
+        balance: roundMoney(Number(normalizedUser.balance ?? 0)),
+        holdAmount: roundMoney(Number(normalizedUser.holdAmount ?? 0)),
+        isFrozen: Boolean(normalizedUser.isFrozen),
+        isSuspended: Boolean(normalizedUser.isSuspended),
+        activePremiumStatus: typeof normalizedUser.activePremium?.status === 'string' ? normalizedUser.activePremium.status : null,
+        topUpRequired: roundMoney(Number(normalizedUser?.activePremium?.topUpRequired ?? normalizedUser?.activePremium?.negativeAmount ?? 0)),
+      };
+
+      const outstandingTopUp = Number(normalizedUser?.activePremium?.topUpRequired ?? normalizedUser?.activePremium?.negativeAmount ?? 0);
+      const shouldAutoUnfreeze = Boolean(normalizedUser.isFrozen)
+        && Boolean(normalizedUser.activePremium)
+        && Number.isFinite(outstandingTopUp)
+        && outstandingTopUp <= 0;
+
+      let recalculatedUser = { ...normalizedUser };
+      if (shouldAutoUnfreeze) {
+        recalculatedUser = restoreUserToNaturalState(recalculatedUser);
+        recalculatedUser.pendingTaskReset = false;
+      }
+
+      recalculatedUser.balance = roundMoney(Number(recalculatedUser.balance ?? 0));
+      recalculatedUser.holdAmount = roundMoney(Math.max(0, Number(recalculatedUser.holdAmount ?? 0)));
+      recalculatedUser.tasksCompleted = Math.min(
+        Math.max(0, Number(recalculatedUser.tasksCompleted ?? 0)),
+        Number(recalculatedUser.tasksLimit ?? 0),
+      );
+
+      const balanceChanged = before.balance !== recalculatedUser.balance;
+      const holdChanged = before.holdAmount !== recalculatedUser.holdAmount;
+      if (balanceChanged || holdChanged) {
+        await persistFinancialUserStateWithLedger({
+          username: canonicalUsername,
+          operation: 'admin-financial-recalculate',
+          reason: 'Administrative recalculation adjusted balance/hold state.',
+          actor: canonicalUsername,
+          userKey,
+          userRecord: recalculatedUser,
+          beforeBalance: before.balance,
+          beforeHoldAmount: before.holdAmount,
+          metadata: {
+            autoUnfreezeApplied: shouldAutoUnfreeze,
+          },
+        });
+      } else {
+        await kv.set(userKey, recalculatedUser);
+      }
+
+      const after = {
+        balance: roundMoney(Number(recalculatedUser.balance ?? 0)),
+        holdAmount: roundMoney(Number(recalculatedUser.holdAmount ?? 0)),
+        isFrozen: Boolean(recalculatedUser.isFrozen),
+        isSuspended: Boolean(recalculatedUser.isSuspended),
+        activePremiumStatus: typeof recalculatedUser.activePremium?.status === 'string' ? recalculatedUser.activePremium.status : null,
+        topUpRequired: roundMoney(Number(recalculatedUser?.activePremium?.topUpRequired ?? recalculatedUser?.activePremium?.negativeAmount ?? 0)),
+      };
+
+      return {
+        before,
+        after,
+        shouldAutoUnfreeze,
+        recalculatedUser,
+      } as const;
+    });
+
+    if ('response' in recalcResult) {
+      return recalcResult.response;
     }
-
-    const normalizedUser = await syncUserWithVipConfig(existingUser, canonicalUsername);
-    if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
-      return c.json({ error: 'Forbidden' }, 403);
-    }
-
-    const before = {
-      balance: roundMoney(Number(normalizedUser.balance ?? 0)),
-      holdAmount: roundMoney(Number(normalizedUser.holdAmount ?? 0)),
-      isFrozen: Boolean(normalizedUser.isFrozen),
-      isSuspended: Boolean(normalizedUser.isSuspended),
-      activePremiumStatus: typeof normalizedUser.activePremium?.status === 'string' ? normalizedUser.activePremium.status : null,
-      topUpRequired: roundMoney(Number(normalizedUser?.activePremium?.topUpRequired ?? normalizedUser?.activePremium?.negativeAmount ?? 0)),
-    };
-
-    const outstandingTopUp = Number(normalizedUser?.activePremium?.topUpRequired ?? normalizedUser?.activePremium?.negativeAmount ?? 0);
-    const shouldAutoUnfreeze = Boolean(normalizedUser.isFrozen)
-      && Boolean(normalizedUser.activePremium)
-      && Number.isFinite(outstandingTopUp)
-      && outstandingTopUp <= 0;
-
-    let recalculatedUser = { ...normalizedUser };
-    if (shouldAutoUnfreeze) {
-      recalculatedUser = restoreUserToNaturalState(recalculatedUser);
-      recalculatedUser.pendingTaskReset = false;
-    }
-
-    recalculatedUser.balance = roundMoney(Number(recalculatedUser.balance ?? 0));
-    recalculatedUser.holdAmount = roundMoney(Math.max(0, Number(recalculatedUser.holdAmount ?? 0)));
-    recalculatedUser.tasksCompleted = Math.min(
-      Math.max(0, Number(recalculatedUser.tasksCompleted ?? 0)),
-      Number(recalculatedUser.tasksLimit ?? 0),
-    );
-
-    await kv.set(userKey, recalculatedUser);
-
-    const after = {
-      balance: roundMoney(Number(recalculatedUser.balance ?? 0)),
-      holdAmount: roundMoney(Number(recalculatedUser.holdAmount ?? 0)),
-      isFrozen: Boolean(recalculatedUser.isFrozen),
-      isSuspended: Boolean(recalculatedUser.isSuspended),
-      activePremiumStatus: typeof recalculatedUser.activePremium?.status === 'string' ? recalculatedUser.activePremium.status : null,
-      topUpRequired: roundMoney(Number(recalculatedUser?.activePremium?.topUpRequired ?? recalculatedUser?.activePremium?.negativeAmount ?? 0)),
-    };
 
     const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
       ? callingAdmin.email
@@ -8245,16 +8631,16 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/recalculate-finan
     await recordObservabilityAuditEvent(
       'admin-user-financial-recalculate',
       actorEmail,
-      `Recalculated financial state for user '${canonicalUsername}' (autoUnfreeze: ${shouldAutoUnfreeze ? 'yes' : 'no'})`,
+      `Recalculated financial state for user '${canonicalUsername}' (autoUnfreeze: ${recalcResult.shouldAutoUnfreeze ? 'yes' : 'no'})`,
     ).catch((e) => console.error('Failed to record admin-user-financial-recalculate audit event:', e));
 
     return c.json({
       success: true,
-      autoUnfreezeApplied: shouldAutoUnfreeze,
-      before,
-      after,
-      user: recalculatedUser,
-      taskProgress: buildUserTaskProgress(recalculatedUser),
+      autoUnfreezeApplied: recalcResult.shouldAutoUnfreeze,
+      before: recalcResult.before,
+      after: recalcResult.after,
+      user: recalcResult.recalculatedUser,
+      taskProgress: buildUserTaskProgress(recalcResult.recalculatedUser),
     });
   } catch (err) {
     console.error('admin/platform-users/recalculate-financial-state error:', err);
@@ -8439,7 +8825,33 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
       if (changed) {
         usersChanged += 1;
         if (!dryRun) {
-          await kv.set(userKey, normalizedUser);
+          const beforeBalance = before.balance;
+          const beforeHoldAmount = before.holdAmount;
+          const afterBalance = roundMoney(Number(normalizedUser.balance ?? 0));
+          const afterHoldAmount = roundMoney(Number(normalizedUser.holdAmount ?? 0));
+
+          await withFinancialAccountLock(username, 'admin-reconcile-premium-settlements', async () => {
+            const balanceChanged = beforeBalance !== afterBalance;
+            const holdChanged = beforeHoldAmount !== afterHoldAmount;
+            if (balanceChanged || holdChanged) {
+              await persistFinancialUserStateWithLedger({
+                username,
+                operation: 'admin-reconcile-premium-settlements',
+                reason: 'Admin settlement reconciliation updated financial state.',
+                actor: username,
+                userKey,
+                userRecord: normalizedUser,
+                beforeBalance,
+                beforeHoldAmount,
+                metadata: {
+                  commissionReconciled: before.todayCommission !== roundMoney(Number(normalizedUser.todayCommission ?? 0)),
+                  autoUnfreezeApplied: shouldAutoUnfreeze,
+                },
+              });
+            } else {
+              await kv.set(userKey, normalizedUser);
+            }
+          });
         }
       }
 
@@ -8572,17 +8984,6 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
       return c.json({ error: 'User not found' }, 404);
     }
 
-    const userKey = `user:${canonicalUsername}`;
-    const existingUser = await kv.get(userKey);
-    if (!existingUser) {
-      return c.json({ error: 'User not found' }, 404);
-    }
-
-    const normalizedUser = await syncUserWithVipConfig(existingUser, canonicalUsername);
-    if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
-      return c.json({ error: 'Forbidden' }, 403);
-    }
-
     const body = await c.req.json();
     const mode = body?.mode === 'debit' ? 'debit' : 'credit';
     const amount = roundMoney(Number(body?.amount ?? 0));
@@ -8596,29 +8997,66 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
       return c.json({ error: 'Reason is required' }, 400);
     }
 
-    if (mode === 'debit' && normalizedUser.balance < amount) {
-      return c.json({ error: 'User balance is too low for this deduction' }, 400);
-    }
+    const userKey = `user:${canonicalUsername}`;
+    const adjustmentResult = await withFinancialAccountLock(canonicalUsername, 'admin-balance-adjustment', async () => {
+      const existingUser = await kv.get(userKey);
+      if (!existingUser) {
+        return { response: c.json({ error: 'User not found' }, 404) } as const;
+      }
 
-    normalizedUser.balance = roundMoney(normalizedUser.balance + (mode === 'credit' ? amount : -amount));
+      const normalizedUser = await syncUserWithVipConfig(existingUser, canonicalUsername);
+      if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
+        return { response: c.json({ error: 'Forbidden' }, 403) } as const;
+      }
 
-    const adjustmentReferenceId = createFinanceId('adj');
-    const transaction = await createTransactionRecord({
-      username: canonicalUsername,
-      type: mode === 'credit' ? 'Deposit' : 'Withdrawal',
-      amount,
-      status: 'Completed',
-      method: 'Admin Adjustment',
-      source: 'admin-adjustment',
-      description: `${mode === 'credit' ? 'Admin top-up' : 'Admin deduction'}: ${reason}`,
-      referenceId: adjustmentReferenceId,
+      if (mode === 'debit' && normalizedUser.balance < amount) {
+        return { response: c.json({ error: 'User balance is too low for this deduction' }, 400) } as const;
+      }
+
+      const beforeBalance = roundMoney(Number(normalizedUser.balance ?? 0));
+      const beforeHoldAmount = roundMoney(Number(normalizedUser.holdAmount ?? 0));
+      normalizedUser.balance = roundMoney(normalizedUser.balance + (mode === 'credit' ? amount : -amount));
+
+      const adjustmentReferenceId = createFinanceId('adj');
+      const transaction = await createTransactionRecord({
+        username: canonicalUsername,
+        type: mode === 'credit' ? 'Deposit' : 'Withdrawal',
+        amount,
+        status: 'Completed',
+        method: 'Admin Adjustment',
+        source: 'admin-adjustment',
+        description: `${mode === 'credit' ? 'Admin top-up' : 'Admin deduction'}: ${reason}`,
+        referenceId: adjustmentReferenceId,
+      });
+
+      const rewardSyncResult = mode === 'credit'
+        ? await applyAutomaticRewardsForUser(canonicalUsername, normalizedUser)
+        : { normalizedUser, rewardsApplied: [] as Array<{ category: 'workday' | 'reset' | 'accumulated'; amount: number; reference: string }> };
+      const finalUser = rewardSyncResult.normalizedUser;
+
+      await persistFinancialUserStateWithLedger({
+        username: canonicalUsername,
+        operation: 'admin-balance-adjustment',
+        reason: `${mode === 'credit' ? 'Credit' : 'Debit'} adjustment: ${reason}`,
+        actor: String(callingAdmin?.email ?? callingAdmin?.id ?? 'admin'),
+        userKey,
+        userRecord: finalUser,
+        beforeBalance,
+        beforeHoldAmount,
+        metadata: {
+          mode,
+          amount,
+          reason,
+          transactionId: transaction.id,
+        },
+      });
+
+      return { finalUser, transaction, rewardsApplied: rewardSyncResult.rewardsApplied } as const;
     });
 
-    const rewardSyncResult = mode === 'credit'
-      ? await applyAutomaticRewardsForUser(canonicalUsername, normalizedUser)
-      : { normalizedUser, rewardsApplied: [] as Array<{ category: 'workday' | 'reset' | 'accumulated'; amount: number; reference: string }> };
-    const finalUser = rewardSyncResult.normalizedUser;
-    await kv.set(userKey, finalUser);
+    if ('response' in adjustmentResult) {
+      return adjustmentResult.response;
+    }
 
     const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
       ? callingAdmin.email
@@ -8626,14 +9064,14 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
     await recordObservabilityAuditEvent(
       'admin-user-balance-adjustment',
       actorEmail,
-      `${mode === 'credit' ? 'Credited' : 'Debited'} $${amount.toFixed(2)} for user '${canonicalUsername}' (new balance: $${finalUser.balance.toFixed(2)}; reason: ${reason})`,
+      `${mode === 'credit' ? 'Credited' : 'Debited'} $${amount.toFixed(2)} for user '${canonicalUsername}' (new balance: $${adjustmentResult.finalUser.balance.toFixed(2)}; reason: ${reason})`,
     ).catch((e) => console.error('Failed to record admin-user-balance-adjustment audit event:', e));
 
     return c.json({
       success: true,
-      user: finalUser,
-      transaction,
-      rewardsApplied: rewardSyncResult.rewardsApplied,
+      user: adjustmentResult.finalUser,
+      transaction: adjustmentResult.transaction,
+      rewardsApplied: adjustmentResult.rewardsApplied,
     });
   } catch (err) {
     console.error('admin/platform-users/balance-adjustment error:', err);
