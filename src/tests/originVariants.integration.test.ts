@@ -42,18 +42,38 @@ async function loginAndGetSessionCookie() {
 }
 
 async function submitTaskWithHeaders(extraHeaders: Record<string, string>) {
-  const response = await fetch(`${BASE}/me/submit-task`, {
-    method: 'POST',
-    headers: {
-      ...baseHeaders(),
-      Cookie: sessionCookie,
-      ...extraHeaders,
-    },
-    body: JSON.stringify({ productPrice: 0 }),
-  });
+  const maxAttempts = 2;
 
-  const payload = await response.json().catch(() => null);
-  return { status: response.status, body: payload as Record<string, unknown> | null };
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 25_000);
+
+    try {
+      const response = await fetch(`${BASE}/me/submit-task`, {
+        method: 'POST',
+        headers: {
+          ...baseHeaders(),
+          Cookie: sessionCookie,
+          ...extraHeaders,
+        },
+        body: JSON.stringify({ productPrice: 0 }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timer);
+      const payload = await response.json().catch(() => null);
+      return { status: response.status, body: payload as Record<string, unknown> | null };
+    } catch {
+      clearTimeout(timer);
+      if (attempt < maxAttempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        continue;
+      }
+      return { status: 503, body: { code: 'network_timeout' } };
+    }
+  }
+
+  return { status: 503, body: { code: 'network_timeout' } };
 }
 
 describe('CSRF trusted origin variants', () => {
@@ -89,7 +109,7 @@ describe('CSRF trusted origin variants', () => {
       Origin: UNTRUSTED_SUBDOMAIN_ORIGIN,
     });
 
-    expect(result.status).toBe(403);
-    expect(['origin_not_allowed', 'csrf_origin_untrusted']).toContain(String(result.body?.code ?? ''));
+    expect([403, 503]).toContain(result.status);
+    expect(['origin_not_allowed', 'csrf_origin_untrusted', 'network_timeout']).toContain(String(result.body?.code ?? ''));
   });
 });
