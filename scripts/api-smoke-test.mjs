@@ -134,6 +134,18 @@ async function testHealth() {
   const r = await call('GET', '/health');
   check('GET /health', r, 200, b => b?.status === 'ok' && typeof b?.timestamp === 'string');
 
+  const rVersion = await call('GET', '/version');
+  check(
+    'GET /version',
+    rVersion,
+    200,
+    b => b?.status === 'ok'
+      && typeof b?.timestamp === 'string'
+      && typeof b?.version === 'object'
+      && typeof b?.version?.service === 'string'
+      && typeof b?.version?.serverStartedAtUtc === 'string',
+  );
+
   const rLive = await call('GET', '/health/live');
   check('GET /health/live (liveness probe)', rLive, 200, b => b?.status === 'alive' && typeof b?.timestamp === 'string');
 

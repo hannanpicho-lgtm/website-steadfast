@@ -1,9 +1,12 @@
 param(
   [string]$ProjectRef = "gvqwvuqeenkusdayosty",
   [string]$FunctionName = "make-server-a1c55d7e",
+  [string]$ExpectedProductionFunction = "make-server-a1c55d7e",
   [switch]$AllowDirty,
+  [switch]$AllowNonProductionFunction,
   [switch]$SkipVersionBumpCheck,
-  [switch]$RunSmoke
+  [switch]$RunSmoke,
+  [switch]$SkipPostDeployValidation
 )
 
 $ErrorActionPreference = "Stop"
@@ -13,6 +16,20 @@ function Require-Command {
   param([string]$Name)
   if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
     throw "Required command '$Name' is not available in PATH."
+  }
+}
+
+function Invoke-CheckedCommand {
+  param(
+    [string]$Label,
+    [scriptblock]$Command
+  )
+
+  Write-Host "[HARDENED-DEPLOY] $Label"
+  & $Command
+  $exitCode = $LASTEXITCODE
+  if ($exitCode -ne 0) {
+    throw "$Label failed with exit code $exitCode."
   }
 }
 
@@ -92,13 +109,20 @@ function Ensure-GitGuards {
 
 Require-Command -Name "supabase"
 Require-Command -Name "git"
+Require-Command -Name "node"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Push-Location $repoRoot
 
 try {
+  if (-not $AllowNonProductionFunction.IsPresent -and $FunctionName -ne $ExpectedProductionFunction) {
+    throw "Refusing deploy: FunctionName '$FunctionName' does not match expected production function '$ExpectedProductionFunction'. Use -AllowNonProductionFunction to override intentionally."
+  }
+
   $gitState = Ensure-GitGuards -AllowDirtyTree:$AllowDirty.IsPresent
   $before = Get-FunctionState -Project $ProjectRef -Name $FunctionName
+  $deployTimestampUtc = (Get-Date).ToUniversalTime().ToString("o")
+  $apiBaseUrl = "https://$ProjectRef.supabase.co/functions/v1/$FunctionName"
 
   Write-Host "[HARDENED-DEPLOY] Project: $ProjectRef"
   Write-Host "[HARDENED-DEPLOY] Function: $FunctionName"
@@ -106,6 +130,15 @@ try {
   Write-Host "[HARDENED-DEPLOY] Before: version=$($before.Version) updated=$($before.UpdatedAtUtc.ToString('u'))"
 
   $previousPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  $secretsOutput = & supabase secrets set DEPLOY_COMMIT_SHA=$($gitState.HeadLong) DEPLOY_COMMIT_SHORT=$($gitState.HeadShort) DEPLOYED_AT_UTC=$deployTimestampUtc DEPLOY_TARGET_FUNCTION=$FunctionName --project-ref $ProjectRef 2>&1
+  $secretsExitCode = $LASTEXITCODE
+  $ErrorActionPreference = $previousPreference
+  if ($secretsExitCode -ne 0) {
+    $joined = ($secretsOutput | ForEach-Object { $_.ToString() }) -join [Environment]::NewLine
+    throw "Unable to stamp deployment metadata secrets.`n$joined"
+  }
+
   $ErrorActionPreference = "Continue"
   $deployOutput = & supabase functions deploy $FunctionName --project-ref $ProjectRef 2>&1
   $deployExitCode = $LASTEXITCODE
@@ -125,6 +158,26 @@ try {
 
   if ($after.UpdatedAtRaw -lt $before.UpdatedAtRaw) {
     throw "Deployment verification failed: updated_at moved backwards."
+  }
+
+  $previousApiBase = $env:API_BASE_URL
+  $env:API_BASE_URL = $apiBaseUrl
+  try {
+    Invoke-CheckedCommand -Label "Live /version verification" -Command {
+      node scripts/verify-live-version.mjs --base $apiBaseUrl --expected-function $FunctionName --expected-commit $($gitState.HeadLong)
+    }
+
+    if (-not $SkipPostDeployValidation.IsPresent) {
+      Invoke-CheckedCommand -Label "Post-deploy endpoint inventory test" -Command {
+        npm run test:tier2:endpoints
+      }
+      Invoke-CheckedCommand -Label "Post-deploy endpoint audit" -Command {
+        npm run audit:endpoints
+      }
+    }
+  }
+  finally {
+    $env:API_BASE_URL = $previousApiBase
   }
 
   $smokeRan = $false
@@ -170,6 +223,15 @@ try {
     smoke = [ordered]@{
       ran = $smokeRan
       exitCode = $smokeExitCode
+    }
+    deploymentMetadata = [ordered]@{
+      commitSha = $gitState.HeadLong
+      commitShort = $gitState.HeadShort
+      deployedAtUtc = $deployTimestampUtc
+      apiBaseUrl = $apiBaseUrl
+      expectedProductionFunction = $ExpectedProductionFunction
+      enforcedTargetMatch = (-not $AllowNonProductionFunction.IsPresent)
+      postDeployValidationSkipped = $SkipPostDeployValidation.IsPresent
     }
     deployOutput = ($deployOutput | ForEach-Object { $_.ToString() })
   }

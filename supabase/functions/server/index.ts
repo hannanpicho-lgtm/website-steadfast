@@ -5,6 +5,15 @@ import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
 import * as kv from "./kv_store.tsx";
 const app = new Hono();
 
+const FUNCTION_SERVICE_NAME = "make-server-a1c55d7e";
+const SERVER_STARTED_AT_UTC = new Date().toISOString();
+const DEPLOYMENT_ID = Deno.env.get("DENO_DEPLOYMENT_ID") ?? null;
+const DEPLOY_COMMIT_SHA = Deno.env.get("DEPLOY_COMMIT_SHA") ?? null;
+const DEPLOY_COMMIT_SHORT = Deno.env.get("DEPLOY_COMMIT_SHORT") ?? null;
+const DEPLOYED_AT_UTC = Deno.env.get("DEPLOYED_AT_UTC") ?? null;
+const DEBUG_DEPLOYMENT_LOG = Deno.env.get("DEBUG_DEPLOYMENT_LOG") === "1";
+const DEPLOYMENT_STALE_THRESHOLD_MINUTES = Math.max(1, Number(Deno.env.get("DEPLOYMENT_STALE_THRESHOLD_MINUTES") ?? "180"));
+
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const authClient = supabaseUrl && supabaseServiceRoleKey
@@ -149,6 +158,30 @@ function resolveRequestId(c: any): string {
 function requestSource(c: any): string {
   const forwardedFor = c.req.header('x-forwarded-for') ?? c.req.header('cf-connecting-ip') ?? 'unknown-ip';
   return forwardedFor.split(',')[0].trim();
+}
+
+function buildDeploymentVersionPayload() {
+  const nowUtc = new Date().toISOString();
+  const deployedAtRaw = DEPLOYED_AT_UTC;
+  const deployedAtMs = deployedAtRaw ? Date.parse(deployedAtRaw) : NaN;
+  const deployedAtUtc = Number.isFinite(deployedAtMs) ? new Date(deployedAtMs).toISOString() : null;
+  const ageMinutes = Number.isFinite(deployedAtMs)
+    ? Math.max(0, Math.round((Date.now() - deployedAtMs) / 60000))
+    : null;
+  const isStale = typeof ageMinutes === 'number' ? ageMinutes > DEPLOYMENT_STALE_THRESHOLD_MINUTES : false;
+
+  return {
+    service: FUNCTION_SERVICE_NAME,
+    deploymentId: DEPLOYMENT_ID,
+    commitSha: DEPLOY_COMMIT_SHA,
+    commitShort: DEPLOY_COMMIT_SHORT,
+    deployedAtUtc,
+    serverStartedAtUtc: SERVER_STARTED_AT_UTC,
+    nowUtc,
+    deploymentAgeMinutes: ageMinutes,
+    staleThresholdMinutes: DEPLOYMENT_STALE_THRESHOLD_MINUTES,
+    stale: isStale,
+  };
 }
 
 function getClientRequestMetadata(c: any) {
@@ -386,6 +419,14 @@ app.use('*', async (c, next) => {
       durationMs: totalMs,
       durationBucket: latencyBucketMs(totalMs),
     });
+
+    if (DEBUG_DEPLOYMENT_LOG) {
+      logStructuredEvent(c, 'deployment_request_trace', 'info', {
+        deploymentId: DEPLOYMENT_ID,
+        commitSha: DEPLOY_COMMIT_SHA,
+        deployedAtUtc: DEPLOYED_AT_UTC,
+      });
+    }
   }
   c.header('X-Request-Id', requestId);
   applySecurityHeaders(c);
@@ -830,7 +871,9 @@ const VIP_CONFIG_KEY_PREFIX = 'vip-config:';
 const DISTRIBUTED_LOCK_KEY_PREFIX = 'dist-lock:';
 const DISTRIBUTED_RATE_LIMIT_KEY_PREFIX = 'rate-limit:';
 const DISTRIBUTED_RATE_LIMIT_LOCK_PREFIX = 'rate-limit-lock:';
-const REWARDS_CONFIG_KEY = 'rewards-config:primary';
+const REWARDS_CONFIG_SCHEMA_VERSION = 2;
+const REWARDS_CONFIG_KEY = `rewards-config:v${REWARDS_CONFIG_SCHEMA_VERSION}:primary`;
+const LEGACY_REWARDS_CONFIG_KEYS = ['rewards-config:primary'];
 const ADMIN_SALARY_PROJECT_KEY = 'admin-salary:project:primary';
 const ADMIN_SALARY_AUDIT_LOG_KEY = 'admin-salary:audit-log:primary';
 const ADMIN_PLATFORM_SETTINGS_KEY = 'admin-platform-settings:primary';
@@ -1943,15 +1986,8 @@ function hasLegacyAccumulatedBaseline(accumulatedRewards: any[]) {
   return seen.size !== expectedByMinDeposit.size;
 }
 
-async function getRewardsConfigRecord() {
-  const existing = await kv.get(REWARDS_CONFIG_KEY);
-  if (!existing) {
-    const seeded = normalizeRewardsConfigRecord(defaultRewardsConfig);
-    await kv.set(REWARDS_CONFIG_KEY, seeded);
-    return seeded;
-  }
-
-  const normalized = normalizeRewardsConfigRecord(existing);
+function applyRewardsConfigMigrations(record: any) {
+  const normalized = normalizeRewardsConfigRecord(record);
 
   if (hasLegacyResetBaseline(normalized.reset)) {
     normalized.reset = defaultRewardsConfig.reset.map((entry, index) => normalizeResetRewardRecord(entry, index));
@@ -1961,8 +1997,32 @@ async function getRewardsConfigRecord() {
     normalized.accumulated = defaultRewardsConfig.accumulated.map((entry, index) => normalizeAccumulatedRewardRecord(entry, index));
   }
 
-  await kv.set(REWARDS_CONFIG_KEY, normalized);
   return normalized;
+}
+
+async function getRewardsConfigRecord() {
+  const existing = await kv.get(REWARDS_CONFIG_KEY);
+  if (existing) {
+    const normalized = applyRewardsConfigMigrations(existing);
+    await kv.set(REWARDS_CONFIG_KEY, normalized);
+    return normalized;
+  }
+
+  for (const legacyKey of LEGACY_REWARDS_CONFIG_KEYS) {
+    const legacy = await kv.get(legacyKey);
+    if (!legacy) {
+      continue;
+    }
+
+    const migrated = applyRewardsConfigMigrations(legacy);
+    await kv.set(REWARDS_CONFIG_KEY, migrated);
+    await kv.delete(legacyKey);
+    return migrated;
+  }
+
+  const seeded = applyRewardsConfigMigrations(defaultRewardsConfig);
+  await kv.set(REWARDS_CONFIG_KEY, seeded);
+  return seeded;
 }
 
 function normalizeVipConfigRecord(record: any) {
@@ -3158,8 +3218,17 @@ app.get("/make-server-a1c55d7e/health", (c) => {
   return c.json({ 
     status: "ok",
     timestamp: new Date().toISOString(),
-    service: "make-server-a1c55d7e"
+    service: FUNCTION_SERVICE_NAME,
+    deployment: buildDeploymentVersionPayload(),
   });
+});
+
+app.get("/make-server-a1c55d7e/version", (c) => {
+  return c.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    version: buildDeploymentVersionPayload(),
+  }, 200);
 });
 
 app.get("/make-server-a1c55d7e/health/live", (c) => {

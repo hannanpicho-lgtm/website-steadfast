@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Users, DollarSign, Activity, Bell } from 'lucide-react';
+import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 interface AdminHomeProps {
   platformUsersLoaded: boolean;
@@ -22,6 +23,53 @@ export default function AdminHome({
   financeLoading,
   transactions,
 }: AdminHomeProps) {
+  const [apiVersionState, setApiVersionState] = useState<{
+    loading: boolean;
+    error: string | null;
+    payload: any | null;
+  }>({ loading: true, error: null, payload: null });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadVersion = async () => {
+      try {
+        const baseUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+        const response = await fetch(`${baseUrl}/version`, {
+          headers: {
+            Authorization: `Bearer ${publicAnonKey}`,
+            apikey: publicAnonKey,
+          },
+        });
+        const payload = await response.json().catch(() => null);
+
+        if (!response.ok || !payload) {
+          throw new Error(`Version endpoint failed (${response.status})`);
+        }
+
+        if (!cancelled) {
+          setApiVersionState({ loading: false, error: null, payload });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setApiVersionState({
+            loading: false,
+            error: error instanceof Error ? error.message : 'Failed to load deployment metadata.',
+            payload: null,
+          });
+        }
+      }
+    };
+
+    void loadVersion();
+    const refreshId = window.setInterval(loadVersion, 60_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshId);
+    };
+  }, []);
+
   const topPerformers = platformUsersLoaded
     ? [...platformUsers]
         .sort((a, b) => Number(b.tasksCompleted ?? 0) - Number(a.tasksCompleted ?? 0))
@@ -31,6 +79,29 @@ export default function AdminHome({
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-white">Dashboard Overview</h2>
+
+      <div className="rounded-lg border border-cyan-500/30 bg-cyan-500/10 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-cyan-200">API Deployment Status</p>
+            {apiVersionState.loading && <p className="text-sm text-gray-300 mt-1">Checking live version metadata…</p>}
+            {apiVersionState.error && <p className="text-sm text-red-300 mt-1">{apiVersionState.error}</p>}
+            {!apiVersionState.loading && !apiVersionState.error && apiVersionState.payload?.version && (
+              <div className="mt-1 text-sm text-cyan-100 space-y-1">
+                <p>Service: {String(apiVersionState.payload.version.service ?? 'unknown')}</p>
+                <p>Commit: {String(apiVersionState.payload.version.commitShort ?? apiVersionState.payload.version.commitSha ?? 'n/a')}</p>
+                <p>Deployed At: {String(apiVersionState.payload.version.deployedAtUtc ?? 'n/a')}</p>
+                <p>Deployment ID: {String(apiVersionState.payload.version.deploymentId ?? 'n/a')}</p>
+              </div>
+            )}
+          </div>
+          {!apiVersionState.loading && !apiVersionState.error && apiVersionState.payload?.version && (
+            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${apiVersionState.payload.version.stale ? 'bg-red-500/20 text-red-200' : 'bg-emerald-500/20 text-emerald-200'}`}>
+              {apiVersionState.payload.version.stale ? 'Version stale warning' : 'Version fresh'}
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
