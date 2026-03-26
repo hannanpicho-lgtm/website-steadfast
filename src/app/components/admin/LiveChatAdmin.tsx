@@ -19,7 +19,15 @@ import {
   Music2
 } from 'lucide-react';
 import { buildAdminAuthHeaders } from '../../services/supabaseAuth';
-import { formatChatResponseTime } from '../../services/chatSupport';
+import {
+  fetchRealtimeAdminConversations,
+  fetchRealtimeConversationTimeline,
+  fetchRealtimeMetricsSummary,
+  formatChatResponseTime,
+  isRealtimeChatEnabled,
+  patchRealtimeConversation,
+  sendRealtimeAdminChatMessage,
+} from '../../services/chatSupport';
 import React from 'react';
 
 interface ChatMessage {
@@ -33,6 +41,7 @@ interface ChatMessage {
 
 interface ChatSummary {
   username: string;
+  conversationId?: string;
   lastMessage: string;
   lastMessagePreview: string;
   lastMessageTime: string;
@@ -46,7 +55,25 @@ interface ChatSummary {
   responseState: 'idle' | 'awaiting-support' | 'support-replied';
   averageAdminResponseMs: number | null;
   lastMessageAttachmentType: ChatAttachmentType | null;
+  assignedAgent?: string | null;
+  priority?: 'low' | 'normal' | 'high' | 'urgent';
+  tags?: string[];
+  slaDueAt?: string | null;
+  status?: 'open' | 'pending' | 'resolved' | 'closed';
 }
+
+type RealtimeMetricsSummary = {
+  metrics?: {
+    total_events?: number;
+    success_events?: number;
+    avg_duration_ms?: number;
+  };
+  recentFailures?: Array<{
+    event_type?: string;
+    actor_role?: string;
+    created_at?: string;
+  }>;
+};
 
 type ChatAttachmentType = 'image' | 'video' | 'audio' | 'file';
 
@@ -177,6 +204,57 @@ function encodeChatMessage(text: string, attachment: ChatAttachment | null) {
   return `${CHAT_ATTACHMENT_PREFIX}${JSON.stringify({ text, attachment })}`;
 }
 
+function mapRealtimeConversation(raw: Record<string, unknown>): ChatSummary {
+  const username = typeof raw.username === 'string' ? raw.username : '';
+  const lastMessageTime = typeof raw.last_message_at === 'string' ? raw.last_message_at : (typeof raw.created_at === 'string' ? raw.created_at : new Date().toISOString());
+  return {
+    username,
+    conversationId: typeof raw.id === 'string' ? raw.id : username,
+    lastMessage: '',
+    lastMessagePreview: '',
+    lastMessageTime,
+    unreadCount: 0,
+    totalMessages: 0,
+    pendingUserMessages: 0,
+    unreadAdminCount: 0,
+    lastSenderRole: 'system',
+    latestUserMessageAt: typeof raw.last_message_at === 'string' ? raw.last_message_at : null,
+    latestAdminMessageAt: typeof raw.last_response_at === 'string' ? raw.last_response_at : null,
+    responseState: 'idle',
+    averageAdminResponseMs: null,
+    lastMessageAttachmentType: null,
+    assignedAgent: typeof raw.assigned_agent === 'string' ? raw.assigned_agent : null,
+    priority: (typeof raw.priority === 'string' ? raw.priority : 'normal') as ChatSummary['priority'],
+    tags: (() => {
+      if (Array.isArray(raw.tags_json)) {
+        return raw.tags_json.filter((value): value is string => typeof value === 'string');
+      }
+      if (typeof raw.tags_json === 'string') {
+        try {
+          const parsed = JSON.parse(raw.tags_json) as unknown;
+          return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === 'string') : [];
+        } catch {
+          return [];
+        }
+      }
+      return [];
+    })(),
+    slaDueAt: typeof raw.sla_due_at === 'string' ? raw.sla_due_at : null,
+    status: (typeof raw.status === 'string' ? raw.status : 'open') as ChatSummary['status'],
+  };
+}
+
+function mapRealtimeMessage(raw: Record<string, unknown>): ChatMessage {
+  return {
+    id: typeof raw.id === 'string' ? raw.id : crypto.randomUUID(),
+    message: typeof raw.body === 'string' ? raw.body : '',
+    sender: typeof raw.sender_id === 'string' ? raw.sender_id : 'unknown',
+    isAdmin: raw.sender_role === 'admin',
+    timestamp: typeof raw.created_at === 'string' ? raw.created_at : new Date().toISOString(),
+    read: Boolean(raw.read_at),
+  };
+}
+
 export default function LiveChatAdmin() {
   const navigate = useNavigate();
   const adminAuthRedirectedRef = useRef(false);
@@ -194,6 +272,13 @@ export default function LiveChatAdmin() {
   const [sending, setSending] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [realtimeMetrics, setRealtimeMetrics] = useState<RealtimeMetricsSummary | null>(null);
+  const [conversationTagsInput, setConversationTagsInput] = useState('');
+  const [conversationPriority, setConversationPriority] = useState<ChatSummary['priority']>('normal');
+  const [conversationStatus, setConversationStatus] = useState<ChatSummary['status']>('open');
+  const [conversationAgent, setConversationAgent] = useState('');
+  const [conversationSlaDueAt, setConversationSlaDueAt] = useState('');
+  const realtimeEnabled = isRealtimeChatEnabled();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -201,25 +286,39 @@ export default function LiveChatAdmin() {
 
   useEffect(() => {
     fetchChats();
-    // Poll for updates every 5 seconds to reduce UI churn
-    const interval = setInterval(fetchChats, 5000);
+    const interval = setInterval(fetchChats, realtimeEnabled ? 8000 : 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [realtimeEnabled]);
 
   useEffect(() => {
     if (selectedChat) {
       hasAutoScrolledRef.current = false;
       lastMessageSignatureRef.current = '';
       fetchMessages(selectedChat);
-      markMessagesAsRead(selectedChat);
-      // Poll for new messages in the selected chat
+      if (!realtimeEnabled) {
+        markMessagesAsRead(selectedChat);
+      }
       const interval = setInterval(() => {
         fetchMessages(selectedChat);
-        markMessagesAsRead(selectedChat);
-      }, 5000);
+        if (!realtimeEnabled) {
+          markMessagesAsRead(selectedChat);
+        }
+      }, realtimeEnabled ? 4000 : 5000);
       return () => clearInterval(interval);
     }
-  }, [selectedChat]);
+  }, [realtimeEnabled, selectedChat]);
+
+  useEffect(() => {
+    if (!selectedChatSummary) {
+      return;
+    }
+
+    setConversationAgent(selectedChatSummary.assignedAgent || '');
+    setConversationPriority(selectedChatSummary.priority || 'normal');
+    setConversationStatus(selectedChatSummary.status || 'open');
+    setConversationSlaDueAt(selectedChatSummary.slaDueAt || '');
+    setConversationTagsInput((selectedChatSummary.tags || []).join(', '));
+  }, [selectedChatSummary]);
 
   useEffect(() => {
     scrollToBottom();
@@ -235,17 +334,29 @@ export default function LiveChatAdmin() {
         setLoading(true);
       }
 
-      const response = await fetch(`${serverUrl}/cs/admin/chats`, {
-        headers: await buildAdminAuthHeaders(false),
-      });
+      if (realtimeEnabled) {
+        const realtimeData = await fetchRealtimeAdminConversations();
+        const conversations = (realtimeData.conversations || []).map((item) => mapRealtimeConversation(item as Record<string, unknown>));
+        setChatSummaries(conversations);
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error((payload as { error?: string }).error || 'Failed to fetch chats');
+        const metrics = await fetchRealtimeMetricsSummary().catch(() => null);
+        if (metrics) {
+          setRealtimeMetrics(metrics);
+        }
+      } else {
+        const response = await fetch(`${serverUrl}/cs/admin/chats`, {
+          headers: await buildAdminAuthHeaders(false),
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error((payload as { error?: string }).error || 'Failed to fetch chats');
+        }
+
+        const data = await response.json();
+        setChatSummaries(data);
       }
 
-      const data = await response.json();
-      setChatSummaries(data);
       hasLoadedChatsRef.current = true;
       setLoadError(null);
     } catch (error) {
@@ -266,17 +377,21 @@ export default function LiveChatAdmin() {
 
   const fetchMessages = async (username: string) => {
     try {
-      const response = await fetch(`${serverUrl}/cs/chat/${username}`, {
-        headers: await buildAdminAuthHeaders(false),
-      });
+      const nextMessages = realtimeEnabled
+        ? ((await fetchRealtimeConversationTimeline(username)).messages || []).map((item) => mapRealtimeMessage(item as Record<string, unknown>))
+        : await (async () => {
+            const response = await fetch(`${serverUrl}/cs/chat/${username}`, {
+              headers: await buildAdminAuthHeaders(false),
+            });
 
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error((payload as { error?: string }).error || 'Failed to fetch messages');
-      }
+            if (!response.ok) {
+              const payload = await response.json().catch(() => ({}));
+              throw new Error((payload as { error?: string }).error || 'Failed to fetch messages');
+            }
 
-      const data = await response.json();
-      const nextMessages = Array.isArray(data) ? data : [];
+            const data = await response.json();
+            return Array.isArray(data) ? data : [];
+          })();
       const signature = nextMessages.map((msg: ChatMessage) => `${msg.id}:${msg.read ? 1 : 0}`).join('|');
 
       if (signature !== lastMessageSignatureRef.current) {
@@ -338,18 +453,23 @@ export default function LiveChatAdmin() {
 
     try {
       setSending(true);
-      const response = await fetch(`${serverUrl}/cs/chat/send`, {
-        method: 'POST',
-        headers: await buildAdminAuthHeaders(),
-        body: JSON.stringify({
-          username: selectedChat,
-          message: encodeChatMessage(newMessage.trim(), selectedAttachment),
-          isAdmin: true,
-        }),
-      });
+      const encoded = encodeChatMessage(newMessage.trim(), selectedAttachment);
+      if (realtimeEnabled) {
+        await sendRealtimeAdminChatMessage(selectedChat, 'support-admin', encoded);
+      } else {
+        const response = await fetch(`${serverUrl}/cs/chat/send`, {
+          method: 'POST',
+          headers: await buildAdminAuthHeaders(),
+          body: JSON.stringify({
+            username: selectedChat,
+            message: encoded,
+            isAdmin: true,
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error('Failed to send message');
+        if (!response.ok) {
+          throw new Error('Failed to send message');
+        }
       }
 
   setNewMessage('');
@@ -398,6 +518,34 @@ export default function LiveChatAdmin() {
     };
     reader.readAsDataURL(selectedFile);
     event.target.value = '';
+  };
+
+  const handleSaveConversationMeta = async () => {
+    if (!realtimeEnabled || !selectedChat) {
+      return;
+    }
+
+    try {
+      await patchRealtimeConversation(selectedChat, {
+        assignedAgent: conversationAgent.trim() || null,
+        priority: conversationPriority || 'normal',
+        status: conversationStatus || 'open',
+        slaDueAt: conversationSlaDueAt.trim() || null,
+        tags: conversationTagsInput
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      });
+      toast.success('Conversation metadata updated');
+      await fetchChats();
+    } catch (error) {
+      handleAdminAuthError({
+        errorValue: error,
+        fallbackMessage: 'Failed to update conversation metadata',
+        navigate,
+        redirectedRef: adminAuthRedirectedRef,
+      });
+    }
   };
 
   const filteredChats = chatSummaries.filter(chat =>
@@ -460,6 +608,22 @@ export default function LiveChatAdmin() {
               className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
             />
           </div>
+          {realtimeEnabled && realtimeMetrics?.metrics ? (
+            <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg border border-blue-100 bg-blue-50 p-2 text-[11px]">
+              <div>
+                <p className="text-blue-700/70">Events</p>
+                <p className="font-semibold text-blue-900">{Number(realtimeMetrics.metrics.total_events ?? 0)}</p>
+              </div>
+              <div>
+                <p className="text-blue-700/70">Success</p>
+                <p className="font-semibold text-blue-900">{Number(realtimeMetrics.metrics.success_events ?? 0)}</p>
+              </div>
+              <div>
+                <p className="text-blue-700/70">Avg Latency</p>
+                <p className="font-semibold text-blue-900">{Math.round(Number(realtimeMetrics.metrics.avg_duration_ms ?? 0))}ms</p>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex-1 overflow-y-auto">
@@ -547,6 +711,11 @@ export default function LiveChatAdmin() {
                     <span className="rounded-full bg-blue-50 px-2 py-1 text-[10px] font-semibold text-blue-700">
                       Pending {Number(selectedChatSummary?.pendingUserMessages ?? 0)}
                     </span>
+                    {selectedChatSummary?.priority ? (
+                      <span className="rounded-full bg-purple-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-purple-700">
+                        {selectedChatSummary.priority}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
               </div>
@@ -557,6 +726,52 @@ export default function LiveChatAdmin() {
                 <X size={20} />
               </button>
             </div>
+
+            {realtimeEnabled ? (
+              <div className="grid grid-cols-1 gap-2 border-b border-gray-200 bg-gray-50 p-3 md:grid-cols-5">
+                <input
+                  type="text"
+                  value={conversationAgent}
+                  onChange={(event) => setConversationAgent(event.target.value)}
+                  placeholder="Assigned agent"
+                  className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                />
+                <select value={conversationPriority} onChange={(event) => setConversationPriority(event.target.value as ChatSummary['priority'])} className="rounded-md border border-gray-300 px-2 py-1 text-xs">
+                  <option value="low">Low</option>
+                  <option value="normal">Normal</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+                <select value={conversationStatus} onChange={(event) => setConversationStatus(event.target.value as ChatSummary['status'])} className="rounded-md border border-gray-300 px-2 py-1 text-xs">
+                  <option value="open">Open</option>
+                  <option value="pending">Pending</option>
+                  <option value="resolved">Resolved</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <input
+                  type="text"
+                  value={conversationTagsInput}
+                  onChange={(event) => setConversationTagsInput(event.target.value)}
+                  placeholder="Tags: billing, vip"
+                  className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="datetime-local"
+                    value={conversationSlaDueAt}
+                    onChange={(event) => setConversationSlaDueAt(event.target.value)}
+                    className="min-w-0 flex-1 rounded-md border border-gray-300 px-2 py-1 text-xs"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveConversationMeta()}
+                    className="rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            ) : null}
 
             {/* Messages Area */}
             <div className="flex-1 min-h-0 overflow-y-auto p-4 bg-gray-50">

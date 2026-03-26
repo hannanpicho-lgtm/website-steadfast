@@ -3,6 +3,9 @@ import { buildPublicApiHeaders } from './publicApi';
 import { buildAdminAuthHeaders } from './supabaseAuth';
 
 const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+const REALTIME_CHAT_URL = (import.meta.env.VITE_CHAT_REALTIME_URL as string | undefined)?.trim() ?? '';
+const REALTIME_CHAT_TOKEN = (import.meta.env.VITE_CHAT_REALTIME_TOKEN as string | undefined)?.trim() ?? '';
+const REALTIME_CHAT_FLAG = String(import.meta.env.VITE_CHAT_REALTIME_ENABLED ?? '').toLowerCase();
 
 export type ChatAttachmentType = 'image' | 'video' | 'audio' | 'file';
 
@@ -25,6 +28,32 @@ export type ChatMessage = {
 };
 
 export type ChatResponseState = 'idle' | 'awaiting-support' | 'support-replied';
+
+export type RealtimeChatEvent =
+  | {
+      type: 'message';
+      id: string;
+      sequence: number;
+      conversationId: string;
+      senderRole: 'user' | 'admin' | 'system';
+      senderId: string;
+      body: string;
+      createdAt: string;
+    }
+  | {
+      type: 'typing';
+      conversationId: string;
+      actorId: string;
+      actorRole: 'user' | 'admin';
+      isTyping: boolean;
+    }
+  | {
+      type: 'presence';
+      conversationId?: string;
+      actorId: string;
+      actorRole: 'user' | 'admin';
+      state: 'online' | 'offline';
+    };
 
 export type ChatThreadSummary = {
   username: string;
@@ -294,4 +323,231 @@ export async function markAdminChatRead(username: string): Promise<number> {
 
   const payload = await parseJsonResponse<{ success: boolean; updated: number }>(response, 'Failed to mark admin chat as read');
   return Number(payload.updated ?? 0);
+}
+
+function resolveRealtimeHttpUrl(path: string) {
+  if (!REALTIME_CHAT_URL) {
+    return '';
+  }
+  return `${REALTIME_CHAT_URL.replace(/\/$/, '')}${path}`;
+}
+
+export function isRealtimeChatEnabled() {
+  return Boolean(REALTIME_CHAT_URL) && (REALTIME_CHAT_FLAG === '1' || REALTIME_CHAT_FLAG === 'true' || REALTIME_CHAT_FLAG === 'yes');
+}
+
+export function openRealtimeChatSocket(params: {
+  conversationId: string;
+  actorId: string;
+  actorRole: 'user' | 'admin';
+  onEvent: (event: RealtimeChatEvent) => void;
+  onOpen?: () => void;
+  onClose?: () => void;
+  onError?: () => void;
+}): WebSocket | null {
+  if (!isRealtimeChatEnabled()) {
+    return null;
+  }
+
+  const base = REALTIME_CHAT_URL.replace(/\/$/, '');
+  const wsBase = base.replace(/^http/i, 'ws');
+  const query = new URLSearchParams({
+    conversationId: params.conversationId,
+    actorId: params.actorId,
+    role: params.actorRole,
+  });
+  if (REALTIME_CHAT_TOKEN) {
+    query.set('token', REALTIME_CHAT_TOKEN);
+  }
+
+  const ws = new WebSocket(`${wsBase}/chat/ws?${query.toString()}`);
+  ws.onopen = () => params.onOpen?.();
+  ws.onclose = () => params.onClose?.();
+  ws.onerror = () => params.onError?.();
+  ws.onmessage = (event) => {
+    try {
+      const parsed = JSON.parse(event.data) as RealtimeChatEvent;
+      params.onEvent(parsed);
+    } catch {
+      // Ignore malformed socket events and keep stream alive.
+    }
+  };
+
+  return ws;
+}
+
+async function realtimeJsonFetch<T>(url: string, init: RequestInit, fallbackMessage: string): Promise<T> {
+  const response = await fetch(url, init);
+  return parseJsonResponse<T>(response, fallbackMessage);
+}
+
+export async function sendRealtimeUserChatMessage(conversationId: string, senderId: string, body: string) {
+  const url = resolveRealtimeHttpUrl('/chat/message');
+  if (!url) {
+    throw new Error('Realtime chat URL is not configured');
+  }
+
+  return realtimeJsonFetch<{ ok: true; id: string; sequence: number }>(
+    url,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        ...buildPublicApiHeaders(true),
+        ...(REALTIME_CHAT_TOKEN ? { authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
+        'x-chat-role': 'user',
+        'x-chat-user-id': senderId,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        conversationId,
+        username: senderId,
+        senderRole: 'user',
+        senderId,
+        body,
+      }),
+    },
+    'Failed to send realtime chat message',
+  );
+}
+
+export async function sendRealtimeTyping(conversationId: string, actorId: string, actorRole: 'user' | 'admin', isTyping: boolean) {
+  const url = resolveRealtimeHttpUrl('/chat/typing');
+  if (!url) {
+    return;
+  }
+
+  await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      ...(REALTIME_CHAT_TOKEN ? { authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
+      'x-chat-role': actorRole,
+      ...(actorRole === 'admin' ? { 'x-chat-admin-id': actorId } : { 'x-chat-user-id': actorId }),
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ conversationId, actorId, actorRole, isTyping }),
+  });
+}
+
+export async function fetchRealtimeAdminConversations() {
+  const url = resolveRealtimeHttpUrl('/admin/conversations');
+  if (!url) {
+    throw new Error('Realtime chat URL is not configured');
+  }
+
+  const headers = await buildAdminAuthHeaders(false);
+  return realtimeJsonFetch<{ conversations: unknown[] }>(
+    url,
+    {
+      headers: {
+        ...headers,
+        ...(REALTIME_CHAT_TOKEN ? { authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
+        'x-chat-role': 'admin',
+        'x-chat-admin-id': 'support-admin',
+      },
+    },
+    'Failed to fetch realtime conversations',
+  );
+}
+
+export async function patchRealtimeConversation(conversationId: string, patch: {
+  assignedAgent?: string | null;
+  priority?: 'low' | 'normal' | 'high' | 'urgent';
+  tags?: string[];
+  slaDueAt?: string | null;
+  status?: 'open' | 'pending' | 'resolved' | 'closed';
+}) {
+  const url = resolveRealtimeHttpUrl(`/admin/conversations/${encodeURIComponent(conversationId)}`);
+  if (!url) {
+    throw new Error('Realtime chat URL is not configured');
+  }
+
+  const headers = await buildAdminAuthHeaders();
+  return realtimeJsonFetch<{ ok: true }>(
+    url,
+    {
+      method: 'PATCH',
+      headers: {
+        ...headers,
+        ...(REALTIME_CHAT_TOKEN ? { authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
+        'x-chat-role': 'admin',
+        'x-chat-admin-id': 'support-admin',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(patch),
+    },
+    'Failed to update realtime conversation',
+  );
+}
+
+export async function fetchRealtimeMetricsSummary() {
+  const url = resolveRealtimeHttpUrl('/admin/metrics/summary');
+  if (!url) {
+    throw new Error('Realtime chat URL is not configured');
+  }
+
+  const headers = await buildAdminAuthHeaders(false);
+  return realtimeJsonFetch<{ metrics: unknown; recentFailures: unknown[] }>(
+    url,
+    {
+      headers: {
+        ...headers,
+        ...(REALTIME_CHAT_TOKEN ? { authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
+        'x-chat-role': 'admin',
+        'x-chat-admin-id': 'support-admin',
+      },
+    },
+    'Failed to fetch realtime metrics',
+  );
+}
+
+export async function fetchRealtimeConversationTimeline(conversationId: string) {
+  const url = resolveRealtimeHttpUrl(`/admin/conversations/${encodeURIComponent(conversationId)}`);
+  if (!url) {
+    throw new Error('Realtime chat URL is not configured');
+  }
+
+  const headers = await buildAdminAuthHeaders(false);
+  return realtimeJsonFetch<{ conversationId: string; messages: unknown[] }>(
+    url,
+    {
+      headers: {
+        ...headers,
+        ...(REALTIME_CHAT_TOKEN ? { authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
+        'x-chat-role': 'admin',
+        'x-chat-admin-id': 'support-admin',
+      },
+    },
+    'Failed to fetch realtime conversation timeline',
+  );
+}
+
+export async function sendRealtimeAdminChatMessage(conversationId: string, senderId: string, body: string) {
+  const url = resolveRealtimeHttpUrl('/chat/message');
+  if (!url) {
+    throw new Error('Realtime chat URL is not configured');
+  }
+
+  const headers = await buildAdminAuthHeaders();
+  return realtimeJsonFetch<{ ok: true; id: string; sequence: number }>(
+    url,
+    {
+      method: 'POST',
+      headers: {
+        ...headers,
+        ...(REALTIME_CHAT_TOKEN ? { authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
+        'x-chat-role': 'admin',
+        'x-chat-admin-id': senderId,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        conversationId,
+        senderRole: 'admin',
+        senderId,
+        body,
+      }),
+    },
+    'Failed to send realtime admin chat message',
+  );
 }

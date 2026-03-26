@@ -15,7 +15,11 @@ import {
   fetchUserChatSummary,
   formatChatResponseTime,
   getAttachmentType,
+  isRealtimeChatEnabled,
   markUserChatRead,
+  openRealtimeChatSocket,
+  sendRealtimeTyping,
+  sendRealtimeUserChatMessage,
   sendUserChatMessage,
 } from '../services/chatSupport';
 
@@ -55,9 +59,12 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
   const [threadSummary, setThreadSummary] = useState<ChatThreadSummary | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<number | null>(null);
+  const realtimeSocketRef = useRef<WebSocket | null>(null);
+  const realtimeRefreshTimeoutRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const username = getCurrentUsername();
   const draftStorageKey = username ? `live-chat-draft:${username}` : null;
+  const realtimeEnabled = isRealtimeChatEnabled();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -125,16 +132,42 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
     }
 
     void loadConversation();
+
+    if (realtimeEnabled && username) {
+      realtimeSocketRef.current?.close();
+      realtimeSocketRef.current = openRealtimeChatSocket({
+        conversationId: username,
+        actorId: username,
+        actorRole: 'user',
+        onOpen: () => setConnectionState('live'),
+        onClose: () => setConnectionState('reconnecting'),
+        onError: () => setConnectionState('reconnecting'),
+        onEvent: () => {
+          if (realtimeRefreshTimeoutRef.current !== null) {
+            window.clearTimeout(realtimeRefreshTimeoutRef.current);
+          }
+          realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
+            void loadConversation(true);
+          }, 120);
+        },
+      });
+    }
+
     pollRef.current = window.setInterval(() => {
       void loadConversation(true);
-    }, 4000);
+    }, realtimeEnabled ? 15000 : 4000);
 
     return () => {
       if (pollRef.current !== null) {
         window.clearInterval(pollRef.current);
       }
+      if (realtimeRefreshTimeoutRef.current !== null) {
+        window.clearTimeout(realtimeRefreshTimeoutRef.current);
+      }
+      realtimeSocketRef.current?.close();
+      realtimeSocketRef.current = null;
     };
-  }, [draftStorageKey, isOpen, username]);
+  }, [draftStorageKey, isOpen, realtimeEnabled, username]);
 
   useEffect(() => {
     if (!draftStorageKey) {
@@ -164,7 +197,12 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
 
     try {
       setSending(true);
-      await sendUserChatMessage(encodeChatMessage(trimmedMessage, selectedAttachment));
+      const payload = encodeChatMessage(trimmedMessage, selectedAttachment);
+      if (realtimeEnabled && username) {
+        await sendRealtimeUserChatMessage(username, username, payload);
+      } else {
+        await sendUserChatMessage(payload);
+      }
       setNewMessage('');
       setSelectedAttachment(null);
       setAttachmentError('');
@@ -526,7 +564,13 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
 
             <textarea
               value={newMessage}
-              onChange={(event) => setNewMessage(event.target.value)}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                setNewMessage(nextValue);
+                if (realtimeEnabled && username) {
+                  void sendRealtimeTyping(username, username, 'user', nextValue.trim().length > 0);
+                }
+              }}
               onKeyDown={handleComposerKeyDown}
               rows={1}
               placeholder="Describe the issue, upload evidence, or ask for a reset..."
