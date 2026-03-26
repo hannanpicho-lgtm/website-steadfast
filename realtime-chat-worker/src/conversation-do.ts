@@ -1,5 +1,5 @@
 import type { ChatMessagePayload, Env, PresencePayload, TypingPayload } from './types';
-import { logEvent, nowIso, randomId } from './utils';
+import { getMaxRetryAttempts, logEvent, nowIso, randomId } from './utils';
 
 interface SocketClient {
   ws: WebSocket;
@@ -12,6 +12,50 @@ export class ConversationDurableObject {
   private readonly env: Env;
   private sequence = 0;
   private clients = new Set<SocketClient>();
+
+  private async ensureSequenceInitialized(conversationId: string): Promise<void> {
+    if (this.sequence > 0) {
+      return;
+    }
+
+    const storedSequence = await this.state.storage.get<number>('sequence');
+    if (storedSequence && storedSequence > 0) {
+      this.sequence = storedSequence;
+      return;
+    }
+
+    const row = await this.env.CHAT_DB.prepare(
+      `SELECT MAX(sequence) AS max_sequence FROM chat_messages WHERE conversation_id = ?`,
+    )
+      .bind(conversationId)
+      .first<{ max_sequence?: number }>();
+    this.sequence = Number(row?.max_sequence ?? 0);
+    await this.state.storage.put('sequence', this.sequence);
+  }
+
+  private async insertDeliveryFailure(params: {
+    conversationId: string;
+    messageId?: string;
+    reason: string;
+    retryCount: number;
+    dropped: boolean;
+  }): Promise<void> {
+    await this.env.CHAT_DB.prepare(
+      `INSERT INTO chat_delivery_failures
+       (id, conversation_id, message_id, reason, retry_count, dropped, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(
+        randomId('fail'),
+        params.conversationId,
+        params.messageId ?? null,
+        params.reason,
+        params.retryCount,
+        params.dropped ? 1 : 0,
+        nowIso(),
+      )
+      .run();
+  }
 
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
@@ -51,30 +95,89 @@ export class ConversationDurableObject {
 
   private async handleMessage(payload: ChatMessagePayload): Promise<Response> {
     const start = Date.now();
+    await this.ensureSequenceInitialized(payload.conversationId);
     this.sequence += 1;
     await this.state.storage.put('sequence', this.sequence);
 
     const messageId = randomId('msg');
     const createdAt = nowIso();
+    const maxRetries = getMaxRetryAttempts(this.env);
+    let finalLatency = Date.now() - start;
+    let lastError: unknown = null;
+    let retryCount = 0;
+    while (retryCount <= maxRetries) {
+      try {
+        finalLatency = Date.now() - start;
+        await this.env.CHAT_DB.prepare(
+          `INSERT INTO chat_messages
+            (id, conversation_id, sequence, sender_role, sender_id, body, attachment_json, created_at, delivered_at, latency_ms, read_at, retry_count, delivery_failed, delayed_delivery)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 0, ?)`,
+        )
+          .bind(
+            messageId,
+            payload.conversationId,
+            this.sequence,
+            payload.senderRole,
+            payload.senderId,
+            payload.body,
+            payload.attachments ? JSON.stringify(payload.attachments) : null,
+            createdAt,
+            createdAt,
+            finalLatency,
+            retryCount,
+            finalLatency > 2000 ? 1 : 0,
+          )
+          .run();
 
-    await this.env.CHAT_DB.prepare(
-      `INSERT INTO chat_messages
-        (id, conversation_id, sequence, sender_role, sender_id, body, attachment_json, created_at, delivered_at, latency_ms, read_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
-    )
-      .bind(
+        if (retryCount > 0) {
+          await logEvent(this.env, {
+            conversationId: payload.conversationId,
+            eventType: 'message.retry',
+            actorId: payload.senderId,
+            actorRole: payload.senderRole,
+            payloadJson: JSON.stringify({ retryCount }),
+            durationMs: finalLatency,
+            success: true,
+          });
+        }
+        break;
+      } catch (error) {
+        lastError = error;
+        retryCount += 1;
+        if (retryCount > maxRetries) {
+          await this.insertDeliveryFailure({
+            conversationId: payload.conversationId,
+            messageId,
+            reason: String(error),
+            retryCount: retryCount - 1,
+            dropped: true,
+          });
+          await logEvent(this.env, {
+            conversationId: payload.conversationId,
+            eventType: 'message.delivery.failed',
+            actorId: payload.senderId,
+            actorRole: payload.senderRole,
+            payloadJson: JSON.stringify({ error: String(error), retries: retryCount - 1 }),
+            durationMs: Date.now() - start,
+            success: false,
+          });
+          return new Response(
+            JSON.stringify({ ok: false, error: 'Message delivery failed after retries' }),
+            { status: 500, headers: { 'content-type': 'application/json; charset=utf-8' } },
+          );
+        }
+      }
+    }
+
+    if (lastError && retryCount > 0) {
+      await this.insertDeliveryFailure({
+        conversationId: payload.conversationId,
         messageId,
-        payload.conversationId,
-        this.sequence,
-        payload.senderRole,
-        payload.senderId,
-        payload.body,
-        payload.attachments ? JSON.stringify(payload.attachments) : null,
-        createdAt,
-        createdAt,
-        Date.now() - start,
-      )
-      .run();
+        reason: String(lastError),
+        retryCount,
+        dropped: false,
+      });
+    }
 
     await this.env.CHAT_DB.prepare(
       `UPDATE chat_conversations
@@ -84,7 +187,7 @@ export class ConversationDurableObject {
       .bind(createdAt, createdAt, payload.conversationId)
       .run();
 
-    this.broadcast({
+    const failedSockets = this.broadcast({
       type: 'message',
       id: messageId,
       sequence: this.sequence,
@@ -92,16 +195,38 @@ export class ConversationDurableObject {
       ...payload,
     });
 
+    if (finalLatency > 2000) {
+      await logEvent(this.env, {
+        conversationId: payload.conversationId,
+        eventType: 'message.delayed',
+        actorId: payload.senderId,
+        actorRole: payload.senderRole,
+        durationMs: finalLatency,
+        success: true,
+      });
+    }
+
+    if (failedSockets > 0) {
+      await logEvent(this.env, {
+        conversationId: payload.conversationId,
+        eventType: 'socket.broadcast.dropped',
+        actorId: payload.senderId,
+        actorRole: payload.senderRole,
+        payloadJson: JSON.stringify({ failedSockets }),
+        success: false,
+      });
+    }
+
     await logEvent(this.env, {
       conversationId: payload.conversationId,
       eventType: 'message.sent',
       actorId: payload.senderId,
       actorRole: payload.senderRole,
-      durationMs: Date.now() - start,
+      durationMs: finalLatency,
       success: true,
     });
 
-    return new Response(JSON.stringify({ ok: true, id: messageId, sequence: this.sequence }), {
+    return new Response(JSON.stringify({ ok: true, id: messageId, sequence: this.sequence, retryCount, latencyMs: finalLatency }), {
       headers: { 'content-type': 'application/json; charset=utf-8' },
     });
   }
@@ -152,14 +277,17 @@ export class ConversationDurableObject {
     } as WorkerResponseInit);
   }
 
-  private broadcast(payload: unknown): void {
+  private broadcast(payload: unknown): number {
     const text = JSON.stringify(payload);
+    let failures = 0;
     for (const client of this.clients) {
       try {
         client.ws.send(text);
       } catch {
         this.clients.delete(client);
+        failures += 1;
       }
     }
+    return failures;
   }
 }

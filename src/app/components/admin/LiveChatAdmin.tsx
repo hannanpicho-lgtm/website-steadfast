@@ -67,12 +67,18 @@ type RealtimeMetricsSummary = {
     total_events?: number;
     success_events?: number;
     avg_duration_ms?: number;
+    retry_count?: number;
+    failed_deliveries?: number;
+    delayed_messages?: number;
   };
   recentFailures?: Array<{
     event_type?: string;
     actor_role?: string;
     created_at?: string;
   }>;
+  activeConversations?: number;
+  openLoadByPriority?: Array<{ priority?: string; count?: number }>;
+  slaBreaches?: number;
 };
 
 type ChatAttachmentType = 'image' | 'video' | 'audio' | 'file';
@@ -455,7 +461,7 @@ export default function LiveChatAdmin() {
       setSending(true);
       const encoded = encodeChatMessage(newMessage.trim(), selectedAttachment);
       if (realtimeEnabled) {
-        await sendRealtimeAdminChatMessage(selectedChat, 'support-admin', encoded);
+        await sendRealtimeAdminChatMessage(selectedChat, encoded);
       } else {
         const response = await fetch(`${serverUrl}/cs/chat/send`, {
           method: 'POST',
@@ -609,7 +615,8 @@ export default function LiveChatAdmin() {
             />
           </div>
           {realtimeEnabled && realtimeMetrics?.metrics ? (
-            <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg border border-blue-100 bg-blue-50 p-2 text-[11px]">
+            <div className="mt-3 space-y-2 rounded-lg border border-blue-100 bg-blue-50 p-2 text-[11px]">
+              <div className="grid grid-cols-3 gap-2">
               <div>
                 <p className="text-blue-700/70">Events</p>
                 <p className="font-semibold text-blue-900">{Number(realtimeMetrics.metrics.total_events ?? 0)}</p>
@@ -622,6 +629,55 @@ export default function LiveChatAdmin() {
                 <p className="text-blue-700/70">Avg Latency</p>
                 <p className="font-semibold text-blue-900">{Math.round(Number(realtimeMetrics.metrics.avg_duration_ms ?? 0))}ms</p>
               </div>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <p className="text-blue-700/70">Retries</p>
+                  <p className="font-semibold text-blue-900">{Number(realtimeMetrics.metrics.retry_count ?? 0)}</p>
+                </div>
+                <div>
+                  <p className="text-blue-700/70">Failures</p>
+                  <p className="font-semibold text-blue-900">{Number(realtimeMetrics.metrics.failed_deliveries ?? 0)}</p>
+                </div>
+                <div>
+                  <p className="text-blue-700/70">Delayed</p>
+                  <p className="font-semibold text-blue-900">{Number(realtimeMetrics.metrics.delayed_messages ?? 0)}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-blue-700/70">Active Conversations</p>
+                  <p className="font-semibold text-blue-900">{Number(realtimeMetrics.activeConversations ?? 0)}</p>
+                </div>
+                <div>
+                  <p className="text-blue-700/70">SLA Breaches</p>
+                  <p className="font-semibold text-blue-900">{Number(realtimeMetrics.slaBreaches ?? 0)}</p>
+                </div>
+              </div>
+              {Array.isArray(realtimeMetrics.openLoadByPriority) && realtimeMetrics.openLoadByPriority.length > 0 ? (
+                <div className="rounded border border-blue-200 bg-white/70 p-2">
+                  <p className="mb-1 text-blue-800/80">Open Load by Priority</p>
+                  <div className="flex flex-wrap gap-1">
+                    {realtimeMetrics.openLoadByPriority.map((entry, index) => (
+                      <span key={`${entry.priority || 'unknown'}-${index}`} className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-800">
+                        {(entry.priority || 'unknown').toUpperCase()}: {Number(entry.count ?? 0)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {Array.isArray(realtimeMetrics.recentFailures) && realtimeMetrics.recentFailures.length > 0 ? (
+                <div className="rounded border border-rose-200 bg-rose-50 p-2">
+                  <p className="mb-1 text-rose-800/80">Recent Failures</p>
+                  <div className="max-h-24 space-y-1 overflow-y-auto">
+                    {realtimeMetrics.recentFailures.slice(0, 6).map((failure, index) => (
+                      <p key={`${failure.event_type || 'event'}-${index}`} className="text-[10px] text-rose-800">
+                        {(failure.event_type || 'unknown').replace(/\./g, ' ')} · {failure.actor_role || 'n/a'} · {failure.created_at ? new Date(failure.created_at).toLocaleTimeString() : 'n/a'}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </div>

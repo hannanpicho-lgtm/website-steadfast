@@ -1,10 +1,10 @@
 import { ConversationDurableObject } from './conversation-do';
-import type { ChatMessagePayload, ConversationPatchPayload, Env } from './types';
-import { badRequest, getAuthPrincipal, json, logEvent, notFound, nowIso, unauthorized } from './utils';
+import type { AuthPrincipal, ChatMessagePayload, ConversationPatchPayload, Env } from './types';
+import { badRequest, getAuthPrincipal, getSlaBreachMinutes, json, logEvent, notFound, nowIso, unauthorized } from './utils';
 
 export { ConversationDurableObject };
 
-function getSocketPrincipal(url: URL, env: Env): { id: string; role: 'admin' | 'user' } | null {
+function getSocketPrincipal(url: URL, env: Env): AuthPrincipal | null {
   const token = url.searchParams.get('token') || '';
   if (env.CHAT_AUTH_TOKEN && token !== env.CHAT_AUTH_TOKEN) {
     return null;
@@ -16,7 +16,7 @@ function getSocketPrincipal(url: URL, env: Env): { id: string; role: 'admin' | '
     return null;
   }
 
-  return { id: actorId, role };
+  return { id: actorId, role, rawRoles: [] };
 }
 
 function doStubForConversation(env: Env, conversationId: string): DurableObjectStub {
@@ -103,9 +103,37 @@ async function summaryStats(env: Env): Promise<Response> {
     `SELECT
       COUNT(*) AS total_events,
       SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) AS success_events,
-      AVG(CASE WHEN duration_ms IS NOT NULL THEN duration_ms END) AS avg_duration_ms
+      AVG(CASE WHEN duration_ms IS NOT NULL THEN duration_ms END) AS avg_duration_ms,
+      SUM(CASE WHEN event_type = 'message.retry' THEN 1 ELSE 0 END) AS retry_count,
+      SUM(CASE WHEN event_type = 'message.delivery.failed' THEN 1 ELSE 0 END) AS failed_deliveries,
+      SUM(CASE WHEN event_type = 'message.delayed' THEN 1 ELSE 0 END) AS delayed_messages
      FROM chat_events`,
   ).first();
+
+  const activeConversations = await env.CHAT_DB.prepare(
+    `SELECT COUNT(*) AS active_count
+     FROM chat_conversations
+     WHERE status IN ('open', 'pending')`,
+  ).first<{ active_count?: number }>();
+
+  const openLoadByPriority = await env.CHAT_DB.prepare(
+    `SELECT priority, COUNT(*) AS count
+     FROM chat_conversations
+     WHERE status IN ('open', 'pending')
+     GROUP BY priority`,
+  ).all<{ priority?: string; count?: number }>();
+
+  const slaBreachMinutes = getSlaBreachMinutes(env);
+  const thresholdIso = new Date(Date.now() - slaBreachMinutes * 60 * 1000).toISOString();
+  const slaBreaches = await env.CHAT_DB.prepare(
+    `SELECT COUNT(*) AS breach_count
+     FROM chat_conversations
+     WHERE status IN ('open', 'pending')
+       AND last_response_at IS NULL
+       AND COALESCE(last_message_at, created_at) < ?`,
+  )
+    .bind(thresholdIso)
+    .first<{ breach_count?: number }>();
 
   const recentFailures = await env.CHAT_DB.prepare(
     `SELECT event_type, actor_role, created_at
@@ -115,7 +143,13 @@ async function summaryStats(env: Env): Promise<Response> {
      LIMIT 25`,
   ).all();
 
-  return json({ metrics, recentFailures: recentFailures.results ?? [] });
+  return json({
+    metrics,
+    recentFailures: recentFailures.results ?? [],
+    activeConversations: Number(activeConversations?.active_count ?? 0),
+    openLoadByPriority: openLoadByPriority.results ?? [],
+    slaBreaches: Number(slaBreaches?.breach_count ?? 0),
+  });
 }
 
 function extractConversationId(pathname: string): string | null {
@@ -131,7 +165,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const isSocketRequest = request.method === 'GET' && url.pathname === '/chat/ws';
-    const principal = isSocketRequest ? getSocketPrincipal(url, env) : getAuthPrincipal(request, env);
+    const principal = isSocketRequest ? getSocketPrincipal(url, env) : await getAuthPrincipal(request, env);
     if (!principal) {
       return unauthorized();
     }
@@ -195,6 +229,15 @@ export default {
         if (!payload.conversationId || !payload.body || !payload.senderId || !payload.senderRole) {
           return badRequest('Missing required message fields');
         }
+        if (payload.senderRole !== principal.role) {
+          return unauthorized('Role mismatch for chat message sender');
+        }
+        if (payload.senderId !== principal.id && payload.senderId !== principal.username) {
+          return unauthorized('Sender identity mismatch');
+        }
+        if (principal.role === 'user' && payload.conversationId !== payload.senderId && payload.conversationId !== principal.id) {
+          return unauthorized('Users can only write to their own conversation id');
+        }
         await ensureConversation(env, payload.conversationId, payload.username || payload.senderId);
 
         const stub = doStubForConversation(env, payload.conversationId);
@@ -221,6 +264,12 @@ export default {
         if (!payload?.conversationId) {
           return badRequest('conversationId is required');
         }
+        if (payload.actorRole !== principal.role) {
+          return unauthorized('Actor role mismatch');
+        }
+        if (payload.actorId !== principal.id && payload.actorId !== principal.username) {
+          return unauthorized('Actor identity mismatch');
+        }
         const stub = doStubForConversation(env, payload.conversationId);
         return stub.fetch('https://do.internal/typing', {
           method: 'POST',
@@ -233,6 +282,12 @@ export default {
         const payload = await request.json();
         if (!payload?.conversationId) {
           return badRequest('conversationId is required');
+        }
+        if (payload.actorRole !== principal.role) {
+          return unauthorized('Actor role mismatch');
+        }
+        if (payload.actorId !== principal.id && payload.actorId !== principal.username) {
+          return unauthorized('Actor identity mismatch');
         }
         const stub = doStubForConversation(env, payload.conversationId);
         return stub.fetch('https://do.internal/presence', {

@@ -38,4 +38,17 @@ export interface Env {
   CHAT_DO: DurableObjectNamespace;
   CHAT_DB: D1Database;
   CHAT_AUTH_TOKEN?: string;
+  SUPABASE_JWT_SECRET?: string;
+  ADMIN_ROLE_NAMES?: string;
+  USER_ROLE_NAMES?: string;
+  SLA_BREACH_MINUTES?: string;
+  MAX_RETRY_ATTEMPTS?: string;
+  CHAT_REQUIRE_USER_JWT?: string;
+}
+
+export interface AuthPrincipal {
+  id: string;
+  role: 'admin' | 'user';
+  username?: string;
+  rawRoles: string[];
 }
