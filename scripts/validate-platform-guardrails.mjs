@@ -27,6 +27,7 @@ async function main() {
   const sessionTestPath = path.join(repoRoot, 'src/tests/sessionAuthorization.integration.test.ts');
   const liveChatAdminPath = path.join(repoRoot, 'src/app/components/admin/LiveChatAdmin.tsx');
   const liveChatAdminModuleTestPath = path.join(repoRoot, 'src/tests/liveChatAdmin.module.test.ts');
+  const originVariantsTestPath = path.join(repoRoot, 'src/tests/originVariants.integration.test.ts');
 
   const shimSource = await readFile(shimPath, 'utf8');
   const serverSource = await readFile(serverPath, 'utf8');
@@ -34,6 +35,7 @@ async function main() {
   const sessionTestSource = await readFile(sessionTestPath, 'utf8');
   const liveChatAdminSource = await readFile(liveChatAdminPath, 'utf8');
   const liveChatAdminModuleTestSource = await readFile(liveChatAdminModuleTestPath, 'utf8');
+  const originVariantsTestSource = await readFile(originVariantsTestPath, 'utf8');
 
   addCheck(
     'Unified backend shim imports index.ts',
@@ -112,6 +114,15 @@ async function main() {
     'LiveChatAdmin import regression test is present',
     liveChatAdminModuleTestSource.includes("import('../app/components/admin/LiveChatAdmin')"),
     'Expected src/tests/liveChatAdmin.module.test.ts to include a module import regression test',
+  );
+
+  addCheck(
+    'Origin variants integration test covers trusted and untrusted origin behavior',
+    originVariantsTestSource.includes("csrf_origin_required")
+      && originVariantsTestSource.includes("csrf_origin_untrusted")
+      && originVariantsTestSource.includes('Referer')
+      && originVariantsTestSource.includes("UNTRUSTED_SUBDOMAIN_ORIGIN"),
+    'Expected src/tests/originVariants.integration.test.ts to validate trusted origin, referer fallback, and untrusted origin rejection',
   );
 
   const failed = checks.filter((check) => !check.pass);

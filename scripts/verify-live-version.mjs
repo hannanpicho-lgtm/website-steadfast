@@ -18,9 +18,80 @@ const expectedFunction = readArg('--expected-function', DEFAULT_FUNCTION);
 const expectedCommit = readArg('--expected-commit', process.env.EXPECTED_COMMIT_SHA ?? '').trim().toLowerCase();
 const maxAgeMinutes = Number(readArg('--max-age-minutes', process.env.MAX_DEPLOY_AGE_MINUTES ?? '240'));
 const anonKey = process.env.SUPABASE_ANON_KEY ?? DEFAULT_ANON_KEY;
+const trustedOrigin = readArg('--trusted-origin', process.env.TRUSTED_ORIGIN ?? 'https://steadfastworkbench.org').trim();
+const verifyRouteHealthArg = readArg('--verify-route-health', process.env.VERIFY_ROUTE_HEALTH ?? 'false').toLowerCase();
+const verifyRouteHealth = verifyRouteHealthArg === 'true' || verifyRouteHealthArg === '1';
+const adminJwt = String(process.env.SUPABASE_ADMIN_TEST_JWT ?? '').trim();
 // --fail-on-stale: exit 1 if live version reports stale=true (default: true when --expected-commit provided)
 const failOnStaleArg = readArg('--fail-on-stale', '');
 const failOnStale = failOnStaleArg === '' ? Boolean(expectedCommit) : failOnStaleArg !== 'false' && failOnStaleArg !== '0';
+
+async function verifyRouteHealthChecks() {
+  const baseHeaders = {
+    apikey: anonKey,
+    Authorization: `Bearer ${anonKey}`,
+    Origin: trustedOrigin,
+    'Content-Type': 'application/json',
+  };
+
+  const checks = [
+    {
+      path: '/admin/kv-config-version-status',
+      expectedWithoutAdminJwt: [401],
+      expectedWithAdminJwt: [200],
+    },
+    {
+      path: '/admin/rewards-config',
+      expectedWithoutAdminJwt: [401],
+      expectedWithAdminJwt: [200],
+    },
+    {
+      path: '/cs/admin/chats',
+      expectedWithoutAdminJwt: [401],
+      expectedWithAdminJwt: [200],
+    },
+    {
+      path: '/cs/support-links',
+      expectedWithoutAdminJwt: [200],
+      expectedWithAdminJwt: [200],
+    },
+  ];
+
+  const routeResults = [];
+
+  for (const check of checks) {
+    const headers = {
+      ...baseHeaders,
+      ...(adminJwt ? { 'x-user-jwt': adminJwt } : {}),
+    };
+
+    const res = await fetch(`${base}${check.path}`, {
+      method: 'GET',
+      headers,
+    });
+    const body = await res.text().catch(() => '');
+    const expectedStatuses = adminJwt ? check.expectedWithAdminJwt : check.expectedWithoutAdminJwt;
+
+    if (res.status >= 500) {
+      throw new Error(`Route health failed: ${check.path} returned ${res.status} (server error)`);
+    }
+
+    if (!expectedStatuses.includes(res.status)) {
+      throw new Error(
+        `Route health failed: ${check.path} returned ${res.status}, expected one of [${expectedStatuses.join(', ')}]`,
+      );
+    }
+
+    routeResults.push({
+      path: check.path,
+      status: res.status,
+      expected: expectedStatuses,
+      bodyPreview: body.slice(0, 140).replace(/\s+/g, ' ').trim(),
+    });
+  }
+
+  return routeResults;
+}
 
 async function main() {
   const res = await fetch(`${base}/version`, {
@@ -71,6 +142,11 @@ async function main() {
     deploymentAgeMinutes: Number.isFinite(deploymentAgeMinutes) ? deploymentAgeMinutes : null,
     stale: Boolean(version.stale),
   };
+
+  if (verifyRouteHealth) {
+    summary.routeHealth = await verifyRouteHealthChecks();
+    summary.routeHealthUsedAdminJwt = Boolean(adminJwt);
+  }
 
   console.log(JSON.stringify(summary, null, 2));
 }
