@@ -54,6 +54,21 @@ type TaskCatalogResponse = {
   };
 };
 
+const LIVE_TICKER_ENTRIES: Array<{ emoji: string; user: string; amount: string }> = [
+  { emoji: '🏆', user: 'Fugene55', amount: '$15,257.00 USD' },
+  { emoji: '🎉', user: 'RewardKing_89', amount: '$12,450.00 USD' },
+  { emoji: '💰', user: 'SleepAre8', amount: '$77.00 USD' },
+  { emoji: '🌟', user: 'PlatinumUser7', amount: '$18,000.00 USD' },
+  { emoji: '🏆', user: 'Diamond_Quest88', amount: '$22,300.00 USD' },
+  { emoji: '🎉', user: 'Lamar_K', amount: '$4,820.00 USD' },
+  { emoji: '💰', user: 'CryptoEagle9', amount: '$5,750.00 USD' },
+  { emoji: '🌟', user: 'MastermindQ', amount: '$14,500.00 USD' },
+  { emoji: '🏆', user: 'jhoman1988', amount: '$2,350.00 USD' },
+  { emoji: '🎉', user: 'ProfitPilot', amount: '$9,100.00 USD' },
+  { emoji: '💰', user: 'TechMaster_Pro', amount: '$3,125.00 USD' },
+  { emoji: '🌟', user: 'GoldenPath_X', amount: '$8,900.00 USD' },
+];
+
 const REQUEST_TIMEOUT_MS = 6000;
 const TASK_CATALOG_CACHE_KEY = 'starting:task-catalog:v1';
 const TASK_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -278,6 +293,9 @@ export default function Starting() {
   const totalAccountBalanceDisplay = userData?.isFrozen
     ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze) + frozenUpholdAmount + frozenPremiumProfit)
     : roundMoney(Math.max(0, Number(userData?.balance ?? 0)));
+  const afterSettlementProjection = userData?.isFrozen
+    ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze + frozenPremiumProfit))
+    : roundMoney(Math.max(0, Number(userData?.availableAmount ?? ((userData?.balance ?? 0) - (userData?.holdAmount ?? 0)))));
   const requiredFundsForVip = userData
     ? Number(vipConfigurations.find((tier) => tier.level === userData.vipLevel)?.investment ?? 100)
     : 100;
@@ -418,56 +436,59 @@ export default function Starting() {
         setTaskRuleConfig(cachedTaskCatalog.ruleConfig ?? null);
       }
 
-      const [sessionResult, tasksResult, vipResult, rewardsResult] = await Promise.allSettled([
-        withRetry(async () => {
-          const startedAt = performance.now();
-          const result = await fetchSessionUser();
-          sessionFetchMs = roundMoney(performance.now() - startedAt);
-          return result;
-        }, 1),
-        cachedTaskCatalog
-          ? Promise.resolve(cachedTaskCatalog)
-          : withRetry(async () => {
-              const startedAt = performance.now();
-              const result = await fetchJsonWithTimeout(`${serverUrl}/tasks/catalog`, {
+      const sessionPromise = withRetry(async () => {
+        const startedAt = performance.now();
+        const result = await fetchSessionUser();
+        sessionFetchMs = roundMoney(performance.now() - startedAt);
+        return result;
+      }, 1);
+
+      const tasksPromise = cachedTaskCatalog
+        ? Promise.resolve(cachedTaskCatalog)
+        : withRetry(async () => {
+            const startedAt = performance.now();
+            const result = await fetchJsonWithTimeout(`${serverUrl}/tasks/catalog`, {
               headers: {
-                'Authorization': `Bearer ${publicAnonKey}`,
+                Authorization: `Bearer ${publicAnonKey}`,
               },
-              });
-              catalogFetchMs = roundMoney(performance.now() - startedAt);
-              return result;
-            }, 1),
-        withRetry(() => fetchPublicVipConfig(), 1),
-        withRetry(() => fetchPublicRewardsConfig(), 1),
-      ]);
+            });
+            catalogFetchMs = roundMoney(performance.now() - startedAt);
+            return result;
+          }, 1);
 
-      if (sessionResult.status === 'fulfilled') {
-        setUserData(sessionResult.value);
-      }
+      void withRetry(() => fetchPublicVipConfig(), 1)
+        .then((value) => {
+          setVipConfigurations(value);
+        })
+        .catch(() => {
+          // Keep default VIP values if this non-critical call fails.
+        });
 
-      if (tasksResult.status === 'fulfilled') {
+      void withRetry(() => fetchPublicRewardsConfig(), 1)
+        .then((value) => {
+          setRewardsConfig(value);
+        })
+        .catch(() => {
+          // Keep default rewards config if this non-critical call fails.
+        });
+
+      // Critical path: unlock page as soon as account/session data is ready.
+      const sessionData = await sessionPromise;
+      setUserData(sessionData);
+      setLoading(false);
+
+      try {
+        const tasksResult = await tasksPromise;
         const nextPayload: TaskCatalogResponse = {
-          tasks: Array.isArray(tasksResult.value?.tasks) ? tasksResult.value.tasks : [],
-          ruleConfig: tasksResult.value?.ruleConfig,
+          tasks: Array.isArray(tasksResult?.tasks) ? tasksResult.tasks : [],
+          ruleConfig: tasksResult?.ruleConfig,
         };
         setTaskCatalog(nextPayload.tasks ?? []);
         setTaskRuleConfig(nextPayload.ruleConfig ?? null);
         writeTaskCatalogCache(nextPayload);
+      } catch {
+        // Keep cached catalog if present; otherwise keep an empty list.
       }
-
-      if (sessionResult.status !== 'fulfilled' && tasksResult.status !== 'fulfilled') {
-        throw new Error('Unable to load user and task data right now.');
-      }
-
-      if (vipResult.status === 'fulfilled') {
-        setVipConfigurations(vipResult.value);
-      }
-
-      if (rewardsResult.status === 'fulfilled') {
-        setRewardsConfig(rewardsResult.value);
-      }
-
-      setLoading(false);
 
       const fetchPhaseMs = roundMoney(performance.now() - fetchStart);
       const routeToInteractiveMs = roundMoney(performance.now() - routeEntryTimeRef.current);
@@ -670,78 +691,14 @@ export default function Starting() {
         </div>
         {/* Scrolling winners */}
         <div className="pl-28 animate-marquee whitespace-nowrap">
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">Fugene55</span> just won <span className="text-[#00D9FF] font-bold">$15,257.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">RewardKing_89</span> just won <span className="text-[#00D9FF] font-bold">$12,450.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">SleepAre8</span> just won <span className="text-[#00D9FF] font-bold">$77.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">PlatinumUser7</span> just won <span className="text-[#00D9FF] font-bold">$18,000.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">Diamond_Quest88</span> just won <span className="text-[#00D9FF] font-bold">$22,300.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">Lamar_K</span> just won <span className="text-[#00D9FF] font-bold">$4,820.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">CryptoEagle9</span> just won <span className="text-[#00D9FF] font-bold">$5,750.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">MastermindQ</span> just won <span className="text-[#00D9FF] font-bold">$14,500.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">jhoman1988</span> just won <span className="text-[#00D9FF] font-bold">$2,350.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">ProfitPilot</span> just won <span className="text-[#00D9FF] font-bold">$9,100.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">TechMaster_Pro</span> just won <span className="text-[#00D9FF] font-bold">$3,125.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">GoldenPath_X</span> just won <span className="text-[#00D9FF] font-bold">$8,900.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">SunriseEarner</span> just won <span className="text-[#00D9FF] font-bold">$2,888.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">LuckyV1be</span> just won <span className="text-[#00D9FF] font-bold">$1,250.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">Wealth_Wave</span> just won <span className="text-[#00D9FF] font-bold">$325.75 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">StarTrader_22</span> just won <span className="text-[#00D9FF] font-bold">$490.50 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">BlueSky_Finance</span> just won <span className="text-[#00D9FF] font-bold">$625.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">TradingLion</span> just won <span className="text-[#00D9FF] font-bold">$750.25 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          {/* duplicate set for seamless loop */}
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">Fugene55</span> just won <span className="text-[#00D9FF] font-bold">$15,257.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">RewardKing_89</span> just won <span className="text-[#00D9FF] font-bold">$12,450.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">SleepAre8</span> just won <span className="text-[#00D9FF] font-bold">$77.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">PlatinumUser7</span> just won <span className="text-[#00D9FF] font-bold">$18,000.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">Diamond_Quest88</span> just won <span className="text-[#00D9FF] font-bold">$22,300.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">Lamar_K</span> just won <span className="text-[#00D9FF] font-bold">$4,820.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">CryptoEagle9</span> just won <span className="text-[#00D9FF] font-bold">$5,750.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">MastermindQ</span> just won <span className="text-[#00D9FF] font-bold">$14,500.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">jhoman1988</span> just won <span className="text-[#00D9FF] font-bold">$2,350.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">ProfitPilot</span> just won <span className="text-[#00D9FF] font-bold">$9,100.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">TechMaster_Pro</span> just won <span className="text-[#00D9FF] font-bold">$3,125.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">GoldenPath_X</span> just won <span className="text-[#00D9FF] font-bold">$8,900.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">SunriseEarner</span> just won <span className="text-[#00D9FF] font-bold">$2,888.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">LuckyV1be</span> just won <span className="text-[#00D9FF] font-bold">$1,250.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">💰 <span className="text-white">Wealth_Wave</span> just won <span className="text-[#00D9FF] font-bold">$325.75 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🌟 <span className="text-white">StarTrader_22</span> just won <span className="text-[#00D9FF] font-bold">$490.50 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🏆 <span className="text-white">BlueSky_Finance</span> just won <span className="text-[#00D9FF] font-bold">$625.00 USD</span></span>
-          <span className="text-[#00D9FF]/30 mx-1">•</span>
-          <span className="mx-6 text-sm font-semibold text-[#00D9FF]">🎉 <span className="text-white">TradingLion</span> just won <span className="text-[#00D9FF] font-bold">$750.25 USD</span></span>
+          {[...LIVE_TICKER_ENTRIES, ...LIVE_TICKER_ENTRIES].map((entry, idx) => (
+            <span key={`${entry.user}-${idx}`}>
+              <span className="mx-6 text-sm font-semibold text-[#00D9FF]">
+                {entry.emoji} <span className="text-white">{entry.user}</span> just won <span className="text-[#00D9FF] font-bold">{entry.amount}</span>
+              </span>
+              <span className="text-[#00D9FF]/30 mx-1">•</span>
+            </span>
+          ))}
         </div>
       </div>
 
@@ -1102,6 +1059,26 @@ export default function Starting() {
                 </p>
               </div>
             </div>
+
+            {userData?.isFrozen && (
+              <div className="mt-3 rounded-[18px] border border-amber-300/30 bg-amber-500/10 p-3">
+                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100">Before / Hold / After</p>
+                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  <div className="rounded-lg border border-white/15 bg-white/10 p-2 text-center">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/70">Before Freeze</p>
+                    <p className="mt-1 text-sm font-bold text-white">{Math.max(0, frozenCurrentBalanceBeforeFreeze).toFixed(2)} USD</p>
+                  </div>
+                  <div className="rounded-lg border border-white/15 bg-white/10 p-2 text-center">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/70">Premium Hold</p>
+                    <p className="mt-1 text-sm font-bold text-[#ffe1e1]">-{frozenUpholdAmount.toFixed(2)} USD</p>
+                  </div>
+                  <div className="rounded-lg border border-white/15 bg-white/10 p-2 text-center">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/70">After Settlement</p>
+                    <p className="mt-1 text-sm font-bold text-[#b8ffd4]">{afterSettlementProjection.toFixed(2)} USD</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
               <div
