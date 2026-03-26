@@ -291,6 +291,7 @@ export default function LiveChatAdmin() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const selectedChatSummary = chatSummaries.find((chat) => chat.username === selectedChat) ?? null;
 
   useEffect(() => {
     fetchChats();
@@ -559,7 +560,6 @@ export default function LiveChatAdmin() {
   const filteredChats = chatSummaries.filter(chat =>
     chat.username.toLowerCase().includes(searchQuery.toLowerCase())
   );
-  const selectedChatSummary = chatSummaries.find((chat) => chat.username === selectedChat) ?? null;
 
   return (
     <>
