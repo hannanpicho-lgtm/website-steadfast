@@ -32,6 +32,16 @@ routes = [
   { pattern = "chat-api.steadfast.example.com/*", zone_name = "steadfast.example.com" }
 ]
 
+[[env.production.durable_objects.bindings]]
+name = "CHAT_DO"
+class_name = "ConversationDurableObject"
+
+[[env.production.d1_databases]]
+binding = "CHAT_DB"
+database_name = "steadfast-realtime-chat-db"
+database_id = "5a03d531-ce60-467d-aeb3-5a680a858c3e"
+migrations_dir = "migrations"
+
 [env.production.vars]
 ADMIN_ROLE_NAMES = "admin,super_admin"
 USER_ROLE_NAMES = "user,member"
