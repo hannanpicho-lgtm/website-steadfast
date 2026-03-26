@@ -14,7 +14,7 @@ new_sqlite_classes = ["ConversationDurableObject"]
 [[d1_databases]]
 binding = "CHAT_DB"
 database_name = "steadfast-realtime-chat-db"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "5a03d531-ce60-467d-aeb3-5a680a858c3e"
 migrations_dir = "migrations"
 
 [vars]
