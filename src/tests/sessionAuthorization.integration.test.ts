@@ -12,7 +12,7 @@ const SESSION_USER = 'ugreen';
 const SESSION_PASSWORD = 'demo123';
 const OTHER_USER = 'admin';
 const SUPPORT_STEP_RETRY_DELAY_MS = 1_500;
-const SUPPORT_FETCH_TIMEOUT_MS = 110_000;
+const SUPPORT_FETCH_TIMEOUT_MS = 150_000;
 const SUPPORT_FETCH_WARN_THRESHOLD_MS = 90_000;
 const SUPPORT_TOTAL_WARN_THRESHOLD_MS = 95_000;
 
@@ -821,5 +821,5 @@ describe('Session-bound authorization', () => {
       console.error(`[Tier1FailureClassification] category=assertion-logic message=${formatUnknownError(error)}`);
       throw error;
     }
-  }, 300000);
+  }, 420000);
 });

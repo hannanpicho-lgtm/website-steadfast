@@ -9244,13 +9244,9 @@ app.get('/make-server-a1c55d7e/me/support', async (c) => {
     const userTicketsKey = `user:${username}:tickets`;
     const ticketIds = await kv.get(userTicketsKey) || [];
 
-    const tickets = [];
-    for (const ticketId of ticketIds) {
-      const ticket = await kv.get(`ticket:${ticketId}`);
-      if (ticket) {
-        tickets.push(ticket);
-      }
-    }
+    const tickets = (await Promise.all(
+      ticketIds.map(async (ticketId: string) => kv.get(`ticket:${ticketId}`)),
+    )).filter((ticket): ticket is Record<string, any> => Boolean(ticket));
 
     tickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
