@@ -18,8 +18,6 @@ database_id = "5a03d531-ce60-467d-aeb3-5a680a858c3e"
 migrations_dir = "migrations"
 
 [vars]
-CHAT_AUTH_TOKEN = "REPLACE_WITH_LONG_RANDOM_TOKEN"
-SUPABASE_JWT_SECRET = "REPLACE_WITH_SUPABASE_JWT_SECRET"
 ADMIN_ROLE_NAMES = "admin,super_admin"
 USER_ROLE_NAMES = "user,member"
 SLA_BREACH_MINUTES = "30"
