@@ -74,6 +74,7 @@ const TASK_CATALOG_CACHE_KEY = 'starting:task-catalog:v1';
 const TASK_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
 const STARTING_PERF_SAMPLES_KEY = 'starting:perf-samples:v1';
 const STARTING_PERF_MAX_SAMPLES = 30;
+const STARTING_PERF_EVENTS_KEY = 'starting:perf-events:v1';
 
 type StartingPerfSample = {
   recordedAt: string;
@@ -192,6 +193,28 @@ function writeStartingPerfSample(sample: StartingPerfSample) {
     localStorage.setItem(STARTING_PERF_SAMPLES_KEY, JSON.stringify(nextSamples));
   } catch {
     // Ignore storage failures; metrics should never block user flow.
+  }
+}
+
+function writeStartingPerfEvent(sample: StartingPerfSample) {
+  try {
+    const rawValue = localStorage.getItem(STARTING_PERF_EVENTS_KEY);
+    const existing = rawValue ? JSON.parse(rawValue) : [];
+    const list = Array.isArray(existing) ? existing : [];
+    const next = [
+      {
+        recordedAt: sample.recordedAt,
+        path: sample.path,
+        routeToInteractiveMs: sample.routeToInteractiveMs,
+        fetchPhaseMs: sample.fetchPhaseMs,
+        sessionLoadOk: sample.sessionLoadOk,
+        catalogLoadOk: sample.catalogLoadOk,
+      },
+      ...list,
+    ].slice(0, STARTING_PERF_MAX_SAMPLES);
+    localStorage.setItem(STARTING_PERF_EVENTS_KEY, JSON.stringify(next));
+  } catch {
+    // Observability should never block user interactions.
   }
 }
 
@@ -507,6 +530,8 @@ export default function Starting() {
         navResponseStartMs: navTiming.navResponseStartMs,
       };
       writeStartingPerfSample(perfSample);
+      writeStartingPerfEvent(perfSample);
+      window.dispatchEvent(new CustomEvent('starting:perf-sample', { detail: perfSample }));
       console.info('[StartingPerf] load sample', perfSample);
     } catch (error) {
       console.error('Error fetching user data:', error);
@@ -645,8 +670,32 @@ export default function Starting() {
 
   if (loading) {
     return (
-      <div className="size-full flex items-center justify-center bg-[#1a1f2e]">
-        <Loader2 className="animate-spin text-[#00D9FF]" size={48} />
+      <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
+        <Header onContactClick={() => setIsChatOpen(true)} />
+
+        <div className="max-w-2xl mx-auto px-6 py-6 space-y-6">
+          <div className="animate-pulse">
+            <div className="h-4 w-20 bg-[#293149] rounded mb-2" />
+            <div className="h-8 w-44 bg-[#2f3851] rounded" />
+          </div>
+
+          <div className="rounded-2xl border border-[#00D9FF]/20 bg-[#252d42]/70 p-5 animate-pulse">
+            <div className="h-4 w-32 bg-[#31415f] rounded mb-4" />
+            <div className="h-14 w-full bg-[#31415f] rounded-xl mb-3" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="h-20 bg-[#31415f] rounded-xl" />
+              <div className="h-20 bg-[#31415f] rounded-xl" />
+            </div>
+            <div className="h-16 w-full bg-[#31415f] rounded-xl mt-3" />
+          </div>
+
+          <div className="rounded-xl border border-[#00D9FF]/20 bg-[#252d42]/60 p-4 flex items-center gap-3">
+            <Loader2 className="animate-spin text-[#00D9FF]" size={20} />
+            <p className="text-sm text-gray-300">Loading your account and task data...</p>
+          </div>
+        </div>
+
+        <BottomNavigation />
       </div>
     );
   }

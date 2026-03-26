@@ -19,6 +19,7 @@ export default function Profile() {
   const [securityCredentialsOpen, setSecurityCredentialsOpen] = useState(false);
   const [todayProfit, setTodayProfit] = useState<number>(0);
   const [totalCommission, setTotalCommission] = useState<number>(0);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [referralCode, setReferralCode] = useState('STF01');
   const [financialSummary, setFinancialSummary] = useState<FinancialSummaryResponse | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
@@ -77,17 +78,28 @@ export default function Profile() {
 
     const load = async () => {
       try {
-        const [userRes, referralSummary] = await Promise.all([
+        const [userRes, referralSummary] = await Promise.allSettled([
           fetchFinancialSummary(),
           fetchReferralSummary(),
         ]);
 
-        setFinancialSummary(userRes);
-        setTodayProfit(Number(userRes.todayCommission ?? 0));
-        setTotalCommission(Number(referralSummary.referralEarnings ?? 0));
-        setReferralCode(String(referralSummary.invitationCode ?? 'STF01'));
+        if (userRes.status === 'fulfilled') {
+          setFinancialSummary(userRes.value);
+          setTodayProfit(Number(userRes.value.todayCommission ?? 0));
+        }
+
+        if (referralSummary.status === 'fulfilled') {
+          setTotalCommission(Number(referralSummary.value.referralEarnings ?? 0));
+          setReferralCode(String(referralSummary.value.invitationCode ?? 'STF01'));
+        }
+
+        if (userRes.status !== 'fulfilled' && referralSummary.status !== 'fulfilled') {
+          toast.error('Could not load profile data. Please retry.');
+        }
       } catch {
-        // silently ignore — values stay at 0
+        toast.error('Could not load profile data. Please retry.');
+      } finally {
+        setProfileLoading(false);
       }
     };
 
@@ -158,6 +170,21 @@ export default function Profile() {
 
   const vipLevel = Number(financialSummary?.vipLevel ?? 1);
   const creditScore = Math.min(100, Math.max(0, Math.round(Number(financialSummary?.creditScore ?? 100))));
+  const isFrozen = Boolean(financialSummary?.isFrozen);
+  const activePremium = (financialSummary?.activePremium ?? null) as Record<string, unknown> | null;
+  const totalBalance = Number(financialSummary?.balance ?? 0);
+  const holdAmount = Number(financialSummary?.holdAmount ?? 0);
+  const availableAmount = Number(financialSummary?.availableAmount ?? Math.max(0, totalBalance - holdAmount));
+  const beforeFreezeBalance = isFrozen
+    ? Number(activePremium?.balanceBeforeAssignment ?? totalBalance)
+    : totalBalance;
+  const premiumHoldAmount = isFrozen
+    ? Number(activePremium?.topUpRequired ?? activePremium?.negativeAmount ?? holdAmount)
+    : holdAmount;
+  const premiumProfit = isFrozen ? Math.max(0, Number(activePremium?.commissionEarned ?? 0)) : 0;
+  const afterSettlementAmount = isFrozen
+    ? Math.max(0, beforeFreezeBalance + premiumProfit)
+    : Math.max(0, availableAmount);
 
   return (
     <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
@@ -227,11 +254,26 @@ export default function Profile() {
             </div>
             <div className="flex flex-col items-center border-l border-r border-white/30">
               <p className="text-xs font-semibold text-white/85 mb-1">Today's Profit (USD)</p>
-              <p className="text-lg font-bold">{todayProfit.toFixed(2)}</p>
+              <p className="text-lg font-bold">{profileLoading ? '...' : todayProfit.toFixed(2)}</p>
             </div>
             <div className="flex flex-col items-center">
               <p className="text-xs font-semibold text-white/85 mb-1">Total Commission (USD)</p>
-              <p className="text-lg font-bold">{totalCommission.toFixed(2)}</p>
+              <p className="text-lg font-bold">{profileLoading ? '...' : totalCommission.toFixed(2)}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">{isFrozen ? 'Before Freeze' : 'Total Balance'}</p>
+              <p className="text-sm font-bold mt-1">{profileLoading ? '...' : `${(isFrozen ? beforeFreezeBalance : totalBalance).toFixed(2)} USD`}</p>
+            </div>
+            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">{isFrozen ? 'Premium Hold' : 'Hold Amount'}</p>
+              <p className="text-sm font-bold mt-1 text-[#ffe1e1]">{profileLoading ? '...' : `-${premiumHoldAmount.toFixed(2)} USD`}</p>
+            </div>
+            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">{isFrozen ? 'After Settlement' : 'Available'}</p>
+              <p className="text-sm font-bold mt-1 text-[#b8ffd4]">{profileLoading ? '...' : `${afterSettlementAmount.toFixed(2)} USD`}</p>
             </div>
           </div>
 
