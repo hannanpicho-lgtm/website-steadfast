@@ -274,7 +274,48 @@ export default function Profile() {
             </div>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">{isFrozen ? 'Before Freeze' : 'Total Balance'}</p>
+              <p className="text-sm font-bold mt-1">{profileLoading ? '...' : `${(isFrozen ? beforeFreezeBalance : totalBalance).toFixed(2)} USD`}</p>
+            </div>
+            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">{isFrozen ? 'Premium Hold' : 'Hold Amount'}</p>
+              <p className="text-sm font-bold mt-1 text-[#ffe1e1]">{profileLoading ? '...' : `-${premiumHoldAmount.toFixed(2)} USD`}</p>
+            </div>
+            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">{isFrozen ? 'After Settlement' : 'Available'}</p>
+              <p className="text-sm font-bold mt-1 text-[#b8ffd4]">{profileLoading ? '...' : `${afterSettlementAmount.toFixed(2)} USD`}</p>
+            </div>
+          </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">Lucky Bonus</p>
+              <p className="text-sm font-bold mt-1 text-[#ffe7a6]">{profileLoading ? '...' : `${luckyBonus.toFixed(2)} USD`}</p>
+            </div>
+            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">Recent Bonus Total</p>
+              <p className="text-sm font-bold mt-1 text-[#b9f4ff]">{profileLoading ? '...' : `${bonusPreviewTotal.toFixed(2)} USD`}</p>
+            </div>
+            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">Automatic Bonus</p>
+              <p className="text-sm font-bold mt-1 text-[#b8ffd4]">{profileLoading ? '...' : `${automaticBonusTotal.toFixed(2)} USD`}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-semibold whitespace-nowrap">Credit Score:</span>
+            <div className="flex-1 bg-[#092d46] rounded-full h-2.5 overflow-hidden">
+              <div className="bg-white h-full rounded-full" style={{ width: `${creditScore}%` }}></div>
+            </div>
+            <span className="text-sm font-bold flex items-center gap-1 whitespace-nowrap">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-orange-400">
+                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+              </svg>
+              {creditScore}%
+            </span>
+          </div>
         </div>
 
         {/* My Profile Section */}
