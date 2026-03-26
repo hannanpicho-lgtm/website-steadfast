@@ -7,15 +7,15 @@ const ONBOARDING_KEY = 'steadfast:onboarded:v1';
 
 function hasCompletedOnboarding(username: string): boolean {
   try {
-    return localStorage.getItem(`${ONBOARDING_KEY}:${username}`) === 'true';
+    return sessionStorage.getItem(`${ONBOARDING_KEY}:${username}`) === 'true';
   } catch {
-    return true;
+    return false;
   }
 }
 
 function markOnboardingComplete(username: string): void {
   try {
-    localStorage.setItem(`${ONBOARDING_KEY}:${username}`, 'true');
+    sessionStorage.setItem(`${ONBOARDING_KEY}:${username}`, 'true');
   } catch {
     // ignore
   }

@@ -248,21 +248,6 @@ export default function Activity() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-            <div className="bg-[#111827] rounded-lg p-3">
-              <p className="text-gray-400 text-xs uppercase tracking-wide">Bonus Feed Total</p>
-              <p className="text-cyan-300 text-lg font-bold">${bonusTotal.toFixed(2)}</p>
-            </div>
-            <div className="bg-[#111827] rounded-lg p-3">
-              <p className="text-gray-400 text-xs uppercase tracking-wide">Automatic Bonus</p>
-              <p className="text-emerald-300 text-lg font-bold">${Number(bonusByAssignmentMode['automatic'] ?? 0).toFixed(2)}</p>
-            </div>
-            <div className="bg-[#111827] rounded-lg p-3">
-              <p className="text-gray-400 text-xs uppercase tracking-wide">Semi/Manual Bonus</p>
-              <p className="text-orange-300 text-lg font-bold">${(Number(bonusByAssignmentMode['semi-automatic'] ?? 0) + Number(bonusByAssignmentMode['manual'] ?? 0)).toFixed(2)}</p>
-            </div>
-          </div>
-
           <h3 className="text-white text-sm font-semibold mb-2">Recent Activity Log</h3>
           <div className="space-y-2 max-h-56 overflow-auto pr-1">
             {recentActivity.length === 0 ? (

@@ -314,6 +314,9 @@ type UserBalanceAdjustmentDraft = {
   mode: 'credit' | 'debit';
   amount: string;
   reason: string;
+  isBonus: boolean;
+  bonusLabel: string;
+  bonusAssignmentMode: 'automatic' | 'semi-automatic' | 'manual';
 };
 
 type TransactionRecord = {
@@ -560,6 +563,9 @@ export default function Admin() {
       mode: 'credit',
       amount: '',
       reason: '',
+      isBonus: false,
+      bonusLabel: '',
+      bonusAssignmentMode: 'semi-automatic',
     });
   }, [modalType, selectedItem]);
 
@@ -877,6 +883,7 @@ export default function Admin() {
     setUserBalanceAdjustmentSaving(true);
     try {
       const headers = await buildAdminAuthHeaders();
+      const isBonusCredit = userBalanceAdjustmentDraft.mode === 'credit' && userBalanceAdjustmentDraft.isBonus;
       const response = await fetch(`${serverUrl}/admin/platform-users/${encodeURIComponent(selectedItem.username)}/balance-adjustment`, {
         method: 'POST',
         headers,
@@ -884,6 +891,11 @@ export default function Admin() {
           mode: userBalanceAdjustmentDraft.mode,
           amount,
           reason,
+          ...(isBonusCredit && {
+            isBonus: true,
+            bonusLabel: userBalanceAdjustmentDraft.bonusLabel.trim() || 'Admin Bonus',
+            bonusAssignmentMode: userBalanceAdjustmentDraft.bonusAssignmentMode,
+          }),
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -2763,7 +2775,7 @@ export default function Admin() {
                     <p className="text-gray-400 text-sm">Action</p>
                     <select
                       value={userBalanceAdjustmentDraft.mode}
-                      onChange={(event) => setUserBalanceAdjustmentDraft((current) => current ? { ...current, mode: event.target.value as 'credit' | 'debit' } : current)}
+                      onChange={(event) => setUserBalanceAdjustmentDraft((current) => current ? { ...current, mode: event.target.value as 'credit' | 'debit', isBonus: false } : current)}
                       className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white mt-2 focus:border-[#00D9FF] focus:outline-none"
                     >
                       <option value="credit">Top Up / Credit</option>
@@ -2783,13 +2795,52 @@ export default function Admin() {
                     />
                   </label>
                 </div>
+                {userBalanceAdjustmentDraft.mode === 'credit' && (
+                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={userBalanceAdjustmentDraft.isBonus}
+                        onChange={(event) => setUserBalanceAdjustmentDraft((current) => current ? { ...current, isBonus: event.target.checked } : current)}
+                        className="w-4 h-4 accent-[#00D9FF]"
+                      />
+                      <span className="text-white font-semibold text-sm">Mark as Bonus Credit</span>
+                    </label>
+                    {userBalanceAdjustmentDraft.isBonus && (
+                      <div className="mt-3 space-y-3">
+                        <div>
+                          <p className="text-gray-400 text-xs mb-1">Bonus Label <span className="text-gray-500">(optional)</span></p>
+                          <input
+                            type="text"
+                            value={userBalanceAdjustmentDraft.bonusLabel}
+                            onChange={(event) => setUserBalanceAdjustmentDraft((current) => current ? { ...current, bonusLabel: event.target.value } : current)}
+                            className="w-full px-3 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white text-sm focus:border-[#00D9FF] focus:outline-none"
+                            placeholder="e.g. Lucky Bonus, Welcome Reward..."
+                          />
+                        </div>
+                        <div>
+                          <p className="text-gray-400 text-xs mb-1">Assignment Mode</p>
+                          <select
+                            value={userBalanceAdjustmentDraft.bonusAssignmentMode}
+                            onChange={(event) => setUserBalanceAdjustmentDraft((current) => current ? { ...current, bonusAssignmentMode: event.target.value as 'automatic' | 'semi-automatic' | 'manual' } : current)}
+                            className="w-full px-3 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white text-sm focus:border-[#00D9FF] focus:outline-none"
+                          >
+                            <option value="manual">Manual</option>
+                            <option value="semi-automatic">Semi-Automatic</option>
+                            <option value="automatic">Automatic</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 <label className="bg-[#1a1f2e] p-4 rounded-lg block">
                   <p className="text-gray-400 text-sm">Reason</p>
                   <textarea
                     value={userBalanceAdjustmentDraft.reason}
                     onChange={(event) => setUserBalanceAdjustmentDraft((current) => current ? { ...current, reason: event.target.value } : current)}
                     className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white mt-2 focus:border-[#00D9FF] focus:outline-none"
-                    rows={4}
+                    rows={3}
                     placeholder="Why are you adjusting this balance?"
                   />
                 </label>
