@@ -72,6 +72,8 @@ const LIVE_TICKER_ENTRIES: Array<{ emoji: string; user: string; amount: string }
 const REQUEST_TIMEOUT_MS = 6000;
 const TASK_CATALOG_CACHE_KEY = 'starting:task-catalog:v1';
 const TASK_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
+const FINANCIAL_SUMMARY_CACHE_KEY = 'starting:financial-summary:v1';
+const FINANCIAL_SUMMARY_CACHE_TTL_MS = 60 * 1000;
 const STARTING_PERF_SAMPLES_KEY = 'starting:perf-samples:v1';
 const STARTING_PERF_MAX_SAMPLES = 30;
 const STARTING_PERF_EVENTS_KEY = 'starting:perf-events:v1';
@@ -169,6 +171,40 @@ function writeTaskCatalogCache(payload: TaskCatalogResponse) {
     }));
   } catch {
     // Ignore storage errors and continue without cache.
+  }
+}
+
+function readFinancialSummaryCache(): UserData | null {
+  try {
+    const rawValue = sessionStorage.getItem(FINANCIAL_SUMMARY_CACHE_KEY);
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsed = JSON.parse(rawValue) as { timestamp?: number; payload?: UserData };
+    if (!parsed || typeof parsed.timestamp !== 'number' || !parsed.payload) {
+      return null;
+    }
+
+    if (Date.now() - parsed.timestamp > FINANCIAL_SUMMARY_CACHE_TTL_MS) {
+      sessionStorage.removeItem(FINANCIAL_SUMMARY_CACHE_KEY);
+      return null;
+    }
+
+    return parsed.payload;
+  } catch {
+    return null;
+  }
+}
+
+function writeFinancialSummaryCache(payload: UserData) {
+  try {
+    sessionStorage.setItem(FINANCIAL_SUMMARY_CACHE_KEY, JSON.stringify({
+      timestamp: Date.now(),
+      payload,
+    }));
+  } catch {
+    // Ignore cache write errors.
   }
 }
 
@@ -449,14 +485,22 @@ export default function Starting() {
       const fetchStart = performance.now();
       let sessionFetchMs: number | null = null;
       let catalogFetchMs: number | null = null;
+      let sessionLoadOk = false;
+      let catalogLoadOk = false;
 
       setLoading(true);
       setLoadError(null);
+      const cachedFinancialSummary = readFinancialSummaryCache();
+      if (cachedFinancialSummary) {
+        setUserData(cachedFinancialSummary);
+        setLoading(false);
+      }
       const cachedTaskCatalog = readTaskCatalogCache();
       const usedCachedCatalog = Boolean(cachedTaskCatalog);
       if (cachedTaskCatalog) {
         setTaskCatalog(Array.isArray(cachedTaskCatalog.tasks) ? cachedTaskCatalog.tasks : []);
         setTaskRuleConfig(cachedTaskCatalog.ruleConfig ?? null);
+        catalogLoadOk = true;
       }
 
       const sessionPromise = withRetry(async () => {
@@ -497,7 +541,9 @@ export default function Starting() {
 
       // Critical path: unlock page as soon as account/session data is ready.
       const sessionData = await sessionPromise;
+      sessionLoadOk = true;
       setUserData(sessionData);
+      writeFinancialSummaryCache(sessionData as UserData);
       setLoading(false);
 
       try {
@@ -509,7 +555,9 @@ export default function Starting() {
         setTaskCatalog(nextPayload.tasks ?? []);
         setTaskRuleConfig(nextPayload.ruleConfig ?? null);
         writeTaskCatalogCache(nextPayload);
+        catalogLoadOk = true;
       } catch {
+        catalogLoadOk = false;
         // Keep cached catalog if present; otherwise keep an empty list.
       }
 
@@ -523,8 +571,8 @@ export default function Starting() {
         fetchPhaseMs,
         sessionFetchMs,
         catalogFetchMs,
-        sessionLoadOk: sessionResult.status === 'fulfilled',
-        catalogLoadOk: tasksResult.status === 'fulfilled',
+        sessionLoadOk,
+        catalogLoadOk,
         usedCachedCatalog,
         navDomContentLoadedMs: navTiming.navDomContentLoadedMs,
         navResponseStartMs: navTiming.navResponseStartMs,
