@@ -23,6 +23,7 @@
     "test:watch": "vitest",
     "audit:endpoints": "node scripts/api-endpoint-audit.mjs",
     "smoke": "node scripts/api-smoke-test.mjs",
+    "validate:guardrails": "node scripts/validate-platform-guardrails.mjs",
     "verify:live:version": "node scripts/verify-live-version.mjs",
     "monitoring:check-stale": "node scripts/verify-live-version.mjs --fail-on-stale",
     "verify:deploy:p4": "node scripts/verify-cloudflare-deploy.mjs --project website-steadfast",

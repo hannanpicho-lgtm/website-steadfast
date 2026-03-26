@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest';
 
 const BASE = 'https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2cXd2dXFlZW5rdXNkYXlvc3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxODA3ODksImV4cCI6MjA4ODc1Njc4OX0.R0dNwSW9ibeU0XE9kYdKI3E2D6vEP6dVu2VATAHXK1A';
+const TRUSTED_ORIGIN = 'https://steadfastworkbench.org';
 const ADMIN_TEST_JWT = process.env.SUPABASE_ADMIN_TEST_JWT;
 const REQUIRE_ADMIN_SUCCESS = process.env.REQUIRE_ADMIN_SUCCESS === 'true';
 const SESSION_USER = 'ugreen';
@@ -37,6 +38,7 @@ async function request(
 ) {
   const mergedHeaders = {
     'Content-Type': 'application/json',
+    Origin: TRUSTED_ORIGIN,
     apikey: ANON_KEY,
     Authorization: `Bearer ${ANON_KEY}`,
     ...(init?.headers ?? {}),
@@ -77,6 +79,7 @@ async function request(
 async function requestRaw(path: string, init?: RequestInit) {
   const mergedHeaders = {
     'Content-Type': 'application/json',
+    Origin: TRUSTED_ORIGIN,
     apikey: ANON_KEY,
     Authorization: `Bearer ${ANON_KEY}`,
     ...(init?.headers ?? {}),
@@ -106,6 +109,7 @@ async function loginAndGetSessionCookie(username = SESSION_USER, loginPassword =
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Origin: TRUSTED_ORIGIN,
           apikey: ANON_KEY,
           Authorization: `Bearer ${ANON_KEY}`,
         },
