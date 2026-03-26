@@ -39,12 +39,14 @@ export interface Env {
   CHAT_DB: D1Database;
   CHAT_AUTH_TOKEN?: string;
   SUPABASE_JWT_SECRET?: string;
+  CORS_ALLOW_ORIGINS?: string;
   ADMIN_ROLE_NAMES?: string;
   USER_ROLE_NAMES?: string;
   SLA_BREACH_MINUTES?: string;
   MAX_RETRY_ATTEMPTS?: string;
   CHAT_REQUIRE_USER_JWT?: string;
   WS_TICKET_TTL_SECONDS?: string;
+  WS_TICKET_MAX_PER_MINUTE?: string;
   SLA_AUTO_ESCALATE?: string;
 }
 

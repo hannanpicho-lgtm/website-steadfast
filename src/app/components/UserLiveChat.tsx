@@ -61,6 +61,7 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
   const pollRef = useRef<number | null>(null);
   const realtimeSocketRef = useRef<WebSocket | null>(null);
   const realtimeRefreshTimeoutRef = useRef<number | null>(null);
+  const reconnectToastShownRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const username = getCurrentUsername();
   const draftStorageKey = username ? `live-chat-draft:${username}` : null;
@@ -195,6 +196,19 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  useEffect(() => {
+    if (connectionState === 'reconnecting' && !reconnectToastShownRef.current) {
+      toast.error('Live channel dropped. Reconnecting in the background.');
+      reconnectToastShownRef.current = true;
+      return;
+    }
+
+    if (connectionState === 'live' && reconnectToastShownRef.current) {
+      toast.success('Live chat connection restored.');
+      reconnectToastShownRef.current = false;
+    }
+  }, [connectionState]);
 
   const sendCurrentMessage = async () => {
     const trimmedMessage = newMessage.trim();
@@ -373,6 +387,12 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
         </div>
 
         <div className="flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_top,rgba(43,88,112,0.28),transparent_40%),linear-gradient(180deg,rgba(7,20,28,0.96)_0%,rgba(9,17,24,0.96)_100%)] px-4 py-4">
+          {connectionState === 'reconnecting' ? (
+            <div className="rounded-xl border border-amber-300/30 bg-amber-400/10 px-3 py-2 text-xs font-medium text-amber-100">
+              Live updates are unstable. Messages are still syncing through fallback refresh.
+            </div>
+          ) : null}
+
           <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-3 text-slate-200">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <ShieldCheck size={16} className="text-cyan-300" />

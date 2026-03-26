@@ -26,6 +26,10 @@ export function badRequest(message: string): Response {
   return json({ error: message }, { status: 400 });
 }
 
+export function tooManyRequests(message: string): Response {
+  return json({ error: message }, { status: 429 });
+}
+
 export function notFound(message = 'Not found'): Response {
   return json({ error: message }, { status: 404 });
 }

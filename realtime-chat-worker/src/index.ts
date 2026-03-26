@@ -1,6 +1,6 @@
 import { ConversationDurableObject } from './conversation-do';
 import type { AuthPrincipal, ChatMessagePayload, ConversationPatchPayload, Env } from './types';
-import { badRequest, getAuthPrincipal, getSlaBreachMinutes, json, logEvent, notFound, nowIso, unauthorized } from './utils';
+import { badRequest, getAuthPrincipal, getSlaBreachMinutes, json, logEvent, notFound, nowIso, tooManyRequests, unauthorized } from './utils';
 
 export { ConversationDurableObject };
 
@@ -14,6 +14,64 @@ function getWsTicketTtlSeconds(env: Env): number {
 
 function shouldAutoEscalateSla(env: Env): boolean {
   return String(env.SLA_AUTO_ESCALATE ?? '').toLowerCase() === 'true';
+}
+
+function getWsTicketMaxPerMinute(env: Env): number {
+  const value = Number(env.WS_TICKET_MAX_PER_MINUTE ?? 12);
+  if (!Number.isFinite(value) || value <= 0) {
+    return 12;
+  }
+  return Math.min(120, Math.max(3, Math.floor(value)));
+}
+
+function parseAllowedOrigins(env: Env): string[] {
+  const configured = String(env.CORS_ALLOW_ORIGINS ?? '').trim();
+  if (!configured) {
+    return [];
+  }
+  return configured
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isOriginAllowed(origin: string | null, env: Env): boolean {
+  if (!origin) {
+    return true;
+  }
+  const allowedOrigins = parseAllowedOrigins(env);
+  if (allowedOrigins.length === 0) {
+    return true;
+  }
+  const normalized = origin.trim().toLowerCase();
+  return allowedOrigins.includes(normalized);
+}
+
+function applyCorsHeaders(request: Request, env: Env, response: Response): Response {
+  const origin = request.headers.get('origin');
+  const allowOrigin = origin && isOriginAllowed(origin, env) ? origin : '*';
+  response.headers.set('access-control-allow-origin', allowOrigin);
+  response.headers.set('access-control-allow-methods', 'GET,POST,PATCH,OPTIONS');
+  response.headers.set('access-control-allow-headers', 'authorization,content-type,x-chat-role,x-chat-user-id,x-chat-admin-id,x-user-jwt');
+  response.headers.set('access-control-max-age', '86400');
+  response.headers.set('vary', 'Origin');
+  return response;
+}
+
+async function checkWsTicketRateLimit(env: Env, principal: AuthPrincipal, conversationId: string): Promise<boolean> {
+  const thresholdIso = new Date(Date.now() - 60_000).toISOString();
+  const row = await env.CHAT_DB.prepare(
+    `SELECT COUNT(*) AS issued_count
+     FROM chat_ws_tickets
+     WHERE actor_id = ?
+       AND conversation_id = ?
+       AND created_at > ?`,
+  )
+    .bind(principal.id, conversationId, thresholdIso)
+    .first<{ issued_count?: number }>();
+
+  const issuedCount = Number(row?.issued_count ?? 0);
+  return issuedCount < getWsTicketMaxPerMinute(env);
 }
 
 function sha256Hex(input: string): Promise<string> {
@@ -305,215 +363,233 @@ function extractConversationId(pathname: string): string | null {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
-    const isSocketRequest = request.method === 'GET' && url.pathname === '/chat/ws';
-    const principal = isSocketRequest
-      ? await consumeWsTicket(env, url.searchParams.get('ticket') || '', url.searchParams.get('conversationId') || '')
-      : await getAuthPrincipal(request, env);
-    if (!principal) {
-      return unauthorized();
+    const origin = request.headers.get('origin');
+    if (origin && !isOriginAllowed(origin, env)) {
+      return applyCorsHeaders(request, env, json({ error: 'Origin not allowed' }, { status: 403 }));
     }
 
-    const started = Date.now();
+    if (request.method === 'OPTIONS') {
+      return applyCorsHeaders(request, env, new Response(null, { status: 204 }));
+    }
 
-    try {
-      if (request.method === 'GET' && url.pathname === '/health') {
-        return json({ ok: true, service: 'realtime-chat-worker' });
+    const response = await (async (): Promise<Response> => {
+      const url = new URL(request.url);
+      const isSocketRequest = request.method === 'GET' && url.pathname === '/chat/ws';
+      const principal = isSocketRequest
+        ? await consumeWsTicket(env, url.searchParams.get('ticket') || '', url.searchParams.get('conversationId') || '')
+        : await getAuthPrincipal(request, env);
+      if (!principal) {
+        return unauthorized();
       }
 
-      if (request.method === 'GET' && url.pathname === '/admin/metrics/summary') {
-        if (principal.role !== 'admin') {
-          return unauthorized('Admin access required');
-        }
-        return summaryStats(env);
-      }
+      const started = Date.now();
 
-      if (request.method === 'GET' && url.pathname === '/admin/metrics/failures') {
-        if (principal.role !== 'admin') {
-          return unauthorized('Admin access required');
-        }
-        return deliveryFailures(env);
-      }
-
-      if (request.method === 'POST' && url.pathname === '/admin/sla/enforce') {
-        if (principal.role !== 'admin') {
-          return unauthorized('Admin access required');
-        }
-        const result = await enforceSla(env);
-        return json({ ok: true, ...result });
-      }
-
-      if (request.method === 'POST' && url.pathname === '/chat/ws-ticket') {
-        const payload = (await request.json()) as { conversationId?: string };
-        const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : '';
-        if (!conversationId) {
-          return badRequest('conversationId is required');
-        }
-        if (principal.role === 'user' && conversationId !== principal.id && conversationId !== principal.username) {
-          return unauthorized('Users can only request websocket tickets for their own conversation');
+      try {
+        if (request.method === 'GET' && url.pathname === '/health') {
+          return json({ ok: true, service: 'realtime-chat-worker' });
         }
 
-        const issued = await createWsTicket(env, principal, conversationId);
-        return json({
-          ticket: issued.ticket,
-          expiresAt: issued.expiresAt,
-          conversationId,
-          actorId: principal.id,
-          actorRole: principal.role,
-        });
-      }
+        if (request.method === 'GET' && url.pathname === '/admin/metrics/summary') {
+          if (principal.role !== 'admin') {
+            return unauthorized('Admin access required');
+          }
+          return summaryStats(env);
+        }
 
-      if (request.method === 'GET' && url.pathname === '/admin/conversations') {
-        if (principal.role !== 'admin') {
-          return unauthorized('Admin access required');
+        if (request.method === 'GET' && url.pathname === '/admin/metrics/failures') {
+          if (principal.role !== 'admin') {
+            return unauthorized('Admin access required');
+          }
+          return deliveryFailures(env);
         }
-        return listConversations(env);
-      }
 
-      if (request.method === 'GET' && url.pathname.startsWith('/admin/conversations/')) {
-        if (principal.role !== 'admin') {
-          return unauthorized('Admin access required');
+        if (request.method === 'POST' && url.pathname === '/admin/sla/enforce') {
+          if (principal.role !== 'admin') {
+            return unauthorized('Admin access required');
+          }
+          const result = await enforceSla(env);
+          return json({ ok: true, ...result });
         }
-        const conversationId = extractConversationId(url.pathname);
-        if (!conversationId) {
-          return badRequest('Missing conversation id');
-        }
-        return conversationTimeline(env, conversationId);
-      }
 
-      if (request.method === 'PATCH' && url.pathname.startsWith('/admin/conversations/')) {
-        if (principal.role !== 'admin') {
-          return unauthorized('Admin access required');
+        if (request.method === 'POST' && url.pathname === '/chat/ws-ticket') {
+          const payload = (await request.json()) as { conversationId?: string };
+          const conversationId = typeof payload.conversationId === 'string' ? payload.conversationId : '';
+          if (!conversationId) {
+            return badRequest('conversationId is required');
+          }
+          if (principal.role === 'user' && conversationId !== principal.id && conversationId !== principal.username) {
+            return unauthorized('Users can only request websocket tickets for their own conversation');
+          }
+
+          const canIssueTicket = await checkWsTicketRateLimit(env, principal, conversationId);
+          if (!canIssueTicket) {
+            return tooManyRequests('Too many websocket ticket requests. Please wait a moment.');
+          }
+
+          const issued = await createWsTicket(env, principal, conversationId);
+          return json({
+            ticket: issued.ticket,
+            expiresAt: issued.expiresAt,
+            conversationId,
+            actorId: principal.id,
+            actorRole: principal.role,
+          });
         }
-        const conversationId = extractConversationId(url.pathname);
-        if (!conversationId) {
-          return badRequest('Missing conversation id');
+
+        if (request.method === 'GET' && url.pathname === '/admin/conversations') {
+          if (principal.role !== 'admin') {
+            return unauthorized('Admin access required');
+          }
+          return listConversations(env);
         }
-        const patch = (await request.json()) as ConversationPatchPayload;
-        await patchConversation(env, conversationId, patch);
+
+        if (request.method === 'GET' && url.pathname.startsWith('/admin/conversations/')) {
+          if (principal.role !== 'admin') {
+            return unauthorized('Admin access required');
+          }
+          const conversationId = extractConversationId(url.pathname);
+          if (!conversationId) {
+            return badRequest('Missing conversation id');
+          }
+          return conversationTimeline(env, conversationId);
+        }
+
+        if (request.method === 'PATCH' && url.pathname.startsWith('/admin/conversations/')) {
+          if (principal.role !== 'admin') {
+            return unauthorized('Admin access required');
+          }
+          const conversationId = extractConversationId(url.pathname);
+          if (!conversationId) {
+            return badRequest('Missing conversation id');
+          }
+          const patch = (await request.json()) as ConversationPatchPayload;
+          await patchConversation(env, conversationId, patch);
+          await logEvent(env, {
+            conversationId,
+            eventType: 'conversation.patched',
+            actorId: principal.id,
+            actorRole: principal.role,
+            payloadJson: JSON.stringify(patch),
+            durationMs: Date.now() - started,
+            success: true,
+          });
+          return json({ ok: true });
+        }
+
+        if (request.method === 'POST' && url.pathname === '/chat/message') {
+          const payload = (await request.json()) as ChatMessagePayload & { username?: string };
+          if (!payload.conversationId || !payload.body || !payload.senderId || !payload.senderRole) {
+            return badRequest('Missing required message fields');
+          }
+          if (payload.senderRole !== principal.role) {
+            return unauthorized('Role mismatch for chat message sender');
+          }
+          if (payload.senderId !== principal.id && payload.senderId !== principal.username) {
+            return unauthorized('Sender identity mismatch');
+          }
+          if (principal.role === 'user' && payload.conversationId !== payload.senderId && payload.conversationId !== principal.id) {
+            return unauthorized('Users can only write to their own conversation id');
+          }
+          await ensureConversation(env, payload.conversationId, payload.username || payload.senderId);
+
+          const stub = doStubForConversation(env, payload.conversationId);
+          const stubResponse = await stub.fetch('https://do.internal/message', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+          const createdAt = nowIso();
+          if (payload.senderRole === 'admin') {
+            await env.CHAT_DB.prepare(
+              `UPDATE chat_conversations SET last_response_at = ?, updated_at = ? WHERE id = ?`,
+            )
+              .bind(createdAt, createdAt, payload.conversationId)
+              .run();
+          }
+
+          return stubResponse;
+        }
+
+        if (request.method === 'POST' && url.pathname === '/chat/typing') {
+          const payload = await request.json();
+          if (!payload?.conversationId) {
+            return badRequest('conversationId is required');
+          }
+          if (payload.actorRole !== principal.role) {
+            return unauthorized('Actor role mismatch');
+          }
+          if (payload.actorId !== principal.id && payload.actorId !== principal.username) {
+            return unauthorized('Actor identity mismatch');
+          }
+          const stub = doStubForConversation(env, payload.conversationId);
+          return stub.fetch('https://do.internal/typing', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        }
+
+        if (request.method === 'POST' && url.pathname === '/chat/presence') {
+          const payload = await request.json();
+          if (!payload?.conversationId) {
+            return badRequest('conversationId is required');
+          }
+          if (payload.actorRole !== principal.role) {
+            return unauthorized('Actor role mismatch');
+          }
+          if (payload.actorId !== principal.id && payload.actorId !== principal.username) {
+            return unauthorized('Actor identity mismatch');
+          }
+          const stub = doStubForConversation(env, payload.conversationId);
+          return stub.fetch('https://do.internal/presence', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+        }
+
+        if (request.method === 'GET' && url.pathname === '/chat/ws') {
+          const conversationId = url.searchParams.get('conversationId');
+          if (!conversationId) {
+            return badRequest('conversationId is required');
+          }
+          const stub = doStubForConversation(env, conversationId);
+          const forwarded = new Request('https://do.internal/ws', {
+            headers: {
+              upgrade: request.headers.get('upgrade') || '',
+              connection: request.headers.get('connection') || '',
+              'sec-websocket-key': request.headers.get('sec-websocket-key') || '',
+              'sec-websocket-version': request.headers.get('sec-websocket-version') || '',
+              'sec-websocket-protocol': request.headers.get('sec-websocket-protocol') || '',
+              'x-chat-actor-id': principal.id,
+              'x-chat-actor-role': principal.role,
+            },
+          });
+          return stub.fetch(forwarded);
+        }
+
+        return notFound();
+      } catch (error) {
         await logEvent(env, {
-          conversationId,
-          eventType: 'conversation.patched',
+          eventType: 'request.error',
           actorId: principal.id,
           actorRole: principal.role,
-          payloadJson: JSON.stringify(patch),
+          payloadJson: JSON.stringify({ path: url.pathname, error: String(error) }),
           durationMs: Date.now() - started,
-          success: true,
-        });
-        return json({ ok: true });
-      }
-
-      if (request.method === 'POST' && url.pathname === '/chat/message') {
-        const payload = (await request.json()) as ChatMessagePayload & { username?: string };
-        if (!payload.conversationId || !payload.body || !payload.senderId || !payload.senderRole) {
-          return badRequest('Missing required message fields');
-        }
-        if (payload.senderRole !== principal.role) {
-          return unauthorized('Role mismatch for chat message sender');
-        }
-        if (payload.senderId !== principal.id && payload.senderId !== principal.username) {
-          return unauthorized('Sender identity mismatch');
-        }
-        if (principal.role === 'user' && payload.conversationId !== payload.senderId && payload.conversationId !== principal.id) {
-          return unauthorized('Users can only write to their own conversation id');
-        }
-        await ensureConversation(env, payload.conversationId, payload.username || payload.senderId);
-
-        const stub = doStubForConversation(env, payload.conversationId);
-        const response = await stub.fetch('https://do.internal/message', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(payload),
+          success: false,
         });
 
-        const createdAt = nowIso();
-        if (payload.senderRole === 'admin') {
-          await env.CHAT_DB.prepare(
-            `UPDATE chat_conversations SET last_response_at = ?, updated_at = ? WHERE id = ?`,
-          )
-            .bind(createdAt, createdAt, payload.conversationId)
-            .run();
-        }
-
-        return response;
-      }
-
-      if (request.method === 'POST' && url.pathname === '/chat/typing') {
-        const payload = await request.json();
-        if (!payload?.conversationId) {
-          return badRequest('conversationId is required');
-        }
-        if (payload.actorRole !== principal.role) {
-          return unauthorized('Actor role mismatch');
-        }
-        if (payload.actorId !== principal.id && payload.actorId !== principal.username) {
-          return unauthorized('Actor identity mismatch');
-        }
-        const stub = doStubForConversation(env, payload.conversationId);
-        return stub.fetch('https://do.internal/typing', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      }
-
-      if (request.method === 'POST' && url.pathname === '/chat/presence') {
-        const payload = await request.json();
-        if (!payload?.conversationId) {
-          return badRequest('conversationId is required');
-        }
-        if (payload.actorRole !== principal.role) {
-          return unauthorized('Actor role mismatch');
-        }
-        if (payload.actorId !== principal.id && payload.actorId !== principal.username) {
-          return unauthorized('Actor identity mismatch');
-        }
-        const stub = doStubForConversation(env, payload.conversationId);
-        return stub.fetch('https://do.internal/presence', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-      }
-
-      if (request.method === 'GET' && url.pathname === '/chat/ws') {
-        const conversationId = url.searchParams.get('conversationId');
-        if (!conversationId) {
-          return badRequest('conversationId is required');
-        }
-        const stub = doStubForConversation(env, conversationId);
-        const forwarded = new Request('https://do.internal/ws', {
-          headers: {
-            upgrade: request.headers.get('upgrade') || '',
-            connection: request.headers.get('connection') || '',
-            'sec-websocket-key': request.headers.get('sec-websocket-key') || '',
-            'sec-websocket-version': request.headers.get('sec-websocket-version') || '',
-            'sec-websocket-protocol': request.headers.get('sec-websocket-protocol') || '',
-            'x-chat-actor-id': principal.id,
-            'x-chat-actor-role': principal.role,
+        return json(
+          {
+            error: 'Internal server error',
+            message: String(error),
           },
-        });
-        return stub.fetch(forwarded);
+          { status: 500 },
+        );
       }
+    })();
 
-      return notFound();
-    } catch (error) {
-      await logEvent(env, {
-        eventType: 'request.error',
-        actorId: principal.id,
-        actorRole: principal.role,
-        payloadJson: JSON.stringify({ path: url.pathname, error: String(error) }),
-        durationMs: Date.now() - started,
-        success: false,
-      });
-
-      return json(
-        {
-          error: 'Internal server error',
-          message: String(error),
-        },
-        { status: 500 },
-      );
-    }
+    return applyCorsHeaders(request, env, response);
   },
 };

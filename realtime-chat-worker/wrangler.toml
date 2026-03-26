@@ -18,11 +18,13 @@ database_id = "5a03d531-ce60-467d-aeb3-5a680a858c3e"
 migrations_dir = "migrations"
 
 [vars]
+CORS_ALLOW_ORIGINS = "https://website-steadfast.pages.dev,https://steadfastworkbench.org,https://www.steadfastworkbench.org"
 ADMIN_ROLE_NAMES = "admin,super_admin"
 USER_ROLE_NAMES = "user,member"
 SLA_BREACH_MINUTES = "30"
 MAX_RETRY_ATTEMPTS = "2"
 WS_TICKET_TTL_SECONDS = "45"
+WS_TICKET_MAX_PER_MINUTE = "12"
 CHAT_REQUIRE_USER_JWT = "false"
 SLA_AUTO_ESCALATE = "false"
 
@@ -43,10 +45,12 @@ database_id = "5a03d531-ce60-467d-aeb3-5a680a858c3e"
 migrations_dir = "migrations"
 
 [env.production.vars]
+CORS_ALLOW_ORIGINS = "https://website-steadfast.pages.dev,https://steadfastworkbench.org,https://www.steadfastworkbench.org"
 ADMIN_ROLE_NAMES = "admin,super_admin"
 USER_ROLE_NAMES = "user,member"
 SLA_BREACH_MINUTES = "30"
 MAX_RETRY_ATTEMPTS = "2"
 WS_TICKET_TTL_SECONDS = "45"
+WS_TICKET_MAX_PER_MINUTE = "12"
 CHAT_REQUIRE_USER_JWT = "false"
 SLA_AUTO_ESCALATE = "false"
