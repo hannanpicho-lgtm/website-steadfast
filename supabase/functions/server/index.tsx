@@ -1595,8 +1595,9 @@ function normalizeResetRewardRecord(record: any, index: number) {
 function normalizeAccumulatedRewardRecord(record: any, index: number) {
   const id = Number.isFinite(Number(record?.id)) ? Math.max(1, Math.round(Number(record.id))) : index + 1;
   const minDeposit = Math.max(0, roundMoney(Number(record?.minDeposit ?? 0)));
-  const rawMax = Number(record?.maxDeposit);
-  const maxDeposit = Number.isFinite(rawMax)
+  const hasExplicitMax = record?.maxDeposit !== null && record?.maxDeposit !== undefined && record?.maxDeposit !== '';
+  const rawMax = hasExplicitMax ? Number(record?.maxDeposit) : NaN;
+  const maxDeposit = hasExplicitMax && Number.isFinite(rawMax)
     ? Math.max(minDeposit, roundMoney(rawMax))
     : null;
   const rate = Number.isFinite(Number(record?.rate)) ? Math.max(0, Number(record.rate)) : 0;
@@ -1813,14 +1814,40 @@ function hasLegacyResetBaseline(resetRewards: any[]) {
 }
 
 function hasLegacyAccumulatedBaseline(accumulatedRewards: any[]) {
-  const expectedMinDeposits = new Set([1500, 10000, 20000, 50000]);
+  const expectedByMinDeposit = new Map<number, { maxDeposit: number | null; rate: number }>([
+    [1500, { maxDeposit: 9999, rate: 0.04 }],
+    [10000, { maxDeposit: 19999, rate: 0.08 }],
+    [20000, { maxDeposit: 49999, rate: 0.12 }],
+    [50000, { maxDeposit: null, rate: 0.2 }],
+  ]);
 
-  if (!Array.isArray(accumulatedRewards) || accumulatedRewards.length !== expectedMinDeposits.size) {
+  if (!Array.isArray(accumulatedRewards) || accumulatedRewards.length !== expectedByMinDeposit.size) {
     return true;
   }
 
-  const actualMinDeposits = accumulatedRewards.map((e: any) => roundMoney(Number(e?.minDeposit ?? 0)));
-  return !actualMinDeposits.every((d) => expectedMinDeposits.has(d)) || new Set(actualMinDeposits).size !== expectedMinDeposits.size;
+  const seen = new Set<number>();
+
+  for (const entry of accumulatedRewards) {
+    const minDeposit = roundMoney(Number(entry?.minDeposit ?? 0));
+    const expected = expectedByMinDeposit.get(minDeposit);
+    if (!expected || seen.has(minDeposit)) {
+      return true;
+    }
+
+    const rawMax = entry?.maxDeposit;
+    const maxDeposit = rawMax === null || rawMax === undefined || rawMax === ''
+      ? null
+      : roundMoney(Number(rawMax));
+    const rate = Number(entry?.rate ?? 0);
+
+    if (maxDeposit !== expected.maxDeposit || Math.abs(rate - expected.rate) > 0.000001) {
+      return true;
+    }
+
+    seen.add(minDeposit);
+  }
+
+  return seen.size !== expectedByMinDeposit.size;
 }
 
 async function getRewardsConfigRecord() {
