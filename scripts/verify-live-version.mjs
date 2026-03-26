@@ -18,6 +18,9 @@ const expectedFunction = readArg('--expected-function', DEFAULT_FUNCTION);
 const expectedCommit = readArg('--expected-commit', process.env.EXPECTED_COMMIT_SHA ?? '').trim().toLowerCase();
 const maxAgeMinutes = Number(readArg('--max-age-minutes', process.env.MAX_DEPLOY_AGE_MINUTES ?? '240'));
 const anonKey = process.env.SUPABASE_ANON_KEY ?? DEFAULT_ANON_KEY;
+// --fail-on-stale: exit 1 if live version reports stale=true (default: true when --expected-commit provided)
+const failOnStaleArg = readArg('--fail-on-stale', '');
+const failOnStale = failOnStaleArg === '' ? Boolean(expectedCommit) : failOnStaleArg !== 'false' && failOnStaleArg !== '0';
 
 async function main() {
   const res = await fetch(`${base}/version`, {
@@ -50,6 +53,13 @@ async function main() {
   const deploymentAgeMinutes = Number(version.deploymentAgeMinutes);
   if (Number.isFinite(maxAgeMinutes) && Number.isFinite(deploymentAgeMinutes) && deploymentAgeMinutes > maxAgeMinutes) {
     throw new Error(`Deployment too old: age=${deploymentAgeMinutes}m exceeds max=${maxAgeMinutes}m`);
+  }
+
+  if (failOnStale && version.stale === true) {
+    throw new Error(
+      `Deployment appears stale (stale=true, age=${deploymentAgeMinutes ?? 'unknown'}m, threshold=${version.staleThresholdMinutes ?? 'unknown'}m). ` +
+      `Use --fail-on-stale=false to suppress this check.`,
+    );
   }
 
   const summary = {

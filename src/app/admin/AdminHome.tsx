@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Users, DollarSign, Activity, Bell } from 'lucide-react';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { buildAdminAuthHeaders } from '../services/supabaseAuth';
 
 interface AdminHomeProps {
   platformUsersLoaded: boolean;
@@ -28,6 +29,18 @@ export default function AdminHome({
     error: string | null;
     payload: any | null;
   }>({ loading: true, error: null, payload: null });
+
+  const [kvConfigState, setKvConfigState] = useState<{
+    loading: boolean;
+    error: string | null;
+    data: {
+      schemaVersion: number;
+      activeKey: string;
+      activeKeyHasData: boolean;
+      legacyKeys: { key: string; hasData: boolean }[];
+      checkedAt: string;
+    } | null;
+  }>({ loading: true, error: null, data: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +83,41 @@ export default function AdminHome({
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadKvStatus = async () => {
+      try {
+        const baseUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+        const headers = await buildAdminAuthHeaders(false);
+        const response = await fetch(`${baseUrl}/admin/kv-config-version-status`, { headers });
+        const data = await response.json().catch(() => null);
+
+        if (!response.ok || !data) {
+          throw new Error(`KV config status check failed (${response.status})`);
+        }
+
+        if (!cancelled) {
+          setKvConfigState({ loading: false, error: null, data });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setKvConfigState({
+            loading: false,
+            error: error instanceof Error ? error.message : 'Failed to load KV config status.',
+            data: null,
+          });
+        }
+      }
+    };
+
+    void loadKvStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const topPerformers = platformUsersLoaded
     ? [...platformUsers]
         .sort((a, b) => Number(b.tasksCompleted ?? 0) - Number(a.tasksCompleted ?? 0))
@@ -101,6 +149,35 @@ export default function AdminHome({
             </span>
           )}
         </div>
+      </div>
+
+      {/* KV Config Version Status */}
+      <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 p-4">
+        <p className="text-xs uppercase tracking-[0.18em] text-violet-200 mb-2">KV Config Version Status</p>
+        {kvConfigState.loading && <p className="text-sm text-gray-300">Checking KV store version…</p>}
+        {kvConfigState.error && <p className="text-sm text-red-300">{kvConfigState.error}</p>}
+        {!kvConfigState.loading && !kvConfigState.error && kvConfigState.data && (
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-violet-100">
+            <span>Schema version: <strong className="text-white">v{kvConfigState.data.schemaVersion}</strong></span>
+            <span>
+              Active key: <code className="text-violet-200 text-xs">{kvConfigState.data.activeKey}</code>
+              {' — '}
+              <span className={kvConfigState.data.activeKeyHasData ? 'text-emerald-300' : 'text-red-300'}>
+                {kvConfigState.data.activeKeyHasData ? 'has data' : 'empty'}
+              </span>
+            </span>
+            {kvConfigState.data.legacyKeys.map((lk) => (
+              <span key={lk.key}>
+                Legacy <code className="text-violet-200 text-xs">{lk.key}</code>
+                {': '}
+                <span className={lk.hasData ? 'text-amber-300' : 'text-gray-400'}>
+                  {lk.hasData ? 'still present (pending migration)' : 'cleared'}
+                </span>
+              </span>
+            ))}
+            <span className="text-gray-400 text-xs self-end">Checked: {kvConfigState.data.checkedAt}</span>
+          </div>
+        )}
       </div>
 
       {/* Stats Grid */}

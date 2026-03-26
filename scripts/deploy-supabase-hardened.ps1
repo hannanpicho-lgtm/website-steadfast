@@ -162,10 +162,18 @@ try {
 
   $previousApiBase = $env:API_BASE_URL
   $env:API_BASE_URL = $apiBaseUrl
+  $liveVersionJson = $null
   try {
     Invoke-CheckedCommand -Label "Live /version verification" -Command {
-      node scripts/verify-live-version.mjs --base $apiBaseUrl --expected-function $FunctionName --expected-commit $($gitState.HeadLong)
+      node scripts/verify-live-version.mjs --base $apiBaseUrl --expected-function $FunctionName --expected-commit $($gitState.HeadLong) --fail-on-stale
     }
+
+    # Capture live version payload for stale check in alerts log
+    $previousPreference2 = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    $liveVersionRaw = & node scripts/verify-live-version.mjs --base $apiBaseUrl --expected-function $FunctionName 2>&1
+    $ErrorActionPreference = $previousPreference2
+    try { $liveVersionJson = ($liveVersionRaw | Out-String) | ConvertFrom-Json } catch { }
 
     if (-not $SkipPostDeployValidation.IsPresent) {
       Invoke-CheckedCommand -Label "Post-deploy endpoint inventory test" -Command {
@@ -232,15 +240,113 @@ try {
       expectedProductionFunction = $ExpectedProductionFunction
       enforcedTargetMatch = (-not $AllowNonProductionFunction.IsPresent)
       postDeployValidationSkipped = $SkipPostDeployValidation.IsPresent
+      liveVersionAtDeployTime = $liveVersionJson
     }
     deployOutput = ($deployOutput | ForEach-Object { $_.ToString() })
   }
 
   ($report | ConvertTo-Json -Depth 10) | Out-File -FilePath $reportPath -Encoding utf8
 
+  # Write alerts for monitoring anomalies
+  $alertsLog = Join-Path $repoRoot "deployment_reports/supabase/alerts-log.jsonl"
+  $alertTimestamp = (Get-Date).ToUniversalTime().ToString("o")
+
+  if ($liveVersionJson -and $liveVersionJson.stale -eq $true) {
+    $alertEntry = [ordered]@{
+      timestampUtc = $alertTimestamp
+      alertType    = "deploy_stale_detected"
+      functionName = $FunctionName
+      message      = "Live /version returned stale=true immediately after deploy — stale threshold may need adjustment."
+      liveVersion  = $liveVersionJson
+    }
+    ($alertEntry | ConvertTo-Json -Compress) | Out-File -FilePath $alertsLog -Encoding utf8 -Append
+    Write-Host "[HARDENED-DEPLOY] WARNING: stale flag detected in live version response." -ForegroundColor Yellow
+  }
+
+  if ($after.Version -le $before.Version) {
+    $alertEntry = [ordered]@{
+      timestampUtc = $alertTimestamp
+      alertType    = "deploy_version_no_bump"
+      functionName = $FunctionName
+      message      = "Function version did not increase after deploy (before=$($before.Version), after=$($after.Version))."
+    }
+    ($alertEntry | ConvertTo-Json -Compress) | Out-File -FilePath $alertsLog -Encoding utf8 -Append
+    Write-Host "[HARDENED-DEPLOY] WARNING: function version did not bump — deployment may not have propagated." -ForegroundColor Yellow
+  }
+
+  # Persist last-known-good for rollback
+  $lkgPath = Join-Path $reportsDir "last-known-good.json"
+  $lkg = [ordered]@{
+    timestampUtc    = (Get-Date).ToUniversalTime().ToString("o")
+    commitSha       = $gitState.HeadLong
+    commitShort     = $gitState.HeadShort
+    functionVersion = $after.Version
+    functionName    = $FunctionName
+    projectRef      = $ProjectRef
+    reportPath      = $reportPath
+  }
+  ($lkg | ConvertTo-Json -Depth 5) | Out-File -FilePath $lkgPath -Encoding utf8
+
   Write-Host "[HARDENED-DEPLOY] After: version=$($after.Version) updated=$($after.UpdatedAtUtc.ToString('u'))"
+  Write-Host "[HARDENED-DEPLOY] Last-known-good: $lkgPath"
   Write-Host "[HARDENED-DEPLOY] Report: $reportPath"
   Write-Host "[HARDENED-DEPLOY] Deployment verification passed."
+}
+catch {
+  $failureMessage = $_.Exception.Message
+  $failTimestamp = (Get-Date).ToUniversalTime().ToString("o")
+  $failTimestampFile = Get-Date -Format "yyyyMMdd_HHmmss"
+
+  Write-Host ""
+  Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Red
+  Write-Host "║           !! DEPLOYMENT FAILURE — ACTION REQUIRED !!        ║" -ForegroundColor Red
+  Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Red
+  Write-Host "[DEPLOY FAILURE] $failureMessage" -ForegroundColor Red
+  Write-Host "[DEPLOY FAILURE] Function : $FunctionName" -ForegroundColor Red
+  Write-Host "[DEPLOY FAILURE] Time     : $failTimestamp" -ForegroundColor Red
+  Write-Host ""
+
+  try {
+    $failuresDir = Join-Path $repoRoot "deployment_reports/supabase/failures"
+    New-Item -ItemType Directory -Force -Path $failuresDir | Out-Null
+    $failReportPath = Join-Path $failuresDir "failure_${FunctionName}_$failTimestampFile.json"
+
+    $gitStateForFailure = $null
+    try { $gitStateForFailure = Ensure-GitGuards -AllowDirtyTree:$true } catch { }
+
+    $failReport = [ordered]@{
+      timestampUtc  = $failTimestamp
+      functionName  = $FunctionName
+      projectRef    = $ProjectRef
+      errorMessage  = $failureMessage
+      git           = if ($gitStateForFailure) {
+        [ordered]@{
+          branch     = $gitStateForFailure.Branch
+          headShort  = $gitStateForFailure.HeadShort
+          headLong   = $gitStateForFailure.HeadLong
+          isDirty    = $gitStateForFailure.IsDirty
+        }
+      } else { $null }
+    }
+    ($failReport | ConvertTo-Json -Depth 5) | Out-File -FilePath $failReportPath -Encoding utf8
+
+    # Append to alerts log (JSONL format)
+    $alertsLog = Join-Path $repoRoot "deployment_reports/supabase/alerts-log.jsonl"
+    $alertEntry = [ordered]@{
+      timestampUtc = $failTimestamp
+      alertType    = "deploy_failure"
+      functionName = $FunctionName
+      message      = $failureMessage
+    }
+    ($alertEntry | ConvertTo-Json -Compress) | Out-File -FilePath $alertsLog -Encoding utf8 -Append
+
+    Write-Host "[DEPLOY FAILURE] Failure report: $failReportPath" -ForegroundColor Yellow
+  }
+  catch {
+    Write-Host "[DEPLOY FAILURE] Could not write failure report: $($_.Exception.Message)" -ForegroundColor Yellow
+  }
+
+  exit 1
 }
 finally {
   Pop-Location

@@ -3275,6 +3275,41 @@ app.get("/make-server-a1c55d7e/health/ready", async (c) => {
   }
 });
 
+app.get("/make-server-a1c55d7e/admin/kv-config-version-status", async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const checkedAt = new Date().toISOString();
+
+    const activeKeyData = await kv.get(REWARDS_CONFIG_KEY).catch(() => null);
+    const activeKeyHasData = activeKeyData !== null && activeKeyData !== undefined;
+
+    const legacyKeyResults = await Promise.all(
+      LEGACY_REWARDS_CONFIG_KEYS.map(async (legacyKey) => {
+        const legacyData = await kv.get(legacyKey).catch(() => null);
+        return {
+          key: legacyKey,
+          hasData: legacyData !== null && legacyData !== undefined,
+        };
+      }),
+    );
+
+    return c.json({
+      schemaVersion: REWARDS_CONFIG_SCHEMA_VERSION,
+      activeKey: REWARDS_CONFIG_KEY,
+      activeKeyHasData,
+      legacyKeys: legacyKeyResults,
+      checkedAt,
+    });
+  } catch (error) {
+    console.error('KV config version status check failed:', error);
+    return c.json({ error: 'Failed to check KV config version status' }, 500);
+  }
+});
+
 app.get("/make-server-a1c55d7e/admin/users", async (c) => {
   try {
     const unauthorized = await requireAdmin(c);
