@@ -11,9 +11,80 @@ const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a1
 const SESSION_TOKEN_KEY = 'steadfast_user_session_token_v1';
 const MUST_CHANGE_PASSWORD_KEY = 'steadfast_force_password_change_v1';
 const LEGACY_CURRENT_USER_KEY = 'steadfast_current_user_v1';
+const USER_SESSION_HEADER = 'x-user-session-token';
 
 let sessionUsernameCache: string | null = null;
 let mustChangePasswordCache = false;
+
+function readSessionTokenFromStorage(): string | null {
+  try {
+    return sessionStorage.getItem(SESSION_TOKEN_KEY) ?? localStorage.getItem(SESSION_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function persistSessionToken(token: string | null): void {
+  try {
+    if (!token) {
+      sessionStorage.removeItem(SESSION_TOKEN_KEY);
+      localStorage.removeItem(SESSION_TOKEN_KEY);
+      return;
+    }
+
+    sessionStorage.setItem(SESSION_TOKEN_KEY, token);
+    localStorage.setItem(SESSION_TOKEN_KEY, token);
+  } catch {
+    // ignore storage failures and rely on in-memory state
+  }
+}
+
+export function buildServerSessionHeaders(headersInit?: HeadersInit): Headers {
+  const headers = new Headers(headersInit ?? {});
+  const sessionToken = readSessionTokenFromStorage();
+  if (sessionToken && !headers.has(USER_SESSION_HEADER)) {
+    headers.set(USER_SESSION_HEADER, sessionToken);
+  }
+  return headers;
+}
+
+export function installServerAuthFetchBridge(): void {
+  if (typeof globalThis === 'undefined') {
+    return;
+  }
+
+  const bridgeKey = '__steadfastServerAuthFetchBridgeInstalled__';
+  if ((globalThis as Record<string, unknown>)[bridgeKey]) {
+    return;
+  }
+
+  const originalFetch = globalThis.fetch.bind(globalThis);
+  globalThis.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+    const requestUrl = typeof input === 'string'
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : input.url;
+
+    if (!requestUrl.startsWith(SERVER_URL)) {
+      return originalFetch(input, init);
+    }
+
+    if (input instanceof Request) {
+      return originalFetch(new Request(input, {
+        ...init,
+        headers: buildServerSessionHeaders(init?.headers ?? input.headers),
+      }));
+    }
+
+    return originalFetch(input, {
+      ...init,
+      headers: buildServerSessionHeaders(init?.headers),
+    });
+  };
+
+  (globalThis as Record<string, unknown>)[bridgeKey] = true;
+}
 
 // ── Token storage ────────────────────────────────────────────────────────────
 
@@ -21,24 +92,21 @@ export function storeSessionToken(token: string, username: string, mustChangePas
   sessionUsernameCache = username.trim() || null;
   mustChangePasswordCache = mustChangePassword;
 
-  // Legacy key cleanup: auth authority is now backend session + in-memory cache.
-  sessionStorage.removeItem(SESSION_TOKEN_KEY);
+  persistSessionToken(token.trim() || null);
   sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
-  localStorage.removeItem(SESSION_TOKEN_KEY);
   localStorage.removeItem(LEGACY_CURRENT_USER_KEY);
 }
 
 export function clearSessionToken(): void {
   sessionUsernameCache = null;
   mustChangePasswordCache = false;
-  sessionStorage.removeItem(SESSION_TOKEN_KEY);
-  localStorage.removeItem(SESSION_TOKEN_KEY);
+  persistSessionToken(null);
   localStorage.removeItem(LEGACY_CURRENT_USER_KEY);
   sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
 }
 
 export function getStoredSessionToken(): string | null {
-  return null;
+  return readSessionTokenFromStorage();
 }
 
 export function isPasswordChangeRequired(): boolean {
@@ -96,8 +164,9 @@ export async function serverLogin(
 
     const returnedUsername = String(data.username ?? username.trim());
     const mustChangePassword = Boolean(data.mustChangePassword);
+    const sessionToken = typeof data.sessionToken === 'string' ? data.sessionToken : '';
 
-    storeSessionToken('', returnedUsername, mustChangePassword);
+    storeSessionToken(sessionToken, returnedUsername, mustChangePassword);
     return { ok: true, username: returnedUsername, mustChangePassword };
   } catch {
     return { ok: false, error: 'Server unreachable.', serverDown: true };
@@ -146,10 +215,10 @@ export async function verifyAndRestoreSession(): Promise<string | null> {
     const res = await fetch(`${SERVER_URL}/auth/session/restore`, {
       method: 'POST',
       credentials: 'include',
-      headers: {
+      headers: buildServerSessionHeaders({
         'Content-Type': 'application/json',
         Authorization: `Bearer ${publicAnonKey}`,
-      },
+      }),
     });
 
     if (!res.ok) {
@@ -164,7 +233,8 @@ export async function verifyAndRestoreSession(): Promise<string | null> {
       return null;
     }
 
-    storeSessionToken('', username, Boolean(data.mustChangePassword));
+    const sessionToken = typeof data.sessionToken === 'string' ? data.sessionToken : getStoredSessionToken() ?? '';
+    storeSessionToken(sessionToken, username, Boolean(data.mustChangePassword));
     return username;
   } catch {
     clearSessionToken();
@@ -177,9 +247,9 @@ export async function serverLogout(): Promise<void> {
     await fetch(`${SERVER_URL}/auth/session/logout`, {
       method: 'POST',
       credentials: 'include',
-      headers: {
+      headers: buildServerSessionHeaders({
         Authorization: `Bearer ${publicAnonKey}`,
-      },
+      }),
     });
   } catch {
     // Best effort logout.

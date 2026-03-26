@@ -7,10 +7,12 @@ vi.mock('@utils/supabase/info', () => ({
 }));
 
 import {
+  buildServerSessionHeaders,
   changeUserCredentials,
   clearSessionToken,
   getSessionUsername,
   getStoredSessionToken,
+  installServerAuthFetchBridge,
   isPasswordChangeRequired,
   serverLogin,
   serverLogout,
@@ -44,39 +46,46 @@ afterEach(() => {
 });
 
 describe('session marker helpers', () => {
-  it('stores username and password-change flag while clearing legacy storage keys', () => {
+  it('stores username, session token, and password-change flag while clearing legacy storage keys', () => {
     sessionStorage.setItem(SESSION_TOKEN_KEY, 'old-token');
     sessionStorage.setItem(MUST_CHANGE_PASSWORD_KEY, 'true');
     localStorage.setItem(SESSION_TOKEN_KEY, 'old-token');
     localStorage.setItem(LEGACY_CURRENT_USER_KEY, 'legacy-user');
 
-    storeSessionToken('', 'alice', true);
+    storeSessionToken('fresh-token', 'alice', true);
 
     expect(getSessionUsername()).toBe('alice');
     expect(isPasswordChangeRequired()).toBe(true);
-    expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBeNull();
+    expect(getStoredSessionToken()).toBe('fresh-token');
+    expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBe('fresh-token');
+    expect(localStorage.getItem(SESSION_TOKEN_KEY)).toBe('fresh-token');
     expect(sessionStorage.getItem(MUST_CHANGE_PASSWORD_KEY)).toBeNull();
-    expect(localStorage.getItem(SESSION_TOKEN_KEY)).toBeNull();
     expect(localStorage.getItem(LEGACY_CURRENT_USER_KEY)).toBeNull();
   });
 
   it('clears cached auth markers', () => {
-    storeSessionToken('', 'alice', true);
+    storeSessionToken('fresh-token', 'alice', true);
     clearSessionToken();
 
     expect(getSessionUsername()).toBeNull();
     expect(isPasswordChangeRequired()).toBe(false);
+    expect(getStoredSessionToken()).toBeNull();
   });
 
-  it('never returns a stored session token from browser storage', () => {
-    expect(getStoredSessionToken()).toBeNull();
+  it('builds headers with the fallback session token when available', () => {
+    storeSessionToken('fresh-token', 'alice', false);
+
+    const headers = buildServerSessionHeaders({ Authorization: 'Bearer anon-key' });
+
+    expect(headers.get('Authorization')).toBe('Bearer anon-key');
+    expect(headers.get('x-user-session-token')).toBe('fresh-token');
   });
 });
 
 describe('serverLogin', () => {
   it('returns success and stores normalized session markers', async () => {
     fetchMock.mockResolvedValueOnce(
-      jsonResponse({ username: 'alice', mustChangePassword: true }),
+      jsonResponse({ username: 'alice', mustChangePassword: true, sessionToken: 'session-123' }),
     );
 
     const result = await serverLogin(' alice ', 'pw');
@@ -84,6 +93,7 @@ describe('serverLogin', () => {
     expect(result).toEqual({ ok: true, username: 'alice', mustChangePassword: true });
     expect(getSessionUsername()).toBe('alice');
     expect(isPasswordChangeRequired()).toBe(true);
+    expect(getStoredSessionToken()).toBe('session-123');
     expect(fetchMock).toHaveBeenCalledWith(
       'https://test-project.supabase.co/functions/v1/make-server-a1c55d7e/auth/login',
       {
@@ -159,13 +169,23 @@ describe('serverSignup', () => {
 
 describe('verifyAndRestoreSession', () => {
   it('restores username and password-change flag from the server session', async () => {
-    fetchMock.mockResolvedValueOnce(jsonResponse({ username: 'restored', mustChangePassword: true }));
+    storeSessionToken('token-before-restore', 'alice', false);
+    fetchMock.mockResolvedValueOnce(jsonResponse({ username: 'restored', mustChangePassword: true, sessionToken: 'token-after-restore' }));
 
     const result = await verifyAndRestoreSession();
 
     expect(result).toBe('restored');
     expect(getSessionUsername()).toBe('restored');
     expect(isPasswordChangeRequired()).toBe(true);
+    expect(getStoredSessionToken()).toBe('token-after-restore');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://test-project.supabase.co/functions/v1/make-server-a1c55d7e/auth/session/restore',
+      expect.objectContaining({
+        headers: expect.any(Headers),
+      }),
+    );
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
+    expect(headers.get('x-user-session-token')).toBe('token-before-restore');
   });
 
   it('clears local markers and returns null on non-ok response', async () => {
@@ -210,11 +230,33 @@ describe('serverLogout', () => {
   });
 
   it('still clears local session markers when logout fetch fails', async () => {
-    storeSessionToken('', 'alice', true);
+    storeSessionToken('session-logout-token', 'alice', true);
     fetchMock.mockRejectedValueOnce(new Error('offline'));
 
     await serverLogout();
     expect(getSessionUsername()).toBeNull();
+  });
+});
+
+describe('installServerAuthFetchBridge', () => {
+  it('adds the session token header to app server requests', async () => {
+    const bridgedFetch = vi.fn().mockResolvedValue(jsonResponse({ ok: true }));
+    vi.stubGlobal('fetch', bridgedFetch as unknown as typeof fetch);
+    clearSessionToken();
+    storeSessionToken('bridge-token', 'alice', false);
+
+    installServerAuthFetchBridge();
+
+    await fetch('https://test-project.supabase.co/functions/v1/make-server-a1c55d7e/me/financials', {
+      credentials: 'include',
+      headers: { Authorization: 'Bearer anon-key' },
+    });
+
+    expect(bridgedFetch).toHaveBeenCalledTimes(1);
+    const fetchInit = bridgedFetch.mock.calls[0]?.[1] as RequestInit;
+    const headers = fetchInit.headers as Headers;
+    expect(headers.get('Authorization')).toBe('Bearer anon-key');
+    expect(headers.get('x-user-session-token')).toBe('bridge-token');
   });
 });
 

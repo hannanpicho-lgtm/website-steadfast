@@ -4079,6 +4079,8 @@ type UserSessionRecord = {
   revokedAt?: string;
 };
 
+const USER_SESSION_HEADER_NAME = 'x-user-session-token';
+
 function parseCookies(headerValue: string | null | undefined): Record<string, string> {
   if (!headerValue) {
     return {};
@@ -4219,8 +4221,20 @@ async function getValidSessionById(sessionId: string): Promise<UserSessionRecord
 
 async function getSessionFromRequest(c: any): Promise<UserSessionRecord | null> {
   const cookies = parseCookies(c.req.header('cookie'));
-  const sessionId = cookies[USER_SESSION_COOKIE_NAME] ?? '';
-  return getValidSessionById(sessionId);
+  const cookieSessionId = cookies[USER_SESSION_COOKIE_NAME] ?? '';
+  if (cookieSessionId) {
+    const cookieSession = await getValidSessionById(cookieSessionId);
+    if (cookieSession) {
+      return cookieSession;
+    }
+  }
+
+  const headerSessionId = (c.req.header(USER_SESSION_HEADER_NAME) ?? '').trim();
+  if (headerSessionId) {
+    return getValidSessionById(headerSessionId);
+  }
+
+  return null;
 }
 
 async function requireActiveUserSession(c: any): Promise<{ session: UserSessionRecord } | { response: any }> {
@@ -4463,6 +4477,7 @@ app.post('/make-server-a1c55d7e/auth/login', async (c) => {
       ok: true,
       username: canonicalUsername,
       mustChangePassword,
+      sessionToken: session.sessionId,
     });
   } catch (error) {
     console.error('Error during user login:', error);
@@ -4487,6 +4502,7 @@ app.post('/make-server-a1c55d7e/auth/session/restore', async (c) => {
       ok: true,
       username: session.username,
       mustChangePassword: Boolean((userData as any)?.mustChangePassword),
+      sessionToken: session.sessionId,
     });
   } catch (error) {
     console.error('Error restoring user session:', error);
@@ -4511,6 +4527,7 @@ app.post('/make-server-a1c55d7e/auth/verify-token', async (c) => {
       ok: true,
       username: session.username,
       mustChangePassword: Boolean((userData as any)?.mustChangePassword),
+      sessionToken: session.sessionId,
     });
   } catch (error) {
     console.error('Error verifying session:', error);
@@ -4518,16 +4535,15 @@ app.post('/make-server-a1c55d7e/auth/verify-token', async (c) => {
   }
 });
 
-// POST /auth/session/logout — revokes the current cookie-backed session.
+// POST /auth/session/logout — revokes the current active session from cookie or header token.
 app.post('/make-server-a1c55d7e/auth/session/logout', async (c) => {
   try {
     const rateLimited = await enforceCriticalUserRateLimit(c, 'user:session-logout');
     if (rateLimited) return rateLimited;
 
-    const cookies = parseCookies(c.req.header('cookie'));
-    const sessionId = cookies[USER_SESSION_COOKIE_NAME] ?? '';
-    if (sessionId) {
-      await revokeUserSession(sessionId);
+    const session = await getSessionFromRequest(c);
+    if (session?.sessionId) {
+      await revokeUserSession(session.sessionId);
     }
 
     c.header('Set-Cookie', buildSessionClearCookieValue());
