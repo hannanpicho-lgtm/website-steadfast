@@ -187,11 +187,6 @@ export default function Profile() {
 
   const vipLevel = Number(financialSummary?.vipLevel ?? 1);
   const creditScore = Math.min(100, Math.max(0, Math.round(Number(financialSummary?.creditScore ?? 100))));
-  const luckyBonus = Number(financialSummary?.luckyBonus ?? 0);
-  const bonusPreviewTotal = bonusPreview.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
-  const automaticBonusTotal = bonusPreview
-    .filter((item) => item.assignmentMode === 'automatic')
-    .reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
   const profileGender = typeof financialSummary?.gender === 'string'
     ? financialSummary.gender.trim().toLowerCase()
     : 'unknown';
@@ -287,21 +282,6 @@ export default function Profile() {
             <div className="flex flex-col items-center">
               <p className="text-xs font-semibold text-white/85 mb-1">Total Commission (USD)</p>
               <p className="text-lg font-bold">{profileLoading ? '...' : totalCommission.toFixed(2)}</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
-            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">Lucky Bonus</p>
-              <p className="text-sm font-bold mt-1 text-[#ffe7a6]">{profileLoading ? '...' : `${luckyBonus.toFixed(2)} USD`}</p>
-            </div>
-            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">Recent Bonus Total</p>
-              <p className="text-sm font-bold mt-1 text-[#b9f4ff]">{profileLoading ? '...' : `${bonusPreviewTotal.toFixed(2)} USD`}</p>
-            </div>
-            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">Automatic Bonus</p>
-              <p className="text-sm font-bold mt-1 text-[#b8ffd4]">{profileLoading ? '...' : `${automaticBonusTotal.toFixed(2)} USD`}</p>
             </div>
           </div>
 
