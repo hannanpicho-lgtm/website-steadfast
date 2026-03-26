@@ -778,6 +778,7 @@ const TRANSACTION_KEY_PREFIX = 'transaction:';
 const WITHDRAWAL_KEY_PREFIX = 'withdrawal:';
 const FINANCIAL_LEDGER_KEY_PREFIX = 'financial-ledger:';
 const DISTRIBUTED_LOCK_KEY_PREFIX = 'financial-lock:';
+const BONUS_EVENT_KEY_PREFIX = 'bonus-event:';
 const TASK_CATALOG_KEY_PREFIX = 'task-catalog:';
 const VIP_CONFIG_KEY_PREFIX = 'vip-config:';
 const REWARDS_CONFIG_SCHEMA_VERSION = 2;
@@ -2231,6 +2232,64 @@ async function createTransactionRecord(input: {
   return transaction;
 }
 
+type BonusAssignmentMode = 'automatic' | 'semi-automatic' | 'manual';
+
+type BonusEventRecord = {
+  id: string;
+  username: string;
+  amount: number;
+  assignmentMode: BonusAssignmentMode;
+  source: string;
+  label: string;
+  description: string;
+  referenceId: string;
+  createdAt: string;
+  seenAt: string | null;
+  metadata?: Record<string, unknown>;
+};
+
+function sanitizeBonusAssignmentMode(value: unknown, fallback: BonusAssignmentMode = 'automatic'): BonusAssignmentMode {
+  const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (normalized === 'automatic' || normalized === 'semi-automatic' || normalized === 'manual') {
+    return normalized;
+  }
+  return fallback;
+}
+
+async function createBonusEvent(input: {
+  username: string;
+  amount: number;
+  assignmentMode: BonusAssignmentMode;
+  source: string;
+  label: string;
+  description: string;
+  referenceId?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<BonusEventRecord | null> {
+  const safeAmount = roundMoney(Number(input.amount ?? 0));
+  if (!Number.isFinite(safeAmount) || safeAmount <= 0) {
+    return null;
+  }
+
+  const createdAt = new Date().toISOString();
+  const bonusEvent: BonusEventRecord = {
+    id: createFinanceId('bonus'),
+    username: input.username,
+    amount: safeAmount,
+    assignmentMode: sanitizeBonusAssignmentMode(input.assignmentMode, 'automatic'),
+    source: typeof input.source === 'string' && input.source ? input.source : 'bonus',
+    label: typeof input.label === 'string' && input.label ? input.label : 'Bonus Reward',
+    description: typeof input.description === 'string' ? input.description : '',
+    referenceId: typeof input.referenceId === 'string' ? input.referenceId : '',
+    createdAt,
+    seenAt: null,
+    metadata: input.metadata,
+  };
+
+  await kv.set(`${BONUS_EVENT_KEY_PREFIX}${input.username}:${createdAt}:${bonusEvent.id}`, bonusEvent);
+  return bonusEvent;
+}
+
 async function listTransactionRecords(username?: string) {
   const records = await kv.getByPrefix(TRANSACTION_KEY_PREFIX);
   return records
@@ -2592,6 +2651,19 @@ async function applyAutomaticRewardsForUser(username: string, userData: any) {
       source,
       description,
       referenceId: reference,
+    });
+
+    await createBonusEvent({
+      username,
+      amount: safeAmount,
+      assignmentMode: 'automatic',
+      source,
+      label: `${category[0].toUpperCase()}${category.slice(1)} Bonus`,
+      description,
+      referenceId: reference,
+      metadata: {
+        category,
+      },
     });
   };
 
@@ -4592,6 +4664,18 @@ async function submitTaskForUserLocked(c: any, username: string, body: any) {
       source: 'lucky_bonus',
       description: 'Lucky bonus reward',
     });
+
+    await createBonusEvent({
+      username,
+      amount: luckyAmount,
+      assignmentMode: 'automatic',
+      source: 'lucky_bonus',
+      label: 'Lucky Bonus',
+      description: 'Lucky bonus reward',
+      metadata: {
+        chance: 0.01,
+      },
+    });
   }
 
   const rewardResult = await applyAutomaticRewardsForUser(username, normalizedUserData);
@@ -4758,6 +4842,87 @@ app.get('/make-server-a1c55d7e/me/transactions', async (c) => {
   } catch (error) {
     console.error('Error fetching session transaction records:', error);
     return c.json({ error: 'Failed to fetch transaction records' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/bonuses', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const username = sessionResult.session.username;
+    const requestedLimit = Number(c.req.query('limit') ?? 20);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(50, Math.round(requestedLimit)))
+      : 20;
+    const unseenOnly = c.req.query('unseenOnly') === 'true';
+
+    const events = (await kv.getByPrefix(`${BONUS_EVENT_KEY_PREFIX}${username}:`))
+      .filter((event) => event && typeof event === 'object')
+      .map((event) => ({
+        ...event,
+        amount: roundMoney(Number((event as any).amount ?? 0)),
+        assignmentMode: sanitizeBonusAssignmentMode((event as any).assignmentMode, 'automatic'),
+        seenAt: typeof (event as any).seenAt === 'string' && (event as any).seenAt ? (event as any).seenAt : null,
+      }))
+      .filter((event) => Number.isFinite(Number((event as any).amount ?? 0)) && Number((event as any).amount ?? 0) > 0)
+      .sort((left, right) => new Date(String((right as any).createdAt ?? 0)).getTime() - new Date(String((left as any).createdAt ?? 0)).getTime())
+      .filter((event) => (unseenOnly ? !(event as any).seenAt : true))
+      .slice(0, limit);
+
+    return c.json(events);
+  } catch (error) {
+    console.error('Error fetching session bonus feed:', error);
+    return c.json({ error: 'Failed to fetch bonus feed' }, 500);
+  }
+});
+
+app.post('/make-server-a1c55d7e/me/bonuses/ack', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const username = sessionResult.session.username;
+    const body = await c.req.json().catch(() => ({} as any));
+    const bonusIds = Array.isArray(body?.bonusIds)
+      ? body.bonusIds
+        .map((value: unknown) => (typeof value === 'string' ? value.trim() : ''))
+        .filter((value: string) => value.length > 0)
+      : [];
+
+    if (bonusIds.length === 0) {
+      return c.json({ success: true, updated: 0 });
+    }
+
+    const events = await kv.getByPrefix(`${BONUS_EVENT_KEY_PREFIX}${username}:`);
+    const nowIso = new Date().toISOString();
+    let updated = 0;
+
+    for (const event of events) {
+      const eventId = typeof event?.id === 'string' ? event.id : '';
+      if (!eventId || !bonusIds.includes(eventId)) {
+        continue;
+      }
+      if (typeof event?.seenAt === 'string' && event.seenAt) {
+        continue;
+      }
+
+      const eventCreatedAt = typeof event?.createdAt === 'string' && event.createdAt ? event.createdAt : nowIso;
+      await kv.set(`${BONUS_EVENT_KEY_PREFIX}${username}:${eventCreatedAt}:${eventId}`, {
+        ...event,
+        seenAt: nowIso,
+      });
+      updated += 1;
+    }
+
+    return c.json({ success: true, updated });
+  } catch (error) {
+    console.error('Error acknowledging bonus feed items:', error);
+    return c.json({ error: 'Failed to acknowledge bonus feed items' }, 500);
   }
 });
 
@@ -8988,6 +9153,9 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
     const mode = body?.mode === 'debit' ? 'debit' : 'credit';
     const amount = roundMoney(Number(body?.amount ?? 0));
     const reason = typeof body?.reason === 'string' ? body.reason.trim().slice(0, 200) : '';
+    const isBonusCredit = mode === 'credit' && body?.isBonus === true;
+    const bonusLabel = typeof body?.bonusLabel === 'string' ? body.bonusLabel.trim().slice(0, 80) : '';
+    const bonusAssignmentMode = sanitizeBonusAssignmentMode(body?.bonusAssignmentMode, 'semi-automatic');
 
     if (!Number.isFinite(amount) || amount <= 0) {
       return c.json({ error: 'Amount must be greater than 0' }, 400);
@@ -9023,11 +9191,26 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
         type: mode === 'credit' ? 'Deposit' : 'Withdrawal',
         amount,
         status: 'Completed',
-        method: 'Admin Adjustment',
-        source: 'admin-adjustment',
-        description: `${mode === 'credit' ? 'Admin top-up' : 'Admin deduction'}: ${reason}`,
+        method: isBonusCredit ? 'Bonus Award' : 'Admin Adjustment',
+        source: isBonusCredit ? 'admin_bonus' : 'admin-adjustment',
+        description: `${isBonusCredit ? 'Admin bonus' : (mode === 'credit' ? 'Admin top-up' : 'Admin deduction')}: ${reason}`,
         referenceId: adjustmentReferenceId,
       });
+
+      if (isBonusCredit) {
+        await createBonusEvent({
+          username: canonicalUsername,
+          amount,
+          assignmentMode: bonusAssignmentMode,
+          source: 'admin_bonus',
+          label: bonusLabel || 'Admin Bonus',
+          description: reason,
+          referenceId: transaction.id,
+          metadata: {
+            awardedBy: String(callingAdmin?.email ?? callingAdmin?.id ?? 'admin'),
+          },
+        });
+      }
 
       const rewardSyncResult = mode === 'credit'
         ? await applyAutomaticRewardsForUser(canonicalUsername, normalizedUser)

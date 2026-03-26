@@ -11,6 +11,7 @@ import { buildLoginRedirectState } from '../services/loginRedirect';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 import { fetchPublicRewardsConfig, type RewardsConfig, defaultRewardsConfig } from '../services/rewardsConfig';
 import { fetchFinancialSummary } from '../services/financialReadModel';
+import { acknowledgeBonusFeedItems, fetchBonusFeed } from '../services/bonusFeed';
 
 interface UserData {
   username: string;
@@ -471,6 +472,37 @@ export default function Starting() {
     }
     fetchUserData();
   }, [location.pathname, navigate, sessionUsername]);
+
+  useEffect(() => {
+    if (!sessionUsername) {
+      return;
+    }
+
+    const pollBonusFeed = async () => {
+      try {
+        const unseenBonuses = await fetchBonusFeed({ unseenOnly: true, limit: 6 });
+        if (unseenBonuses.length === 0) {
+          return;
+        }
+
+        for (const bonus of unseenBonuses) {
+          const assignmentLabel = bonus.assignmentMode === 'automatic'
+            ? 'Automatic'
+            : (bonus.assignmentMode === 'semi-automatic' ? 'Semi-Automatic' : 'Manual');
+          toast.success(`${bonus.label}: +$${bonus.amount.toFixed(2)} (${assignmentLabel})`, {
+            description: bonus.description || `Assigned ${new Date(bonus.createdAt).toLocaleString()}`,
+            duration: 7000,
+          });
+        }
+
+        await acknowledgeBonusFeedItems(unseenBonuses.map((bonus) => bonus.id));
+      } catch {
+        // Bonus feed should never block page usage.
+      }
+    };
+
+    void pollBonusFeed();
+  }, [sessionUsername]);
 
   const fetchSessionUser = async () => {
     return fetchFinancialSummary();

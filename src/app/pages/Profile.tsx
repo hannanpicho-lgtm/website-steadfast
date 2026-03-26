@@ -9,6 +9,7 @@ import { getCurrentUsername, logoutCurrentUser } from '../services/referralSyste
 import { changeUserCredentials, isPasswordChangeRequired } from '../services/serverAuth';
 import { fetchReferralSummary } from '../services/referralReadModel';
 import { fetchFinancialSummary, type FinancialSummaryResponse } from '../services/financialReadModel';
+import { fetchBonusFeed, type BonusFeedItem } from '../services/bonusFeed';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export default function Profile() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [referralCode, setReferralCode] = useState('STF01');
   const [financialSummary, setFinancialSummary] = useState<FinancialSummaryResponse | null>(null);
+  const [bonusPreview, setBonusPreview] = useState<BonusFeedItem[]>([]);
   const [mustChangePassword, setMustChangePassword] = useState(false);
   const [currentLoginPassword, setCurrentLoginPassword] = useState('');
   const [newLoginPassword, setNewLoginPassword] = useState('');
@@ -78,9 +80,10 @@ export default function Profile() {
 
     const load = async () => {
       try {
-        const [userRes, referralSummary] = await Promise.allSettled([
+        const [userRes, referralSummary, bonusRes] = await Promise.allSettled([
           fetchFinancialSummary(),
           fetchReferralSummary(),
+          fetchBonusFeed({ limit: 6 }),
         ]);
 
         if (userRes.status === 'fulfilled') {
@@ -93,7 +96,11 @@ export default function Profile() {
           setReferralCode(String(referralSummary.value.invitationCode ?? 'STF01'));
         }
 
-        if (userRes.status !== 'fulfilled' && referralSummary.status !== 'fulfilled') {
+        if (bonusRes.status === 'fulfilled') {
+          setBonusPreview(bonusRes.value);
+        }
+
+        if (userRes.status !== 'fulfilled' && referralSummary.status !== 'fulfilled' && bonusRes.status !== 'fulfilled') {
           toast.error('Could not load profile data. Please retry.');
         }
       } catch {
@@ -185,6 +192,11 @@ export default function Profile() {
   const afterSettlementAmount = isFrozen
     ? Math.max(0, beforeFreezeBalance + premiumProfit)
     : Math.max(0, availableAmount);
+  const luckyBonus = Number(financialSummary?.luckyBonus ?? 0);
+  const bonusPreviewTotal = bonusPreview.reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
+  const automaticBonusTotal = bonusPreview
+    .filter((item) => item.assignmentMode === 'automatic')
+    .reduce((sum, item) => sum + Number(item.amount ?? 0), 0);
 
   return (
     <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
@@ -274,6 +286,21 @@ export default function Profile() {
             <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
               <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">{isFrozen ? 'After Settlement' : 'Available'}</p>
               <p className="text-sm font-bold mt-1 text-[#b8ffd4]">{profileLoading ? '...' : `${afterSettlementAmount.toFixed(2)} USD`}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">Lucky Bonus</p>
+              <p className="text-sm font-bold mt-1 text-[#ffe7a6]">{profileLoading ? '...' : `${luckyBonus.toFixed(2)} USD`}</p>
+            </div>
+            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">Recent Bonus Total</p>
+              <p className="text-sm font-bold mt-1 text-[#b9f4ff]">{profileLoading ? '...' : `${bonusPreviewTotal.toFixed(2)} USD`}</p>
+            </div>
+            <div className="rounded-lg bg-white/10 border border-white/20 px-2.5 py-2 text-center">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-white/75">Automatic Bonus</p>
+              <p className="text-sm font-bold mt-1 text-[#b8ffd4]">{profileLoading ? '...' : `${automaticBonusTotal.toFixed(2)} USD`}</p>
             </div>
           </div>
 

@@ -7,6 +7,7 @@ import { Header } from '../components/Header';
 import { defaultRewardsConfig, fetchPublicRewardsConfig } from '../services/rewardsConfig';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { fetchBonusFeed, type BonusFeedItem } from '../services/bonusFeed';
 
 const vipColorByTier: Record<string, string> = {
   bronze: 'bg-slate-300',
@@ -30,6 +31,7 @@ type FinancialSnapshot = {
   holdAmount: number;
   availableAmount: number;
   todayCommission: number;
+  luckyBonus: number;
 };
 
 type ActivityLogItem = {
@@ -85,6 +87,7 @@ export default function Activity() {
   const [vipLevels, setVipLevels] = useState<ActivityVipLevel[]>(fallbackVipLevels);
   const [financialSnapshot, setFinancialSnapshot] = useState<FinancialSnapshot | null>(null);
   const [recentActivity, setRecentActivity] = useState<ActivityLogItem[]>([]);
+  const [recentBonuses, setRecentBonuses] = useState<BonusFeedItem[]>([]);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
   const resetDisplayOrder = [100, 1000, 5500, 500, 1600, 10000];
@@ -142,10 +145,14 @@ export default function Activity() {
             holdAmount: Number(financialsPayload?.holdAmount ?? 0),
             availableAmount: Number(financialsPayload?.availableAmount ?? 0),
             todayCommission: Number(financialsPayload?.todayCommission ?? 0),
+            luckyBonus: Number(financialsPayload?.luckyBonus ?? 0),
           });
         } else {
           setFinancialSnapshot(null);
         }
+
+        const bonusFeed = await fetchBonusFeed({ limit: 8 }).catch(() => []);
+        setRecentBonuses(bonusFeed);
 
         const transactionPayload = transactionsResponse.ok
           ? await transactionsResponse.json().catch(() => [])
@@ -186,11 +193,19 @@ export default function Activity() {
       } catch {
         setFinancialSnapshot(null);
         setRecentActivity([]);
+        setRecentBonuses([]);
       }
     };
 
     void loadActivityConfig();
   }, []);
+
+  const bonusTotal = recentBonuses.reduce((sum, bonus) => sum + Number(bonus.amount ?? 0), 0);
+  const bonusByAssignmentMode = recentBonuses.reduce((acc, bonus) => {
+    const key = bonus.assignmentMode;
+    acc[key] = (acc[key] ?? 0) + Number(bonus.amount ?? 0);
+    return acc;
+  }, {} as Record<string, number>);
 
   return (
     <div className="size-full overflow-auto pb-20 bg-white">
@@ -210,7 +225,7 @@ export default function Activity() {
 
         <div className="bg-[#0f172a] rounded-xl p-5 mb-8 border border-[#1f2937]">
           <h2 className="text-white text-lg font-semibold mb-4">Live Account Snapshot</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
             <div className="bg-[#111827] rounded-lg p-3">
               <p className="text-gray-400 text-xs uppercase tracking-wide">Balance</p>
               <p className="text-white text-xl font-bold">${(financialSnapshot?.balance ?? 0).toFixed(2)}</p>
@@ -227,6 +242,25 @@ export default function Activity() {
               <p className="text-gray-400 text-xs uppercase tracking-wide">Today Profit</p>
               <p className="text-emerald-400 text-xl font-bold">${(financialSnapshot?.todayCommission ?? 0).toFixed(2)}</p>
             </div>
+            <div className="bg-[#111827] rounded-lg p-3">
+              <p className="text-gray-400 text-xs uppercase tracking-wide">Lucky Bonus</p>
+              <p className="text-amber-300 text-xl font-bold">${(financialSnapshot?.luckyBonus ?? 0).toFixed(2)}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+            <div className="bg-[#111827] rounded-lg p-3">
+              <p className="text-gray-400 text-xs uppercase tracking-wide">Bonus Feed Total</p>
+              <p className="text-cyan-300 text-lg font-bold">${bonusTotal.toFixed(2)}</p>
+            </div>
+            <div className="bg-[#111827] rounded-lg p-3">
+              <p className="text-gray-400 text-xs uppercase tracking-wide">Automatic Bonus</p>
+              <p className="text-emerald-300 text-lg font-bold">${Number(bonusByAssignmentMode['automatic'] ?? 0).toFixed(2)}</p>
+            </div>
+            <div className="bg-[#111827] rounded-lg p-3">
+              <p className="text-gray-400 text-xs uppercase tracking-wide">Semi/Manual Bonus</p>
+              <p className="text-orange-300 text-lg font-bold">${(Number(bonusByAssignmentMode['semi-automatic'] ?? 0) + Number(bonusByAssignmentMode['manual'] ?? 0)).toFixed(2)}</p>
+            </div>
           </div>
 
           <h3 className="text-white text-sm font-semibold mb-2">Recent Activity Log</h3>
@@ -242,6 +276,25 @@ export default function Activity() {
                 <div className="text-right">
                   <p className="text-white text-sm font-semibold">${entry.amount.toFixed(2)}</p>
                   <p className="text-gray-400 text-xs">{entry.status}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <h3 className="text-white text-sm font-semibold mb-2 mt-4">Bonus Assignment Feed</h3>
+          <div className="space-y-2 max-h-48 overflow-auto pr-1">
+            {recentBonuses.length === 0 ? (
+              <p className="text-gray-400 text-sm">No bonus events available for this session.</p>
+            ) : recentBonuses.map((bonus) => (
+              <div key={bonus.id} className="bg-[#111827] rounded-lg px-3 py-2 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-white text-sm font-medium">{bonus.label}</p>
+                  <p className="text-gray-400 text-xs">{bonus.description || 'Bonus awarded'}</p>
+                  <p className="text-gray-500 text-[11px] mt-1">{new Date(bonus.createdAt).toLocaleString()}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-cyan-300 text-sm font-semibold">+${Number(bonus.amount ?? 0).toFixed(2)}</p>
+                  <p className="text-gray-400 text-xs uppercase">{bonus.assignmentMode}</p>
                 </div>
               </div>
             ))}
