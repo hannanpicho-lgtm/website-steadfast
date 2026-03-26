@@ -11,14 +11,95 @@ const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 const SESSION_USER = 'ugreen';
 const SESSION_PASSWORD = 'demo123';
 const OTHER_USER = 'admin';
+const SUPPORT_STEP_RETRY_DELAY_MS = 1_500;
+const SUPPORT_FETCH_TIMEOUT_MS = 110_000;
+const SUPPORT_FETCH_WARN_THRESHOLD_MS = 90_000;
+const SUPPORT_TOTAL_WARN_THRESHOLD_MS = 95_000;
 
-async function requestWithCookie(
+type NetworkFailureCategory = 'timeout' | 'transient-http' | 'network-error';
+
+type RequestDiagnostic = {
+  path: string;
+  status: number;
+  body: any;
+  attempts: number;
+  retriesUsed: number;
+  durationMs: number;
+  failureCategory: NetworkFailureCategory | null;
+  failureReason: string | null;
+};
+
+function formatUnknownError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error ?? 'unknown error');
+}
+
+function classifyTransientFailure(status: number, error: unknown): {
+  category: NetworkFailureCategory | null;
+  reason: string | null;
+} {
+  if (error instanceof Error && error.name === 'AbortError') {
+    return {
+      category: 'timeout',
+      reason: 'request timed out',
+    };
+  }
+
+  if (error) {
+    return {
+      category: 'network-error',
+      reason: formatUnknownError(error),
+    };
+  }
+
+  if (status === 408 || status === 429 || status >= 500) {
+    return {
+      category: 'transient-http',
+      reason: `received HTTP ${status}`,
+    };
+  }
+
+  return {
+    category: null,
+    reason: null,
+  };
+}
+
+function logRequestDiagnostic(label: string, diagnostic: RequestDiagnostic) {
+  const baseMessage = [
+    `[Tier1Stability] ${label}`,
+    `path=${diagnostic.path}`,
+    `status=${diagnostic.status}`,
+    `attempts=${diagnostic.attempts}`,
+    `retries=${diagnostic.retriesUsed}`,
+    `durationMs=${diagnostic.durationMs}`,
+    `category=${diagnostic.failureCategory ?? 'success'}`,
+    `reason=${diagnostic.failureReason ?? 'none'}`,
+  ].join(' ');
+
+  if (diagnostic.failureCategory) {
+    console.warn(baseMessage);
+    return;
+  }
+
+  console.info(baseMessage);
+}
+
+function warnOnLatency(label: string, durationMs: number, thresholdMs: number) {
+  if (durationMs > thresholdMs) {
+    console.warn(`[Tier1LatencyWarning] ${label} durationMs=${durationMs} thresholdMs=${thresholdMs}`);
+  }
+}
+
+async function requestWithCookieDetailed(
   path: string,
   cookie: string,
   init?: RequestInit,
   maxAttempts = 2,
   timeoutMs = 25_000,
-) {
+): Promise<RequestDiagnostic> {
   const mergedHeaders = {
     'Content-Type': 'application/json',
     apikey: ANON_KEY,
@@ -27,11 +108,15 @@ async function requestWithCookie(
     ...(init?.headers ?? {}),
   } as Record<string, string>;
 
+  const startedAt = Date.now();
   let lastStatus = 0;
   let lastBody: any = null;
-  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  let lastError: unknown = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
       const res = await fetch(`${BASE}${path}`, {
         ...init,
@@ -40,21 +125,85 @@ async function requestWithCookie(
       });
       const body = await res.json().catch(() => null);
       clearTimeout(timer);
-      if (res.status >= 500 && attempt < maxAttempts - 1) {
-        await new Promise(r => setTimeout(r, 2000));
+
+      lastStatus = res.status;
+      lastBody = body;
+      lastError = null;
+
+      const transient = classifyTransientFailure(res.status, null);
+      if (transient.category && attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, SUPPORT_STEP_RETRY_DELAY_MS));
         continue;
       }
-      return { status: res.status, body };
-    } catch {
+
+      return {
+        path,
+        status: res.status,
+        body,
+        attempts: attempt,
+        retriesUsed: attempt - 1,
+        durationMs: Date.now() - startedAt,
+        failureCategory: transient.category,
+        failureReason: transient.reason,
+      };
+    } catch (error) {
       clearTimeout(timer);
-      if (attempt < maxAttempts - 1) {
-        await new Promise(r => setTimeout(r, 2000));
+      lastError = error;
+
+      const transient = classifyTransientFailure(0, error);
+      if (attempt < maxAttempts) {
+        await new Promise((resolve) => setTimeout(resolve, SUPPORT_STEP_RETRY_DELAY_MS));
         continue;
       }
-      return { status: lastStatus || 503, body: lastBody };
+
+      return {
+        path,
+        status: lastStatus || 503,
+        body: lastBody,
+        attempts: attempt,
+        retriesUsed: attempt - 1,
+        durationMs: Date.now() - startedAt,
+        failureCategory: transient.category,
+        failureReason: transient.reason,
+      };
     }
   }
-  return { status: lastStatus || 503, body: lastBody };
+
+  const exhausted = classifyTransientFailure(lastStatus, lastError);
+  return {
+    path,
+    status: lastStatus || 503,
+    body: lastBody,
+    attempts: maxAttempts,
+    retriesUsed: Math.max(0, maxAttempts - 1),
+    durationMs: Date.now() - startedAt,
+    failureCategory: exhausted.category,
+    failureReason: exhausted.reason,
+  };
+}
+
+function assertNoPersistentNetworkFailure(stepName: string, diagnostic: RequestDiagnostic) {
+  logRequestDiagnostic(stepName, diagnostic);
+  if (!diagnostic.failureCategory) {
+    return;
+  }
+
+  throw new Error(
+    `[NETWORK_${diagnostic.failureCategory.toUpperCase()}] ${stepName} exhausted retries `
+      + `(path=${diagnostic.path} status=${diagnostic.status} attempts=${diagnostic.attempts} `
+      + `durationMs=${diagnostic.durationMs} reason=${diagnostic.failureReason ?? 'unknown'})`,
+  );
+}
+
+async function requestWithCookie(
+  path: string,
+  cookie: string,
+  init?: RequestInit,
+  maxAttempts = 2,
+  timeoutMs = 25_000,
+) {
+  const diagnostic = await requestWithCookieDetailed(path, cookie, init, maxAttempts, timeoutMs);
+  return { status: diagnostic.status, body: diagnostic.body };
 }
 
 async function requestWithoutSession(path: string, init?: RequestInit, maxAttempts = 2, timeoutMs = 25_000) {
@@ -621,40 +770,56 @@ describe('Session-bound authorization', () => {
 
   it('full cycle: create ticket via /me/support/create, fetch via GET /me/support, reply via /me/support/reply', async () => {
     const cookie = sessionCookie;
+    const testStartedAt = Date.now();
 
-    // Create
-    const createRes = await requestWithCookie('/me/support/create', cookie, {
-      method: 'POST',
-      body: JSON.stringify({
-        subject: 'Phase 3 pilot ticket',
-        message: 'Initial message for pilot test',
-        category: 'general',
-        priority: 'high',
-      }),
-    });
-    expect(createRes.status).toBe(200);
-    expect(createRes.body?.success).toBe(true);
-    const ticketId = createRes.body?.ticket?.id;
-    expect(typeof ticketId).toBe('string');
-    expect(createRes.body?.ticket?.username).toBe(SESSION_USER);
+    try {
+      const createRes = await requestWithCookieDetailed('/me/support/create', cookie, {
+        method: 'POST',
+        body: JSON.stringify({
+          subject: 'Phase 3 pilot ticket',
+          message: 'Initial message for pilot test',
+          category: 'general',
+          priority: 'high',
+        }),
+      }, 3, 30_000);
+      assertNoPersistentNetworkFailure('support-create', createRes);
+      warnOnLatency('support-create', createRes.durationMs, 4_000);
+      expect(createRes.status).toBe(200);
+      expect(createRes.body?.success).toBe(true);
+      const ticketId = createRes.body?.ticket?.id;
+      expect(typeof ticketId).toBe('string');
+      expect(createRes.body?.ticket?.username).toBe(SESSION_USER);
 
-    // Fetch
-    const fetchRes = await requestWithCookie('/me/support', cookie, undefined, 1, 85_000);
-    expect([200, 503]).toContain(fetchRes.status);
-    if (fetchRes.status === 200) {
+      const fetchRes = await requestWithCookieDetailed('/me/support', cookie, undefined, 2, SUPPORT_FETCH_TIMEOUT_MS);
+      assertNoPersistentNetworkFailure('support-fetch', fetchRes);
+      warnOnLatency('support-fetch', fetchRes.durationMs, SUPPORT_FETCH_WARN_THRESHOLD_MS);
+      expect(fetchRes.status).toBe(200);
       expect(Array.isArray(fetchRes.body)).toBe(true);
-      const found = (fetchRes.body as any[]).find((t: any) => t.id === ticketId);
+      const found = (fetchRes.body as any[]).find((ticket: any) => ticket.id === ticketId);
       expect(found).toBeTruthy();
-    }
 
-    // Reply
-    const replyRes = await requestWithCookie('/me/support/reply', cookie, {
-      method: 'POST',
-      body: JSON.stringify({ ticketId, message: 'Follow-up reply from pilot test' }),
-    });
-    expect(replyRes.status).toBe(200);
-    expect(replyRes.body?.success).toBe(true);
-    expect(replyRes.body?.ticket?.responses).toHaveLength(1);
-    expect(replyRes.body?.ticket?.responses[0]?.respondedBy).toBe(SESSION_USER);
-  }, 180000);
+      const replyRes = await requestWithCookieDetailed('/me/support/reply', cookie, {
+        method: 'POST',
+        body: JSON.stringify({ ticketId, message: 'Follow-up reply from pilot test' }),
+      }, 3, 30_000);
+      assertNoPersistentNetworkFailure('support-reply', replyRes);
+      warnOnLatency('support-reply', replyRes.durationMs, 5_000);
+      expect(replyRes.status).toBe(200);
+      expect(replyRes.body?.success).toBe(true);
+      expect(replyRes.body?.ticket?.responses).toHaveLength(1);
+      expect(replyRes.body?.ticket?.responses[0]?.respondedBy).toBe(SESSION_USER);
+
+      const totalDurationMs = Date.now() - testStartedAt;
+      console.info(`[Tier1SupportCycle] totalDurationMs=${totalDurationMs}`);
+      warnOnLatency('support-full-cycle-total', totalDurationMs, SUPPORT_TOTAL_WARN_THRESHOLD_MS);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('[NETWORK_')) {
+        console.error(`[Tier1FailureClassification] category=network-transient message=${error.message}`);
+        throw error;
+      }
+
+      console.error(`[Tier1FailureClassification] category=assertion-logic message=${formatUnknownError(error)}`);
+      throw error;
+    }
+  }, 300000);
 });
