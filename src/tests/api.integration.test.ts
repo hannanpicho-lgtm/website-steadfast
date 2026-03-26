@@ -971,6 +971,32 @@ describe('Phase 1: Session endpoints', () => {
     expect(loginRes.body.username).toBe(DEMO_USER);
   });
 
+  it('POST /auth/session/restore succeeds in cookie-less mode using x-user-session-token fallback', async () => {
+    const loginRaw = await requestRaw('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: DEMO_USER,
+        loginPassword: DEMO_PASSWORD,
+      }),
+    });
+
+    expect(loginRaw.status).toBe(200);
+    const loginBody = await loginRaw.json().catch(() => ({})) as Record<string, unknown>;
+    expect(loginBody.ok).toBe(true);
+    expect(typeof loginBody.sessionToken).toBe('string');
+    expect(String(loginBody.sessionToken).length).toBeGreaterThan(0);
+
+    const restoreResult = await post('/auth/session/restore', {}, {
+      'x-user-session-token': String(loginBody.sessionToken),
+    });
+
+    expect(restoreResult.status).toBe(200);
+    expect(restoreResult.body.ok).toBe(true);
+    expect(restoreResult.body.username).toBe(DEMO_USER);
+    expect(typeof restoreResult.body.sessionToken).toBe('string');
+    expect(String(restoreResult.body.sessionToken).length).toBeGreaterThan(0);
+  });
+
   it('POST /auth/session/logout succeeds and clears session', async () => {
     // Step 1: Login to establish session
     const loginRes = await post('/auth/login', {
