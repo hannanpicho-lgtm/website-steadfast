@@ -29,7 +29,7 @@ SLA_AUTO_ESCALATE = "false"
 [env.production]
 workers_dev = false
 routes = [
-  { pattern = "chat-api.steadfast.example.com/*", zone_name = "steadfast.example.com" }
+  { pattern = "chat-api.steadfastworkbench.org/*", zone_name = "steadfastworkbench.org" }
 ]
 
 [[env.production.durable_objects.bindings]]
