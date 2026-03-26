@@ -24,6 +24,9 @@ ADMIN_ROLE_NAMES = "admin,super_admin"
 USER_ROLE_NAMES = "user,member"
 SLA_BREACH_MINUTES = "30"
 MAX_RETRY_ATTEMPTS = "2"
+WS_TICKET_TTL_SECONDS = "45"
+CHAT_REQUIRE_USER_JWT = "false"
+SLA_AUTO_ESCALATE = "false"
 
 [env.production]
 workers_dev = false
@@ -36,3 +39,6 @@ ADMIN_ROLE_NAMES = "admin,super_admin"
 USER_ROLE_NAMES = "user,member"
 SLA_BREACH_MINUTES = "30"
 MAX_RETRY_ATTEMPTS = "2"
+WS_TICKET_TTL_SECONDS = "45"
+CHAT_REQUIRE_USER_JWT = "false"
+SLA_AUTO_ESCALATE = "false"

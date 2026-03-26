@@ -60,6 +60,7 @@ interface ChatSummary {
   tags?: string[];
   slaDueAt?: string | null;
   status?: 'open' | 'pending' | 'resolved' | 'closed';
+  overdue?: boolean;
 }
 
 type RealtimeMetricsSummary = {
@@ -247,6 +248,7 @@ function mapRealtimeConversation(raw: Record<string, unknown>): ChatSummary {
     })(),
     slaDueAt: typeof raw.sla_due_at === 'string' ? raw.sla_due_at : null,
     status: (typeof raw.status === 'string' ? raw.status : 'open') as ChatSummary['status'],
+    overdue: Number(raw.overdue ?? 0) > 0,
   };
 }
 
@@ -729,6 +731,11 @@ export default function LiveChatAdmin() {
                     <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${chat.responseState === 'awaiting-support' ? 'bg-amber-100 text-amber-700' : chat.responseState === 'support-replied' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                       {chat.responseState.replace('-', ' ')}
                     </span>
+                    {chat.overdue ? (
+                      <span className="rounded-full bg-rose-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-rose-700">
+                        SLA Overdue
+                      </span>
+                    ) : null}
                     <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">
                       Avg {formatChatResponseTime(chat.averageAdminResponseMs)}
                     </span>
@@ -770,6 +777,11 @@ export default function LiveChatAdmin() {
                     {selectedChatSummary?.priority ? (
                       <span className="rounded-full bg-purple-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-purple-700">
                         {selectedChatSummary.priority}
+                      </span>
+                    ) : null}
+                    {selectedChatSummary?.overdue ? (
+                      <span className="rounded-full bg-rose-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-rose-700">
+                        SLA Overdue
                       </span>
                     ) : null}
                   </div>

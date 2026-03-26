@@ -44,6 +44,8 @@ export interface Env {
   SLA_BREACH_MINUTES?: string;
   MAX_RETRY_ATTEMPTS?: string;
   CHAT_REQUIRE_USER_JWT?: string;
+  WS_TICKET_TTL_SECONDS?: string;
+  SLA_AUTO_ESCALATE?: string;
 }
 
 export interface AuthPrincipal {

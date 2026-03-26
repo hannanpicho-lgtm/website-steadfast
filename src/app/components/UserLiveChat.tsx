@@ -134,23 +134,30 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
     void loadConversation();
 
     if (realtimeEnabled && username) {
-      realtimeSocketRef.current?.close();
-      realtimeSocketRef.current = openRealtimeChatSocket({
-        conversationId: username,
-        actorId: username,
-        actorRole: 'user',
-        onOpen: () => setConnectionState('live'),
-        onClose: () => setConnectionState('reconnecting'),
-        onError: () => setConnectionState('reconnecting'),
-        onEvent: () => {
-          if (realtimeRefreshTimeoutRef.current !== null) {
-            window.clearTimeout(realtimeRefreshTimeoutRef.current);
-          }
-          realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
-            void loadConversation(true);
-          }, 120);
-        },
-      });
+      void (async () => {
+        try {
+          realtimeSocketRef.current?.close();
+          const socket = await openRealtimeChatSocket({
+            conversationId: username,
+            actorId: username,
+            actorRole: 'user',
+            onOpen: () => setConnectionState('live'),
+            onClose: () => setConnectionState('reconnecting'),
+            onError: () => setConnectionState('reconnecting'),
+            onEvent: () => {
+              if (realtimeRefreshTimeoutRef.current !== null) {
+                window.clearTimeout(realtimeRefreshTimeoutRef.current);
+              }
+              realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
+                void loadConversation(true);
+              }, 120);
+            },
+          });
+          realtimeSocketRef.current = socket;
+        } catch {
+          setConnectionState('reconnecting');
+        }
+      })();
     }
 
     pollRef.current = window.setInterval(() => {

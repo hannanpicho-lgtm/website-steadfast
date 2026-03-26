@@ -376,7 +376,7 @@ async function buildRealtimeAdminIdentityHeaders(contentType = false): Promise<R
   };
 }
 
-export function openRealtimeChatSocket(params: {
+export async function openRealtimeChatSocket(params: {
   conversationId: string;
   actorId: string;
   actorRole: 'user' | 'admin';
@@ -384,21 +384,22 @@ export function openRealtimeChatSocket(params: {
   onOpen?: () => void;
   onClose?: () => void;
   onError?: () => void;
-}): WebSocket | null {
+}): Promise<WebSocket | null> {
   if (!isRealtimeChatEnabled()) {
     return null;
+  }
+
+  const ticket = await fetchRealtimeSocketTicket(params.conversationId, params.actorRole, params.actorId);
+  if (!ticket?.ticket) {
+    throw new Error('Failed to acquire websocket ticket');
   }
 
   const base = REALTIME_CHAT_URL.replace(/\/$/, '');
   const wsBase = base.replace(/^http/i, 'ws');
   const query = new URLSearchParams({
     conversationId: params.conversationId,
-    actorId: params.actorId,
-    role: params.actorRole,
+    ticket: ticket.ticket,
   });
-  if (REALTIME_CHAT_TOKEN) {
-    query.set('token', REALTIME_CHAT_TOKEN);
-  }
 
   const ws = new WebSocket(`${wsBase}/chat/ws?${query.toString()}`);
   ws.onopen = () => params.onOpen?.();
@@ -599,5 +600,44 @@ export async function sendRealtimeAdminChatMessage(conversationId: string, body:
       }),
     },
     'Failed to send realtime admin chat message',
+  );
+}
+
+export async function fetchRealtimeSocketTicket(conversationId: string, actorRole: 'user' | 'admin', actorId: string) {
+  const url = resolveRealtimeHttpUrl('/chat/ws-ticket');
+  if (!url) {
+    throw new Error('Realtime chat URL is not configured');
+  }
+
+  if (actorRole === 'admin') {
+    const headers = await buildRealtimeAdminIdentityHeaders(true);
+    return realtimeJsonFetch<{ ticket: string; expiresAt: string; conversationId: string }>(
+      url,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers,
+        body: JSON.stringify({ conversationId }),
+      },
+      'Failed to issue admin websocket ticket',
+    );
+  }
+
+  const sessionUsername = getSessionUsername() || actorId;
+  return realtimeJsonFetch<{ ticket: string; expiresAt: string; conversationId: string }>(
+    url,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        ...buildPublicApiHeaders(true),
+        ...(REALTIME_CHAT_TOKEN ? { authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
+        'x-chat-role': 'user',
+        'x-chat-user-id': sessionUsername,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ conversationId }),
+    },
+    'Failed to issue user websocket ticket',
   );
 }

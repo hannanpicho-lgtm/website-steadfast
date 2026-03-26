@@ -44,10 +44,14 @@ This folder contains the Cloudflare Worker runtime for production realtime chat.
 - `POST /chat/typing`
 - `POST /chat/presence`
 - `GET /chat/ws?conversationId=...&actorId=...&role=user&token=...`
+- `POST /chat/ws-ticket`
+- `GET /chat/ws?conversationId=...&ticket=...`
 - `GET /admin/conversations`
 - `GET /admin/conversations/:conversationId`
 - `PATCH /admin/conversations/:conversationId`
 - `GET /admin/metrics/summary`
+- `GET /admin/metrics/failures`
+- `POST /admin/sla/enforce`
 
 ## Identity and RBAC
 
@@ -58,6 +62,10 @@ This folder contains the Cloudflare Worker runtime for production realtime chat.
 - User endpoints:
 	- identity bound to `x-chat-user-id`
 	- optional strict JWT mode via `CHAT_REQUIRE_USER_JWT=true`
+- WebSocket authentication:
+	- uses short-lived tickets from `POST /chat/ws-ticket`
+	- ticket is one-time use and expires quickly (`WS_TICKET_TTL_SECONDS`)
+	- ticket is consumed and invalidated on successful connection
 - All mutation events are logged with actor id/role in `chat_events`.
 
 ## Reliability behavior
@@ -67,6 +75,7 @@ This folder contains the Cloudflare Worker runtime for production realtime chat.
 - Exhausted retries create `chat_delivery_failures` rows and `message.delivery.failed` events.
 - Broadcast socket send failures emit `socket.broadcast.dropped` events.
 - High-latency message writes emit `message.delayed` events.
+- SLA breach enforcement emits `sla.breach` and optional `sla.auto_escalated` events.
 
 ## End-to-end validation
 
@@ -79,6 +88,7 @@ This folder contains the Cloudflare Worker runtime for production realtime chat.
 	 - `CHAT_REALTIME_VALIDATE_ADMIN_JWT`
 	 - `CHAT_REALTIME_VALIDATE_ADMIN_ID`
 5. Run: `npm run chat:worker:validate`.
+6. Run smoke suite: `npm run test:predeploy:realtime`.
 6. Observe live logs with `npm run chat:worker:tail`.
 
 ## Rollout safety
