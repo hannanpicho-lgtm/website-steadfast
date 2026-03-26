@@ -25,11 +25,15 @@ async function main() {
   const legacyTsxPath = path.join(repoRoot, 'supabase/functions/server/index.tsx');
   const apiTestPath = path.join(repoRoot, 'src/tests/api.integration.test.ts');
   const sessionTestPath = path.join(repoRoot, 'src/tests/sessionAuthorization.integration.test.ts');
+  const liveChatAdminPath = path.join(repoRoot, 'src/app/components/admin/LiveChatAdmin.tsx');
+  const liveChatAdminModuleTestPath = path.join(repoRoot, 'src/tests/liveChatAdmin.module.test.ts');
 
   const shimSource = await readFile(shimPath, 'utf8');
   const serverSource = await readFile(serverPath, 'utf8');
   const apiTestSource = await readFile(apiTestPath, 'utf8');
   const sessionTestSource = await readFile(sessionTestPath, 'utf8');
+  const liveChatAdminSource = await readFile(liveChatAdminPath, 'utf8');
+  const liveChatAdminModuleTestSource = await readFile(liveChatAdminModuleTestPath, 'utf8');
 
   addCheck(
     'Unified backend shim imports index.ts',
@@ -59,9 +63,24 @@ async function main() {
   );
 
   addCheck(
+    'CORS env origin override keeps safe production fallback behavior',
+    serverSource.includes("const envCorsAllowedOrigins = (Deno.env.get('CORS_ALLOWED_ORIGINS') ?? '')") &&
+      serverSource.includes('const CORS_ALLOWED_ORIGINS = envCorsAllowedOrigins.length > 0') &&
+      serverSource.includes('(isProductionEnvironment ? DEFAULT_PRODUCTION_CORS_ALLOWED_ORIGINS : [])'),
+    'Expected CORS allowlist resolution to use env values when present and production defaults otherwise',
+  );
+
+  addCheck(
     'Session fallback header allowed in CORS',
     serverSource.includes('x-user-session-token'),
     'Expected x-user-session-token to be present in CORS allowHeaders',
+  );
+
+  addCheck(
+    'Admin gateway token checks include anon and service-role paths',
+    serverSource.includes('authHeaderToken === supabaseAnonKey || authHeaderToken === supabaseServiceRoleKey') &&
+      serverSource.includes('if (!forwardedUserJwt && isGatewayToken) {'),
+    'Expected requireAdmin gateway token logic to keep anon/service-role protections',
   );
 
   addCheck(
@@ -76,6 +95,23 @@ async function main() {
     sessionTestSource.includes("const TRUSTED_ORIGIN = 'https://steadfastworkbench.org';") &&
       sessionTestSource.includes('Origin: TRUSTED_ORIGIN'),
     'Expected Tier1 session integration test helpers to send a trusted Origin header',
+  );
+
+  const selectedChatSummaryDeclarationIndex = liveChatAdminSource.indexOf('const selectedChatSummary =');
+  const selectedChatSummaryDependencyIndex = liveChatAdminSource.indexOf('[selectedChatSummary]');
+
+  addCheck(
+    'LiveChatAdmin selectedChatSummary declared before hook dependency usage',
+    selectedChatSummaryDeclarationIndex !== -1
+      && selectedChatSummaryDependencyIndex !== -1
+      && selectedChatSummaryDeclarationIndex < selectedChatSummaryDependencyIndex,
+    'Expected selectedChatSummary declaration to appear before hook dependency usage to avoid TDZ crashes',
+  );
+
+  addCheck(
+    'LiveChatAdmin import regression test is present',
+    liveChatAdminModuleTestSource.includes("import('../app/components/admin/LiveChatAdmin')"),
+    'Expected src/tests/liveChatAdmin.module.test.ts to include a module import regression test',
   );
 
   const failed = checks.filter((check) => !check.pass);
