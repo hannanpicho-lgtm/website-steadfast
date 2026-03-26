@@ -15,6 +15,7 @@ const DEBUG_DEPLOYMENT_LOG = Deno.env.get("DEBUG_DEPLOYMENT_LOG") === "1";
 const DEPLOYMENT_STALE_THRESHOLD_MINUTES = Math.max(1, Number(Deno.env.get("DEPLOYMENT_STALE_THRESHOLD_MINUTES") ?? "180"));
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
+const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? '';
 const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const authClient = supabaseUrl && supabaseServiceRoleKey
   ? createClient(supabaseUrl, supabaseServiceRoleKey)
@@ -35,10 +36,20 @@ const REFERRAL_PARENT_RATE = 0.2;
 const ROOT_REFERRAL_USERNAME = 'steadfast_root';
 const ROOT_REFERRAL_INVITE_CODE = 'STF01';
 
-const CORS_ALLOWED_ORIGINS = (Deno.env.get('CORS_ALLOWED_ORIGINS') ?? '')
+const DEFAULT_PRODUCTION_CORS_ALLOWED_ORIGINS = [
+  'https://website-steadfast.pages.dev',
+  'https://steadfastworkbench.org',
+  'https://www.steadfastworkbench.org',
+];
+
+const envCorsAllowedOrigins = (Deno.env.get('CORS_ALLOWED_ORIGINS') ?? '')
   .split(',')
   .map((value) => value.trim())
   .filter((value) => value.length > 0);
+
+const CORS_ALLOWED_ORIGINS = envCorsAllowedOrigins.length > 0
+  ? envCorsAllowedOrigins
+  : (isProductionEnvironment ? DEFAULT_PRODUCTION_CORS_ALLOWED_ORIGINS : []);
 
 const configuredCorsAllowedOrigins = new Set(CORS_ALLOWED_ORIGINS);
 
@@ -455,7 +466,7 @@ app.use(
   cors({
     origin: (origin) => resolveCorsOrigin(origin),
     credentials: true,
-    allowHeaders: ["Content-Type", "Authorization", "apikey", "x-admin-secret", "x-user-jwt"],
+    allowHeaders: ["Content-Type", "Authorization", "apikey", "x-admin-secret", "x-user-jwt", "x-user-session-token"],
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length", "X-Request-Id"],
     maxAge: 600,
