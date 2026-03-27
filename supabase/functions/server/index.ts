@@ -9289,6 +9289,173 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
   }
 });
 
+// GET /admin/platform-users/discover-ghost-users – super-admin only
+// Returns list of auth users without corresponding platform KV records
+app.get('/make-server-a1c55d7e/admin/platform-users/discover-ghost-users', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-platform-users:discover-ghost-users');
+    if (limited) return limited;
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+
+    if (!callerIsSuperAdmin) {
+      return c.json({ error: 'Only super-admin can discover ghost users' }, 403);
+    }
+
+    // Get all KV platform usernames for quick lookup
+    const kvUsers = new Set<string>();
+    const allRawUsers = await kv.getByPrefix('user:');
+    for (const raw of allRawUsers) {
+      const rawUsername = typeof raw?.username === 'string' ? raw.username : '';
+      if (rawUsername && rawUsername !== 'steadfast_root') {
+        const canon = (await resolveCanonicalUsername(rawUsername)) ?? rawUsername;
+        kvUsers.add(canon.toLowerCase());
+      }
+    }
+
+    // Query all auth users for ghost accounts
+    const ghostUsers: any[] = [];
+    if (authClient) {
+      try {
+        let p = 1;
+        let totalScanned = 0;
+        const maxPages = 10; // ~2000 users max
+        
+        while (p <= maxPages) {
+          const { data } = await authClient.auth.admin.listUsers({ page: p, perPage: 200 });
+          const batch = Array.isArray(data?.users) ? data.users : [];
+          
+          for (const authUser of batch) {
+            totalScanned++;
+            const metadataUsername = sanitizeUsername(
+              typeof authUser?.user_metadata?.username === 'string' ? authUser.user_metadata.username : '',
+            );
+            const emailLocal = sanitizeUsername(
+              typeof authUser?.email === 'string' ? (authUser.email.split('@')[0] ?? '') : '',
+            );
+            const checkUsername = (metadataUsername || emailLocal || '').toLowerCase();
+            
+            // If auth user exists but no corresponding KV record, it's a ghost
+            if (checkUsername && !kvUsers.has(checkUsername)) {
+              ghostUsers.push({
+                id: authUser.id,
+                email: authUser.email,
+                username: metadataUsername || emailLocal || '(unknown)',
+                createdAt: authUser.created_at,
+                lastSignInAt: authUser.last_sign_in_at,
+              });
+            }
+          }
+          
+          if (batch.length < 200) break;
+          p += 1;
+        }
+      } catch (e) {
+        console.error('Error scanning auth users for ghosts:', e);
+        return c.json({ error: 'Failed to scan auth system' }, 500);
+      }
+    }
+
+    await recordObservabilityAuditEvent(
+      'admin_ghost_user_discovery',
+      typeof callingAdmin?.email === 'string' ? callingAdmin.email : String(callingAdmin?.id ?? 'unknown'),
+      `Discovered ${ghostUsers.length} ghost users (auth-only, no platform records)`,
+    ).catch((e) => console.error('Failed to record discovery audit event:', e));
+
+    return c.json({
+      success: true,
+      ghostUsersCount: ghostUsers.length,
+      ghostUsers: ghostUsers.slice(0, 100), // Max 100 to avoid huge response
+      totalScanned: totalScanned || 0,
+      discoveredAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('admin/platform-users/discover-ghost-users error:', err);
+    return c.json({ error: 'Failed to discover ghost users' }, 500);
+  }
+});
+
+// POST /admin/platform-users/:username/recover-ghost-user – super-admin only
+// Explicitly recovers a ghost user by bootstrapping their platform KV record from auth
+app.post('/make-server-a1c55d7e/admin/platform-users/:username/recover-ghost-user', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-platform-users:recover-ghost-user');
+    if (limited) return limited;
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+
+    if (!callerIsSuperAdmin) {
+      return c.json({ error: 'Only super-admin can recover ghost users' }, 403);
+    }
+
+    const requestedUsername = sanitizeUsername(c.req.param('username'));
+    if (!requestedUsername) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    // Check if user already has a platform record
+    const existingRecord = await kv.get(`user:${requestedUsername}`);
+    if (existingRecord) {
+      return c.json({
+        ok: true,
+        username: requestedUsername,
+        status: 'already_recovered',
+        message: 'User already has a platform record',
+      });
+    }
+
+    // Search for auth user
+    const authUser = await findAuthUserForPlatformUsername(requestedUsername);
+    if (!authUser) {
+      return c.json({ error: 'User not found in auth system' }, 404);
+    }
+
+    // Bootstrap the missing platform record
+    const canonicalUsername = requestedUsername;
+    const recoveredUser = await bootstrapMissingPlatformUserRecord(canonicalUsername, {
+      referredByAdminId: typeof callingAdmin?.id === 'string' ? callingAdmin.id : null,
+    });
+
+    // Log this recovery
+    await recordObservabilityAuditEvent(
+      'admin_ghost_user_recovered',
+      typeof callingAdmin?.email === 'string' ? callingAdmin.email : String(callingAdmin?.id ?? 'unknown'),
+      `Recovered ghost user '${canonicalUsername}' by bootstrapping platform record from auth (authId: ${authUser.id})`,
+    ).catch((e) => console.error('Failed to record recovery audit event:', e));
+
+    logStructuredEvent(c, 'admin_ghost_user_recovered', 'info', {
+      username: canonicalUsername,
+      authUserId: authUser.id,
+      recoveredAt: new Date().toISOString(),
+    });
+
+    return c.json({
+      ok: true,
+      username: canonicalUsername,
+      status: 'recovered',
+      authId: authUser.id,
+      platformRecord: {
+        balance: recoveredUser.balance,
+        vipLevel: recoveredUser.vipLevel,
+        isFrozen: recoveredUser.isFrozen,
+        tasksLimit: recoveredUser.tasksLimit,
+      },
+      recoveredAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('admin/platform-users/recover-ghost-user error:', err);
+    return c.json({ error: 'Failed to recover ghost user' }, 500);
+  }
+});
+
 // Admin-reset user credentials (login + transaction) without email dependency.
 // Admin provides new values; server stores only hashes and forces next password change.
 app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials', async (c) => {
