@@ -866,6 +866,62 @@ async function assignUsernameLookup(username: string): Promise<void> {
   await kv.set(`user:lookup:${username.toLowerCase()}`, username);
 }
 
+async function findAuthUserForPlatformUsername(username: string): Promise<any | null> {
+  if (!authClient?.auth?.admin?.listUsers) {
+    return null;
+  }
+
+  const normalized = sanitizeUsername(username);
+  if (!normalized) {
+    return null;
+  }
+
+  const perPage = 200;
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await authClient.auth.admin.listUsers({ page, perPage });
+    if (error) {
+      console.error('auth admin listUsers failed while resolving ghost user:', error.message);
+      return null;
+    }
+
+    const users = Array.isArray(data?.users) ? data.users : [];
+    for (const authUser of users) {
+      const metadataUsername = sanitizeUsername(
+        typeof authUser?.user_metadata?.username === 'string' ? authUser.user_metadata.username : '',
+      );
+      const emailLocal = sanitizeUsername(
+        typeof authUser?.email === 'string' ? (authUser.email.split('@')[0] ?? '') : '',
+      );
+
+      if (metadataUsername === normalized || emailLocal === normalized) {
+        return authUser;
+      }
+    }
+
+    if (users.length < perPage) {
+      break;
+    }
+  }
+
+  return null;
+}
+
+async function bootstrapMissingPlatformUserRecord(
+  username: string,
+  options?: { referredByAdminId?: string | null },
+) {
+  const canonicalUsername = sanitizeUsername(username);
+  if (!canonicalUsername) {
+    throw new Error('Invalid username for bootstrap');
+  }
+
+  const created = await syncUserWithVipConfig(defaultUserRecord(canonicalUsername), canonicalUsername);
+  created.referredByAdminId = typeof options?.referredByAdminId === 'string' ? options.referredByAdminId : created.referredByAdminId;
+  await kv.set(`user:${canonicalUsername}`, created);
+  await assignUsernameLookup(canonicalUsername);
+  return created;
+}
+
 function isSuperAdmin(user: any): boolean {
   return getAdminRoleClaim(user) === 'super_admin';
 }
@@ -4509,10 +4565,21 @@ app.post('/make-server-a1c55d7e/auth/session/restore', async (c) => {
     }
 
     const userData = await kv.get(`user:${session.username}`);
+    const normalizedUserData = userData
+      ? await syncUserWithVipConfig(userData, session.username)
+      : await getOrCreateUserRecord(session.username);
+    if (!userData) {
+      logStructuredEvent(c, 'session_user_record_bootstrapped', 'info', {
+        username: session.username,
+      });
+    }
+    await kv.set(`user:${session.username}`, normalizedUserData);
+    await assignUsernameLookup(session.username);
+
     return c.json({
       ok: true,
       username: session.username,
-      mustChangePassword: Boolean((userData as any)?.mustChangePassword),
+      mustChangePassword: Boolean((normalizedUserData as any)?.mustChangePassword),
       sessionToken: session.sessionId,
     });
   } catch (error) {
@@ -4534,10 +4601,21 @@ app.post('/make-server-a1c55d7e/auth/verify-token', async (c) => {
     }
 
     const userData = await kv.get(`user:${session.username}`);
+    const normalizedUserData = userData
+      ? await syncUserWithVipConfig(userData, session.username)
+      : await getOrCreateUserRecord(session.username);
+    if (!userData) {
+      logStructuredEvent(c, 'session_user_record_bootstrapped', 'info', {
+        username: session.username,
+      });
+    }
+    await kv.set(`user:${session.username}`, normalizedUserData);
+    await assignUsernameLookup(session.username);
+
     return c.json({
       ok: true,
       username: session.username,
-      mustChangePassword: Boolean((userData as any)?.mustChangePassword),
+      mustChangePassword: Boolean((normalizedUserData as any)?.mustChangePassword),
       sessionToken: session.sessionId,
     });
   } catch (error) {
@@ -9228,15 +9306,39 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials
 
     const callingAdmin = c.get('adminUser');
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
-    const canonicalUsername = await resolveCanonicalUsername(requestedUsername);
-    if (!canonicalUsername) {
-      return c.json({ error: 'User not found' }, 404);
-    }
+    const resolvedCanonicalUsername = await resolveCanonicalUsername(requestedUsername);
+    let canonicalUsername = resolvedCanonicalUsername ?? requestedUsername;
+    let userKey = `user:${canonicalUsername}`;
+    let existingUser = resolvedCanonicalUsername ? await kv.get(userKey) : null;
+    let bootstrappedFromAuth = false;
 
-    const userKey = `user:${canonicalUsername}`;
-    const existingUser = await kv.get(userKey);
     if (!existingUser) {
-      return c.json({ error: 'User not found' }, 404);
+      if (!callerIsSuperAdmin) {
+        return c.json({ error: 'User not found' }, 404);
+      }
+
+      const authUser = await findAuthUserForPlatformUsername(requestedUsername);
+      if (!authUser) {
+        return c.json({ error: 'User not found' }, 404);
+      }
+
+      const metadataUsername = sanitizeUsername(
+        typeof authUser?.user_metadata?.username === 'string' ? authUser.user_metadata.username : '',
+      );
+      const emailLocal = sanitizeUsername(
+        typeof authUser?.email === 'string' ? (authUser.email.split('@')[0] ?? '') : '',
+      );
+      canonicalUsername = metadataUsername || emailLocal || requestedUsername;
+      existingUser = await bootstrapMissingPlatformUserRecord(canonicalUsername, {
+        referredByAdminId: typeof callingAdmin?.id === 'string' ? callingAdmin.id : null,
+      });
+      userKey = `user:${canonicalUsername}`;
+      bootstrappedFromAuth = true;
+
+      logStructuredEvent(c, 'admin_missing_user_bootstrapped', 'info', {
+        username: canonicalUsername,
+        reason: 'reset-credentials',
+      });
     }
 
     const normalizedUser = await syncUserWithVipConfig(existingUser, canonicalUsername);
@@ -9258,6 +9360,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials
     normalizedUser.passwordUpdatedAt = new Date().toISOString();
 
     await kv.set(userKey, normalizedUser);
+    await assignUsernameLookup(canonicalUsername);
 
     const resetActorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
       ? callingAdmin.email
@@ -9265,13 +9368,14 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials
     await recordObservabilityAuditEvent(
       'user-credentials-reset',
       resetActorEmail,
-      `Reset login and transaction password for user '${canonicalUsername}' (mustChangePassword=true)`,
+      `Reset login and transaction password for user '${canonicalUsername}' (mustChangePassword=true, bootstrappedFromAuth=${bootstrappedFromAuth ? 'yes' : 'no'})`,
     ).catch((e) => console.error('Failed to record user-credentials-reset audit event:', e));
 
     return c.json({
       ok: true,
       username: canonicalUsername,
       mustChangePassword: true,
+      bootstrappedFromAuth,
       updatedAt: new Date().toISOString(),
     });
   } catch (err) {
