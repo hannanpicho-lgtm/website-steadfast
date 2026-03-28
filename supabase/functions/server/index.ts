@@ -4766,70 +4766,8 @@ async function submitTaskForUser(c: any, username: string, body: any) {
       }, 409);
     }
 
-    const premiumTriggerTaskNumber = Math.max(1, Number(productSystem.premiumTriggerTaskNumber ?? 10));
-    const shouldTriggerPremium = Boolean(productSystem.premiumEnabled)
-      && !normalizedUserData.activePremium
-      && queuedPremiumAssignments.length === 0
-      && nextSubmissionNumber === premiumTriggerTaskNumber;
-
-    if (shouldTriggerPremium) {
-      const premiumValue = computePremiumValueForVip(Number(normalizedUserData.vipLevel ?? 1), productSystem);
-      const balanceBeforeAssignment = roundMoney(Number(normalizedUserData.balance ?? 0));
-      const topUpRequired = resolveUpholdAmountForVip(Number(normalizedUserData.vipLevel ?? 1), premiumValue, balanceBeforeAssignment, productSystem);
-      const balanceAfterAssignment = roundMoney(balanceBeforeAssignment - premiumValue);
-      const activePremium = {
-        id: `premium-rule-${Date.now()}`,
-        premiumProductValue: premiumValue,
-        premiumProductName: `Rule Premium (Task #${nextSubmissionNumber})`,
-        bundledProducts: [],
-        totalBundleValue: premiumValue,
-        balanceBeforeAssignment,
-        balanceAfterAssignment,
-        negativeAmount: topUpRequired,
-        topUpRequired,
-        triggerTaskNumber: premiumTriggerTaskNumber,
-        vipLevel: Number(normalizedUserData.vipLevel ?? 1),
-        valueMode: productSystem.premiumValueMode,
-        tasksCompleted: 0,
-        totalTasks: 1,
-        assignedAt: new Date().toISOString(),
-        assignedBy: 'system-rule-engine',
-        status: topUpRequired > 0 ? 'awaiting_funds' : 'active',
-        commissionEarned: 0,
-      };
-
-      normalizedUserData.isFrozen = true;
-      normalizedUserData.activePremium = activePremium;
-      normalizedUserData.premiumQueue = Array.isArray(normalizedUserData.premiumQueue)
-        ? [activePremium, ...normalizedUserData.premiumQueue]
-        : [activePremium];
-      normalizedUserData.balance = balanceAfterAssignment;
-      normalizedUserData.holdAmount = topUpRequired;
-
-      await persistFinancialState({
-        username,
-        user: normalizedUserData,
-        operation: 'premium_assignment_triggered',
-        before,
-        writes: [
-          { key: `premium:${username}:${activePremium.id}`, value: activePremium },
-        ],
-        ledgerMetadata: {
-          premiumId: activePremium.id,
-          premiumValue,
-          topUpRequired,
-          triggerTaskNumber: premiumTriggerTaskNumber,
-        },
-      });
-
-      return c.json({
-        error: 'Premium task encountered. Top-up is required before continuing task submission.',
-        code: 'premium_task_encountered',
-        disableSubmit: true,
-        premiumRequirement: buildPremiumRequirementResponse(activePremium),
-        user: normalizedUserData,
-      }, 409);
-    }
+    // Premium assignments are admin-managed only.
+    // Automatic trigger-based premium assignment from user submissions is disabled.
 
     const commissionRate = vipConfig.commission;
     const commission = roundMoney(productPrice * commissionRate);

@@ -326,7 +326,6 @@ export default function Starting() {
     : 0.5;
   const premiumCommissionRate = commissionRate * 10;
   const estimatedCommission = currentProduct ? currentProduct.price * (commissionRate / 100) : 0;
-  const premiumTriggerTaskNumber = Number(taskRuleConfig?.premiumTriggerTaskNumber ?? rewardsConfig.productSystem.premiumTriggerTaskNumber ?? 10);
   const premiumTopUpRequired = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
   const premiumSubmissionBlocked = Boolean(userData?.activePremium) && premiumTopUpRequired > 0;
   const frozenUpholdAmount = Number(
@@ -1055,7 +1054,7 @@ export default function Starting() {
               Completed <span className="text-white font-semibold">{userData?.completedTaskSets ?? 0}/{userData?.taskSetCount ?? 0}</span>
             </p>
             <p className="text-yellow-400 text-xs shrink-0">
-              {isPremiumTaskActive ? 'Premium task active' : `Premium at #${premiumTriggerTaskNumber}`}
+              {isPremiumTaskActive ? 'Premium task active' : 'Premium assigned by admin'}
             </p>
           </div>
 
