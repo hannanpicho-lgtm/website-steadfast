@@ -2458,6 +2458,7 @@ function defaultUserRecord(username: string) {
     vipLevel: 1,
     balance: 0,
     todayCommission: 0,
+    lastCommissionResetDate: new Date().toISOString().split('T')[0],
     holdAmount: 0,
     luckyBonus: 0,
     tasksCompleted: 0,
@@ -2611,6 +2612,14 @@ function normalizeUserRecord(userData: any, username: string) {
     && normalized.currentSetCommissionPlanGeneratedAt
     ? normalized.currentSetCommissionPlanGeneratedAt
     : null;
+  
+  // Reset todayCommission if a new day has started
+  const today = new Date().toISOString().split('T')[0];
+  const lastResetDate = typeof normalized.lastCommissionResetDate === 'string' ? normalized.lastCommissionResetDate : '';
+  if (lastResetDate !== today) {
+    normalized.todayCommission = 0;
+    normalized.lastCommissionResetDate = today;
+  }
 
   return normalized;
 }
@@ -3608,6 +3617,52 @@ app.get("/make-server-a1c55d7e/admin/kv-config-version-status", async (c) => {
   } catch (error) {
     console.error('KV config version status check failed:', error);
     return c.json({ error: 'Failed to check KV config version status' }, 500);
+  }
+});
+
+app.post("/make-server-a1c55d7e/admin/sync-all-users", async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const limited = await enforceCriticalAdminRateLimit(c, 'admin-sync-all-users');
+    if (limited) {
+      return limited;
+    }
+
+    // Load all users from KV and resync with VIP config
+    const allRawUsers = await kv.getByPrefix('user:');
+    let syncedCount = 0;
+    let errorCount = 0;
+
+    const release = await acquireDistributedLock('admin-sync-all-users', 60_000, 120_000);
+    try {
+      for (const raw of allRawUsers) {
+        try {
+          const rawUsername = typeof raw?.username === 'string' ? raw.username : '';
+          if (!rawUsername || rawUsername === 'steadfast_root') {
+            continue;
+          }
+
+          const canonicalUsername = (await resolveCanonicalUsername(rawUsername)) ?? rawUsername;
+          const syncedUser = await syncUserWithVipConfig(raw, canonicalUsername);
+          await kv.set(`user:${canonicalUsername}`, syncedUser);
+          syncedCount += 1;
+        } catch (itemError) {
+          console.error('Error syncing individual user:', itemError);
+          errorCount += 1;
+        }
+      }
+    } finally {
+      await release();
+    }
+
+    return c.json({ message: 'Force sync completed', syncedCount, errorCount, totalUsers: allRawUsers.length });
+  } catch (error) {
+    console.error('Admin force sync error:', error);
+    return c.json({ error: 'Failed to sync all users' }, 500);
   }
 });
 
