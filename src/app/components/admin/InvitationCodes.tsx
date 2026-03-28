@@ -105,12 +105,47 @@ export default function InvitationCodes({ currentAdminId }: InvitationCodesProps
     }
   };
 
+  const currentAdminEntry = entries.find((entry) => entry.subAdminId === currentAdminId) ?? null;
+  const currentAdminCode = currentAdminEntry?.code ?? null;
+
   const subAdmins = entries.filter((e) => !e.isSuperAdmin);
   const withCodes = subAdmins.filter((e) => e.code !== null).length;
   const pendingCodes = subAdmins.length - withCodes;
 
   return (
     <div className="space-y-6">
+      {/* Current admin code */}
+      {currentAdminEntry && (
+        <div className="rounded-lg border border-[#00D9FF]/30 bg-[#1a1f2e] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm text-gray-400">Your Invitation Code</p>
+              {currentAdminCode ? (
+                <code className="mt-1 block text-2xl font-bold text-[#00D9FF] tracking-widest">
+                  {currentAdminCode}
+                </code>
+              ) : (
+                <p className="mt-1 text-sm text-gray-500">Code not generated yet. Click Refresh or Assign Missing Codes.</p>
+              )}
+            </div>
+            {currentAdminCode && (
+              <button
+                type="button"
+                onClick={() => void handleCopy(currentAdminCode)}
+                className="p-2.5 bg-[#00D9FF]/20 hover:bg-[#00D9FF]/30 text-[#00D9FF] rounded-lg transition-colors"
+                title="Copy your invitation code"
+              >
+                {copiedCode === currentAdminCode ? (
+                  <CheckCircle size={16} className="text-green-400" />
+                ) : (
+                  <Copy size={16} />
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
