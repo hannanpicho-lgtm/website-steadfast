@@ -1053,9 +1053,6 @@ export default function Starting() {
               <span className="mx-1.5 text-gray-600">·</span>
               Completed <span className="text-white font-semibold">{userData?.completedTaskSets ?? 0}/{userData?.taskSetCount ?? 0}</span>
             </p>
-            <p className="text-yellow-400 text-xs shrink-0">
-              {isPremiumTaskActive ? 'Premium task active' : 'Premium assigned by admin'}
-            </p>
           </div>
 
         </div>
