@@ -2764,31 +2764,21 @@ async function syncUserWithVipConfig(userData: any, username: string) {
     Math.max(0, normalized.completedTaskSets),
     normalized.taskSetCount,
   );
+  normalized.tasksCompletedInSet = Math.min(
+    Math.max(0, normalized.tasksCompletedInSet),
+    normalized.tasksPerSet,
+  );
+  // Derive tasksCompleted from set-level counters so it stays consistent after
+  // admin resets and VIP-config changes.  This replaces the old raw-accumulator
+  // approach that could drift when tasksLimit changed.
   normalized.tasksCompleted = Math.min(
-    Math.max(0, normalized.tasksCompleted),
+    Math.max(0, (normalized.completedTaskSets * normalized.tasksPerSet) + normalized.tasksCompletedInSet),
     normalized.tasksLimit,
   );
-
-  const hasStaleCompletedSetCounter = !normalized.pendingTaskReset
-    && normalized.completedTaskSets >= normalized.taskSetCount
-    && normalized.tasksCompleted < normalized.tasksLimit;
-  if (hasStaleCompletedSetCounter) {
-    // Self-heal legacy/stale counters so active set progress survives refreshes.
-    normalized.completedTaskSets = Math.max(0, normalized.taskSetCount - 1);
-  }
 
   if (normalized.completedTaskSets >= normalized.taskSetCount) {
     // Do NOT clear pendingTaskReset or zero the in-set counter here. Progress
     // must remain stable across refreshes until admin task controls explicitly reset it.
-    normalized.tasksCompletedInSet = Math.min(
-      Math.max(0, normalized.tasksCompletedInSet),
-      normalized.tasksPerSet,
-    );
-  } else {
-    normalized.tasksCompletedInSet = Math.min(
-      Math.max(0, normalized.tasksCompletedInSet),
-      normalized.tasksPerSet,
-    );
   }
 
   return normalized;
@@ -4992,7 +4982,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
       }, 409);
     }
 
-    if (normalizedUserData.tasksCompleted >= normalizedUserData.tasksLimit) {
+    if (normalizedUserData.completedTaskSets >= normalizedUserData.taskSetCount) {
       return jsonError(c, 400, 'daily_task_limit_reached', 'Daily task limit reached');
     }
 
@@ -9146,7 +9136,9 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
         if (!normalizedUser.pendingTaskReset && normalizedUser.tasksCompletedInSet < normalizedUser.tasksPerSet) {
           return { response: c.json({ error: 'Current task set is not yet complete.' }, 400) };
         }
-        normalizedUser.completedTaskSets = Math.min(normalizedUser.completedTaskSets + 1, normalizedUser.taskSetCount);
+        // Do NOT increment completedTaskSets here — the task-submission handler
+        // already incremented it when the set was completed. Admin reset only
+        // unlocks the next set by zeroing the in-set counter.
         normalizedUser.tasksCompletedInSet = 0;
         normalizedUser.pendingTaskReset = false;
       }
@@ -9280,7 +9272,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/recalculate-finan
       recalculatedUser.balance = roundMoney(Number(recalculatedUser.balance ?? 0));
       recalculatedUser.holdAmount = roundMoney(Math.max(0, Number(recalculatedUser.holdAmount ?? 0)));
       recalculatedUser.tasksCompleted = Math.min(
-        Math.max(0, Number(recalculatedUser.tasksCompleted ?? 0)),
+        Math.max(0, (Number(recalculatedUser.completedTaskSets ?? 0) * Number(recalculatedUser.tasksPerSet ?? 1)) + Number(recalculatedUser.tasksCompletedInSet ?? 0)),
         Number(recalculatedUser.tasksLimit ?? 0),
       );
 

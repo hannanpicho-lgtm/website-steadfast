@@ -643,7 +643,7 @@ export default function Starting() {
       return;
     }
 
-    if (userData.tasksCompleted >= userData.tasksLimit) {
+    if (userData.completedTaskSets >= userData.taskSetCount) {
       toast.info('Task set complete. Please contact customer support to request a reset.');
       return;
     }
@@ -1095,7 +1095,7 @@ export default function Starting() {
               Contact Support for Set Reset
             </button>
           </div>
-        ) : userData && userData.tasksCompleted >= userData.tasksLimit ? (
+        ) : userData && (userData.completedTaskSets >= userData.taskSetCount) ? (
           <div className="bg-gradient-to-br from-[#003d99] to-[#0055cc] border-2 border-[#00D9FF] rounded-lg p-6 mb-6 shadow-xl">
             <div className="flex items-center justify-center gap-3 mb-3">
               <CheckCircle2 className="text-[#00D9FF]" size={32} />
