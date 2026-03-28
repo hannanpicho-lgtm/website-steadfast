@@ -930,6 +930,21 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+const COMMISSION_PLAN_MAX_GENERATION_ATTEMPTS = 16;
+
+function toMoneyCents(value: number): number {
+  return Math.max(0, Math.round(value * 100));
+}
+
+function randomIntInclusive(min: number, max: number): number {
+  const safeMin = Math.ceil(Math.min(min, max));
+  const safeMax = Math.floor(Math.max(min, max));
+  if (safeMax <= safeMin) {
+    return safeMin;
+  }
+  return Math.floor(Math.random() * (safeMax - safeMin + 1)) + safeMin;
+}
+
 const TRANSACTION_KEY_PREFIX = 'transaction:';
 const WITHDRAWAL_KEY_PREFIX = 'withdrawal:';
 const FINANCIAL_LEDGER_KEY_PREFIX = 'financial-ledger:';
@@ -2452,6 +2467,9 @@ function defaultUserRecord(username: string) {
     tasksCompletedInSet: 0,
     completedTaskSets: 0,
     pendingTaskReset: false,
+    currentSetCommissionPlan: [] as number[],
+    currentSetCommissionPlanMarker: 0,
+    currentSetCommissionPlanGeneratedAt: null as string | null,
     taskSetCountOverride: null as number | null,
     tasksPerSetOverride: null as number | null,
     lastReset: new Date().toISOString().split('T')[0],
@@ -2578,6 +2596,21 @@ function normalizeUserRecord(userData: any, username: string) {
   normalized.financialStateVersion = Number.isFinite(Number(normalized.financialStateVersion))
     ? Math.max(0, Math.round(Number(normalized.financialStateVersion)))
     : 0;
+  normalized.currentSetCommissionPlan = Array.isArray(normalized.currentSetCommissionPlan)
+    ? normalized.currentSetCommissionPlan
+      .map((value: any) => roundMoney(Number(value)))
+      .filter((value: number) => Number.isFinite(value) && value > 0)
+    : [];
+  normalized.currentSetCommissionPlanMarker = Number.isFinite(Number(normalized.currentSetCommissionPlanMarker))
+    ? Math.max(0, Math.round(Number(normalized.currentSetCommissionPlanMarker)))
+    : Math.max(
+      0,
+      Math.round(Number(normalized.tasksCompleted ?? 0) - Number(normalized.tasksCompletedInSet ?? 0)),
+    );
+  normalized.currentSetCommissionPlanGeneratedAt = typeof normalized.currentSetCommissionPlanGeneratedAt === 'string'
+    && normalized.currentSetCommissionPlanGeneratedAt
+    ? normalized.currentSetCommissionPlanGeneratedAt
+    : null;
 
   return normalized;
 }
@@ -2949,6 +2982,206 @@ function buildUserTaskProgress(userData: any) {
     completedTaskSets: Number(userData?.completedTaskSets ?? 0),
     tasksLimit: Number(userData?.tasksLimit ?? 0),
     pendingTaskReset: Boolean(userData?.pendingTaskReset),
+  };
+}
+
+function resolveVipCommissionRangeConfig(vipConfig: any, tasksPerSet: number) {
+  const safeTasksPerSet = Math.max(1, Math.round(Number(tasksPerSet ?? 1)));
+  const commissionRate = Number(vipConfig?.commission ?? 0);
+  const taskPriceMin = roundMoney(Number(vipConfig?.taskPriceMin ?? 0));
+  const taskPriceMax = roundMoney(Number(vipConfig?.taskPriceMax ?? 0));
+
+  if (!Number.isFinite(commissionRate) || commissionRate <= 0) {
+    return null;
+  }
+
+  if (!(taskPriceMin > 0 && taskPriceMax > 0 && taskPriceMax >= taskPriceMin)) {
+    return null;
+  }
+
+  const perTaskMinCommission = roundMoney(taskPriceMin * commissionRate);
+  const perTaskMaxCommission = roundMoney(taskPriceMax * commissionRate);
+  if (!(perTaskMinCommission > 0 && perTaskMaxCommission >= perTaskMinCommission)) {
+    return null;
+  }
+
+  const minTotalCommission = roundMoney(perTaskMinCommission * safeTasksPerSet);
+  const maxTotalCommission = roundMoney(perTaskMaxCommission * safeTasksPerSet);
+  if (!(maxTotalCommission >= minTotalCommission && maxTotalCommission > 0)) {
+    return null;
+  }
+
+  return {
+    tasksPerSet: safeTasksPerSet,
+    commissionRate,
+    taskPriceMin,
+    taskPriceMax,
+    perTaskMinCommission,
+    perTaskMaxCommission,
+    minTotalCommission,
+    maxTotalCommission,
+  };
+}
+
+function buildControlledCommissionPlan(rangeConfig: ReturnType<typeof resolveVipCommissionRangeConfig>) {
+  if (!rangeConfig) {
+    return null;
+  }
+
+  const minTotalCents = toMoneyCents(rangeConfig.minTotalCommission);
+  const maxTotalCents = toMoneyCents(rangeConfig.maxTotalCommission);
+  const perTaskMinCents = toMoneyCents(rangeConfig.perTaskMinCommission);
+  const perTaskMaxCents = toMoneyCents(rangeConfig.perTaskMaxCommission);
+  const taskCount = rangeConfig.tasksPerSet;
+
+  if (taskCount <= 0 || perTaskMaxCents < perTaskMinCents) {
+    return null;
+  }
+
+  const targetTotalCents = randomIntInclusive(minTotalCents, maxTotalCents);
+  const baseTotalCents = perTaskMinCents * taskCount;
+  const perTaskCapacityCents = perTaskMaxCents - perTaskMinCents;
+  const totalCapacityCents = perTaskCapacityCents * taskCount;
+
+  if (targetTotalCents < baseTotalCents || targetTotalCents > baseTotalCents + totalCapacityCents) {
+    return null;
+  }
+
+  const increments = Array.from({ length: taskCount }, () => 0);
+  const remainingCapacity = Array.from({ length: taskCount }, () => perTaskCapacityCents);
+  let remainingExtraCents = targetTotalCents - baseTotalCents;
+
+  while (remainingExtraCents > 0) {
+    const candidates = remainingCapacity
+      .map((capacity, index) => ({ capacity, index }))
+      .filter((entry) => entry.capacity > 0);
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    const selected = candidates[randomIntInclusive(0, candidates.length - 1)];
+    const stepUpper = Math.max(1, Math.min(selected.capacity, remainingExtraCents, 25));
+    const step = randomIntInclusive(1, stepUpper);
+
+    increments[selected.index] += step;
+    remainingCapacity[selected.index] -= step;
+    remainingExtraCents -= step;
+  }
+
+  const planCents = increments.map((extra) => perTaskMinCents + extra);
+  if (
+    perTaskCapacityCents > 0
+    && taskCount > 1
+    && new Set(planCents).size <= 1
+  ) {
+    return null;
+  }
+
+  return planCents.map((value) => roundMoney(value / 100));
+}
+
+function isControlledCommissionPlanValid(
+  plan: number[],
+  rangeConfig: ReturnType<typeof resolveVipCommissionRangeConfig>,
+) {
+  if (!rangeConfig || !Array.isArray(plan) || plan.length !== rangeConfig.tasksPerSet) {
+    return false;
+  }
+
+  const total = roundMoney(plan.reduce((sum, value) => sum + Number(value ?? 0), 0));
+  if (total < rangeConfig.minTotalCommission || total > rangeConfig.maxTotalCommission) {
+    return false;
+  }
+
+  const outOfBounds = plan.some((value) => {
+    const normalized = roundMoney(Number(value ?? 0));
+    return normalized < rangeConfig.perTaskMinCommission || normalized > rangeConfig.perTaskMaxCommission;
+  });
+  if (outOfBounds) {
+    return false;
+  }
+
+  if (
+    rangeConfig.perTaskMaxCommission > rangeConfig.perTaskMinCommission
+    && rangeConfig.tasksPerSet > 1
+    && new Set(plan.map((value) => roundMoney(value))).size <= 1
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function ensureUserControlledCommissionPlanForCurrentSet(userData: any, vipConfig: any) {
+  const tasksPerSet = Math.max(1, Math.round(Number(userData?.tasksPerSet ?? 1)));
+  const rangeConfig = resolveVipCommissionRangeConfig(vipConfig, tasksPerSet);
+
+  if (!rangeConfig) {
+    userData.currentSetCommissionPlan = [];
+    userData.currentSetCommissionPlanGeneratedAt = null;
+    userData.currentSetCommissionPlanMarker = Math.max(
+      0,
+      Math.round(Number(userData?.tasksCompleted ?? 0) - Number(userData?.tasksCompletedInSet ?? 0)),
+    );
+    return {
+      controlled: false,
+      rangeConfig: null,
+      plan: [],
+    };
+  }
+
+  const setMarker = Math.max(
+    0,
+    Math.round(Number(userData?.tasksCompleted ?? 0) - Number(userData?.tasksCompletedInSet ?? 0)),
+  );
+  const existingPlan = Array.isArray(userData?.currentSetCommissionPlan)
+    ? userData.currentSetCommissionPlan
+      .map((value: any) => roundMoney(Number(value)))
+      .filter((value: number) => Number.isFinite(value) && value > 0)
+    : [];
+  const currentMarker = Number.isFinite(Number(userData?.currentSetCommissionPlanMarker))
+    ? Math.max(0, Math.round(Number(userData.currentSetCommissionPlanMarker)))
+    : -1;
+
+  const needsRegeneration =
+    currentMarker !== setMarker
+    || !isControlledCommissionPlanValid(existingPlan, rangeConfig);
+
+  if (!needsRegeneration) {
+    return {
+      controlled: true,
+      rangeConfig,
+      plan: existingPlan,
+    };
+  }
+
+  for (let attempt = 0; attempt < COMMISSION_PLAN_MAX_GENERATION_ATTEMPTS; attempt += 1) {
+    const candidate = buildControlledCommissionPlan(rangeConfig);
+    if (!candidate) {
+      continue;
+    }
+    if (!isControlledCommissionPlanValid(candidate, rangeConfig)) {
+      continue;
+    }
+
+    userData.currentSetCommissionPlan = candidate;
+    userData.currentSetCommissionPlanMarker = setMarker;
+    userData.currentSetCommissionPlanGeneratedAt = new Date().toISOString();
+    return {
+      controlled: true,
+      rangeConfig,
+      plan: candidate,
+    };
+  }
+
+  userData.currentSetCommissionPlan = [];
+  userData.currentSetCommissionPlanMarker = setMarker;
+  userData.currentSetCommissionPlanGeneratedAt = null;
+  return {
+    controlled: false,
+    rangeConfig,
+    plan: [],
   };
 }
 
@@ -4778,7 +5011,22 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     // Automatic trigger-based premium assignment from user submissions is disabled.
 
     const commissionRate = vipConfig.commission;
-    const commission = roundMoney(productPrice * commissionRate);
+    const controlledCommissionPlan = ensureUserControlledCommissionPlanForCurrentSet(normalizedUserData, vipConfig);
+    const currentSetTaskIndex = Math.max(0, Math.round(Number(normalizedUserData.tasksCompletedInSet ?? 0)));
+    const shouldUseControlledCommission = controlledCommissionPlan.controlled
+      && currentSetTaskIndex < controlledCommissionPlan.plan.length;
+
+    const commission = shouldUseControlledCommission
+      ? roundMoney(controlledCommissionPlan.plan[currentSetTaskIndex])
+      : roundMoney(productPrice * commissionRate);
+
+    if (!Number.isFinite(commission) || commission <= 0) {
+      return c.json({ error: 'Unable to determine commission for this task submission' }, 500);
+    }
+
+    const effectiveProductPrice = shouldUseControlledCommission
+      ? roundMoney(commission / Math.max(0.000001, commissionRate))
+      : productPrice;
 
     normalizedUserData.tasksCompleted += 1;
     normalizedUserData.tasksCompletedInSet += 1;
@@ -4805,7 +5053,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     const taskRecord = {
       taskId: selectedTask.id,
       username,
-      productPrice,
+      productPrice: effectiveProductPrice,
       commission,
       isPremium: false,
       merchant: selectedTask.merchant,
@@ -4840,7 +5088,8 @@ async function submitTaskForUser(c: any, username: string, body: any) {
       ledgerMetadata: {
         taskId: selectedTask.id,
         commission,
-        productPrice,
+        productPrice: effectiveProductPrice,
+        controlledCommissionRange: shouldUseControlledCommission,
       },
     });
 
@@ -4858,7 +5107,10 @@ async function submitTaskForUser(c: any, username: string, body: any) {
       parentReferralCommission: referralPayout.rewarded ? referralPayout.parentReward : 0,
       parentReferralUsername: referralPayout.rewarded ? referralPayout.parentUsername : null,
       rewardsApplied: rewardResult.rewardsApplied,
-      task: selectedTask,
+      task: {
+        ...selectedTask,
+        price: effectiveProductPrice,
+      },
     });
   });
 }
@@ -6802,6 +7054,12 @@ app.put('/make-server-a1c55d7e/admin/vip-config/:level', async (c) => {
     }
     if (!Number.isFinite(commission) || commission <= 0) {
       return c.json({ error: 'commission must be greater than 0' }, 400);
+    }
+    if ((taskPriceMin > 0 || taskPriceMax > 0) && !(taskPriceMin > 0 && taskPriceMax > 0)) {
+      return c.json({ error: 'taskPriceMin and taskPriceMax must both be greater than 0 when enabling controlled commission ranges' }, 400);
+    }
+    if (taskPriceMin > 0 && taskPriceMax > 0 && taskPriceMax < taskPriceMin) {
+      return c.json({ error: 'taskPriceMax must be greater than or equal to taskPriceMin' }, 400);
     }
 
     const updatedTier = normalizeVipConfigRecord({

@@ -76,9 +76,20 @@ export default function VipConfig({
 
       {/* VIP Levels Grid */}
       <div className="grid grid-cols-1 gap-4">
-        {vipConfigurations.map((vip) => (
-          <div key={vip.level} className="bg-[#252b3d] rounded-lg p-6 border-l-4 border-purple-500">
-            {editingVipLevel === vip.level && vipDraft ? (
+        {vipConfigurations.map((vip) => {
+          const priceMin = Number(vip.taskPriceMin ?? 0);
+          const priceMax = Number(vip.taskPriceMax ?? 0);
+          const hasControlledRange = priceMin > 0 && priceMax > 0 && priceMax >= priceMin;
+          const minDailyEarnings = hasControlledRange
+            ? priceMin * vip.commission * vip.dailyTasks
+            : 0;
+          const maxDailyEarnings = hasControlledRange
+            ? priceMax * vip.commission * vip.dailyTasks
+            : vip.dailyTasks * 100 * vip.commission;
+
+          return (
+            <div key={vip.level} className="bg-[#252b3d] rounded-lg p-6 border-l-4 border-purple-500">
+              {editingVipLevel === vip.level && vipDraft ? (
               <div className="mb-4 rounded-lg border border-[#00D9FF]/30 bg-[#1a1f2e] p-3">
                 <p className="text-xs text-[#00D9FF] font-semibold">Live edit mode</p>
               </div>
@@ -196,7 +207,13 @@ export default function VipConfig({
                       <TrendingUp size={16} className="text-gray-400" />
                       <p className="text-gray-400 text-xs">Max Daily Earnings</p>
                     </div>
-                    <p className="text-purple-300 font-bold text-xl">${(vip.dailyTasks * 100 * vip.commission).toFixed(2)}</p>
+                    {hasControlledRange ? (
+                      <p className="text-purple-300 font-bold text-xl">
+                        ${minDailyEarnings.toFixed(2)} - ${maxDailyEarnings.toFixed(2)}
+                      </p>
+                    ) : (
+                      <p className="text-purple-300 font-bold text-xl">${maxDailyEarnings.toFixed(2)}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -232,7 +249,8 @@ export default function VipConfig({
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
