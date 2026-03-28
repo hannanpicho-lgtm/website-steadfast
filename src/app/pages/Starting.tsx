@@ -346,12 +346,8 @@ export default function Starting() {
   const frozenPremiumProfit = Number(userData?.activePremium?.commissionEarned ?? 0) > 0
     ? Number(userData?.activePremium?.commissionEarned ?? 0)
     : projectedPremiumProfit;
-  const todayCommissionDisplay = userData?.isFrozen
-    ? roundMoney(Number(userData?.todayCommission ?? 0) + frozenPremiumProfit)
-    : roundMoney(Number(userData?.todayCommission ?? 0));
-  const totalAccountBalanceDisplay = userData?.isFrozen
-    ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze) + frozenUpholdAmount + frozenPremiumProfit)
-    : roundMoney(Math.max(0, Number(userData?.balance ?? 0)));
+  const todayCommissionDisplay = roundMoney(Number(userData?.todayCommission ?? 0));
+  const totalAccountBalanceDisplay = roundMoney(Math.max(0, Number(userData?.balance ?? 0)));
   const afterSettlementProjection = userData?.isFrozen
     ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze + frozenPremiumProfit))
     : roundMoney(Math.max(0, Number(userData?.availableAmount ?? ((userData?.balance ?? 0) - (userData?.holdAmount ?? 0)))));
@@ -399,6 +395,8 @@ export default function Starting() {
   const displayEstimatedCommission = isPremiumTaskActive
     ? roundMoney(premiumDisplayPrice * (premiumCommissionRate / 100))
     : estimatedCommission;
+  const displaySetProgress = Math.max(0, Number(userData?.tasksCompletedInSet ?? 0));
+  const displaySetRequired = Math.max(1, Number(userData?.tasksPerSet ?? 40));
   const financialBlockBaseFx = 'relative overflow-hidden rounded-xl border border-white/20 bg-white/12 p-3 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform';
   const financialBlockHoverFx = 'hover:border-white/50 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)]';
   const financialBlockGlossFx = 'before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.20)_0%,rgba(255,255,255,0.04)_45%,rgba(4,34,93,0.06)_100%)]';
@@ -696,12 +694,11 @@ export default function Starting() {
       }
 
       const result = await response.json();
-      
-      if (isSubmittingPremiumTask) {
-        const refreshedUser = await fetchSessionUser();
-        setUserData(refreshedUser);
+
+      if (result?.user) {
+        setUserData(result.user);
       } else {
-        // Update user data with new values
+        // Fallback for legacy responses
         setUserData({
           ...userData,
           tasksCompleted: result.tasksCompleted,
@@ -1041,8 +1038,8 @@ export default function Starting() {
           <div className="px-4 py-2 bg-emerald-900/35 border-t border-emerald-300/20">
             <p className="text-emerald-100 text-[11px] leading-relaxed">
               {isPremiumTaskActive
-                ? `Premium formula: Product Price x ${premiumCommissionRate.toFixed(2)}% (VIP rate x 10).`
-                : `Regular formula: Product Price x ${commissionRate.toFixed(2)}% (VIP rate). Premium formula: Product Price x ${premiumCommissionRate.toFixed(2)}% (VIP rate x 10).`}
+                ? `Premium formula: Bundle Value x ${premiumCommissionRate.toFixed(2)}%.`
+                : `Regular formula: Product Price x ${commissionRate.toFixed(2)}%.`}
             </p>
           </div>
 
@@ -1137,7 +1134,7 @@ export default function Starting() {
               ) : premiumSubmissionBlocked ? (
                 'Top-up Required Before Submit'
               ) : (
-                `Starting (${userData?.tasksCompleted || 0} / ${userData?.tasksLimit || 40})`
+                `Starting (${displaySetProgress} / ${displaySetRequired})`
               )}
             </button>
             {isPremiumTaskActive && (
@@ -1183,6 +1180,9 @@ export default function Starting() {
                   <h3 className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Today's Commission</h3>
                   <p className="mt-2 text-3xl font-bold leading-none">{todayCommissionDisplay.toFixed(2)} USD</p>
                   <p className="mt-2 text-xs text-white/80">Updated from completed submissions in the current working day.</p>
+                  {userData?.isFrozen && (
+                    <p className="mt-1 text-[11px] text-amber-100/90">Premium projection is shown separately in settlement details.</p>
+                  )}
                 </div>
               </div>
             </div>

@@ -5477,12 +5477,17 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
     return c.json({
       success: true,
       commission,
+      isPremium: true,
       tasksCompleted: premium.tasksCompleted,
       totalTasks: premium.totalTasks,
       balance: persisted.user.balance,
       holdAmount: persisted.user.holdAmount,
       bundleCompleted: premium.status === 'completed',
       nextInQueue: persisted.user.premiumQueue.length > 0,
+      todayCommission: persisted.user.todayCommission,
+      luckyBonus: persisted.user.luckyBonus,
+      user: persisted.user,
+      taskProgress: buildUserTaskProgress(persisted.user),
       parentReferralCommission: premiumReferralPayout.rewarded ? premiumReferralPayout.parentReward : 0,
       parentReferralUsername: premiumReferralPayout.rewarded ? premiumReferralPayout.parentUsername : null,
     });
