@@ -8922,19 +8922,80 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
     const callingAdmin = c.get('adminUser');
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
 
-    // Load and sync all KV users to ensure VIP task limits are current.
+    // Load all KV users and normalize them for display.
     const allRawUsers = await kv.getByPrefix('user:');
-    const allUsers = (await Promise.all(allRawUsers.map(async (raw) => {
+    const userMap = new Map<string, ReturnType<typeof normalizeUserRecord>>();
+
+    for (const raw of allRawUsers) {
       const rawUsername = typeof raw?.username === 'string' ? raw.username : '';
       if (!rawUsername || rawUsername === 'steadfast_root') {
-        return null;
+        continue;
       }
 
       const canonicalUsername = (await resolveCanonicalUsername(rawUsername)) ?? rawUsername;
       const syncedUser = await syncUserWithVipConfig(raw, canonicalUsername);
       await kv.set(`user:${canonicalUsername}`, syncedUser);
-      return syncedUser;
-    }))).filter((user): user is ReturnType<typeof normalizeUserRecord> => Boolean(user));
+      userMap.set(canonicalUsername.toLowerCase(), syncedUser);
+    }
+
+    // Auto-recover auth users that do not yet have KV user records so they appear
+    // in the admin panel immediately after signup.
+    if (authClient) {
+      let page = 1;
+      const perPage = 200;
+      const maxPages = 10;
+
+      while (page <= maxPages) {
+        const { data, error } = await authClient.auth.admin.listUsers({ page, perPage });
+        if (error) {
+          console.error('admin/platform-users auth scan error:', error.message);
+          break;
+        }
+
+        const batch = Array.isArray(data?.users) ? data.users : [];
+        for (const authUser of batch) {
+          if (hasAdminRole(authUser)) {
+            continue;
+          }
+
+          const metadataUsername = sanitizeUsername(
+            typeof authUser?.user_metadata?.username === 'string' ? authUser.user_metadata.username : '',
+          );
+          const emailLocal = sanitizeUsername(
+            typeof authUser?.email === 'string' ? (authUser.email.split('@')[0] ?? '') : '',
+          );
+          const candidateUsername = metadataUsername || emailLocal;
+          if (!candidateUsername) {
+            continue;
+          }
+
+          const usernameKey = candidateUsername.toLowerCase();
+          if (userMap.has(usernameKey)) {
+            continue;
+          }
+
+          try {
+            const recoveredUser = await bootstrapMissingPlatformUserRecord(candidateUsername, {
+              referredByAdminId: callerIsSuperAdmin
+                ? null
+                : (typeof callingAdmin?.id === 'string' ? callingAdmin.id : null),
+            });
+            const normalizedRecovered = await syncUserWithVipConfig(recoveredUser, candidateUsername);
+            await kv.set(`user:${candidateUsername}`, normalizedRecovered);
+            userMap.set(usernameKey, normalizedRecovered);
+          } catch (recoveryError) {
+            console.error('admin/platform-users auto-recovery failed:', candidateUsername, recoveryError);
+          }
+        }
+
+        if (batch.length < perPage) {
+          break;
+        }
+        page += 1;
+      }
+    }
+
+    const allUsers = Array.from(userMap.values());
 
     // Scope: sub-admins only see their own referrals
     const scopedUsers = callerIsSuperAdmin
