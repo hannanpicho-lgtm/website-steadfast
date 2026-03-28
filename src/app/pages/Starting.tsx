@@ -352,7 +352,7 @@ export default function Starting() {
   const todayCommissionDisplay = roundMoney(Number(userData?.todayCommission ?? 0));
   const totalAccountBalanceDisplay = roundMoney(Math.max(0, Number(userData?.balance ?? 0)));
   const afterSettlementProjection = userData?.isFrozen
-    ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze + frozenPremiumProfit))
+    ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze + frozenUpholdAmount + frozenPremiumProfit))
     : roundMoney(Math.max(0, Number(userData?.availableAmount ?? ((userData?.balance ?? 0) - (userData?.holdAmount ?? 0)))));
   const requiredFundsForVip = userData
     ? Number(vipConfigurations.find((tier) => tier.level === userData.vipLevel)?.investment ?? 100)
