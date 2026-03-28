@@ -156,7 +156,9 @@ export default function Records() {
     if (!tasksResponse.ok) {
       throw new Error('Failed to fetch tasks');
     }
-    return tasksResponse.json();
+    const data = await tasksResponse.json();
+    // Handle both old array format and new paginated {tasks, total, returned} format
+    return Array.isArray(data) ? data : (Array.isArray(data?.tasks) ? data.tasks : []);
   };
 
   const fetchTransactions = async () => {

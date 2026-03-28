@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Users, DollarSign, Activity, Bell } from 'lucide-react';
+import { Users, DollarSign, Activity, Bell, RefreshCw } from 'lucide-react';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { buildAdminAuthHeaders } from '../services/supabaseAuth';
 
@@ -29,6 +29,31 @@ export default function AdminHome({
     error: string | null;
     payload: any | null;
   }>({ loading: true, error: null, payload: null });
+
+  const [syncAllState, setSyncAllState] = useState<{
+    loading: boolean;
+    result: string | null;
+  }>({ loading: false, result: null });
+
+  const handleForceSyncAllUsers = async () => {
+    setSyncAllState({ loading: true, result: null });
+    try {
+      const baseUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+      const headers = await buildAdminAuthHeaders(false);
+      const response = await fetch(`${baseUrl}/admin/sync-all-users`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(data?.error ?? `Failed (${response.status})`);
+      }
+      setSyncAllState({ loading: false, result: `✓ Synced ${data.syncedCount ?? 0} users (${data.errorCount ?? 0} errors)` });
+    } catch (err) {
+      setSyncAllState({ loading: false, result: `✗ ${err instanceof Error ? err.message : 'Sync failed'}` });
+    }
+  };
 
   const [kvConfigState, setKvConfigState] = useState<{
     loading: boolean;
@@ -152,8 +177,7 @@ export default function AdminHome({
       </div>
 
       {/* KV Config Version Status */}
-      <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 p-4">
-        <p className="text-xs uppercase tracking-[0.18em] text-violet-200 mb-2">KV Config Version Status</p>
+      <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 p-4">        <p className="text-xs uppercase tracking-[0.18em] text-violet-200 mb-2">KV Config Version Status</p>
         {kvConfigState.loading && <p className="text-sm text-gray-300">Checking KV store version…</p>}
         {kvConfigState.error && <p className="text-sm text-red-300">{kvConfigState.error}</p>}
         {!kvConfigState.loading && !kvConfigState.error && kvConfigState.data && (
@@ -178,6 +202,29 @@ export default function AdminHome({
             <span className="text-gray-400 text-xs self-end">Checked: {kvConfigState.data.checkedAt}</span>
           </div>
         )}
+      </div>
+
+      {/* Force Sync All Users */}
+      <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-[0.18em] text-emerald-200">Force Sync All User Accounts</p>
+            <p className="text-sm text-emerald-100 mt-1">Immediately re-sync all platform users with current VIP config and apply daily commission resets.</p>
+            {syncAllState.result && (
+              <p className={`text-sm mt-1 font-semibold ${syncAllState.result.startsWith('✓') ? 'text-emerald-300' : 'text-red-300'}`}>
+                {syncAllState.result}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={() => void handleForceSyncAllUsers()}
+            disabled={syncAllState.loading}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-lg font-semibold transition-colors"
+          >
+            <RefreshCw size={16} className={syncAllState.loading ? 'animate-spin' : ''} />
+            {syncAllState.loading ? 'Syncing…' : 'Sync All Users Now'}
+          </button>
+        </div>
       </div>
 
       {/* Stats Grid */}
