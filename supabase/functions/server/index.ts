@@ -2445,7 +2445,7 @@ function defaultUserRecord(username: string) {
     luckyBonus: 0,
     tasksCompleted: 0,
     tasksLimit: 10,
-    taskSetCount: defaultRewardsConfig.productSystem.maxSetsPerDay,
+    taskSetCount: 2,
     tasksPerSet: defaultRewardsConfig.productSystem.productsPerSet,
     tasksCompletedInSet: 0,
     completedTaskSets: 0,
@@ -2697,8 +2697,8 @@ async function syncUserWithVipConfig(userData: any, username: string) {
   const vipConfig = await getVipConfigForLevel(Number(normalized.vipLevel ?? 1));
 
   // VIP chart is the primary source of truth for required products/tasks per user.
-  // One set per cycle keeps totals aligned with expected VIP task requirements.
-  const defaultVipTaskSetCount = 1;
+  // New users default to two sets, while admin overrides remain authoritative.
+  const defaultVipTaskSetCount = 2;
   const vipTaskBaselineByLevel: Record<number, number> = {
     1: 40,
     2: 45,
@@ -2710,15 +2710,8 @@ async function syncUserWithVipConfig(userData: any, username: string) {
   const baselineTasksPerSet = vipTaskBaselineByLevel[vipConfig.level] ?? configuredTasksPerSet;
   const defaultVipTasksPerSet = Math.max(configuredTasksPerSet, baselineTasksPerSet);
 
-  // Legacy compatibility: older builds wrote a default override of 2 sets,
-  // which doubled required tasks (e.g., 0/80 for VIP1). Treat that as stale.
-  const effectiveTaskSetCountOverride = normalized.taskSetCountOverride === 2
-    ? null
-    : normalized.taskSetCountOverride;
-
   normalized.vipLevel = vipConfig.level;
-  normalized.taskSetCountOverride = effectiveTaskSetCountOverride;
-  normalized.taskSetCount = effectiveTaskSetCountOverride ?? defaultVipTaskSetCount;
+  normalized.taskSetCount = normalized.taskSetCountOverride ?? defaultVipTaskSetCount;
   // Tasks per set is always derived from VIP tier dailyTasks.
   normalized.tasksPerSetOverride = null;
   normalized.tasksPerSet = defaultVipTasksPerSet;
@@ -8876,6 +8869,13 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
       return controlResult.response;
     }
 
+    const appliedTaskSetCount = Number.isFinite(Number(controlResult.user?.taskSetCount))
+      ? Number(controlResult.user.taskSetCount)
+      : null;
+    const appliedTasksPerSet = Number.isFinite(Number(controlResult.user?.tasksPerSet))
+      ? Number(controlResult.user.tasksPerSet)
+      : null;
+
     const taskCtrlActorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
       ? callingAdmin.email
       : String(callingAdmin?.id ?? 'unknown');
@@ -8891,7 +8891,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
     await recordObservabilityAuditEvent(
       'admin-user-task-controls-update',
       taskCtrlActorEmail,
-      `Modified task controls for user '${username}' (taskSetCount: ${nextTaskSetCount}, vipTasksPerSet: ${nextTasksPerSet}, action: ${ctrlAction})`,
+      `Modified task controls for user '${username}' (taskSetCount: ${appliedTaskSetCount ?? 'n/a'}, vipTasksPerSet: ${appliedTasksPerSet ?? 'n/a'}, action: ${ctrlAction})`,
     ).catch((e) => console.error('Failed to record admin-user-task-controls-update audit event:', e));
 
     return c.json({
