@@ -4787,20 +4787,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     }
 
     const writes: Array<{ key: string; value: unknown }> = [];
-    if (Math.random() < 0.01) {
-      const luckyAmount = Math.floor(Math.random() * 100) + 50;
-      normalizedUserData.luckyBonus = roundMoney(normalizedUserData.luckyBonus + luckyAmount);
-      normalizedUserData.balance = roundMoney(normalizedUserData.balance + luckyAmount);
-      const luckyTx = buildTransactionRecord({
-        username,
-        type: 'Commission',
-        amount: luckyAmount,
-        method: 'Lucky Bonus',
-        source: 'lucky_bonus',
-        description: 'Lucky bonus reward',
-      });
-      writes.push({ key: `${TRANSACTION_KEY_PREFIX}${luckyTx.id}`, value: luckyTx });
-    }
+    // Lucky bonuses are admin-managed only. Automatic random trigger has been removed.
 
     const rewardResult = await applyAutomaticRewardsForUser(username, normalizedUserData);
     const rewardedUserData = rewardResult.normalizedUser;
@@ -4857,6 +4844,8 @@ async function submitTaskForUser(c: any, username: string, body: any) {
       tasksLimit: persisted.user.tasksLimit,
       balance: persisted.user.balance,
       todayCommission: persisted.user.todayCommission,
+      luckyBonus: persisted.user.luckyBonus,
+      user: persisted.user,
       taskProgress: buildUserTaskProgress(persisted.user),
       parentReferralCommission: referralPayout.rewarded ? referralPayout.parentReward : 0,
       parentReferralUsername: referralPayout.rewarded ? referralPayout.parentUsername : null,
@@ -9546,6 +9535,13 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
 
       const before = snapshotFinancialState(normalizedUser);
       normalizedUser.balance = roundMoney(normalizedUser.balance + (mode === 'credit' ? amount : -amount));
+
+      // Track lucky bonus when admin credits with Lucky Bonus label
+      const isLuckyBonusCredit = mode === 'credit' && body?.isBonus === true
+        && typeof body?.bonusLabel === 'string' && body.bonusLabel.toLowerCase().includes('lucky');
+      if (isLuckyBonusCredit) {
+        normalizedUser.luckyBonus = roundMoney((normalizedUser.luckyBonus || 0) + amount);
+      }
 
       const rewardSyncResult = mode === 'credit'
         ? await applyAutomaticRewardsForUser(canonicalUsername, normalizedUser)
