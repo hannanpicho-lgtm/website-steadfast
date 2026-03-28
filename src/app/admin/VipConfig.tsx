@@ -61,13 +61,22 @@ export default function VipConfig({
             const commPct = (vip.commission * 100).toFixed(vip.commission * 100 >= 1 ? 1 : 2);
             const priceMin = Number(vip.taskPriceMin ?? 0);
             const priceMax = Number(vip.taskPriceMax ?? 0);
+            const hasControlledRange = priceMin > 0 && priceMax > 0 && priceMax >= priceMin;
+            const cycleMinCommission = hasControlledRange
+              ? priceMin * vip.commission * vip.dailyTasks
+              : 0;
+            const cycleMaxCommission = hasControlledRange
+              ? priceMax * vip.commission * vip.dailyTasks
+              : vip.dailyTasks * 100 * vip.commission;
             const rangeStr = priceMin > 0 && priceMax > 0
               ? `$${priceMin.toLocaleString()} – $${priceMax.toLocaleString()}`
               : 'Not set';
             return (
               <p key={vip.level} className="text-sm">
                 <span className={`font-semibold ${colorClass}`}>{label}:</span>{' '}
-                <span className="text-gray-300">{commPct}% commission, {vip.dailyTasks} products/set, task range {rangeStr}</span>
+                <span className="text-gray-300">
+                  {commPct}% commission, {vip.dailyTasks} products/set, task range {rangeStr}, cycle commission window ${cycleMinCommission.toFixed(2)} - ${cycleMaxCommission.toFixed(2)}
+                </span>
               </p>
             );
           })}
@@ -208,11 +217,21 @@ export default function VipConfig({
                       <p className="text-gray-400 text-xs">Max Daily Earnings</p>
                     </div>
                     {hasControlledRange ? (
-                      <p className="text-purple-300 font-bold text-xl">
-                        ${minDailyEarnings.toFixed(2)} - ${maxDailyEarnings.toFixed(2)}
-                      </p>
+                      <>
+                        <p className="text-purple-300 font-bold text-xl">
+                          ${minDailyEarnings.toFixed(2)} - ${maxDailyEarnings.toFixed(2)}
+                        </p>
+                        <p className="text-[11px] text-purple-200/80 mt-1">
+                          Cycle commission window preview
+                        </p>
+                      </>
                     ) : (
-                      <p className="text-purple-300 font-bold text-xl">${maxDailyEarnings.toFixed(2)}</p>
+                      <>
+                        <p className="text-purple-300 font-bold text-xl">${maxDailyEarnings.toFixed(2)}</p>
+                        <p className="text-[11px] text-purple-200/80 mt-1">
+                          Set task range to enable controlled cycle window
+                        </p>
+                      </>
                     )}
                   </div>
                 </div>
