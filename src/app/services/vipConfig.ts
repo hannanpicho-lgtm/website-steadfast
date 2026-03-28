@@ -8,6 +8,8 @@ export type VipConfig = {
   dailyTasks: number;
   commission: number;
   color: string;
+  taskPriceMin?: number;
+  taskPriceMax?: number;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -38,7 +40,7 @@ export async function fetchAdminVipConfig() {
   return parseVipResponse(response);
 }
 
-export async function updateAdminVipConfig(level: number, payload: Partial<Pick<VipConfig, 'name' | 'investment' | 'dailyTasks' | 'commission' | 'color'>>) {
+export async function updateAdminVipConfig(level: number, payload: Partial<Pick<VipConfig, 'name' | 'investment' | 'dailyTasks' | 'commission' | 'color' | 'taskPriceMin' | 'taskPriceMax'>>) {
   const headers = await buildAdminAuthHeaders();
   const response = await fetch(`${serverUrl}/admin/vip-config/${level}`, {
     method: 'PUT',

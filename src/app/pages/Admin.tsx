@@ -131,6 +131,8 @@ type VipDraftState = {
   investment: string;
   dailyTasks: string;
   commissionPercent: string;
+  taskPriceMin: string;
+  taskPriceMax: string;
 };
 
 type TaskConfig = {
@@ -928,6 +930,8 @@ export default function Admin() {
       investment: String(vip.investment),
       dailyTasks: String(vip.dailyTasks),
       commissionPercent: (vip.commission * 100).toFixed(2),
+      taskPriceMin: String(vip.taskPriceMin ?? 0),
+      taskPriceMax: String(vip.taskPriceMax ?? 0),
     });
   };
 
@@ -979,6 +983,8 @@ export default function Admin() {
         investment,
         dailyTasks,
         commission: commissionPercent / 100,
+        taskPriceMin: Math.max(0, Number(vipDraft.taskPriceMin) || 0),
+        taskPriceMax: Math.max(0, Number(vipDraft.taskPriceMax) || 0),
       });
 
       setVipConfigurations((prev) =>

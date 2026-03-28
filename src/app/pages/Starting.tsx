@@ -397,11 +397,6 @@ export default function Starting() {
     : estimatedCommission;
   const displaySetProgress = Math.max(0, Number(userData?.tasksCompletedInSet ?? 0));
   const displaySetRequired = Math.max(1, Number(userData?.tasksPerSet ?? 40));
-  const productPrices = activeTasks.map((t) => t.price).filter((p) => Number.isFinite(p) && p > 0);
-  const minProductPrice = productPrices.length > 0 ? Math.min(...productPrices) : 0;
-  const maxProductPrice = productPrices.length > 0 ? Math.max(...productPrices) : 0;
-  const commissionRangeMin = roundMoney(minProductPrice * (commissionRate / 100) * displaySetRequired);
-  const commissionRangeMax = roundMoney(maxProductPrice * (commissionRate / 100) * displaySetRequired);
   const financialBlockBaseFx = 'relative overflow-hidden rounded-xl border border-white/20 bg-white/12 p-3 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform';
   const financialBlockHoverFx = 'hover:border-white/50 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)]';
   const financialBlockGlossFx = 'before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.20)_0%,rgba(255,255,255,0.04)_45%,rgba(4,34,93,0.06)_100%)]';
@@ -1303,29 +1298,6 @@ export default function Starting() {
                     {Number(userData?.activePremium?.commissionEarned ?? 0) > 0
                       ? 'Earned premium commission from completed premium tasks.'
                       : `Projected from ${premiumDisplayName} at ${premiumCommissionRate.toFixed(2)}% rate.`}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {productPrices.length > 0 && (
-              <div
-                className={`${financialBlockBaseFx} ${financialBlockHoverFx} ${financialBlockGlossFx} ${financialBlockRingFx} mt-3`}
-                onMouseMove={handleFinancialBlockMouseMove}
-                onMouseLeave={resetFinancialBlockTilt}
-                onMouseEnter={primeFinancialBlockFx}
-                data-tilt-mult="1"
-              >
-                <span data-financial-sheen className={financialSheenFx} />
-                <div className="relative z-[1] text-center">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-cyan-200/90">Set Commission Range</p>
-                  <p className="mt-1 text-xl font-bold">
-                    {commissionRangeMin === commissionRangeMax
-                      ? `${commissionRangeMax.toFixed(2)} USD`
-                      : `${commissionRangeMin.toFixed(2)} – ${commissionRangeMax.toFixed(2)} USD`}
-                  </p>
-                  <p className="mt-1.5 text-[11px] text-white/75">
-                    Estimated earnings per set of {displaySetRequired} tasks at VIP{userData?.vipLevel || 1} ({commissionRate.toFixed(2)}%).
                   </p>
                 </div>
               </div>

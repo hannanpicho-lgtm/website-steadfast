@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, DollarSign, Target, Percent, TrendingUp, Edit, Check, X } from 'lucide-react';
+import { Shield, DollarSign, Target, Percent, TrendingUp, Edit, Check, X, Package } from 'lucide-react';
 
 interface VipConfigProps {
   vipConfigurations: any[];
@@ -12,6 +12,22 @@ interface VipConfigProps {
   handleCancelVipInlineEdit: () => void;
   handleSaveVipInlineEdit: (level: number) => void;
 }
+
+const tierColorMap: Record<string, string> = {
+  bronze: 'text-orange-300',
+  silver: 'text-gray-300',
+  gold: 'text-yellow-300',
+  platinum: 'text-cyan-200',
+  diamond: 'text-purple-200',
+};
+
+const tierLabelMap: Record<string, string> = {
+  bronze: 'Normal',
+  silver: 'Silver',
+  gold: 'Gold',
+  platinum: 'Platinum',
+  diamond: 'Diamond',
+};
 
 export default function VipConfig({
   vipConfigurations,
@@ -28,12 +44,34 @@ export default function VipConfig({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white">VIP Level Configuration</h2>
-          <p className="text-gray-400 text-sm mt-1">Configure VIP tiers, benefits, and commission rates</p>
+          <h2 className="text-2xl font-bold text-white">VIP Tiers Configuration</h2>
+          <p className="text-gray-400 text-sm mt-1">Commission rates and task product amount ranges per VIP tier.</p>
         </div>
         {vipConfigLoading ? (
           <div className="text-sm text-[#00D9FF]">Loading VIP tiers...</div>
         ) : null}
+      </div>
+
+      {/* Summary Card */}
+      <div className="bg-[#1a1f2e] rounded-lg p-5 border border-gray-700">
+        <div className="space-y-2">
+          {vipConfigurations.map((vip) => {
+            const label = tierLabelMap[vip.color] ?? vip.name;
+            const colorClass = tierColorMap[vip.color] ?? 'text-white';
+            const commPct = (vip.commission * 100).toFixed(vip.commission * 100 >= 1 ? 1 : 2);
+            const priceMin = Number(vip.taskPriceMin ?? 0);
+            const priceMax = Number(vip.taskPriceMax ?? 0);
+            const rangeStr = priceMin > 0 && priceMax > 0
+              ? `$${priceMin.toLocaleString()} – $${priceMax.toLocaleString()}`
+              : 'Not set';
+            return (
+              <p key={vip.level} className="text-sm">
+                <span className={`font-semibold ${colorClass}`}>{label}:</span>{' '}
+                <span className="text-gray-300">{commPct}% commission, {vip.dailyTasks} products/set, task range {rangeStr}</span>
+              </p>
+            );
+          })}
+        </div>
       </div>
 
       {/* VIP Levels Grid */}
@@ -54,7 +92,7 @@ export default function VipConfig({
                     Level {vip.level}
                   </span>
                 </div>
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                   <div className="bg-[#1a1f2e] p-4 rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
                       <DollarSign size={16} className="text-gray-400" />
@@ -65,7 +103,7 @@ export default function VipConfig({
                         type="number"
                         min={1}
                         value={vipDraft.investment}
-                        onChange={(e) => setVipDraft((prev) => (prev ? { ...prev, investment: e.target.value } : prev))}
+                        onChange={(e) => setVipDraft((prev: any) => (prev ? { ...prev, investment: e.target.value } : prev))}
                         disabled={savingVipLevel === vip.level}
                         className="w-full bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-white font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
                       />
@@ -76,7 +114,7 @@ export default function VipConfig({
                   <div className="bg-[#1a1f2e] p-4 rounded-lg">
                     <div className="flex items-center gap-2 mb-2">
                       <Target size={16} className="text-gray-400" />
-                      <p className="text-gray-400 text-xs">Daily Tasks</p>
+                      <p className="text-gray-400 text-xs">Products / Set</p>
                     </div>
                     {editingVipLevel === vip.level && vipDraft ? (
                       <input
@@ -84,7 +122,7 @@ export default function VipConfig({
                         min={1}
                         step={1}
                         value={vipDraft.dailyTasks}
-                        onChange={(e) => setVipDraft((prev) => (prev ? { ...prev, dailyTasks: e.target.value } : prev))}
+                        onChange={(e) => setVipDraft((prev: any) => (prev ? { ...prev, dailyTasks: e.target.value } : prev))}
                         disabled={savingVipLevel === vip.level}
                         className="w-full bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-[#00D9FF] font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
                       />
@@ -104,7 +142,7 @@ export default function VipConfig({
                           min={0.01}
                           step={0.01}
                           value={vipDraft.commissionPercent}
-                          onChange={(e) => setVipDraft((prev) => (prev ? { ...prev, commissionPercent: e.target.value } : prev))}
+                          onChange={(e) => setVipDraft((prev: any) => (prev ? { ...prev, commissionPercent: e.target.value } : prev))}
                           disabled={savingVipLevel === vip.level}
                           className="w-full bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-green-400 font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
                         />
@@ -112,6 +150,45 @@ export default function VipConfig({
                       </div>
                     ) : (
                       <p className="text-green-400 font-bold text-xl">{(vip.commission * 100).toFixed(1)}%</p>
+                    )}
+                  </div>
+                  <div className="bg-[#1a1f2e] p-4 rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Package size={16} className="text-gray-400" />
+                      <p className="text-gray-400 text-xs">Task Price Range</p>
+                    </div>
+                    {editingVipLevel === vip.level && vipDraft ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-400 text-sm">$</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={vipDraft.taskPriceMin}
+                          onChange={(e) => setVipDraft((prev: any) => (prev ? { ...prev, taskPriceMin: e.target.value } : prev))}
+                          disabled={savingVipLevel === vip.level}
+                          placeholder="Min"
+                          className="w-full bg-[#11182a] border border-gray-600 rounded px-2 py-2 text-amber-300 font-bold text-sm focus:border-[#00D9FF] focus:outline-none"
+                        />
+                        <span className="text-gray-500">–</span>
+                        <span className="text-gray-400 text-sm">$</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={vipDraft.taskPriceMax}
+                          onChange={(e) => setVipDraft((prev: any) => (prev ? { ...prev, taskPriceMax: e.target.value } : prev))}
+                          disabled={savingVipLevel === vip.level}
+                          placeholder="Max"
+                          className="w-full bg-[#11182a] border border-gray-600 rounded px-2 py-2 text-amber-300 font-bold text-sm focus:border-[#00D9FF] focus:outline-none"
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-amber-300 font-bold text-lg">
+                        {Number(vip.taskPriceMin ?? 0) > 0 && Number(vip.taskPriceMax ?? 0) > 0
+                          ? `$${Number(vip.taskPriceMin).toLocaleString()} – $${Number(vip.taskPriceMax).toLocaleString()}`
+                          : 'Not set'}
+                      </p>
                     )}
                   </div>
                   <div className="bg-[#1a1f2e] p-4 rounded-lg">

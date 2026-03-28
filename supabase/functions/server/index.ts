@@ -2108,6 +2108,8 @@ function normalizeVipConfigRecord(record: any) {
     dailyTasks: Math.max(1, Math.round(Number(record?.dailyTasks ?? 1))),
     commission: Number.isFinite(Number(record?.commission)) ? Number(record.commission) : 0.005,
     color: sanitizeTaskText(record?.color, 'bronze'),
+    taskPriceMin: Number.isFinite(Number(record?.taskPriceMin)) ? roundMoney(Number(record.taskPriceMin)) : 0,
+    taskPriceMax: Number.isFinite(Number(record?.taskPriceMax)) ? roundMoney(Number(record.taskPriceMax)) : 0,
     createdAt,
     updatedAt,
   };
@@ -4713,7 +4715,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
       ? Math.max(1, Math.round(Number(queuedEncounterCandidate?.triggerTaskNumber)))
       : nextSubmissionNumber;
     const shouldActivateQueuedPremium = Boolean(queuedEncounterCandidate)
-      && nextSubmissionNumber === queuedTriggerTaskNumber;
+      && nextSubmissionNumber >= queuedTriggerTaskNumber;
 
     if (shouldActivateQueuedPremium && queuedEncounterCandidate) {
       const activePremium = {
@@ -6783,6 +6785,8 @@ app.put('/make-server-a1c55d7e/admin/vip-config/:level', async (c) => {
     const investment = Number.isFinite(Number(body?.investment)) ? roundMoney(Number(body.investment)) : existingTier.investment;
     const dailyTasks = Number.isFinite(Number(body?.dailyTasks)) ? Math.round(Number(body.dailyTasks)) : existingTier.dailyTasks;
     const commission = Number.isFinite(Number(body?.commission)) ? Number(body.commission) : existingTier.commission;
+    const taskPriceMin = Number.isFinite(Number(body?.taskPriceMin)) ? roundMoney(Number(body.taskPriceMin)) : (existingTier.taskPriceMin ?? 0);
+    const taskPriceMax = Number.isFinite(Number(body?.taskPriceMax)) ? roundMoney(Number(body.taskPriceMax)) : (existingTier.taskPriceMax ?? 0);
 
     if (!Number.isFinite(investment) || investment <= 0) {
       return c.json({ error: 'investment must be greater than 0' }, 400);
@@ -6800,6 +6804,8 @@ app.put('/make-server-a1c55d7e/admin/vip-config/:level', async (c) => {
       investment,
       dailyTasks,
       commission,
+      taskPriceMin,
+      taskPriceMax,
       color: body?.color ?? existingTier.color,
       updatedAt: new Date().toISOString(),
     });
