@@ -321,9 +321,24 @@ export default function Starting() {
     }, 3000);
     return () => clearInterval(timer);
   }, [activeTasks.length]);
+  const activeVipTier = userData
+    ? (vipConfigurations.find((tier) => tier.level === userData.vipLevel) ?? null)
+    : null;
   const commissionRate = userData
-    ? (vipConfigurations.find((tier) => tier.level === userData.vipLevel)?.commission ?? 0.005) * 100
+    ? (activeVipTier?.commission ?? 0.005) * 100
     : 0.5;
+  const cycleTaskCount = Math.max(1, Number(userData?.tasksPerSet ?? activeVipTier?.dailyTasks ?? 1));
+  const controlledTaskPriceMin = roundMoney(Number(activeVipTier?.taskPriceMin ?? 0));
+  const controlledTaskPriceMax = roundMoney(Number(activeVipTier?.taskPriceMax ?? 0));
+  const hasControlledCycleWindow = controlledTaskPriceMin > 0
+    && controlledTaskPriceMax > 0
+    && controlledTaskPriceMax >= controlledTaskPriceMin;
+  const cycleCommissionWindowMin = hasControlledCycleWindow
+    ? roundMoney(controlledTaskPriceMin * (commissionRate / 100) * cycleTaskCount)
+    : 0;
+  const cycleCommissionWindowMax = hasControlledCycleWindow
+    ? roundMoney(controlledTaskPriceMax * (commissionRate / 100) * cycleTaskCount)
+    : roundMoney(100 * (commissionRate / 100) * cycleTaskCount);
   const premiumCommissionRate = commissionRate * 10;
   const estimatedCommission = currentProduct ? currentProduct.price * (commissionRate / 100) : 0;
   const premiumTopUpRequired = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
@@ -1258,6 +1273,27 @@ export default function Starting() {
                   {userData?.isFrozen
                     ? 'Includes pre-freeze balance, current hold amount, and projected premium profit.'
                     : 'Reflects the active account balance across the current task cycle.'}
+                </p>
+              </div>
+            </div>
+
+            <div
+              className="relative mt-3 overflow-hidden rounded-[18px] border border-white/20 bg-white/12 p-4 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform hover:border-white/60 hover:shadow-[0_20px_34px_rgba(5,42,107,0.46)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.24)_0%,rgba(255,255,255,0.06)_45%,rgba(4,34,93,0.08)_100%)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[15px] after:border after:border-white/15 after:transition-all after:duration-300 hover:after:border-white/45"
+              onMouseMove={handleFinancialBlockMouseMove}
+              onMouseLeave={resetFinancialBlockTilt}
+              onMouseEnter={primeFinancialBlockFx}
+              data-tilt-mult="1.2"
+            >
+              <span data-financial-sheen className={financialSheenFx} />
+              <div className="relative z-[1]">
+                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">Cycle Commission Window</p>
+                <p className="mt-1.5 text-center text-[1.45rem] font-bold text-[#b8ffd4]">
+                  {cycleCommissionWindowMin.toFixed(2)} - {cycleCommissionWindowMax.toFixed(2)} USD
+                </p>
+                <p className="mt-1.5 text-center text-[11px] text-white/75">
+                  {hasControlledCycleWindow
+                    ? `Backend-controlled window for ${cycleTaskCount} tasks in this set.`
+                    : `Estimated from ${cycleTaskCount} tasks at your current commission rate.`}
                 </p>
               </div>
             </div>
