@@ -363,10 +363,6 @@ export default function Starting() {
   const vipFundingBlocked = Boolean(userData) && availableFundsForSubmit < requiredFundsForVip;
   const isAccountSuspended = Boolean(userData?.isSuspended);
   const taskSetResetRequired = Boolean(userData?.pendingTaskReset);
-  const nextSubmissionNumber = Number(userData?.tasksCompleted ?? 0) + 1;
-  const premiumTriggerIncoming = !premiumSubmissionBlocked
-    && Boolean(taskRuleConfig?.premiumEnabled ?? rewardsConfig.productSystem.premiumEnabled)
-    && nextSubmissionNumber === premiumTriggerTaskNumber;
   const activePremiumQueuePosition = userData?.activePremium && Array.isArray(userData?.premiumQueue)
     ? Math.max(1, userData.premiumQueue.findIndex((premium) => premium?.id === userData.activePremium?.id) + 1)
     : 1;
@@ -1063,12 +1059,6 @@ export default function Starting() {
             </p>
           </div>
 
-          {/* Premium trigger warning — only when near */}
-          {premiumTriggerIncoming && (
-            <div className="mx-4 mb-3 px-3 py-1.5 bg-red-500/15 border border-red-500/30 rounded-lg">
-              <p className="text-red-400 text-xs text-center font-semibold">Premium trigger incoming on this submission</p>
-            </div>
-          )}
         </div>
 
         {/* Starting Button */}
