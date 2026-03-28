@@ -1,6 +1,7 @@
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+const FINANCIAL_FETCH_TIMEOUT_MS = 6000;
 
 export type FinancialSummaryResponse = {
   username: string;
@@ -40,18 +41,26 @@ export type FinancialSummaryResponse = {
 };
 
 export async function fetchFinancialSummary(): Promise<FinancialSummaryResponse> {
-  const response = await fetch(`${SERVER_URL}/me/financials`, {
-    credentials: 'include',
-    headers: {
-      Authorization: `Bearer ${publicAnonKey}`,
-      apikey: publicAnonKey,
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FINANCIAL_FETCH_TIMEOUT_MS);
 
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(String((payload as Record<string, unknown>)?.error ?? 'Failed to fetch financial summary'));
+  try {
+    const response = await fetch(`${SERVER_URL}/me/financials`, {
+      credentials: 'include',
+      headers: {
+        Authorization: `Bearer ${publicAnonKey}`,
+        apikey: publicAnonKey,
+      },
+      signal: controller.signal,
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(String((payload as Record<string, unknown>)?.error ?? 'Failed to fetch financial summary'));
+    }
+
+    return payload as FinancialSummaryResponse;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return payload as FinancialSummaryResponse;
 }
