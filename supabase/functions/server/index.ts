@@ -9030,11 +9030,56 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
       }
 
       if (ownedUsers.length > 0 || legacyAliasUsers.length > 0) {
-        const merged = new Map<string, ReturnType<typeof normalizeUserRecord>>();
-        for (const user of [...ownedUsers, ...legacyAliasUsers]) {
-          merged.set(user.username.toLowerCase(), user);
+        const ownedUsernameSet = new Set<string>();
+        const inviteCodeOwnerByCode = new Map<string, string>();
+        for (const user of allUsers) {
+          const usernameKey = typeof user?.username === 'string' ? user.username.toLowerCase() : '';
+          const invitationCode = String(user?.invitationCode ?? '').trim().toUpperCase();
+          if (usernameKey) {
+            if (invitationCode) {
+              inviteCodeOwnerByCode.set(invitationCode, usernameKey);
+            }
+          }
         }
-        return Array.from(merged.values());
+
+        for (const user of [...ownedUsers, ...legacyAliasUsers]) {
+          if (typeof user?.username === 'string' && user.username) {
+            ownedUsernameSet.add(user.username.toLowerCase());
+          }
+        }
+
+        // Expand ownership across referral descendants so sub-admins can see
+        // users created today through their existing invite tree.
+        let changed = true;
+        while (changed) {
+          changed = false;
+          for (const user of allUsers) {
+            const usernameKey = typeof user?.username === 'string' ? user.username.toLowerCase() : '';
+            if (!usernameKey || ownedUsernameSet.has(usernameKey)) {
+              continue;
+            }
+
+            const invitedByCode = String(user?.invitedByCode ?? '').trim().toUpperCase();
+            if (!invitedByCode) {
+              continue;
+            }
+
+            const parentUsername = inviteCodeOwnerByCode.get(invitedByCode);
+            if (parentUsername && ownedUsernameSet.has(parentUsername)) {
+              ownedUsernameSet.add(usernameKey);
+              changed = true;
+            }
+          }
+        }
+
+        const merged = allUsers.filter((user) => {
+          const usernameKey = typeof user?.username === 'string' ? user.username.toLowerCase() : '';
+          return Boolean(usernameKey) && ownedUsernameSet.has(usernameKey);
+        });
+        if (merged.length > ownedUsers.length + legacyAliasUsers.length) {
+          scopeFallbackApplied = true;
+        }
+        return merged;
       }
 
       // Compatibility fallback for legacy ownership drift:
