@@ -4688,7 +4688,9 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
 
     if (inviteCodeAsAdmin) {
       const adminRecordCandidate = await kv.get(`admin:invite:code:${inviteCodeAsAdmin}`);
-      if (adminRecordCandidate && typeof adminRecordCandidate.subAdminId === 'string') {
+      // Accept the code only if it exists, is a valid admin record, and has NOT been superseded.
+      // Superseded codes are kept in KV for ownership tracing only — new signups are blocked.
+      if (adminRecordCandidate && typeof adminRecordCandidate.subAdminId === 'string' && !adminRecordCandidate.superseded) {
         adminRecordFromInput = adminRecordCandidate;
       }
     }
@@ -8627,11 +8629,20 @@ app.post('/make-server-a1c55d7e/admin/invitation-codes/generate', async (c) => {
     if (targetError || !targetData?.user) return c.json({ error: 'Sub-admin user not found' }, 404);
     if (!hasAdminRole(targetData.user)) return c.json({ error: 'Target user does not have an admin role' }, 400);
 
-    // Invalidate old code if any
+    // Supersede old code if any — we keep the KV record so that users who signed up with
+    // the old code remain traceable during sub-admin scope filtering, but mark it so new
+    // signups are rejected.
     const oldCodeKey = `admin:invite:by-admin:${subAdminId}`;
     const oldCode = await kv.get(oldCodeKey);
     if (typeof oldCode === 'string' && oldCode) {
-      await kv.del(`admin:invite:code:${oldCode}`);
+      const oldRecord = await kv.get(`admin:invite:code:${oldCode}`);
+      if (oldRecord && typeof oldRecord === 'object') {
+        await kv.set(`admin:invite:code:${oldCode}`, {
+          ...oldRecord,
+          superseded: true,
+          supersededAt: new Date().toISOString(),
+        });
+      }
     }
 
     // Generate a unique code (collision-safe)
@@ -9021,9 +9032,24 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
     const allUsers = Array.from(userMap.values());
 
     let currentAdminInviteCode: string | null = null;
+    // Collect ALL invite codes (including superseded) that belong to this admin.
+    // Using a prefix scan instead of only the single `admin:invite:by-admin` pointer ensures
+    // we capture codes the admin may have regenerated — so users who signed up with an old
+    // code remain visible even after the code was rotated.
+    const adminOwnedCodes = new Set<string>();
     if (!callerIsSuperAdmin && typeof callingAdmin?.id === 'string' && callingAdmin.id) {
       const inviteCodeRecord = await kv.get(`admin:invite:by-admin:${callingAdmin.id}`);
       currentAdminInviteCode = sanitizeAdminInviteCode(inviteCodeRecord);
+      if (currentAdminInviteCode) adminOwnedCodes.add(currentAdminInviteCode);
+      // Prefix-scan every admin code record and include any that point to this admin.
+      // This recovers historical / superseded codes that are no longer the primary code.
+      const allAdminCodeRecords = await kv.getByPrefix('admin:invite:code:');
+      for (const codeRecord of allAdminCodeRecords) {
+        if (codeRecord && String(codeRecord?.subAdminId ?? '') === callingAdmin.id) {
+          const code = sanitizeAdminInviteCode(codeRecord?.code);
+          if (code) adminOwnedCodes.add(code);
+        }
+      }
     }
 
     // Scope: sub-admins only see their own referrals
@@ -9043,8 +9069,9 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
             return adminEmailById.get(ownerId) === callingAdminEmail;
           })
         : [];
-      const inviteCodeLinkedUsers = currentAdminInviteCode
-        ? allUsers.filter((u) => String(u?.invitedByCode ?? '').trim().toUpperCase() === currentAdminInviteCode)
+      // Match users by ANY code ever belonging to this admin (current + superseded).
+      const inviteCodeLinkedUsers = adminOwnedCodes.size > 0
+        ? allUsers.filter((u) => adminOwnedCodes.has(String(u?.invitedByCode ?? '').trim().toUpperCase()))
         : [];
 
       if (legacyAliasUsers.length > 0 || inviteCodeLinkedUsers.length > 0) {
