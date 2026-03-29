@@ -149,7 +149,6 @@ export const getEntriesByPrefix = async (prefix: string): Promise<Array<{ key: s
 
     from += pageSize;
   }
-  }
 
   return rows;
 };
