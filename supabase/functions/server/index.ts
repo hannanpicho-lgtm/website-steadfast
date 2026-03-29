@@ -4684,6 +4684,14 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
 
     let parentInviteCode: string | null = null;
     let effectiveAdminInviteCode = explicitAdminInviteCode;
+    let adminRecordFromInput: any = null;
+
+    if (inviteCodeAsAdmin) {
+      const adminRecordCandidate = await kv.get(`admin:invite:code:${inviteCodeAsAdmin}`);
+      if (adminRecordCandidate && typeof adminRecordCandidate.subAdminId === 'string') {
+        adminRecordFromInput = adminRecordCandidate;
+      }
+    }
 
     if (inviteCodeAsReferral) {
       const referralOwner = await kv.get(`referral:invite:${inviteCodeAsReferral}`);
@@ -4692,9 +4700,14 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
       }
     }
 
-    // If invite code is not a valid referral owner but is a valid admin code,
-    // treat it as admin invite and use the system root as referral parent.
-    if (!parentInviteCode && inviteCodeAsAdmin) {
+    // If a valid admin invite exists (even when the same 5-char code also exists
+    // in referral space), prioritize admin ownership mapping so sub-admin-created
+    // accounts are never detached from the sub-admin scope.
+    if (adminRecordFromInput && inviteCodeAsAdmin) {
+      parentInviteCode = ROOT_REFERRAL_INVITE_CODE;
+      effectiveAdminInviteCode = inviteCodeAsAdmin;
+    } else if (!parentInviteCode && inviteCodeAsAdmin) {
+      // Fallback for legacy behavior where invite code is admin-only.
       parentInviteCode = ROOT_REFERRAL_INVITE_CODE;
       effectiveAdminInviteCode = inviteCodeAsAdmin;
     }
@@ -4708,11 +4721,13 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
       return c.json({ error: 'Invitation code not found. Please check and try again.' }, 404);
     }
 
+    let effectiveAdminRecord: any = null;
     if (effectiveAdminInviteCode) {
       const adminRecord = await kv.get(`admin:invite:code:${effectiveAdminInviteCode}`);
       if (!adminRecord || typeof adminRecord.subAdminId !== 'string') {
         return c.json({ error: 'Admin invitation code is not valid.' }, 404);
       }
+      effectiveAdminRecord = adminRecord;
     }
 
     const generatedInviteCode = await getUniqueReferralInviteCode();
@@ -4727,14 +4742,12 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
     userData.mustChangePassword = false;
     userData.passwordUpdatedAt = new Date().toISOString();
 
-    if (effectiveAdminInviteCode) {
-      const adminRecord = await kv.get(`admin:invite:code:${effectiveAdminInviteCode}`);
-      if (adminRecord && typeof adminRecord.subAdminId === 'string') {
-        userData.referredByAdminId = adminRecord.subAdminId;
-        adminRecord.usageCount = (typeof adminRecord.usageCount === 'number' ? adminRecord.usageCount : 0) + 1;
-        await kv.set(`admin:invite:code:${effectiveAdminInviteCode}`, adminRecord);
+    if (effectiveAdminInviteCode && effectiveAdminRecord && typeof effectiveAdminRecord.subAdminId === 'string') {
+      userData.referredByAdminId = effectiveAdminRecord.subAdminId;
+      effectiveAdminRecord.usageCount = (typeof effectiveAdminRecord.usageCount === 'number' ? effectiveAdminRecord.usageCount : 0) + 1;
+      await kv.set(`admin:invite:code:${effectiveAdminInviteCode}`, effectiveAdminRecord);
       }
-    }
+    
 
     await kv.set(`user:${username}`, userData);
     await assignUsernameLookup(username);
