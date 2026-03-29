@@ -9020,6 +9020,12 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
 
     const allUsers = Array.from(userMap.values());
 
+    let currentAdminInviteCode: string | null = null;
+    if (!callerIsSuperAdmin && typeof callingAdmin?.id === 'string' && callingAdmin.id) {
+      const inviteCodeRecord = await kv.get(`admin:invite:by-admin:${callingAdmin.id}`);
+      currentAdminInviteCode = sanitizeAdminInviteCode(inviteCodeRecord);
+    }
+
     // Scope: sub-admins only see their own referrals
     let scopeFallbackApplied = false;
     const scopedUsers = (() => {
@@ -9037,12 +9043,15 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
             return adminEmailById.get(ownerId) === callingAdminEmail;
           })
         : [];
+      const inviteCodeLinkedUsers = currentAdminInviteCode
+        ? allUsers.filter((u) => String(u?.invitedByCode ?? '').trim().toUpperCase() === currentAdminInviteCode)
+        : [];
 
-      if (legacyAliasUsers.length > 0) {
+      if (legacyAliasUsers.length > 0 || inviteCodeLinkedUsers.length > 0) {
         scopeFallbackApplied = true;
       }
 
-      if (ownedUsers.length > 0 || legacyAliasUsers.length > 0) {
+      if (ownedUsers.length > 0 || legacyAliasUsers.length > 0 || inviteCodeLinkedUsers.length > 0) {
         const ownedUsernameSet = new Set<string>();
         const inviteCodeOwnerByCode = new Map<string, string>();
         for (const user of allUsers) {
@@ -9055,7 +9064,7 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
           }
         }
 
-        for (const user of [...ownedUsers, ...legacyAliasUsers]) {
+        for (const user of [...ownedUsers, ...legacyAliasUsers, ...inviteCodeLinkedUsers]) {
           if (typeof user?.username === 'string' && user.username) {
             ownedUsernameSet.add(user.username.toLowerCase());
           }
@@ -9089,7 +9098,7 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
           const usernameKey = typeof user?.username === 'string' ? user.username.toLowerCase() : '';
           return Boolean(usernameKey) && ownedUsernameSet.has(usernameKey);
         });
-        if (merged.length > ownedUsers.length + legacyAliasUsers.length) {
+        if (merged.length > ownedUsers.length + legacyAliasUsers.length + inviteCodeLinkedUsers.length) {
           scopeFallbackApplied = true;
         }
         return merged;
