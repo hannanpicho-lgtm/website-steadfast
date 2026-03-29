@@ -118,20 +118,38 @@ export const mdel = async (keys: string[]): Promise<void> => {
 
 // Search for key-value pairs by prefix.
 export const getByPrefix = async (prefix: string): Promise<any[]> => {
-  const supabase = client()
-  const { data, error } = await supabase.from("kv_store_a1c55d7e").select("key, value").like("key", prefix + "%");
-  if (error) {
-    throw new Error(error.message);
-  }
-  return data?.map((d) => d.value) ?? [];
+  const rows = await getEntriesByPrefix(prefix);
+  return rows.map((row) => row.value);
 };
 
 // Search for key-value pairs by prefix and preserve the matched keys.
 export const getEntriesByPrefix = async (prefix: string): Promise<Array<{ key: string; value: any }>> => {
   const supabase = client()
-  const { data, error } = await supabase.from("kv_store_a1c55d7e").select("key, value").like("key", prefix + "%");
-  if (error) {
-    throw new Error(error.message);
+  const rows: Array<{ key: string; value: any }> = [];
+  const pageSize = 1000;
+  let from = 0;
+
+  while (true) {
+    const to = from + pageSize - 1;
+    const { data, error } = await supabase
+      .from("kv_store_a1c55d7e")
+      .select("key, value")
+      .like("key", prefix + "%")
+      .range(from, to);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const batch = data ?? [];
+    rows.push(...batch);
+    if (batch.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
   }
-  return data ?? [];
+  }
+
+  return rows;
 };
