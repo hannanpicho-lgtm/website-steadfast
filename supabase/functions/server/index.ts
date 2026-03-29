@@ -8912,8 +8912,15 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
     const callingAdmin = c.get('adminUser');
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
     const knownAdminIds = new Set<string>();
+    const adminEmailById = new Map<string, string>();
+    const callingAdminEmail = typeof callingAdmin?.email === 'string'
+      ? callingAdmin.email.trim().toLowerCase()
+      : '';
     if (typeof callingAdmin?.id === 'string' && callingAdmin.id) {
       knownAdminIds.add(callingAdmin.id);
+      if (callingAdminEmail) {
+        adminEmailById.set(callingAdmin.id, callingAdminEmail);
+      }
     }
 
     // Load all KV users and normalize them for display.
@@ -8951,6 +8958,12 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
           if (hasAdminRole(authUser)) {
             if (typeof authUser?.id === 'string' && authUser.id) {
               knownAdminIds.add(authUser.id);
+              const adminEmail = typeof authUser?.email === 'string'
+                ? authUser.email.trim().toLowerCase()
+                : '';
+              if (adminEmail) {
+                adminEmailById.set(authUser.id, adminEmail);
+              }
             }
             continue;
           }
@@ -9002,8 +9015,26 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
       }
 
       const ownedUsers = allUsers.filter((u) => u.referredByAdminId === callingAdmin.id);
-      if (ownedUsers.length > 0) {
-        return ownedUsers;
+      const legacyAliasUsers = callingAdminEmail
+        ? allUsers.filter((u) => {
+            const ownerId = typeof u.referredByAdminId === 'string' ? u.referredByAdminId : '';
+            if (!ownerId || ownerId === callingAdmin.id) {
+              return false;
+            }
+            return adminEmailById.get(ownerId) === callingAdminEmail;
+          })
+        : [];
+
+      if (legacyAliasUsers.length > 0) {
+        scopeFallbackApplied = true;
+      }
+
+      if (ownedUsers.length > 0 || legacyAliasUsers.length > 0) {
+        const merged = new Map<string, ReturnType<typeof normalizeUserRecord>>();
+        for (const user of [...ownedUsers, ...legacyAliasUsers]) {
+          merged.set(user.username.toLowerCase(), user);
+        }
+        return Array.from(merged.values());
       }
 
       // Compatibility fallback for legacy ownership drift:
