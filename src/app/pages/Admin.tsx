@@ -468,6 +468,7 @@ export default function Admin() {
   const lastAutoBackupSignatureRef = useRef<string>('');
   const lastStorageErrorRef = useRef<string | null>(null);
   const adminAuthRedirectedRef = useRef(false);
+  const userScopeFallbackNoticeShownRef = useRef(false);
   const importBackupInputRef = useRef<HTMLInputElement | null>(null);
 
 
@@ -1513,6 +1514,10 @@ export default function Admin() {
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload?.error ?? `Failed to load platform users (${res.status})`);
       setPlatformUsers(Array.isArray(payload?.users) ? payload.users : []);
+      if (payload?.scopeFallbackApplied && !userScopeFallbackNoticeShownRef.current) {
+        toast.info('Ownership scope fallback applied to restore legacy users visibility.');
+        userScopeFallbackNoticeShownRef.current = true;
+      }
     } catch (error) {
       handleAdminRequestError(error, 'Failed to load platform users', { suppressToast: true });
       setPlatformUsers([]);

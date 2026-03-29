@@ -12,7 +12,7 @@ const DEPLOY_COMMIT_SHA = Deno.env.get("DEPLOY_COMMIT_SHA") ?? null;
 const DEPLOY_COMMIT_SHORT = Deno.env.get("DEPLOY_COMMIT_SHORT") ?? null;
 const DEPLOYED_AT_UTC = Deno.env.get("DEPLOYED_AT_UTC") ?? null;
 const DEBUG_DEPLOYMENT_LOG = Deno.env.get("DEBUG_DEPLOYMENT_LOG") === "1";
-const DEPLOYMENT_STALE_THRESHOLD_MINUTES = Math.max(1, Number(Deno.env.get("DEPLOYMENT_STALE_THRESHOLD_MINUTES") ?? "180"));
+const DEPLOYMENT_STALE_THRESHOLD_MINUTES = Math.max(1, Number(Deno.env.get("DEPLOYMENT_STALE_THRESHOLD_MINUTES") ?? "1440"));
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL");
 const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? '';
@@ -8911,6 +8911,10 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
 
     const callingAdmin = c.get('adminUser');
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const knownAdminIds = new Set<string>();
+    if (typeof callingAdmin?.id === 'string' && callingAdmin.id) {
+      knownAdminIds.add(callingAdmin.id);
+    }
 
     // Load all KV users and normalize them for display.
     const allRawUsers = await kv.getByPrefix('user:');
@@ -8945,6 +8949,9 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
         const batch = Array.isArray(data?.users) ? data.users : [];
         for (const authUser of batch) {
           if (hasAdminRole(authUser)) {
+            if (typeof authUser?.id === 'string' && authUser.id) {
+              knownAdminIds.add(authUser.id);
+            }
             continue;
           }
 
@@ -8988,9 +8995,23 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
     const allUsers = Array.from(userMap.values());
 
     // Scope: sub-admins only see their own referrals
-    const scopedUsers = callerIsSuperAdmin
-      ? allUsers
-      : allUsers.filter((u) => u.referredByAdminId === callingAdmin.id);
+    let scopeFallbackApplied = false;
+    const scopedUsers = (() => {
+      if (callerIsSuperAdmin) {
+        return allUsers;
+      }
+
+      const ownedUsers = allUsers.filter((u) => u.referredByAdminId === callingAdmin.id);
+      if (ownedUsers.length > 0) {
+        return ownedUsers;
+      }
+
+      // Compatibility fallback for legacy ownership drift:
+      // if strict scope yields zero users, surface unassigned/orphaned users
+      // so admins don't lose visibility after admin-id rotation.
+      scopeFallbackApplied = true;
+      return allUsers.filter((u) => !u.referredByAdminId || !knownAdminIds.has(u.referredByAdminId));
+    })();
 
     // For super-admin, try to resolve sub-admin names from Auth users
     let adminNameMap: Map<string, string> = new Map();
@@ -9045,7 +9066,12 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
       creditScore: typeof u.creditScore === 'number' ? u.creditScore : 100,
     }));
 
-    return c.json({ users, total: users.length, scoped: !callerIsSuperAdmin });
+    return c.json({
+      users,
+      total: users.length,
+      scoped: !callerIsSuperAdmin,
+      scopeFallbackApplied,
+    });
   } catch (err) {
     console.error('admin/platform-users error:', err);
     return c.json({ error: 'Failed to fetch platform users' }, 500);
