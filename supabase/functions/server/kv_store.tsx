@@ -152,3 +152,38 @@ export const getEntriesByPrefix = async (prefix: string): Promise<Array<{ key: s
 
   return rows;
 };
+
+export const getEntriesByPrefixAndJsonFieldEquals = async (
+  prefix: string,
+  field: string,
+  expectedValue: string,
+): Promise<Array<{ key: string; value: any }>> => {
+  const supabase = client()
+  const rows: Array<{ key: string; value: any }> = [];
+  const pageSize = 500;
+  let from = 0;
+
+  while (true) {
+    const to = from + pageSize - 1;
+    const { data, error } = await supabase
+      .from("kv_store_a1c55d7e")
+      .select("key, value")
+      .like("key", prefix + "%")
+      .filter(`value->>${field}`, 'eq', expectedValue)
+      .range(from, to);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const batch = data ?? [];
+    rows.push(...batch);
+    if (batch.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return rows;
+};

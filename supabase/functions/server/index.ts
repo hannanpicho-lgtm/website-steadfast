@@ -8965,208 +8965,181 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
 
     const callingAdmin = c.get('adminUser');
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
-    const knownAdminIds = new Set<string>();
-    const adminEmailById = new Map<string, string>();
     const callingAdminEmail = typeof callingAdmin?.email === 'string'
       ? callingAdmin.email.trim().toLowerCase()
       : '';
-    if (typeof callingAdmin?.id === 'string' && callingAdmin.id) {
-      knownAdminIds.add(callingAdmin.id);
-      if (callingAdminEmail) {
-        adminEmailById.set(callingAdmin.id, callingAdminEmail);
-      }
-    }
-
-    // Load all KV users and normalize them for display.
-    const allRawUsers = await kv.getEntriesByPrefix('user:');
     const userMap = new Map<string, ReturnType<typeof normalizeUserRecord>>();
+    const mergeUserEntries = async (entries: Array<{ key: string; value: any }>) => {
+      for (const entry of entries) {
+        const rawUsername = getUsernameFromUserKvEntry(entry);
+        if (!rawUsername || rawUsername === 'steadfast_root') {
+          continue;
+        }
 
-    for (const raw of allRawUsers) {
-      const rawUsername = getUsernameFromUserKvEntry(raw);
-      if (!rawUsername || rawUsername === 'steadfast_root') {
-        continue;
+        const canonicalUsername = (await resolveCanonicalUsername(rawUsername)) ?? rawUsername;
+        if (userMap.has(canonicalUsername.toLowerCase())) {
+          continue;
+        }
+
+        const syncedUser = await syncUserWithVipConfig(entry.value, canonicalUsername);
+        await kv.set(`user:${canonicalUsername}`, syncedUser);
+        userMap.set(canonicalUsername.toLowerCase(), syncedUser);
       }
-
-      const canonicalUsername = (await resolveCanonicalUsername(rawUsername)) ?? rawUsername;
-      const syncedUser = await syncUserWithVipConfig(raw.value, canonicalUsername);
-      await kv.set(`user:${canonicalUsername}`, syncedUser);
-      userMap.set(canonicalUsername.toLowerCase(), syncedUser);
-    }
-
-    // Auto-recover auth users that do not yet have KV user records so they appear
-    // in the admin panel immediately after signup.
-    if (authClient) {
-      let page = 1;
-      const perPage = 200;
-      const maxPages = 10;
-
-      while (page <= maxPages) {
-        const { data, error } = await authClient.auth.admin.listUsers({ page, perPage });
-        if (error) {
-          console.error('admin/platform-users auth scan error:', error.message);
-          break;
-        }
-
-        const batch = Array.isArray(data?.users) ? data.users : [];
-        for (const authUser of batch) {
-          if (hasAdminRole(authUser)) {
-            if (typeof authUser?.id === 'string' && authUser.id) {
-              knownAdminIds.add(authUser.id);
-              const adminEmail = typeof authUser?.email === 'string'
-                ? authUser.email.trim().toLowerCase()
-                : '';
-              if (adminEmail) {
-                adminEmailById.set(authUser.id, adminEmail);
-              }
-            }
-            continue;
-          }
-
-          const metadataUsername = sanitizeUsername(
-            typeof authUser?.user_metadata?.username === 'string' ? authUser.user_metadata.username : '',
-          );
-          const emailLocal = sanitizeUsername(
-            typeof authUser?.email === 'string' ? (authUser.email.split('@')[0] ?? '') : '',
-          );
-          const candidateUsername = metadataUsername || emailLocal;
-          if (!candidateUsername) {
-            continue;
-          }
-
-          const usernameKey = candidateUsername.toLowerCase();
-          if (userMap.has(usernameKey)) {
-            continue;
-          }
-
-          try {
-            const recoveredUser = await bootstrapMissingPlatformUserRecord(candidateUsername, {
-              referredByAdminId: callerIsSuperAdmin
-                ? null
-                : (typeof callingAdmin?.id === 'string' ? callingAdmin.id : null),
-            });
-            const normalizedRecovered = await syncUserWithVipConfig(recoveredUser, candidateUsername);
-            await kv.set(`user:${candidateUsername}`, normalizedRecovered);
-            userMap.set(usernameKey, normalizedRecovered);
-          } catch (recoveryError) {
-            console.error('admin/platform-users auto-recovery failed:', candidateUsername, recoveryError);
-          }
-        }
-
-        if (batch.length < perPage) {
-          break;
-        }
-        page += 1;
-      }
-    }
-
-    const allUsers = Array.from(userMap.values());
+    };
 
     let currentAdminInviteCode: string | null = null;
-    // Collect ALL invite codes (including superseded) that belong to this admin.
-    // Using a prefix scan instead of only the single `admin:invite:by-admin` pointer ensures
-    // we capture codes the admin may have regenerated — so users who signed up with an old
-    // code remain visible even after the code was rotated.
     const adminOwnedCodes = new Set<string>();
-    if (!callerIsSuperAdmin && typeof callingAdmin?.id === 'string' && callingAdmin.id) {
-      const inviteCodeRecord = await kv.get(`admin:invite:by-admin:${callingAdmin.id}`);
-      currentAdminInviteCode = sanitizeAdminInviteCode(inviteCodeRecord);
-      if (currentAdminInviteCode) adminOwnedCodes.add(currentAdminInviteCode);
-      // Prefix-scan every admin code record and include any that point to this admin.
-      // This recovers historical / superseded codes that are no longer the primary code.
-      const allAdminCodeRecords = await kv.getByPrefix('admin:invite:code:');
-      for (const codeRecord of allAdminCodeRecords) {
-        if (codeRecord && String(codeRecord?.subAdminId ?? '') === callingAdmin.id) {
-          const code = sanitizeAdminInviteCode(codeRecord?.code);
-          if (code) adminOwnedCodes.add(code);
+    let scopeFallbackApplied = false;
+    let scopedUsers: ReturnType<typeof normalizeUserRecord>[] = [];
+
+    if (callerIsSuperAdmin) {
+      await mergeUserEntries(await kv.getEntriesByPrefix('user:'));
+
+      if (authClient) {
+        let page = 1;
+        const perPage = 200;
+        const maxPages = 10;
+
+        while (page <= maxPages) {
+          const { data, error } = await authClient.auth.admin.listUsers({ page, perPage });
+          if (error) {
+            console.error('admin/platform-users auth scan error:', error.message);
+            break;
+          }
+
+          const batch = Array.isArray(data?.users) ? data.users : [];
+          for (const authUser of batch) {
+            if (hasAdminRole(authUser)) {
+              continue;
+            }
+
+            const metadataUsername = sanitizeUsername(
+              typeof authUser?.user_metadata?.username === 'string' ? authUser.user_metadata.username : '',
+            );
+            const emailLocal = sanitizeUsername(
+              typeof authUser?.email === 'string' ? (authUser.email.split('@')[0] ?? '') : '',
+            );
+            const candidateUsername = metadataUsername || emailLocal;
+            if (!candidateUsername || userMap.has(candidateUsername.toLowerCase())) {
+              continue;
+            }
+
+            try {
+              const recoveredUser = await bootstrapMissingPlatformUserRecord(candidateUsername, { referredByAdminId: null });
+              const normalizedRecovered = await syncUserWithVipConfig(recoveredUser, candidateUsername);
+              await kv.set(`user:${candidateUsername}`, normalizedRecovered);
+              userMap.set(candidateUsername.toLowerCase(), normalizedRecovered);
+            } catch (recoveryError) {
+              console.error('admin/platform-users auto-recovery failed:', candidateUsername, recoveryError);
+            }
+          }
+
+          if (batch.length < perPage) {
+            break;
+          }
+          page += 1;
         }
       }
-    }
 
-    // Scope: sub-admins only see their own referrals
-    let scopeFallbackApplied = false;
-    const scopedUsers = (() => {
-      if (callerIsSuperAdmin) {
-        return allUsers;
+      scopedUsers = Array.from(userMap.values());
+    } else {
+      const relatedAdminIds = new Set<string>();
+      if (typeof callingAdmin?.id === 'string' && callingAdmin.id) {
+        relatedAdminIds.add(callingAdmin.id);
+        const inviteCodeRecord = await kv.get(`admin:invite:by-admin:${callingAdmin.id}`);
+        currentAdminInviteCode = sanitizeAdminInviteCode(inviteCodeRecord);
+        if (currentAdminInviteCode) {
+          adminOwnedCodes.add(currentAdminInviteCode);
+        }
       }
 
-      const ownedUsers = allUsers.filter((u) => u.referredByAdminId === callingAdmin.id);
-      const legacyAliasUsers = callingAdminEmail
-        ? allUsers.filter((u) => {
-            const ownerId = typeof u.referredByAdminId === 'string' ? u.referredByAdminId : '';
-            if (!ownerId || ownerId === callingAdmin.id) {
-              return false;
-            }
-            return adminEmailById.get(ownerId) === callingAdminEmail;
-          })
-        : [];
-      // Match users by ANY code ever belonging to this admin (current + superseded).
-      const inviteCodeLinkedUsers = adminOwnedCodes.size > 0
-        ? allUsers.filter((u) => adminOwnedCodes.has(String(u?.invitedByCode ?? '').trim().toUpperCase()))
-        : [];
+      const allAdminCodeRecords = await kv.getByPrefix('admin:invite:code:');
+      for (const codeRecord of allAdminCodeRecords) {
+        const codeOwnerId = String(codeRecord?.subAdminId ?? '');
+        const codeOwnerEmail = typeof codeRecord?.subAdminEmail === 'string'
+          ? codeRecord.subAdminEmail.trim().toLowerCase()
+          : '';
+        const matchesCurrentAdmin = codeOwnerId === callingAdmin?.id;
+        const matchesAdminEmail = Boolean(callingAdminEmail) && codeOwnerEmail === callingAdminEmail;
 
-      if (legacyAliasUsers.length > 0 || inviteCodeLinkedUsers.length > 0) {
+        if (!matchesCurrentAdmin && !matchesAdminEmail) {
+          continue;
+        }
+
+        const code = sanitizeAdminInviteCode(codeRecord?.code);
+        if (code) {
+          adminOwnedCodes.add(code);
+        }
+        if (codeOwnerId) {
+          relatedAdminIds.add(codeOwnerId);
+        }
+      }
+
+      const executedQueries = new Set<string>();
+      const loadUsersByField = async (field: 'referredByAdminId' | 'invitedByCode', rawValue: string | null) => {
+        if (!rawValue) {
+          return;
+        }
+
+        const value = field === 'invitedByCode' ? rawValue.trim().toUpperCase() : rawValue;
+        if (!value) {
+          return;
+        }
+
+        const queryKey = `${field}:${value}`;
+        if (executedQueries.has(queryKey)) {
+          return;
+        }
+        executedQueries.add(queryKey);
+
+        const entries = await kv.getEntriesByPrefixAndJsonFieldEquals('user:', field, value);
+        await mergeUserEntries(entries);
+      };
+
+      for (const adminId of relatedAdminIds) {
+        await loadUsersByField('referredByAdminId', adminId);
+      }
+
+      const directOwnedCount = userMap.size;
+      for (const code of adminOwnedCodes) {
+        await loadUsersByField('invitedByCode', code);
+      }
+      if (userMap.size > directOwnedCount) {
         scopeFallbackApplied = true;
       }
 
-      if (ownedUsers.length > 0 || legacyAliasUsers.length > 0 || inviteCodeLinkedUsers.length > 0) {
-        const ownedUsernameSet = new Set<string>();
-        const inviteCodeOwnerByCode = new Map<string, string>();
-        for (const user of allUsers) {
-          const usernameKey = typeof user?.username === 'string' ? user.username.toLowerCase() : '';
-          const invitationCode = String(user?.invitationCode ?? '').trim().toUpperCase();
-          if (usernameKey) {
-            if (invitationCode) {
-              inviteCodeOwnerByCode.set(invitationCode, usernameKey);
-            }
-          }
+      const processedInviteCodes = new Set<string>();
+      const pendingInviteCodes = Array.from(
+        new Set(
+          Array.from(userMap.values())
+            .map((user) => sanitizeInviteCode(user.invitationCode))
+            .filter((code): code is string => Boolean(code)),
+        ),
+      );
+
+      while (pendingInviteCodes.length > 0) {
+        const invitationCode = pendingInviteCodes.shift() ?? null;
+        if (!invitationCode || processedInviteCodes.has(invitationCode)) {
+          continue;
         }
 
-        for (const user of [...ownedUsers, ...legacyAliasUsers, ...inviteCodeLinkedUsers]) {
-          if (typeof user?.username === 'string' && user.username) {
-            ownedUsernameSet.add(user.username.toLowerCase());
-          }
-        }
-
-        // Expand ownership across referral descendants so sub-admins can see
-        // users created today through their existing invite tree.
-        let changed = true;
-        while (changed) {
-          changed = false;
-          for (const user of allUsers) {
-            const usernameKey = typeof user?.username === 'string' ? user.username.toLowerCase() : '';
-            if (!usernameKey || ownedUsernameSet.has(usernameKey)) {
-              continue;
-            }
-
-            const invitedByCode = String(user?.invitedByCode ?? '').trim().toUpperCase();
-            if (!invitedByCode) {
-              continue;
-            }
-
-            const parentUsername = inviteCodeOwnerByCode.get(invitedByCode);
-            if (parentUsername && ownedUsernameSet.has(parentUsername)) {
-              ownedUsernameSet.add(usernameKey);
-              changed = true;
-            }
-          }
-        }
-
-        const merged = allUsers.filter((user) => {
-          const usernameKey = typeof user?.username === 'string' ? user.username.toLowerCase() : '';
-          return Boolean(usernameKey) && ownedUsernameSet.has(usernameKey);
-        });
-        if (merged.length > ownedUsers.length + legacyAliasUsers.length + inviteCodeLinkedUsers.length) {
+        processedInviteCodes.add(invitationCode);
+        const beforeCount = userMap.size;
+        await loadUsersByField('invitedByCode', invitationCode);
+        if (userMap.size > beforeCount) {
           scopeFallbackApplied = true;
         }
-        return merged;
+
+        for (const user of userMap.values()) {
+          const nestedInvitationCode = sanitizeInviteCode(user.invitationCode);
+          if (nestedInvitationCode && !processedInviteCodes.has(nestedInvitationCode)) {
+            pendingInviteCodes.push(nestedInvitationCode);
+          }
+        }
       }
 
-      // Compatibility fallback for legacy ownership drift:
-      // if strict scope yields zero users, surface unassigned/orphaned users
-      // so admins don't lose visibility after admin-id rotation.
-      scopeFallbackApplied = true;
-      return allUsers.filter((u) => !u.referredByAdminId || !knownAdminIds.has(u.referredByAdminId));
-    })();
+      scopedUsers = Array.from(userMap.values());
+    }
 
     // For super-admin, try to resolve sub-admin names from Auth users
     let adminNameMap: Map<string, string> = new Map();
