@@ -3264,14 +3264,14 @@ async function syncUsersForVipLevels(levels: number[]) {
     summaryByLevel.set(summary.level, summary);
   }
 
-  const allUsers = await kv.getByPrefix('user:');
+  const allUsers = await kv.getEntriesByPrefix('user:');
   for (const rawUser of allUsers) {
-    const username = sanitizeUsername(rawUser?.username);
+    const username = getUsernameFromUserKvEntry(rawUser);
     if (!username) {
       continue;
     }
 
-    const normalizedUser = normalizeUserRecord(rawUser, username);
+    const normalizedUser = normalizeUserRecord(rawUser.value, username);
     const level = Math.max(1, Math.round(Number(normalizedUser.vipLevel ?? 1)));
     if (!targetLevels.has(level)) {
       continue;
@@ -3314,6 +3314,20 @@ async function getOrCreateUserRecord(username: string) {
   await kv.set(userKey, normalized);
   await assignUsernameLookup(canonicalUsername);
   return normalized;
+}
+
+function getUsernameFromUserKvEntry(entry: { key?: unknown; value?: any } | null | undefined): string | null {
+  const embeddedUsername = sanitizeUsername(entry?.value?.username ?? entry?.value?.userName);
+  if (embeddedUsername) {
+    return embeddedUsername;
+  }
+
+  const key = typeof entry?.key === 'string' ? entry.key : '';
+  if (!key.startsWith('user:')) {
+    return null;
+  }
+
+  return sanitizeUsername(key.slice('user:'.length));
 }
 
 async function ensureRootReferralUser() {
@@ -3623,7 +3637,7 @@ app.post("/make-server-a1c55d7e/admin/sync-all-users", async (c) => {
     }
 
     // Load all users from KV and resync with VIP config
-    const allRawUsers = await kv.getByPrefix('user:');
+    const allRawUsers = await kv.getEntriesByPrefix('user:');
     let syncedCount = 0;
     let errorCount = 0;
 
@@ -3631,13 +3645,13 @@ app.post("/make-server-a1c55d7e/admin/sync-all-users", async (c) => {
     try {
       for (const raw of allRawUsers) {
         try {
-          const rawUsername = typeof raw?.username === 'string' ? raw.username : '';
+          const rawUsername = getUsernameFromUserKvEntry(raw);
           if (!rawUsername || rawUsername === 'steadfast_root') {
             continue;
           }
 
           const canonicalUsername = (await resolveCanonicalUsername(rawUsername)) ?? rawUsername;
-          const syncedUser = await syncUserWithVipConfig(raw, canonicalUsername);
+          const syncedUser = await syncUserWithVipConfig(raw.value, canonicalUsername);
           await kv.set(`user:${canonicalUsername}`, syncedUser);
           syncedCount += 1;
         } catch (itemError) {
@@ -3949,9 +3963,13 @@ app.get('/make-server-a1c55d7e/admin/referrals/overview', async (c) => {
       return limited;
     }
 
-    const allUsers = await kv.getByPrefix('user:');
+    const allUsers = await kv.getEntriesByPrefix('user:');
     const referralUsers = allUsers
-      .map((raw) => normalizeUserRecord(raw, String(raw?.username ?? '')))
+      .map((entry) => {
+        const username = getUsernameFromUserKvEntry(entry);
+        return username ? normalizeUserRecord(entry.value, username) : null;
+      })
+      .filter((user): user is ReturnType<typeof normalizeUserRecord> => Boolean(user))
       .filter((user) => Boolean(user.username));
 
     const rows = referralUsers
@@ -5857,9 +5875,13 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
       return c.json({ error: 'Forbidden' }, 403);
     }
 
-    const allUsers = await kv.getByPrefix('user:');
+    const allUsers = await kv.getEntriesByPrefix('user:');
     const premiumOwner = allUsers
-      .map((raw) => normalizeUserRecord(raw, String(raw?.username ?? '')))
+      .map((entry) => {
+        const username = getUsernameFromUserKvEntry(entry);
+        return username ? normalizeUserRecord(entry.value, username) : null;
+      })
+      .filter((user): user is ReturnType<typeof normalizeUserRecord> => Boolean(user))
       .find((user) => {
         if (!user.username || user.username === ROOT_REFERRAL_USERNAME) {
           return false;
@@ -5968,10 +5990,14 @@ app.get('/make-server-a1c55d7e/admin/transactions', async (c) => {
 
     const callingAdmin = c.get('adminUser');
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
-    const allUsers = await kv.getByPrefix('user:');
+    const allUsers = await kv.getEntriesByPrefix('user:');
     const visibleUsernames = new Set(
       allUsers
-        .map((raw) => normalizeUserRecord(raw, String(raw?.username ?? '')))
+        .map((entry) => {
+          const username = getUsernameFromUserKvEntry(entry);
+          return username ? normalizeUserRecord(entry.value, username) : null;
+        })
+        .filter((user): user is ReturnType<typeof normalizeUserRecord> => Boolean(user))
         .filter((user) => Boolean(user.username) && user.username !== ROOT_REFERRAL_USERNAME)
         .filter((user) => callerIsSuperAdmin || user.referredByAdminId === callingAdmin?.id)
         .map((user) => user.username),
@@ -7315,10 +7341,14 @@ app.get('/make-server-a1c55d7e/admin/withdrawals', async (c) => {
 
     const callingAdmin = c.get('adminUser');
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
-    const allUsers = await kv.getByPrefix('user:');
+    const allUsers = await kv.getEntriesByPrefix('user:');
     const visibleUsernames = new Set(
       allUsers
-        .map((raw) => normalizeUserRecord(raw, String(raw?.username ?? '')))
+        .map((entry) => {
+          const username = getUsernameFromUserKvEntry(entry);
+          return username ? normalizeUserRecord(entry.value, username) : null;
+        })
+        .filter((user): user is ReturnType<typeof normalizeUserRecord> => Boolean(user))
         .filter((user) => Boolean(user.username) && user.username !== ROOT_REFERRAL_USERNAME)
         .filter((user) => callerIsSuperAdmin || user.referredByAdminId === callingAdmin?.id)
         .map((user) => user.username),
@@ -8948,17 +8978,17 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
     }
 
     // Load all KV users and normalize them for display.
-    const allRawUsers = await kv.getByPrefix('user:');
+    const allRawUsers = await kv.getEntriesByPrefix('user:');
     const userMap = new Map<string, ReturnType<typeof normalizeUserRecord>>();
 
     for (const raw of allRawUsers) {
-      const rawUsername = typeof raw?.username === 'string' ? raw.username : '';
+      const rawUsername = getUsernameFromUserKvEntry(raw);
       if (!rawUsername || rawUsername === 'steadfast_root') {
         continue;
       }
 
       const canonicalUsername = (await resolveCanonicalUsername(rawUsername)) ?? rawUsername;
-      const syncedUser = await syncUserWithVipConfig(raw, canonicalUsername);
+      const syncedUser = await syncUserWithVipConfig(raw.value, canonicalUsername);
       await kv.set(`user:${canonicalUsername}`, syncedUser);
       userMap.set(canonicalUsername.toLowerCase(), syncedUser);
     }
@@ -9506,9 +9536,9 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
       }
       candidateUsers = [canonical];
     } else {
-      const allUsers = await kv.getByPrefix('user:');
+      const allUsers = await kv.getEntriesByPrefix('user:');
       candidateUsers = allUsers
-        .map((entry) => sanitizeUsername(entry?.username))
+        .map((entry) => getUsernameFromUserKvEntry(entry))
         .filter((entry): entry is string => Boolean(entry))
         .slice(0, maxUsers);
     }
@@ -9769,9 +9799,9 @@ app.get('/make-server-a1c55d7e/admin/platform-users/discover-ghost-users', async
 
     // Get all KV platform usernames for quick lookup
     const kvUsers = new Set<string>();
-    const allRawUsers = await kv.getByPrefix('user:');
+    const allRawUsers = await kv.getEntriesByPrefix('user:');
     for (const raw of allRawUsers) {
-      const rawUsername = typeof raw?.username === 'string' ? raw.username : '';
+      const rawUsername = getUsernameFromUserKvEntry(raw);
       if (rawUsername && rawUsername !== 'steadfast_root') {
         const canon = (await resolveCanonicalUsername(rawUsername)) ?? rawUsername;
         kvUsers.add(canon.toLowerCase());

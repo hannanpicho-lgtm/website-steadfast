@@ -125,3 +125,13 @@ export const getByPrefix = async (prefix: string): Promise<any[]> => {
   }
   return data?.map((d) => d.value) ?? [];
 };
+
+// Search for key-value pairs by prefix and preserve the matched keys.
+export const getEntriesByPrefix = async (prefix: string): Promise<Array<{ key: string; value: any }>> => {
+  const supabase = client()
+  const { data, error } = await supabase.from("kv_store_a1c55d7e").select("key, value").like("key", prefix + "%");
+  if (error) {
+    throw new Error(error.message);
+  }
+  return data ?? [];
+};
