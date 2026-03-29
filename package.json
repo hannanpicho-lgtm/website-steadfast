@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "backup:project": "node scripts/backup-project.mjs",
+    "backup:storage-report": "node scripts/backup-storage-report.mjs",
     "build": "vite build",
     "dev": "vite",
     "preview": "vite preview",
