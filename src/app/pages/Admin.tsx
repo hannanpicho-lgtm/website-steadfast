@@ -324,6 +324,11 @@ type UserBalanceAdjustmentDraft = {
   bonusAssignmentMode: 'automatic' | 'semi-automatic' | 'manual';
 };
 
+type UserVipLevelDraft = {
+  vipLevel: string;
+  reason: string;
+};
+
 type TransactionRecord = {
   id: string;
   username: string;
