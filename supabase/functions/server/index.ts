@@ -2632,7 +2632,6 @@ function normalizeUserRecord(userData: any, username: string) {
     : null;
   
   // Reset todayCommission if a new day has started
-  const today = new Date().toISOString().split('T')[0];
   const today = getCommissionDateKey();
   const lastResetDate = typeof normalized.lastCommissionResetDate === 'string' ? normalized.lastCommissionResetDate : '';
   if (lastResetDate !== today) {
