@@ -1530,6 +1530,7 @@ function sanitizeAdminPlatformSettings(value: unknown) {
     platformHoursEnabled: false,
     platformHoursStart: 9,
     platformHoursEnd: 22,
+    defaultTaskSetCount: 2,
     savedAt: new Date().toISOString(),
   };
 
@@ -1566,6 +1567,7 @@ function sanitizeAdminPlatformSettings(value: unknown) {
     platformHoursEnabled: source.platformHoursEnabled === true,
     platformHoursStart: Number.isInteger(Number(source.platformHoursStart)) ? Math.min(23, Math.max(0, Math.round(Number(source.platformHoursStart)))) : defaults.platformHoursStart,
     platformHoursEnd: Number.isInteger(Number(source.platformHoursEnd)) ? Math.min(24, Math.max(1, Math.round(Number(source.platformHoursEnd)))) : defaults.platformHoursEnd,
+    defaultTaskSetCount: Number.isFinite(Number(source.defaultTaskSetCount)) ? Math.min(10, Math.max(1, Math.round(Number(source.defaultTaskSetCount)))) : 2,
     savedAt: typeof source.savedAt === 'string' && source.savedAt ? source.savedAt : new Date().toISOString(),
   };
 }
@@ -2631,7 +2633,7 @@ function normalizeUserRecord(userData: any, username: string) {
     : null;
   normalized.taskSetCount = Number.isFinite(Number(normalized.taskSetCount))
     ? Math.max(1, Math.round(Number(normalized.taskSetCount)))
-    : defaultRewardsConfig.productSystem.maxSetsPerDay;
+    : 2;
   normalized.tasksPerSet = Number.isFinite(Number(normalized.tasksPerSet))
     ? Math.max(1, Math.round(Number(normalized.tasksPerSet)))
     : defaultRewardsConfig.productSystem.productsPerSet;
@@ -2872,7 +2874,8 @@ async function syncUserWithVipConfig(userData: any, username: string) {
 
   // VIP chart is the primary source of truth for required products/tasks per user.
   // New users default to two sets, while admin overrides remain authoritative.
-  const defaultVipTaskSetCount = 2;
+  const platformSettings = sanitizeAdminPlatformSettings(await kv.get(ADMIN_PLATFORM_SETTINGS_KEY));
+  const defaultVipTaskSetCount = platformSettings.defaultTaskSetCount ?? 2;
   const vipTaskBaselineByLevel: Record<number, number> = {
     1: 40,
     2: 45,

@@ -22,6 +22,7 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
   const [platformHoursEnabled, setPlatformHoursEnabled] = useState(false);
   const [platformHoursStart, setPlatformHoursStart] = useState('9');
   const [platformHoursEnd, setPlatformHoursEnd] = useState('22');
+  const [defaultTaskSetCount, setDefaultTaskSetCount] = useState('2');
   const [isHydrating, setIsHydrating] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -37,6 +38,7 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
     setPlatformHoursEnabled(settings.platformHoursEnabled ?? false);
     setPlatformHoursStart(String(settings.platformHoursStart ?? 9));
     setPlatformHoursEnd(String(settings.platformHoursEnd ?? 22));
+    setDefaultTaskSetCount(String(settings.defaultTaskSetCount ?? 2));
   };
 
   useEffect(() => {
@@ -82,6 +84,7 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
     const refresh = parseInt(taskRefreshHours, 10);
     const pStart = parseInt(platformHoursStart, 10);
     const pEnd = parseInt(platformHoursEnd, 10);
+    const sets = parseInt(defaultTaskSetCount, 10);
 
     if (isNaN(minW) || minW < 1) { toast.error('Minimum withdrawal must be at least $1.'); return; }
     if (isNaN(maxW) || maxW <= minW) { toast.error('Maximum withdrawal must be greater than minimum.'); return; }
@@ -93,6 +96,7 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
       if (isNaN(pEnd) || pEnd < 1 || pEnd > 24) { toast.error('Working hours end must be between 1 and 24.'); return; }
       if (pEnd <= pStart) { toast.error('Working hours end must be after start.'); return; }
     }
+    if (isNaN(sets) || sets < 1 || sets > 10) { toast.error('Default task sets must be between 1 and 10.'); return; }
 
     setSaving(true);
     try {
@@ -108,6 +112,7 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
         platformHoursEnabled,
         platformHoursStart: platformHoursEnabled ? pStart : 9,
         platformHoursEnd: platformHoursEnabled ? pEnd : 22,
+        defaultTaskSetCount: sets,
         savedAt: new Date().toISOString(),
       };
       await saveAdminPlatformSettingsToServer(settings);
@@ -299,6 +304,24 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
               ⚠️ Working hours ON — users can only submit tasks and access CS from {platformHoursStart}:00 to {platformHoursEnd}:00 EST. Disable to open access for updates/testing.
             </p>
           )}
+        </div>
+
+        {/* Default Task Sets */}
+        <div className="bg-[#252b3d] rounded-lg p-6">
+          <h3 className="text-white font-semibold text-lg mb-1">Default Task Sets Per User</h3>
+          <p className="text-gray-400 text-sm mb-4">Number of task sets automatically assigned to every newly created user account. All existing users are re-synced to this value on their next login or VIP sync.</p>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Task Sets (1–10)</label>
+            <input
+              type="number"
+              value={defaultTaskSetCount}
+              min={1}
+              max={10}
+              onChange={(e) => setDefaultTaskSetCount(e.target.value)}
+              className="w-full max-w-xs px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+            />
+            <p className="text-gray-500 text-xs mt-1">Default: 2 — each user completes this many full task sets per day.</p>
+          </div>
         </div>
 
         <button
