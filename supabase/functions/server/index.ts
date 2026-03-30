@@ -8969,21 +8969,43 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
       ? callingAdmin.email.trim().toLowerCase()
       : '';
     const userMap = new Map<string, ReturnType<typeof normalizeUserRecord>>();
-    const mergeUserEntries = async (entries: Array<{ key: string; value: any }>) => {
+    const mergeUserEntries = async (
+      entries: Array<{ key: string; value: any }>,
+      options: {
+        resolveCanonical?: boolean;
+        syncWithVip?: boolean;
+        persistSyncedUser?: boolean;
+      } = {},
+    ) => {
+      const {
+        resolveCanonical = true,
+        syncWithVip = true,
+        persistSyncedUser = true,
+      } = options;
       for (const entry of entries) {
         const rawUsername = getUsernameFromUserKvEntry(entry);
         if (!rawUsername || rawUsername === 'steadfast_root') {
           continue;
         }
 
-        const canonicalUsername = (await resolveCanonicalUsername(rawUsername)) ?? rawUsername;
-        if (userMap.has(canonicalUsername.toLowerCase())) {
-          continue;
-        }
+        try {
+          const canonicalUsername = resolveCanonical
+            ? ((await resolveCanonicalUsername(rawUsername)) ?? rawUsername)
+            : rawUsername;
+          if (userMap.has(canonicalUsername.toLowerCase())) {
+            continue;
+          }
 
-        const syncedUser = await syncUserWithVipConfig(entry.value, canonicalUsername);
-        await kv.set(`user:${canonicalUsername}`, syncedUser);
-        userMap.set(canonicalUsername.toLowerCase(), syncedUser);
+          const normalizedUser = syncWithVip
+            ? await syncUserWithVipConfig(entry.value, canonicalUsername)
+            : normalizeUserRecord(entry.value, canonicalUsername);
+          if (syncWithVip && persistSyncedUser) {
+            await kv.set(`user:${canonicalUsername}`, normalizedUser);
+          }
+          userMap.set(canonicalUsername.toLowerCase(), normalizedUser);
+        } catch (entryError) {
+          console.error('admin/platform-users merge entry failed:', rawUsername, entryError);
+        }
       }
     };
 
@@ -8993,7 +9015,15 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
     let scopedUsers: ReturnType<typeof normalizeUserRecord>[] = [];
 
     if (callerIsSuperAdmin) {
-      await mergeUserEntries(await kv.getEntriesByPrefix('user:'));
+      try {
+        await mergeUserEntries(await kv.getEntriesByPrefix('user:'), {
+          resolveCanonical: false,
+          syncWithVip: false,
+          persistSyncedUser: false,
+        });
+      } catch (scanError) {
+        console.error('admin/platform-users super-admin kv scan failed:', scanError);
+      }
 
       if (authClient) {
         let page = 1;
