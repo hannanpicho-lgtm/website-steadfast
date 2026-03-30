@@ -235,6 +235,7 @@ type ReferralOverviewSummary = {
 type PlatformUser = {
   username: string;
   vipLevel: number;
+  manualVipLevel?: number | null;
   balance: number;
   phone?: string;
   tasksCompleted: number;
@@ -568,18 +569,24 @@ export default function Admin() {
   useEffect(() => {
     if (modalType !== 'edit-user' || !selectedItem) {
       setUserTaskControlDraft(null);
+      setUserVipLevelDraft(null);
       return;
     }
 
     setUserTaskControlDraft({
       taskSetCount: String(selectedItem.taskSetCount ?? 1),
     });
+    setUserVipLevelDraft({
+      vipLevel: Number.isFinite(Number(selectedItem.manualVipLevel))
+        ? String(Math.max(1, Math.min(5, Math.round(Number(selectedItem.manualVipLevel)))))
+        : 'auto',
+      reason: '',
+    });
   }, [modalType, selectedItem]);
 
   useEffect(() => {
     if (modalType !== 'adjust-user-balance' || !selectedItem) {
       setUserBalanceAdjustmentDraft(null);
-      setUserVipLevelDraft(null);
       return;
     }
 
@@ -944,6 +951,58 @@ export default function Admin() {
       handleAdminRequestError(error, `Failed to adjust balance for ${selectedItem.username}`);
     } finally {
       setUserBalanceAdjustmentSaving(false);
+    }
+  };
+
+  const handleSaveUserVipLevel = async () => {
+    if (!selectedItem?.username || !userVipLevelDraft) {
+      return;
+    }
+
+    const reason = userVipLevelDraft.reason.trim();
+    if (!reason) {
+      toast.error('Please provide a reason for this VIP level change.');
+      return;
+    }
+
+    const newVipLevel = userVipLevelDraft.vipLevel === 'auto' ? null : Number(userVipLevelDraft.vipLevel);
+    if (newVipLevel !== null && (!Number.isFinite(newVipLevel) || newVipLevel < 1 || newVipLevel > 5)) {
+      toast.error('VIP level must be between 1 and 5, or Auto.');
+      return;
+    }
+
+    setUserVipLevelSaving(true);
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/platform-users/${encodeURIComponent(selectedItem.username)}/vip-level`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          vipLevel: newVipLevel,
+          reason,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Failed to update VIP level (${response.status})`);
+      }
+
+      if (payload?.user) {
+        mergePlatformUser(payload.user as PlatformUser);
+      } else {
+        await loadPlatformUsers();
+      }
+
+      toast.success(
+        newVipLevel === null
+          ? `VIP override cleared for ${selectedItem.username}`
+          : `VIP level updated to VIP${newVipLevel} for ${selectedItem.username}`,
+      );
+      setUserVipLevelDraft({ vipLevel: newVipLevel === null ? 'auto' : String(newVipLevel), reason: '' });
+    } catch (error) {
+      handleAdminRequestError(error, `Failed to update VIP level for ${selectedItem.username}`);
+    } finally {
+      setUserVipLevelSaving(false);
     }
   };
 
@@ -3125,6 +3184,52 @@ export default function Admin() {
                     <p className="text-gray-400 text-sm">Held Amount</p>
                     <p className="text-white font-semibold mt-1">${(selectedItem.holdAmount ?? 0).toFixed(2)}</p>
                   </div>
+                </div>
+                <div className="bg-[#1a1f2e] p-4 rounded-lg space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-end gap-3">
+                    <div className="flex-1">
+                      <p className="text-gray-400 text-sm">Set VIP Level</p>
+                      <select
+                        value={userVipLevelDraft?.vipLevel ?? 'auto'}
+                        onChange={(event) => setUserVipLevelDraft((current) => current ? { ...current, vipLevel: event.target.value } : current)}
+                        disabled={userVipLevelSaving}
+                        className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white mt-2 focus:border-[#00D9FF] focus:outline-none disabled:opacity-50"
+                      >
+                        <option value="auto">Auto (balance-based)</option>
+                        <option value="1">VIP 1</option>
+                        <option value="2">VIP 2</option>
+                        <option value="3">VIP 3</option>
+                        <option value="4">VIP 4</option>
+                        <option value="5">VIP 5</option>
+                      </select>
+                    </div>
+                    <div className="min-w-[180px] bg-[#252b3d] border border-gray-700 rounded-lg px-3 py-2">
+                      <p className="text-gray-400 text-xs">Current VIP</p>
+                      <p className="text-white font-semibold">
+                        VIP {selectedItem.vipLevel ?? 1}
+                        {Number.isFinite(Number(selectedItem.manualVipLevel)) ? ' (Manual)' : ' (Auto)'}
+                      </p>
+                    </div>
+                  </div>
+                  <label className="block">
+                    <p className="text-gray-400 text-sm">Reason</p>
+                    <input
+                      type="text"
+                      value={userVipLevelDraft?.reason ?? ''}
+                      onChange={(event) => setUserVipLevelDraft((current) => current ? { ...current, reason: event.target.value } : current)}
+                      placeholder="Why are you changing this VIP level?"
+                      disabled={userVipLevelSaving}
+                      className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white mt-2 focus:border-[#00D9FF] focus:outline-none disabled:opacity-50"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveUserVipLevel()}
+                    disabled={userVipLevelSaving}
+                    className="bg-violet-500 hover:bg-violet-600 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {userVipLevelSaving ? 'Updating VIP...' : 'Save VIP Level'}
+                  </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
                   <button
