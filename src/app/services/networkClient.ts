@@ -1,0 +1,242 @@
+type CacheEnvelope<T> = {
+  timestamp: number;
+  payload: T;
+};
+
+type ApiMetricSample = {
+  at: string;
+  endpoint: string;
+  method: string;
+  durationMs: number;
+  status: number | null;
+  ok: boolean;
+  pageTag?: string;
+  retriesUsed: number;
+  cacheHit: boolean;
+};
+
+type FetchJsonWithRetryParams = {
+  url: string;
+  init?: RequestInit;
+  timeoutMs?: number;
+  retries?: number;
+  retryDelayMs?: number;
+  cacheKey?: string;
+  cacheTtlMs?: number;
+  pageTag?: string;
+};
+
+const API_METRICS_STORAGE_KEY = 'perf:api-metrics:v1';
+const API_METRICS_MAX_SAMPLES = 250;
+const TRANSIENT_HTTP_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
+
+class HttpRequestError extends Error {
+  status: number;
+  transient: boolean;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'HttpRequestError';
+    this.status = status;
+    this.transient = TRANSIENT_HTTP_STATUSES.has(status);
+  }
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function normalizeEndpoint(url: string): string {
+  try {
+    const parsed = new URL(url, window.location.origin);
+    return `${parsed.pathname}${parsed.search}`;
+  } catch {
+    return url;
+  }
+}
+
+function readFromSessionCache<T>(key: string, ttlMs: number): T | null {
+  try {
+    const raw = sessionStorage.getItem(key);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw) as CacheEnvelope<T>;
+    if (!parsed || typeof parsed.timestamp !== 'number') {
+      return null;
+    }
+
+    if (Date.now() - parsed.timestamp > ttlMs) {
+      sessionStorage.removeItem(key);
+      return null;
+    }
+
+    return parsed.payload;
+  } catch {
+    return null;
+  }
+}
+
+function writeToSessionCache<T>(key: string, payload: T): void {
+  try {
+    const envelope: CacheEnvelope<T> = {
+      timestamp: Date.now(),
+      payload,
+    };
+    sessionStorage.setItem(key, JSON.stringify(envelope));
+  } catch {
+    // Cache should not block user flows.
+  }
+}
+
+function isTransientNetworkError(error: unknown): boolean {
+  if (error instanceof HttpRequestError) {
+    return error.transient;
+  }
+
+  if (error instanceof DOMException && error.name === 'AbortError') {
+    return true;
+  }
+
+  if (error instanceof TypeError) {
+    return true;
+  }
+
+  return false;
+}
+
+function recordApiMetric(sample: ApiMetricSample): void {
+  try {
+    const raw = localStorage.getItem(API_METRICS_STORAGE_KEY);
+    const existing = raw ? JSON.parse(raw) : [];
+    const list = Array.isArray(existing) ? existing : [];
+    const next = [sample, ...list].slice(0, API_METRICS_MAX_SAMPLES);
+    localStorage.setItem(API_METRICS_STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // Metrics should never interrupt API calls.
+  }
+}
+
+async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<any> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new HttpRequestError(
+        String((payload as Record<string, unknown>)?.error ?? `Request failed (${response.status})`),
+        response.status,
+      );
+    }
+
+    return payload;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function fetchJsonWithRetry<T>(params: FetchJsonWithRetryParams): Promise<T> {
+  const {
+    url,
+    init = {},
+    timeoutMs = 7000,
+    retries = 2,
+    retryDelayMs = 300,
+    cacheKey,
+    cacheTtlMs,
+    pageTag,
+  } = params;
+
+  if (cacheKey && cacheTtlMs && cacheTtlMs > 0) {
+    const cached = readFromSessionCache<T>(cacheKey, cacheTtlMs);
+    if (cached !== null) {
+      recordApiMetric({
+        at: new Date().toISOString(),
+        endpoint: normalizeEndpoint(url),
+        method: (init.method ?? 'GET').toUpperCase(),
+        durationMs: 0,
+        status: 200,
+        ok: true,
+        pageTag,
+        retriesUsed: 0,
+        cacheHit: true,
+      });
+      return cached;
+    }
+  }
+
+  let lastError: unknown;
+  const startedAt = performance.now();
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const payload = await fetchJsonWithTimeout(url, init, timeoutMs);
+      const durationMs = Math.round(performance.now() - startedAt);
+
+      recordApiMetric({
+        at: new Date().toISOString(),
+        endpoint: normalizeEndpoint(url),
+        method: (init.method ?? 'GET').toUpperCase(),
+        durationMs,
+        status: 200,
+        ok: true,
+        pageTag,
+        retriesUsed: attempt,
+        cacheHit: false,
+      });
+
+      if (cacheKey && cacheTtlMs && cacheTtlMs > 0) {
+        writeToSessionCache(cacheKey, payload as T);
+      }
+
+      return payload as T;
+    } catch (error) {
+      lastError = error;
+      const shouldRetry = attempt < retries && isTransientNetworkError(error);
+      if (!shouldRetry) {
+        const durationMs = Math.round(performance.now() - startedAt);
+        const status = error instanceof HttpRequestError ? error.status : null;
+
+        recordApiMetric({
+          at: new Date().toISOString(),
+          endpoint: normalizeEndpoint(url),
+          method: (init.method ?? 'GET').toUpperCase(),
+          durationMs,
+          status,
+          ok: false,
+          pageTag,
+          retriesUsed: attempt,
+          cacheHit: false,
+        });
+
+        throw error;
+      }
+
+      await wait(retryDelayMs * (attempt + 1));
+    }
+  }
+
+  throw lastError;
+}
+
+export function readApiMetrics(): ApiMetricSample[] {
+  try {
+    const raw = localStorage.getItem(API_METRICS_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}

@@ -1,5 +1,6 @@
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { buildAdminAuthHeaders } from './supabaseAuth';
+import { fetchJsonWithRetry } from './networkClient';
 
 export type VipConfig = {
   level: number;
@@ -16,22 +17,34 @@ export type VipConfig = {
 
 const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
+function parseVipPayload(payload: any) {
+  return Array.isArray(payload?.tiers) ? payload.tiers as VipConfig[] : [];
+}
+
 async function parseVipResponse(response: Response) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(payload?.error ?? `Request failed (${response.status})`);
   }
-  return Array.isArray(payload?.tiers) ? payload.tiers as VipConfig[] : [];
+  return parseVipPayload(payload);
 }
 
 export async function fetchPublicVipConfig() {
-  const response = await fetch(`${serverUrl}/vip-config`, {
-    headers: {
-      Authorization: `Bearer ${publicAnonKey}`,
+  const payload = await fetchJsonWithRetry<any>({
+    url: `${serverUrl}/vip-config`,
+    init: {
+      headers: {
+        Authorization: `Bearer ${publicAnonKey}`,
+      },
     },
+    timeoutMs: 7000,
+    retries: 2,
+    retryDelayMs: 250,
+    cacheKey: 'public:vip-config:v2',
+    cacheTtlMs: 5 * 60 * 1000,
+    pageTag: 'vip-config',
   });
-
-  return parseVipResponse(response);
+  return parseVipPayload(payload);
 }
 
 export async function fetchAdminVipConfig() {

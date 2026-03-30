@@ -9,6 +9,7 @@ import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
+import { fetchJsonWithRetry } from '../services/networkClient';
 
 interface UserData {
   username: string;
@@ -103,6 +104,12 @@ type PendingPremiumRecordItem = {
 
 type RecordListItem = CompletedRecordItem | PendingPremiumRecordItem;
 
+const RECORDS_REQUEST_TIMEOUT_MS = 7000;
+const RECORDS_USER_CACHE_TTL_MS = 45 * 1000;
+const RECORDS_TASKS_CACHE_TTL_MS = 45 * 1000;
+const RECORDS_TX_CACHE_TTL_MS = 45 * 1000;
+const RECORDS_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
+
 export default function Records() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'completed'>('all');
@@ -112,12 +119,18 @@ export default function Records() {
   const [taskCatalog, setTaskCatalog] = useState<TaskCatalogItem[]>([]);
   const [vipConfigurations, setVipConfigurations] = useState<VipConfig[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
 
   const sessionUsername = getCurrentUsername();
   const username = sessionUsername;
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const hasRenderableData = Boolean(userData)
+    || taskRecords.length > 0
+    || transactions.length > 0
+    || taskCatalog.length > 0;
 
   useEffect(() => {
     if (!sessionUsername) {
@@ -134,56 +147,80 @@ export default function Records() {
   }, [location.pathname, navigate, sessionUsername]);
 
   const fetchUser = async () => {
-    const userResponse = await fetch(`${serverUrl}/me/financials`, {
-      credentials: 'include',
-      headers: {
-        'Authorization': `Bearer ${publicAnonKey}`,
+    return fetchJsonWithRetry<UserData>({
+      url: `${serverUrl}/me/financials`,
+      init: {
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`,
+          apikey: publicAnonKey,
+        },
       },
+      timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
+      retries: 2,
+      retryDelayMs: 250,
+      cacheKey: `records:${username}:financials:v2`,
+      cacheTtlMs: RECORDS_USER_CACHE_TTL_MS,
+      pageTag: 'records',
     });
-    if (!userResponse.ok) {
-      throw new Error('Failed to fetch user data');
-    }
-    return userResponse.json();
   };
 
   const fetchTasks = async () => {
-    const tasksResponse = await fetch(`${serverUrl}/me/tasks`, {
-      credentials: 'include',
-      headers: {
-        'Authorization': `Bearer ${publicAnonKey}`,
+    const data = await fetchJsonWithRetry<any>({
+      url: `${serverUrl}/me/tasks`,
+      init: {
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`,
+          apikey: publicAnonKey,
+        },
       },
+      timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
+      retries: 2,
+      retryDelayMs: 250,
+      cacheKey: `records:${username}:tasks:v2`,
+      cacheTtlMs: RECORDS_TASKS_CACHE_TTL_MS,
+      pageTag: 'records',
     });
-    if (!tasksResponse.ok) {
-      throw new Error('Failed to fetch tasks');
-    }
-    const data = await tasksResponse.json();
     // Handle both old array format and new paginated {tasks, total, returned} format
     return Array.isArray(data) ? data : (Array.isArray(data?.tasks) ? data.tasks : []);
   };
 
   const fetchTransactions = async () => {
-    const transactionsResponse = await fetch(`${serverUrl}/me/transactions`, {
-      credentials: 'include',
-      headers: {
-        'Authorization': `Bearer ${publicAnonKey}`,
+    return fetchJsonWithRetry<TransactionRecord[]>({
+      url: `${serverUrl}/me/transactions`,
+      init: {
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`,
+          apikey: publicAnonKey,
+        },
       },
+      timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
+      retries: 2,
+      retryDelayMs: 250,
+      cacheKey: `records:${username}:transactions:v2`,
+      cacheTtlMs: RECORDS_TX_CACHE_TTL_MS,
+      pageTag: 'records',
     });
-    if (!transactionsResponse.ok) {
-      throw new Error('Failed to fetch transactions');
-    }
-    return transactionsResponse.json();
   };
 
   const fetchTaskCatalog = async () => {
-    const catalogResponse = await fetch(`${serverUrl}/tasks/catalog`, {
-      headers: {
-        'Authorization': `Bearer ${publicAnonKey}`,
+    return fetchJsonWithRetry<any>({
+      url: `${serverUrl}/tasks/catalog`,
+      init: {
+        headers: {
+          'Authorization': `Bearer ${publicAnonKey}`,
+          apikey: publicAnonKey,
+        },
       },
+      timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
+      retries: 2,
+      retryDelayMs: 250,
+      cacheKey: 'records:task-catalog:v2',
+      cacheTtlMs: RECORDS_CATALOG_CACHE_TTL_MS,
+      pageTag: 'records',
     });
-    if (!catalogResponse.ok) {
-      throw new Error('Failed to fetch task catalog');
-    }
-    return catalogResponse.json();
   };
 
   const fetchData = async () => {
@@ -191,26 +228,80 @@ export default function Records() {
       return;
     }
 
+    const shouldBlockRender = !hasRenderableData;
+
     try {
-      setLoading(true);
-      const [user, tasks, transactionHistory, catalog, vipConfig] = await Promise.all([
+      setLoadError(null);
+      if (shouldBlockRender) {
+        setLoading(true);
+      } else {
+        setIsRefreshing(true);
+      }
+
+      const [userResult, tasksResult, transactionResult, catalogResult] = await Promise.allSettled([
         fetchUser(),
         fetchTasks(),
         fetchTransactions(),
         fetchTaskCatalog(),
-        fetchPublicVipConfig(),
       ]);
 
-      setUserData(user);
-      setTaskRecords(tasks);
-      setTransactions(Array.isArray(transactionHistory) ? transactionHistory : []);
-      setTaskCatalog(Array.isArray(catalog?.tasks) ? catalog.tasks : []);
-      setVipConfigurations(vipConfig);
+      const failures: string[] = [];
+
+      if (userResult.status === 'fulfilled') {
+        setUserData(userResult.value);
+      } else {
+        failures.push('account summary');
+      }
+
+      if (tasksResult.status === 'fulfilled') {
+        setTaskRecords(Array.isArray(tasksResult.value) ? tasksResult.value : []);
+      } else {
+        failures.push('task records');
+      }
+
+      if (transactionResult.status === 'fulfilled') {
+        setTransactions(Array.isArray(transactionResult.value) ? transactionResult.value : []);
+      } else {
+        failures.push('transaction history');
+      }
+
+      if (catalogResult.status === 'fulfilled') {
+        setTaskCatalog(Array.isArray(catalogResult.value?.tasks) ? catalogResult.value.tasks : []);
+      } else {
+        failures.push('task catalog');
+      }
+
+      const resolvedUser = userResult.status === 'fulfilled' ? userResult.value : userData;
+      if (resolvedUser?.activePremium) {
+        try {
+          const vipConfig = await fetchPublicVipConfig();
+          setVipConfigurations(Array.isArray(vipConfig) ? vipConfig : []);
+        } catch {
+          failures.push('VIP config');
+        }
+      } else {
+        setVipConfigurations([]);
+      }
+
+      if (failures.length > 0) {
+        const errorSummary = `Some data could not be refreshed: ${failures.join(', ')}.`;
+        setLoadError(errorSummary);
+
+        if (shouldBlockRender) {
+          toast.error('Network instability detected. Retrying may help.');
+        } else {
+          toast.warning(errorSummary);
+        }
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
-      toast.error('Failed to load your records. Please refresh and try again.');
+      setLoadError('Failed to refresh records due to network instability.');
+      if (shouldBlockRender) {
+        toast.error('Failed to load your records. Please refresh and try again.');
+      }
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -327,6 +418,18 @@ export default function Records() {
           <div className="w-9" aria-hidden="true"></div>
         </div>
 
+        {isRefreshing && (
+          <div className="mb-4 rounded-lg border border-[#a8d7f5] bg-[#eef8ff] px-3 py-2 text-sm text-[#0b5f8b]">
+            Refreshing latest records in the background...
+          </div>
+        )}
+
+        {loadError && (
+          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {loadError}
+          </div>
+        )}
+
         {/* Tabs */}
         <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
           <button
@@ -363,7 +466,7 @@ export default function Records() {
 
         {/* Records List */}
         <div className="space-y-4">
-          {loading ? (
+          {loading && filteredProducts.length === 0 ? (
             <div className="bg-gray-50 rounded-lg p-12 text-center">
               <Loader2 className="w-16 h-16 mx-auto mb-4 animate-spin text-[#0066b3]" />
               <p className="text-xl font-bold text-gray-600 mb-2">Loading...</p>
@@ -537,7 +640,7 @@ export default function Records() {
           </div>
 
           <div className="space-y-3">
-            {loading ? (
+            {loading && transactions.length === 0 ? (
               <div className="bg-gray-50 rounded-lg p-6 text-center text-gray-500">Loading transaction history...</div>
             ) : transactions.length === 0 ? (
               <div className="bg-gray-50 rounded-lg p-6 text-center text-gray-500">No financial activity recorded yet.</div>

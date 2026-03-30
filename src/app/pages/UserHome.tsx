@@ -179,7 +179,7 @@ export default function UserHome() {
                 muted
                 loop
                 playsInline
-                preload="auto"
+                preload="metadata"
                 className="absolute inset-0 h-full w-full object-cover"
                 style={{ filter: 'contrast(1.15) saturate(1.15) brightness(1.05)', transform: 'translateZ(0)', willChange: 'transform' }}
                 aria-label="Steadfast Digital background video"

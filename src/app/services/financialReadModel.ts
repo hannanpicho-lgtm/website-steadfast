@@ -1,4 +1,5 @@
 import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { fetchJsonWithRetry } from './networkClient';
 
 const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 const FINANCIAL_FETCH_TIMEOUT_MS = 6000;
@@ -41,26 +42,20 @@ export type FinancialSummaryResponse = {
 };
 
 export async function fetchFinancialSummary(): Promise<FinancialSummaryResponse> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FINANCIAL_FETCH_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(`${SERVER_URL}/me/financials`, {
+  return fetchJsonWithRetry<FinancialSummaryResponse>({
+    url: `${SERVER_URL}/me/financials`,
+    init: {
       credentials: 'include',
       headers: {
         Authorization: `Bearer ${publicAnonKey}`,
         apikey: publicAnonKey,
       },
-      signal: controller.signal,
-    });
-
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(String((payload as Record<string, unknown>)?.error ?? 'Failed to fetch financial summary'));
-    }
-
-    return payload as FinancialSummaryResponse;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+    },
+    timeoutMs: FINANCIAL_FETCH_TIMEOUT_MS,
+    retries: 2,
+    retryDelayMs: 250,
+    cacheKey: 'me:financial-summary:v2',
+    cacheTtlMs: 45_000,
+    pageTag: 'financial-summary',
+  });
 }

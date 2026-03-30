@@ -1,5 +1,6 @@
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { buildAdminAuthHeaders } from './supabaseAuth';
+import { fetchJsonWithRetry } from './networkClient';
 
 export type WorkdayReward = {
   id: number;
@@ -176,6 +177,11 @@ async function parseRewardsResponse(response: Response): Promise<RewardsConfig> 
     throw new Error(payload?.error ?? `Request failed (${response.status})`);
   }
 
+  return parseRewardsPayload(payload);
+}
+
+function parseRewardsPayload(payload: any): RewardsConfig {
+
   const config = payload?.config as RewardsConfig | undefined;
   if (!config || !Array.isArray(config.workday) || !Array.isArray(config.reset) || !Array.isArray(config.accumulated) || !config.productSystem) {
     return defaultRewardsConfig;
@@ -192,13 +198,21 @@ async function parseRewardsResponse(response: Response): Promise<RewardsConfig> 
 }
 
 export async function fetchPublicRewardsConfig() {
-  const response = await fetch(`${serverUrl}/rewards-config`, {
-    headers: {
-      Authorization: `Bearer ${publicAnonKey}`,
+  const payload = await fetchJsonWithRetry<any>({
+    url: `${serverUrl}/rewards-config`,
+    init: {
+      headers: {
+        Authorization: `Bearer ${publicAnonKey}`,
+      },
     },
+    timeoutMs: 7000,
+    retries: 2,
+    retryDelayMs: 250,
+    cacheKey: 'public:rewards-config:v2',
+    cacheTtlMs: 5 * 60 * 1000,
+    pageTag: 'rewards-config',
   });
-
-  return parseRewardsResponse(response);
+  return parseRewardsPayload(payload);
 }
 
 export async function fetchAdminRewardsConfig() {
