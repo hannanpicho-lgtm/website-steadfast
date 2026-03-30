@@ -1191,6 +1191,55 @@ type CryptoWalletProfile = {
 
 type WalletProfile = BankingWalletProfile | CryptoWalletProfile;
 
+function getWalletProfileDestination(profile: WalletProfile | null): string {
+  if (!profile) {
+    return '';
+  }
+
+  return profile.type === 'crypto'
+    ? profile.walletAddress
+    : profile.accountNumber;
+}
+
+function formatWalletAssetLabel(walletType: string): string {
+  const normalized = sanitizeFinanceMethod(walletType, 'crypto').trim().toLowerCase();
+  switch (normalized) {
+    case 'bitcoin':
+      return 'BTC';
+    case 'ethereum':
+      return 'ETH';
+    case 'usdt':
+      return 'USDT';
+    default:
+      return normalized ? normalized.toUpperCase() : 'CRYPTO';
+  }
+}
+
+function resolveWithdrawalMethodDetails(profile: WalletProfile | null, requestedMethod: string) {
+  if (!profile) {
+    return {
+      method: sanitizeFinanceMethod(requestedMethod, 'USDT'),
+      network: '',
+    };
+  }
+
+  if (profile.type === 'crypto') {
+    return {
+      method: formatWalletAssetLabel(profile.walletType),
+      network: sanitizeFinanceMethod(profile.network, 'mainnet'),
+    };
+  }
+
+  return {
+    method: sanitizeFinanceMethod(profile.bankName, 'BANK'),
+    network: sanitizeFinanceMethod(profile.country, ''),
+  };
+}
+
+function walletDestinationsMatch(left: string, right: string) {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
 function normalizeWalletType(value: unknown): 'banking' | 'crypto' | null {
   if (typeof value !== 'string') {
     return null;
@@ -2396,6 +2445,7 @@ function normalizeWithdrawalRecord(record: any) {
     status: normalizeWithdrawalStatus(record?.status),
     requestedDate,
     method: sanitizeFinanceMethod(record?.method, 'USDT'),
+    network: typeof record?.network === 'string' ? sanitizeFinanceMethod(record.network, '') : '',
     transactionId: typeof record?.transactionId === 'string' && record.transactionId ? record.transactionId : '',
     reviewedAt: typeof record?.reviewedAt === 'string' && record.reviewedAt ? record.reviewedAt : null,
     txHash: typeof record?.txHash === 'string' && record.txHash ? record.txHash : '',
@@ -5486,7 +5536,7 @@ app.get('/make-server-a1c55d7e/me/withdrawals', async (c) => {
 
 async function submitWithdrawalRequest(c: any, username: string, body: any) {
   const walletAddress = sanitizeWalletAddress(body?.walletAddress);
-  const method = sanitizeFinanceMethod(body?.method, 'USDT');
+  const requestedMethod = sanitizeFinanceMethod(body?.method, 'USDT');
   const amount = roundMoney(Number(body?.amount ?? 0));
   const transactionPassword = typeof body?.transactionPassword === 'string' ? body.transactionPassword : '';
   const idempotencyKey = resolveRequestIdempotencyKey(c, body);
@@ -5509,6 +5559,16 @@ async function submitWithdrawalRequest(c: any, username: string, body: any) {
     }
 
     const normalizedUserData = await syncUserWithVipConfig(userData, username);
+    const boundWalletProfile = normalizeStoredWalletProfile(normalizedUserData.walletProfile);
+    const boundDestination = getWalletProfileDestination(boundWalletProfile);
+    if (boundDestination && !walletDestinationsMatch(walletAddress, boundDestination)) {
+      return jsonError(c, 400, 'withdrawal_wallet_mismatch', 'Withdrawal account must match your bound wallet details.');
+    }
+
+    const withdrawalDetails = resolveWithdrawalMethodDetails(boundWalletProfile, requestedMethod);
+    const method = withdrawalDetails.method;
+    const network = withdrawalDetails.network;
+
     if (!(await verifyPassword(transactionPassword, String(normalizedUserData.transactionPassword ?? '')))) {
       return jsonError(c, 401, 'invalid_transaction_password', 'Transaction password is incorrect.');
     }
@@ -5567,6 +5627,7 @@ async function submitWithdrawalRequest(c: any, username: string, body: any) {
       amount,
       walletAddress,
       method,
+      network,
       status: 'Pending',
       requestedDate: new Date().toISOString(),
       transactionId: transaction.id,

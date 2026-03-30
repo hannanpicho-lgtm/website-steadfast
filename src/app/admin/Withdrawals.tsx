@@ -179,8 +179,17 @@ export default function Withdrawals({
                   <td className="px-6 py-4 text-sm text-gray-300">{withdrawal.id}</td>
                   <td className="px-6 py-4 text-sm font-medium text-white">{withdrawal.username}</td>
                   <td className="px-6 py-4 text-sm font-bold text-[#00D9FF]">{fmt(withdrawal.amount)}</td>
-                  <td className="px-6 py-4 text-sm text-gray-300">{withdrawal.method}</td>
-                  <td className="px-6 py-4 text-sm text-gray-400 font-mono text-xs">{withdrawal.walletAddress.slice(0, 10)}...{withdrawal.walletAddress.slice(-8)}</td>
+                  <td className="px-6 py-4 text-sm text-gray-300">
+                    <div className="leading-snug">
+                      <div>{withdrawal.method}</div>
+                      {withdrawal.network ? (
+                        <div className="text-[11px] text-gray-500 uppercase tracking-wide">{withdrawal.network}</div>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-400 font-mono text-xs max-w-[220px] whitespace-normal break-all leading-snug">
+                    {withdrawal.walletAddress}
+                  </td>
                   <td className="px-6 py-4 text-sm">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                       withdrawal.status === 'Pending' ? 'bg-yellow-500/20 text-yellow-300' :

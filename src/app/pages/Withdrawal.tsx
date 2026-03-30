@@ -18,6 +18,8 @@ type UserWalletData = {
 type WalletProfileResponse = {
   walletProfile?: {
     type: 'banking' | 'crypto';
+    walletType?: string;
+    network?: string;
     walletAddress?: string;
     accountNumber?: string;
   } | null;
@@ -29,6 +31,7 @@ type WithdrawalRecord = {
   status: 'Pending' | 'Approved' | 'Rejected';
   requestedDate: string;
   method: string;
+  network?: string;
   walletAddress: string;
   txHash: string;
 };
@@ -42,6 +45,7 @@ export default function Withdrawal() {
   const [transactionPassword, setTransactionPassword] = useState('');
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [walletData, setWalletData] = useState<UserWalletData | null>(null);
+  const [walletProfile, setWalletProfile] = useState<WalletProfileResponse['walletProfile']>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -100,6 +104,7 @@ export default function Withdrawal() {
 
       if (walletResponse.ok && !walletAddress) {
         const profile = (walletPayload as WalletProfileResponse).walletProfile;
+        setWalletProfile(profile ?? null);
         if (profile?.type === 'crypto' && profile.walletAddress) {
           setWalletAddress(profile.walletAddress);
         } else if (profile?.type === 'banking' && profile.accountNumber) {
@@ -162,7 +167,9 @@ export default function Withdrawal() {
         body: JSON.stringify({
           amount,
           walletAddress: walletAddress.trim(),
-          method: 'USDT',
+          method: walletProfile?.type === 'crypto'
+            ? (walletProfile.walletType ?? 'USDT')
+            : 'BANK',
           transactionPassword,
         }),
       });
@@ -185,6 +192,11 @@ export default function Withdrawal() {
   };
 
   const latestWithdrawal = withdrawals[0] ?? null;
+  const walletBindingLabel = walletProfile?.type === 'crypto'
+    ? `${String(walletProfile.walletType ?? 'Crypto').toUpperCase()}${walletProfile.network ? ` • ${walletProfile.network.toUpperCase()}` : ''}`
+    : walletProfile?.type === 'banking'
+      ? 'BANK ACCOUNT'
+      : '';
 
   return (
     <div className="size-full overflow-auto bg-[#1a1f2e]">
@@ -245,10 +257,14 @@ export default function Withdrawal() {
                 placeholder="Withdraw Account"
                 value={walletAddress}
                 onChange={(event) => setWalletAddress(event.target.value)}
-                className="w-full px-4 py-3 bg-[#252d42] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#00D9FF] transition-colors"
+                readOnly={Boolean(walletProfile)}
+                className="w-full px-4 pr-12 py-3 bg-[#252d42] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#00D9FF] transition-colors font-mono text-sm"
               />
               <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
             </div>
+            {walletBindingLabel ? (
+              <p className="mt-2 text-xs text-cyan-300">Bound wallet: {walletBindingLabel}</p>
+            ) : null}
           </div>
 
           {/* Withdraw Amount */}
@@ -316,6 +332,10 @@ export default function Withdrawal() {
                 <span className="font-semibold text-white">${latestWithdrawal.amount.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
+                <span>Asset</span>
+                <span className="font-medium text-white text-right">{latestWithdrawal.method}{latestWithdrawal.network ? ` • ${latestWithdrawal.network.toUpperCase()}` : ''}</span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
                 <span>Status</span>
                 <span className={`font-semibold ${
                   latestWithdrawal.status === 'Approved' ? 'text-green-400' :
@@ -326,11 +346,11 @@ export default function Withdrawal() {
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span>Requested</span>
-                <span className="font-medium text-white">{new Date(latestWithdrawal.requestedDate).toLocaleString()}</span>
+                <span className="font-medium text-white text-right">{new Date(latestWithdrawal.requestedDate).toLocaleString()}</span>
               </div>
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-start justify-between gap-3">
                 <span>Account</span>
-                <span className="font-medium text-white">{latestWithdrawal.walletAddress}</span>
+                <span className="font-medium text-white text-right max-w-[68%] break-all leading-snug">{latestWithdrawal.walletAddress}</span>
               </div>
             </div>
           ) : (
