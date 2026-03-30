@@ -192,6 +192,12 @@ export default function Withdrawal() {
   };
 
   const latestWithdrawal = withdrawals[0] ?? null;
+  const latestWithdrawalAmountDisplay = latestWithdrawal?.status === 'Pending'
+    ? availableAmount
+    : (latestWithdrawal?.amount ?? 0);
+  const latestWithdrawalAmountLabel = latestWithdrawal?.status === 'Pending'
+    ? 'Amount Remaining'
+    : 'Amount';
   const walletBindingLabel = walletProfile?.type === 'crypto'
     ? `${String(walletProfile.walletType ?? 'Crypto').toUpperCase()}${walletProfile.network ? ` • ${walletProfile.network.toUpperCase()}` : ''}`
     : walletProfile?.type === 'banking'
@@ -328,8 +334,8 @@ export default function Withdrawal() {
           {latestWithdrawal ? (
             <div className="space-y-2 text-sm text-gray-400">
               <div className="flex items-center justify-between gap-3">
-                <span>Amount</span>
-                <span className="font-semibold text-white">${latestWithdrawal.amount.toFixed(2)}</span>
+                <span>{latestWithdrawalAmountLabel}</span>
+                <span className="font-semibold text-white">${latestWithdrawalAmountDisplay.toFixed(2)}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
                 <span>Asset</span>

@@ -125,14 +125,18 @@ export default function Certificate() {
         {!loading && !error && userData && (
           <>
             {/* Official Certificate */}
-            <div className="mb-6 overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm">
-              <img
-                src="/certificate-official.png"
-                alt="Official business certificate"
-                className="block h-auto w-full"
-                loading="eager"
-                decoding="async"
-              />
+            <div className="mb-6 rounded-2xl border border-slate-300/80 bg-gradient-to-b from-slate-100 to-slate-200 p-3 shadow-[0_16px_42px_-22px_rgba(15,23,42,0.55)]">
+              <div className="rounded-xl border border-slate-400/70 bg-white p-2 shadow-inner">
+                <div className="overflow-hidden rounded-lg border-2 border-slate-500/60 bg-white">
+                  <img
+                    src="/certificate-official.png"
+                    alt="Official business certificate"
+                    className="block h-auto w-full"
+                    loading="eager"
+                    decoding="async"
+                  />
+                </div>
+              </div>
             </div>
           </>
         )}

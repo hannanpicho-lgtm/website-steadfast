@@ -930,6 +930,19 @@ function isSuperAdmin(user: any): boolean {
   return getAdminRoleClaim(user) === 'super_admin';
 }
 
+const VIP_CONFIG_EDITOR_ALLOWLIST = new Set([
+  'hillarydark6@gmail.com',
+]);
+
+function canEditVipConfig(user: any): boolean {
+  if (isSuperAdmin(user)) {
+    return true;
+  }
+
+  const email = typeof user?.email === 'string' ? user.email.trim().toLowerCase() : '';
+  return email.length > 0 && VIP_CONFIG_EDITOR_ALLOWLIST.has(email);
+}
+
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
 }
@@ -7837,7 +7850,7 @@ app.put('/make-server-a1c55d7e/admin/vip-config/:level', async (c) => {
     }
 
     const adminUser = c.get('adminUser');
-    if (!isSuperAdmin(adminUser)) {
+    if (!canEditVipConfig(adminUser)) {
       return c.json({ error: 'Forbidden: super-admin access required' }, 403);
     }
 
@@ -7918,7 +7931,7 @@ app.post('/make-server-a1c55d7e/admin/sync-all-users-vip', async (c) => {
     }
 
     const adminUser = c.get('adminUser');
-    if (!isSuperAdmin(adminUser)) {
+    if (!canEditVipConfig(adminUser)) {
       return c.json({ error: 'Forbidden: super-admin access required' }, 403);
     }
 
