@@ -147,6 +147,9 @@ type TaskConfig = {
   image: string;
   rating: number;
   productUrl: string;
+  category?: string;
+  vipTier?: number;
+  source?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -385,7 +388,7 @@ function formatRelativeTime(timestamp: string): string {
 
   return formatter.format(diffInSeconds, 'second');
 }
-type ModalType = 'add-user' | 'edit-user' | 'view-user' | 'delete-user' | 'adjust-user-balance' | 'view-transaction' | 'approve-withdrawal' | 'reject-withdrawal' | 'add-task' | 'edit-vip' | 'notification' | 'add-product-manual' | 'add-product-ai' | 'edit-product' | 'view-product' | 'delete-product' | 'edit-workday-reward' | 'edit-reset-reward' | 'edit-accumulated-reward' | 'edit-product-system' | 'pay-salary' | 'pay-salary-bulk' | 'add-admin' | 'edit-admin' | 'view-admin' | 'delete-admin' | 'admin-invitation-code' | 'add-role' | 'edit-role' | 'view-role-permissions' | 'delete-role' | null;
+type ModalType = 'add-user' | 'edit-user' | 'view-user' | 'delete-user' | 'adjust-user-balance' | 'view-transaction' | 'approve-withdrawal' | 'reject-withdrawal' | 'add-task' | 'edit-vip' | 'notification' | 'add-product-manual' | 'add-product-ai' | 'edit-product' | 'view-product' | 'delete-product' | 'bulk-generate-products' | 'bulk-import-products' | 'edit-workday-reward' | 'edit-reset-reward' | 'edit-accumulated-reward' | 'edit-product-system' | 'pay-salary' | 'pay-salary-bulk' | 'add-admin' | 'edit-admin' | 'view-admin' | 'delete-admin' | 'admin-invitation-code' | 'add-role' | 'edit-role' | 'view-role-permissions' | 'delete-role' | null;
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -470,6 +473,15 @@ export default function Admin() {
   const adminAuthRedirectedRef = useRef(false);
   const userScopeFallbackNoticeShownRef = useRef(false);
   const importBackupInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Bulk product generation state
+  const [aiGenerateVipLevels, setAiGenerateVipLevels] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [aiGenerateCount, setAiGenerateCount] = useState(5);
+  const [aiGenerateCategories, setAiGenerateCategories] = useState<string[]>([]);
+  const [aiGenerating, setAiGenerating] = useState(false);
+
+  // CSV/JSON import file ref
+  const productImportInputRef = useRef<HTMLInputElement | null>(null);
 
 
 
@@ -1687,6 +1699,156 @@ export default function Admin() {
       handleAdminRequestError(error, 'Failed to create admin user');
     }
   };
+
+  // ── Bulk/generate product handlers ──────────────────────────────────────────
+
+  const handleGenerateProducts = async () => {
+    if (aiGenerating || aiGenerateVipLevels.length === 0) return;
+    setAiGenerating(true);
+    const toastId = 'admin-generate-products';
+    const total = aiGenerateVipLevels.length * aiGenerateCount;
+    try {
+      toast.loading(`Generating up to ${total} products...`, { id: toastId });
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/tasks/generate`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          vipLevels: aiGenerateVipLevels,
+          countPerLevel: aiGenerateCount,
+          categories: aiGenerateCategories.length > 0 ? aiGenerateCategories : undefined,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to generate products');
+      }
+      const byLevel = payload?.byVipLevel ?? {};
+      const levelSummary = aiGenerateVipLevels
+        .map((l) => `VIP${l}: ${byLevel[l] ?? 0}`)
+        .join(', ');
+      toast.success(`Generated ${payload.generated} products (${levelSummary})`, { id: toastId });
+      setModalType(null);
+      void loadTaskConfigurations({ suppressToast: true });
+    } catch (error) {
+      toast.dismiss(toastId);
+      handleAdminRequestError(error, 'Failed to generate products', { suppressToast: false });
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleBulkDeleteProducts = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    const toastId = 'admin-bulk-delete-products';
+    try {
+      toast.loading(`Deleting ${ids.length} product${ids.length !== 1 ? 's' : ''}...`, { id: toastId });
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/tasks/bulk`, {
+        method: 'DELETE',
+        headers,
+        body: JSON.stringify({ taskIds: ids }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to delete products');
+      }
+      setTaskConfigurations((current) => current.filter((t) => !ids.includes(t.id)));
+      toast.success(`Deleted ${payload.deleted} product${payload.deleted !== 1 ? 's' : ''}`, { id: toastId });
+    } catch (error) {
+      toast.dismiss(toastId);
+      handleAdminRequestError(error, 'Failed to delete products', { suppressToast: false });
+    }
+  };
+
+  const handleBulkStatusProducts = async (ids: string[], status: 'Active' | 'Paused') => {
+    if (ids.length === 0) return;
+    const toastId = 'admin-bulk-status-products';
+    try {
+      toast.loading(`Setting ${ids.length} product${ids.length !== 1 ? 's' : ''} to ${status}...`, { id: toastId });
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/tasks/bulk`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ taskIds: ids, updates: { status } }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to update products');
+      }
+      setTaskConfigurations((current) =>
+        current.map((t) => (ids.includes(t.id) ? { ...t, status } : t)),
+      );
+      toast.success(`Updated ${payload.updated} product${payload.updated !== 1 ? 's' : ''} to ${status}`, {
+        id: toastId,
+      });
+    } catch (error) {
+      toast.dismiss(toastId);
+      handleAdminRequestError(error, 'Failed to update products', { suppressToast: false });
+    }
+  };
+
+  const handleBulkImportProducts = async (rawText: string, format: 'csv' | 'json') => {
+    const toastId = 'admin-bulk-import-products';
+    try {
+      let tasks: any[] = [];
+      if (format === 'json') {
+        const parsed: unknown = JSON.parse(rawText);
+        tasks = Array.isArray(parsed)
+          ? (parsed as any[])
+          : Array.isArray((parsed as any)?.tasks)
+            ? (parsed as any).tasks
+            : [];
+      } else {
+        // CSV: first row is headers
+        const lines = rawText.trim().split(/\r?\n/);
+        if (lines.length < 2) {
+          toast.error('CSV file must have a header row and at least one data row');
+          return;
+        }
+        const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, ''));
+        tasks = lines.slice(1)
+          .filter((l) => l.trim())
+          .map((line) => {
+            const values = line.split(',').map((v) => v.trim().replace(/^"|"$/g, ''));
+            const obj: Record<string, string> = {};
+            headers.forEach((h, i) => {
+              obj[h] = values[i] ?? '';
+            });
+            return obj;
+          });
+      }
+
+      if (tasks.length === 0) {
+        toast.error('No valid products found in file');
+        return;
+      }
+
+      toast.loading(`Importing ${tasks.length} product${tasks.length !== 1 ? 's' : ''}...`, { id: toastId });
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/tasks/bulk`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ tasks, skipDuplicates: true }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to import products');
+      }
+
+      toast.success(
+        `Imported ${payload.created} products (${payload.skipped} duplicate${payload.skipped !== 1 ? 's' : ''} skipped${payload.errors > 0 ? `, ${payload.errors} error${payload.errors !== 1 ? 's' : ''}` : ''})`,
+        { id: toastId },
+      );
+      setModalType(null);
+      void loadTaskConfigurations({ suppressToast: true });
+    } catch (error) {
+      toast.dismiss(toastId);
+      handleAdminRequestError(error, 'Failed to import products', { suppressToast: false });
+    }
+  };
+
+  // ────────────────────────────────────────────────────────────────────────────
 
   const handleCreateTask = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -3281,91 +3443,227 @@ export default function Admin() {
             </div>
           )}
 
-          {/* Add Product AI Generated Modal */}
+          {/* Add Product AI Generated Modal — VIP-Aware Intelligent Generation */}
           {modalType === 'add-product-ai' && (
             <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-purple-500/20 rounded-lg">
                     <Sparkles className="text-purple-400" size={24} />
                   </div>
-                  <h3 className="text-2xl font-bold text-white">AI Generate Product</h3>
+                  <div>
+                    <h3 className="text-2xl font-bold text-white">AI Product Generation</h3>
+                    <p className="text-gray-400 text-xs mt-0.5">Intelligently generate products across VIP tiers</p>
+                  </div>
                 </div>
                 <button onClick={() => setModalType(null)} className="text-gray-400 hover:text-white">
                   <X size={24} />
                 </button>
               </div>
-              <div className="mb-6 p-4 bg-purple-500/10 border border-purple-500/30 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <Sparkles className="text-purple-400 mt-1" size={20} />
-                  <div>
-                    <p className="text-purple-300 font-semibold text-sm">AI-Powered Product Generation</p>
-                    <p className="text-gray-400 text-xs mt-1">Describe the product you want to create and our AI will generate product details, descriptions, and even suggest images.</p>
-                  </div>
+
+              {/* VIP Tier Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Target VIP Tiers</label>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { level: 1, label: 'VIP 1', color: 'orange', range: '$25–$120', rate: '0.5%' },
+                    { level: 2, label: 'VIP 2', color: 'gray', range: '$100–$280', rate: '1.0%' },
+                    { level: 3, label: 'VIP 3', color: 'yellow', range: '$240–$600', rate: '1.5%' },
+                    { level: 4, label: 'VIP 4', color: 'cyan', range: '$500–$1,250', rate: '2.0%' },
+                    { level: 5, label: 'VIP 5', color: 'purple', range: '$1,100–$2,600', rate: '2.5%' },
+                  ].map(({ level, label, range, rate }) => {
+                    const isSelected = aiGenerateVipLevels.includes(level);
+                    return (
+                      <button
+                        key={level}
+                        type="button"
+                        onClick={() =>
+                          setAiGenerateVipLevels((prev) =>
+                            isSelected ? prev.filter((l) => l !== level) : [...prev, level].sort(),
+                          )
+                        }
+                        className={`flex-1 min-w-[120px] px-3 py-2.5 rounded-lg border text-xs font-semibold transition-all ${
+                          isSelected
+                            ? 'bg-purple-500/20 border-purple-400 text-purple-300'
+                            : 'bg-[#1a1f2e] border-gray-600 text-gray-400 hover:border-gray-400'
+                        }`}
+                      >
+                        <div className="font-bold">{label}</div>
+                        <div className="text-[10px] opacity-75 mt-0.5">{range}</div>
+                        <div className="text-[10px] opacity-60">{rate} commission</div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {aiGenerateVipLevels.length === 0 && (
+                  <p className="text-red-400 text-xs mt-1">Select at least one VIP tier</p>
+                )}
+              </div>
+
+              {/* Count per level */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Products per VIP Tier
+                  <span className="text-gray-500 font-normal ml-2">
+                    ({aiGenerateVipLevels.length * aiGenerateCount} total)
+                  </span>
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={1}
+                    max={50}
+                    value={aiGenerateCount}
+                    onChange={(e) => setAiGenerateCount(Number(e.target.value))}
+                    className="flex-1 accent-purple-400"
+                  />
+                  <span className="w-10 text-center text-white font-bold text-lg">{aiGenerateCount}</span>
                 </div>
               </div>
-              <form className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Product Prompt</label>
-                  <textarea 
-                    className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" 
-                    rows={4} 
-                    placeholder="Describe the product... (e.g., 'A premium wireless gaming mouse with RGB lighting and ergonomic design')"
-                  ></textarea>
+
+              {/* Category filter (optional) */}
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Categories
+                  <span className="text-gray-500 font-normal ml-2">(leave empty for all)</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {['Electronics', 'Wearables', 'Gaming', 'Office', 'Accessories', 'Home & Living', 'Fitness', 'Kitchen'].map((cat) => {
+                    const isSel = aiGenerateCategories.includes(cat);
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() =>
+                          setAiGenerateCategories((prev) =>
+                            isSel ? prev.filter((c) => c !== cat) : [...prev, cat],
+                          )
+                        }
+                        className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                          isSel
+                            ? 'bg-purple-500/30 border border-purple-400 text-purple-300'
+                            : 'bg-[#1a1f2e] border border-gray-600 text-gray-400 hover:border-gray-400'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Target Category</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
-                      <option value="">Auto-detect</option>
-                      <option>Electronics</option>
-                      <option>Wearables</option>
-                      <option>Gaming</option>
-                      <option>Office</option>
-                      <option>Accessories</option>
-                    </select>
+              </div>
+
+              {/* Summary */}
+              <div className="mb-5 p-3 bg-[#1a1f2e] rounded-lg border border-gray-700 text-xs text-gray-400">
+                <div className="flex items-center justify-between">
+                  <span>Will generate up to <span className="text-white font-semibold">{aiGenerateVipLevels.length * aiGenerateCount}</span> products</span>
+                  <span>Tiers: <span className="text-purple-300 font-semibold">{aiGenerateVipLevels.length > 0 ? aiGenerateVipLevels.map((l) => `VIP${l}`).join(', ') : 'None'}</span></span>
+                </div>
+                <div className="mt-1 text-[11px] text-gray-500">Duplicate names are auto-skipped. Products are tagged with their VIP tier for easy filtering.</div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  disabled={aiGenerating || aiGenerateVipLevels.length === 0}
+                  onClick={() => void handleGenerateProducts()}
+                  className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  {aiGenerating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={18} />
+                      Generate Products
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalType(null)}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* CSV/JSON Bulk Import Modal */}
+          {modalType === 'bulk-import-products' && (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-500/20 rounded-lg">
+                    <Upload className="text-green-400" size={24} />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Merchant</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
-                      <option>Amazon</option>
-                      <option>Walmart</option>
-                      <option>Target</option>
-                      <option>Best Buy</option>
-                      <option>eBay</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Price Range ($)</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
-                      <option>$0 - $50</option>
-                      <option>$50 - $100</option>
-                      <option>$100 - $200</option>
-                      <option>$200 - $500</option>
-                      <option>$500+</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Generate Image</label>
-                    <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
-                      <option>Yes - AI Generated</option>
-                      <option>No - I'll upload later</option>
-                    </select>
+                    <h3 className="text-2xl font-bold text-white">Import Products</h3>
+                    <p className="text-gray-400 text-xs mt-0.5">Upload CSV or JSON file to bulk-create products</p>
                   </div>
                 </div>
-                <div className="flex gap-3 mt-6">
-                  <button 
-                    type="submit" 
-                    className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Sparkles size={18} />
-                    Generate with AI
-                  </button>
-                  <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
-                    Cancel
-                  </button>
+                <button onClick={() => setModalType(null)} className="text-gray-400 hover:text-white">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="mb-4 p-4 bg-[#1a1f2e] rounded-lg border border-gray-600 text-xs text-gray-400 space-y-2">
+                <p className="text-white font-semibold text-sm">Expected format</p>
+                <p><span className="text-green-400">CSV</span> — header row + data rows. Required fields: <code className="text-cyan-300">product, price</code>. Optional: <code className="text-cyan-300">merchant, commission, image, vipTier, category, status</code></p>
+                <p><span className="text-blue-400">JSON</span> — array of objects, or <code className="text-cyan-300">{'{"tasks": [...]}'}</code></p>
+                <div className="bg-black/30 rounded p-2 font-mono text-[10px] leading-relaxed">
+                  <div className="text-gray-500">// CSV example</div>
+                  <div>product,price,merchant,commission,vipTier</div>
+                  <div>Premium Keyboard,89.99,Amazon,0.005,1</div>
+                  <div>Ultra Smart Watch,249.00,Best Buy,0.01,2</div>
                 </div>
-              </form>
+              </div>
+
+              <div
+                className="border-2 border-dashed border-gray-600 hover:border-green-400 rounded-lg p-8 text-center cursor-pointer transition-colors"
+                onClick={() => productImportInputRef.current?.click()}
+              >
+                <Upload className="mx-auto text-gray-400 mb-2" size={36} />
+                <p className="text-white font-semibold">Click to select file</p>
+                <p className="text-gray-500 text-xs mt-1">Supports .csv and .json files (max 500 products)</p>
+              </div>
+
+              <input
+                ref={productImportInputRef}
+                type="file"
+                accept=".csv,.json,text/csv,application/json"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const format: 'csv' | 'json' = file.name.endsWith('.json') ? 'json' : 'csv';
+                  const reader = new FileReader();
+                  reader.onload = (evt) => {
+                    const text = evt.target?.result;
+                    if (typeof text === 'string') {
+                      void handleBulkImportProducts(text, format);
+                    }
+                  };
+                  reader.readAsText(file);
+                  e.target.value = '';
+                }}
+              />
+
+              <div className="flex gap-3 mt-5">
+                <button
+                  type="button"
+                  onClick={() => productImportInputRef.current?.click()}
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                >
+                  <Upload size={18} />
+                  Choose File
+                </button>
+                <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
+                  Cancel
+                </button>
+              </div>
             </div>
           )}
 
@@ -4593,6 +4891,7 @@ export default function Admin() {
           <Suspense fallback={<AdminPanelFallback label="Loading product management..." />}>
             <ProductManagement
               products={taskConfigurations}
+              vipConfigurations={vipConfigurations}
               searchTerm={searchTerm}
               setSearchTerm={setSearchTerm}
               filterStatus={filterStatus}
@@ -4603,6 +4902,9 @@ export default function Admin() {
               setModalType={setModalType}
               setSelectedItem={setSelectedItem}
               handleExport={handleExport}
+              onBulkDelete={(ids) => void handleBulkDeleteProducts(ids)}
+              onBulkStatusUpdate={(ids, status) => void handleBulkStatusProducts(ids, status as 'Active' | 'Paused')}
+              onOpenImport={() => setModalType('bulk-import-products')}
             />
           </Suspense>
         );

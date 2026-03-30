@@ -2220,6 +2220,16 @@ function normalizeTaskCatalogRecord(record: any) {
     ? record.updatedAt
     : createdAt;
 
+  const rawVipTier = Number(record?.vipTier);
+  const vipTier = Number.isInteger(rawVipTier) && rawVipTier >= 1 && rawVipTier <= 5
+    ? rawVipTier
+    : 0;
+
+  const validSources = ['Manual', 'AI Generated', 'Bulk Import'];
+  const source = typeof record?.source === 'string' && validSources.includes(record.source)
+    ? record.source
+    : 'Manual';
+
   return {
     id: sanitizeTaskId(record?.id) ?? createFinanceId('task'),
     merchant: sanitizeTaskText(record?.merchant, 'Marketplace'),
@@ -2233,6 +2243,9 @@ function normalizeTaskCatalogRecord(record: any) {
     image: sanitizeTaskText(record?.image),
     rating: Number.isFinite(Number(record?.rating)) ? Number(record.rating) : 4,
     productUrl: sanitizeTaskUrl(record?.productUrl),
+    category: typeof record?.category === 'string' ? record.category : '',
+    vipTier,
+    source,
     createdAt,
     updatedAt,
   };
@@ -7074,6 +7087,470 @@ app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
   } catch (error) {
     console.error('Error creating admin task:', error);
     return c.json({ error: 'Failed to create task' }, 500);
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Product generation templates for intelligent VIP-aware bulk creation
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PRODUCT_GENERATION_TEMPLATES = {
+  categories: ['Electronics', 'Wearables', 'Gaming', 'Office', 'Accessories', 'Home & Living', 'Fitness', 'Kitchen'],
+  merchants: ['Amazon', 'Walmart', 'Target', 'Best Buy', 'eBay', 'Costco', 'Apple Store', 'Samsung', 'Sony Direct', 'Nike', 'Adidas', 'Etsy'],
+  adjectives: ['Premium', 'Pro', 'Ultra', 'Elite', 'Smart', 'Wireless', 'Portable', 'Compact', 'Advanced', 'Professional', 'Deluxe', 'Slim', 'Max', 'Turbo'],
+  productTypes: {
+    Electronics: ['Bluetooth Speaker', 'USB Hub', 'Power Bank', 'Smart Plug', 'LED Desk Lamp', 'Wireless Charger', 'Digital Camera', 'USB-C Dock'],
+    Wearables: ['Fitness Tracker', 'Smart Watch', 'Wireless Earbuds', 'Smart Ring', 'Sleep Tracker', 'Heart Rate Monitor', 'Smart Glasses'],
+    Gaming: ['Gaming Headset', 'Mechanical Keyboard', 'Gaming Mouse', 'Monitor Stand', 'USB Microphone', 'RGB Mouse Pad', 'Game Controller', 'Capture Card'],
+    Office: ['Ergonomic Chair Cushion', 'Standing Desk Mat', 'Monitor Arm', 'Lap Desk', 'Cable Management Box', 'Wrist Rest Pad', 'Desk Organizer'],
+    Accessories: ['Phone Holder', 'Laptop Sleeve', 'Screen Cleaner Kit', 'Webcam Cover', 'Keyboard Cover', 'Cable Winder', 'Magnetic Phone Mount'],
+    'Home & Living': ['Smart Dimmer Switch', 'Air Purifier', 'Smart Thermostat', 'Motion Sensor Light', 'Robot Vacuum Accessory', 'Security Camera'],
+    Fitness: ['Resistance Bands Set', 'Foam Roller', 'Jump Rope', 'Yoga Mat', 'Push-Up Board', 'Ab Roller Wheel', 'Pull-Up Bar'],
+    Kitchen: ['Electric Kettle', 'Digital Kitchen Scale', 'Spice Rack Organizer', 'Airtight Container Set', 'Herb Scissors Kit', 'Air Fryer'],
+  } as Record<string, string[]>,
+  imagesByCategory: {
+    Electronics: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=300&fit=crop',
+    Wearables: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop',
+    Gaming: 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=400&h=300&fit=crop',
+    Office: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop',
+    Accessories: 'https://images.unsplash.com/photo-1491553895911-0055eca6402d?w=400&h=300&fit=crop',
+    'Home & Living': 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop',
+    Fitness: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop',
+    Kitchen: 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop',
+  } as Record<string, string>,
+};
+
+// Price ranges per VIP tier (min/max product value in USD)
+const VIP_PRICE_RANGES: Record<number, { min: number; max: number }> = {
+  1: { min: 25, max: 120 },
+  2: { min: 100, max: 280 },
+  3: { min: 240, max: 600 },
+  4: { min: 500, max: 1250 },
+  5: { min: 1100, max: 2600 },
+};
+
+function generateProductForVipTier(
+  vipLevel: number,
+  vipCommission: number,
+  category: string,
+  usedNames: Set<string>,
+  seed: number,
+): { product: string; merchant: string; price: number; commission: number; image: string; category: string; vipTier: number } | null {
+  const templates = PRODUCT_GENERATION_TEMPLATES;
+  const typeList = templates.productTypes[category] ?? templates.productTypes['Electronics'];
+  const priceRange = VIP_PRICE_RANGES[vipLevel] ?? VIP_PRICE_RANGES[1];
+
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const adjIdx = (seed + attempt * 3) % templates.adjectives.length;
+    const typeIdx = (seed + attempt * 7) % typeList.length;
+    const merchantIdx = (seed + attempt * 5) % templates.merchants.length;
+    const adjective = templates.adjectives[adjIdx];
+    const productType = typeList[typeIdx];
+    const merchant = templates.merchants[merchantIdx];
+    const productName = `${adjective} ${productType}`;
+
+    if (usedNames.has(productName.toLowerCase())) {
+      continue;
+    }
+
+    // Varied price within range using seed-based deterministic spread
+    const priceSpan = priceRange.max - priceRange.min;
+    const normalizedSeed = ((seed * 17 + attempt * 13) % 100 + 100) % 100;
+    const price = roundMoney(priceRange.min + (normalizedSeed / 100) * priceSpan);
+
+    return {
+      product: productName,
+      merchant,
+      price,
+      commission: vipCommission,
+      image: templates.imagesByCategory[category] ?? templates.imagesByCategory['Electronics'],
+      category,
+      vipTier: vipLevel,
+    };
+  }
+
+  return null;
+}
+
+// POST /admin/tasks/bulk — create multiple tasks from JSON array or CSV data
+app.post('/make-server-a1c55d7e/admin/tasks/bulk', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-bulk-create');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const body = await c.req.json();
+    const rawTasks: unknown[] = Array.isArray(body?.tasks) ? body.tasks : [];
+    const skipDuplicates: boolean = body?.skipDuplicates !== false;
+
+    if (rawTasks.length === 0) {
+      return c.json({ error: 'tasks array is required and must not be empty' }, 400);
+    }
+    if (rawTasks.length > 500) {
+      return c.json({ error: 'Maximum 500 tasks per bulk request' }, 400);
+    }
+
+    const existingTasks = await listTaskCatalogRecords();
+    const existingNames = new Set<string>(existingTasks.map((t: any) => String(t.product ?? '').toLowerCase().trim()));
+    const vipConfigRecords = await listVipConfigRecords();
+    const baseCommission = vipConfigRecords.find((tier) => tier.level === 1)?.commission ?? 0.005;
+
+    const created: any[] = [];
+    const skipped: string[] = [];
+    const errors: Array<{ index: number; error: string }> = [];
+    const sessionNames = new Set<string>();
+
+    for (let i = 0; i < rawTasks.length; i++) {
+      const raw = rawTasks[i] as any;
+      const product = sanitizeTaskText(raw?.product || raw?.name);
+      if (!product) {
+        errors.push({ index: i, error: 'product name is required' });
+        continue;
+      }
+
+      const nameLower = product.toLowerCase().trim();
+      if ((existingNames.has(nameLower) || sessionNames.has(nameLower)) && skipDuplicates) {
+        skipped.push(product);
+        continue;
+      }
+
+      const priceRaw = Number(raw?.price);
+      const price = Number.isFinite(priceRaw) && priceRaw > 0 ? roundMoney(priceRaw) : null;
+      if (price === null) {
+        errors.push({ index: i, error: `price must be > 0 for "${product}"` });
+        continue;
+      }
+
+      const commissionRaw = Number(raw?.commission);
+      const commission = Number.isFinite(commissionRaw) && commissionRaw > 0 ? commissionRaw : baseCommission;
+      const productUrl = sanitizeTaskUrl(raw?.productUrl);
+      const imageRaw = sanitizeTaskText(raw?.image || raw?.imageUrl);
+      const image = inferTaskImageUrl(imageRaw, productUrl);
+      const merchant = sanitizeTaskText(
+        raw?.merchant,
+        inferMerchantFromTaskUrls(productUrl, image) || 'Marketplace',
+      );
+      const rawVipTier = Number(raw?.vipTier);
+      const vipTier = Number.isInteger(rawVipTier) && rawVipTier >= 1 && rawVipTier <= 5 ? rawVipTier : 0;
+
+      const task = normalizeTaskCatalogRecord({
+        id: createFinanceId('task'),
+        merchant,
+        product,
+        price,
+        priceSource: 'manual',
+        commission,
+        status: raw?.status ?? 'Active',
+        image,
+        rating: Number.isFinite(Number(raw?.rating)) ? Number(raw.rating) : 4,
+        productUrl,
+        category: typeof raw?.category === 'string' ? raw.category : '',
+        vipTier,
+        source: 'Bulk Import',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      await kv.set(`${TASK_CATALOG_KEY_PREFIX}${task.id}`, task);
+      created.push(task);
+      sessionNames.add(nameLower);
+      existingNames.add(nameLower);
+    }
+
+    const adminUser = c.get('adminUser');
+    const actorEmail = typeof adminUser?.email === 'string' && adminUser.email
+      ? adminUser.email
+      : String(adminUser?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-task-catalog-bulk-create',
+      actorEmail,
+      `Bulk created ${created.length} tasks (skipped ${skipped.length}, errors ${errors.length})`,
+    ).catch(() => {});
+
+    return c.json({
+      success: true,
+      created: created.length,
+      skipped: skipped.length,
+      errors: errors.length,
+      errorDetails: errors,
+      skippedNames: skipped,
+      tasks: created,
+    }, 201);
+  } catch (error) {
+    console.error('Error bulk creating tasks:', error);
+    return c.json({ error: 'Failed to bulk create tasks' }, 500);
+  }
+});
+
+// POST /admin/tasks/generate — intelligently generate VIP-aware products
+app.post('/make-server-a1c55d7e/admin/tasks/generate', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-generate');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const body = await c.req.json();
+    const requestedLevels: number[] = Array.isArray(body?.vipLevels) && body.vipLevels.length > 0
+      ? body.vipLevels
+          .map(Number)
+          .filter((l: number) => Number.isInteger(l) && l >= 1 && l <= 5)
+      : [1, 2, 3, 4, 5];
+
+    const countPerLevel = Math.min(50, Math.max(1, Number(body?.countPerLevel) || 5));
+
+    const requestedCategories: string[] =
+      Array.isArray(body?.categories) && body.categories.length > 0
+        ? body.categories.filter((cat: unknown) => typeof cat === 'string')
+        : PRODUCT_GENERATION_TEMPLATES.categories;
+
+    const vipConfigRecords = await listVipConfigRecords();
+    const existingTasks = await listTaskCatalogRecords();
+    const usedNames = new Set<string>(existingTasks.map((t: any) => String(t.product ?? '').toLowerCase().trim()));
+
+    const created: any[] = [];
+    const now = new Date().toISOString();
+    let seed = Math.floor((Date.now() % 100000) + Math.random() * 9999);
+
+    for (const level of requestedLevels) {
+      const vipConfig = vipConfigRecords.find((v) => v.level === level);
+      const vipCommission = vipConfig?.commission ?? level * 0.005;
+      let levelCreated = 0;
+      let categoryIdx = level % requestedCategories.length;
+
+      while (levelCreated < countPerLevel) {
+        const category = requestedCategories[categoryIdx % requestedCategories.length];
+        categoryIdx++;
+        const generated = generateProductForVipTier(level, vipCommission, category, usedNames, seed++);
+        if (!generated) {
+          seed += 100;
+          // Prevent infinite loop if names exhausted
+          if (seed > 1_000_000) {
+            break;
+          }
+          continue;
+        }
+
+        const task = normalizeTaskCatalogRecord({
+          id: createFinanceId('task'),
+          merchant: generated.merchant,
+          product: generated.product,
+          price: generated.price,
+          priceSource: 'generated',
+          commission: generated.commission,
+          status: 'Active',
+          image: generated.image,
+          rating: 4,
+          productUrl: '',
+          category: generated.category,
+          vipTier: generated.vipTier,
+          source: 'AI Generated',
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        await kv.set(`${TASK_CATALOG_KEY_PREFIX}${task.id}`, task);
+        created.push(task);
+        usedNames.add(generated.product.toLowerCase().trim());
+        levelCreated++;
+      }
+    }
+
+    const adminUser = c.get('adminUser');
+    const actorEmail = typeof adminUser?.email === 'string' && adminUser.email
+      ? adminUser.email
+      : String(adminUser?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-task-catalog-generate',
+      actorEmail,
+      `Generated ${created.length} tasks across VIP levels [${requestedLevels.join(', ')}]`,
+    ).catch(() => {});
+
+    return c.json({
+      success: true,
+      generated: created.length,
+      byVipLevel: requestedLevels.reduce(
+        (acc, l) => {
+          acc[l] = created.filter((t) => t.vipTier === l).length;
+          return acc;
+        },
+        {} as Record<number, number>,
+      ),
+      tasks: created,
+    }, 201);
+  } catch (error) {
+    console.error('Error generating tasks:', error);
+    return c.json({ error: 'Failed to generate tasks' }, 500);
+  }
+});
+
+// DELETE /admin/tasks/bulk — delete multiple tasks by ID (must be before /:taskId)
+app.delete('/make-server-a1c55d7e/admin/tasks/bulk', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-bulk-delete');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const body = await c.req.json();
+    const taskIds: string[] = Array.isArray(body?.taskIds)
+      ? body.taskIds
+          .filter((id: unknown) => typeof id === 'string' && String(id).trim())
+          .map((id: string) => String(id).trim())
+      : [];
+
+    if (taskIds.length === 0) {
+      return c.json({ error: 'taskIds array is required and must not be empty' }, 400);
+    }
+    if (taskIds.length > 500) {
+      return c.json({ error: 'Maximum 500 task IDs per bulk delete request' }, 400);
+    }
+
+    const deleted: string[] = [];
+    const errors: Array<{ id: string; error: string }> = [];
+
+    for (const rawId of taskIds) {
+      const taskId = sanitizeTaskId(rawId);
+      if (!taskId) {
+        errors.push({ id: rawId, error: 'Invalid task ID' });
+        continue;
+      }
+      const existing = await getTaskCatalogRecord(taskId);
+      if (!existing) {
+        errors.push({ id: taskId, error: 'Task not found' });
+        continue;
+      }
+      await kv.del(`${TASK_CATALOG_KEY_PREFIX}${taskId}`);
+      deleted.push(taskId);
+    }
+
+    const adminUser = c.get('adminUser');
+    const actorEmail = typeof adminUser?.email === 'string' && adminUser.email
+      ? adminUser.email
+      : String(adminUser?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-task-catalog-bulk-delete',
+      actorEmail,
+      `Bulk deleted ${deleted.length} tasks (errors: ${errors.length})`,
+    ).catch(() => {});
+
+    return c.json({
+      success: true,
+      deleted: deleted.length,
+      errors: errors.length,
+      errorDetails: errors,
+      deletedIds: deleted,
+    });
+  } catch (error) {
+    console.error('Error bulk deleting tasks:', error);
+    return c.json({ error: 'Failed to bulk delete tasks' }, 500);
+  }
+});
+
+// PUT /admin/tasks/bulk — bulk-update status/price/commission (must be before /:taskId)
+app.put('/make-server-a1c55d7e/admin/tasks/bulk', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:tasks-bulk-update');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const body = await c.req.json();
+    const taskIds: string[] = Array.isArray(body?.taskIds)
+      ? body.taskIds
+          .filter((id: unknown) => typeof id === 'string' && String(id).trim())
+          .map((id: string) => String(id).trim())
+      : [];
+    const updates = body?.updates ?? {};
+
+    if (taskIds.length === 0) {
+      return c.json({ error: 'taskIds array is required and must not be empty' }, 400);
+    }
+    if (taskIds.length > 500) {
+      return c.json({ error: 'Maximum 500 task IDs per bulk update request' }, 400);
+    }
+
+    const updated: any[] = [];
+    const errors: Array<{ id: string; error: string }> = [];
+
+    for (const rawId of taskIds) {
+      const taskId = sanitizeTaskId(rawId);
+      if (!taskId) {
+        errors.push({ id: rawId, error: 'Invalid task ID' });
+        continue;
+      }
+      const existing = await getTaskCatalogRecord(taskId);
+      if (!existing) {
+        errors.push({ id: taskId, error: 'Task not found' });
+        continue;
+      }
+
+      const newPrice =
+        Number.isFinite(Number(updates?.price)) && Number(updates.price) > 0
+          ? roundMoney(Number(updates.price))
+          : existing.price;
+      const newCommission =
+        Number.isFinite(Number(updates?.commission)) && Number(updates.commission) > 0
+          ? Number(updates.commission)
+          : existing.commission;
+      const newStatus =
+        typeof updates?.status === 'string' && (updates.status === 'Active' || updates.status === 'Paused')
+          ? updates.status
+          : existing.status;
+
+      const updatedTask = normalizeTaskCatalogRecord({
+        ...existing,
+        price: newPrice,
+        commission: newCommission,
+        status: newStatus,
+        updatedAt: new Date().toISOString(),
+      });
+
+      await kv.set(`${TASK_CATALOG_KEY_PREFIX}${taskId}`, updatedTask);
+      updated.push(updatedTask);
+    }
+
+    const adminUser = c.get('adminUser');
+    const actorEmail = typeof adminUser?.email === 'string' && adminUser.email
+      ? adminUser.email
+      : String(adminUser?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-task-catalog-bulk-update',
+      actorEmail,
+      `Bulk updated ${updated.length} tasks (errors: ${errors.length})`,
+    ).catch(() => {});
+
+    return c.json({
+      success: true,
+      updated: updated.length,
+      errors: errors.length,
+      errorDetails: errors,
+      tasks: updated,
+    });
+  } catch (error) {
+    console.error('Error bulk updating tasks:', error);
+    return c.json({ error: 'Failed to bulk update tasks' }, 500);
   }
 });
 
