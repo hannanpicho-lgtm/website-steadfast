@@ -243,7 +243,9 @@ export default function UserManagement({
                       {user.vipLevel}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-sm font-semibold text-[#00D9FF]">${user.balance.toFixed(2)}</td>
+                  <td className={`px-6 py-4 text-sm font-semibold ${user.balance < 0 ? 'text-red-400' : 'text-[#00D9FF]'}`}>
+                    ${user.balance.toFixed(2)}
+                  </td>
                   <td className="px-6 py-4 text-sm">
                     <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                       user.status === 'Active' ? 'bg-green-500/20 text-green-300' :

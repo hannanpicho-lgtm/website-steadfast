@@ -347,8 +347,13 @@ export default function Starting() {
       * (premiumCommissionRate / 100),
   );
   const earnedPremiumProfit = roundMoney(Math.max(0, Number(userData?.activePremium?.commissionEarned ?? 0)));
+  const premiumProfitContributionForDisplay = Number(userData?.activePremium?.commissionEarned ?? 0) > 0
+    ? earnedPremiumProfit
+    : projectedPremiumProfit;
   const frozenPremiumProfit = earnedPremiumProfit;
-  const todayCommissionDisplay = roundMoney(Number(userData?.todayCommission ?? 0));
+  const todayCommissionDisplay = roundMoney(
+    Number(userData?.todayCommission ?? 0) + (userData?.isFrozen ? premiumProfitContributionForDisplay : 0),
+  );
   const totalAccountBalanceDisplay = roundMoney(Math.max(0, Number(userData?.balance ?? 0)));
   const afterSettlementProjection = userData?.isFrozen
     ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze + frozenUpholdAmount + earnedPremiumProfit))
@@ -1183,7 +1188,7 @@ export default function Starting() {
                   <p className="mt-2 text-3xl font-bold leading-none">{todayCommissionDisplay.toFixed(2)} USD</p>
                   <p className="mt-2 text-xs text-white/80">Updated from completed submissions in the current working day.</p>
                   {userData?.isFrozen && (
-                    <p className="mt-1 text-[11px] text-amber-100/90">Premium projection is shown separately in settlement details.</p>
+                    <p className="mt-1 text-[11px] text-amber-100/90">Includes premium commission profit shown in settlement details.</p>
                   )}
                 </div>
               </div>
