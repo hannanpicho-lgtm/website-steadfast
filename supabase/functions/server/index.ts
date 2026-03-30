@@ -2769,7 +2769,30 @@ async function withUserFinancialLock<T>(username: string, work: () => Promise<T>
 
 async function syncUserWithVipConfig(userData: any, username: string) {
   const normalized = normalizeUserRecord(userData, username);
-  const vipConfig = await getVipConfigForLevel(Number(normalized.vipLevel ?? 1));
+  const availableFunds = roundMoney(Number(normalized.balance ?? 0) - Number(normalized.holdAmount ?? 0));
+  const vipConfigRecords = await listVipConfigRecords();
+  const fallbackVipLevel = Number.isFinite(Number(normalized.vipLevel))
+    ? Math.max(1, Math.round(Number(normalized.vipLevel)))
+    : 1;
+
+  const effectiveVipTier = vipConfigRecords
+    .slice()
+    .sort((left, right) => Number(left.investment ?? 0) - Number(right.investment ?? 0))
+    .reduce((selected, tier) => {
+      const threshold = roundMoney(Number(tier?.investment ?? 0));
+      if (availableFunds >= threshold) {
+        return tier;
+      }
+      return selected;
+    }, vipConfigRecords[0] ?? null);
+
+  const targetVipLevel = Number.isFinite(Number(effectiveVipTier?.level))
+    ? Math.max(1, Math.round(Number(effectiveVipTier.level)))
+    : fallbackVipLevel;
+  const vipConfig = await getVipConfigForLevel(targetVipLevel);
+  const previousVipLevel = Number.isFinite(Number(normalized.vipLevel))
+    ? Math.max(1, Math.round(Number(normalized.vipLevel)))
+    : vipConfig.level;
 
   // VIP chart is the primary source of truth for required products/tasks per user.
   // New users default to two sets, while admin overrides remain authoritative.
@@ -2786,6 +2809,16 @@ async function syncUserWithVipConfig(userData: any, username: string) {
   const defaultVipTasksPerSet = Math.max(configuredTasksPerSet, baselineTasksPerSet);
 
   normalized.vipLevel = vipConfig.level;
+
+  if (previousVipLevel !== vipConfig.level) {
+    // Tier changed due to balance threshold crossing; invalidate stale set plan.
+    normalized.currentSetCommissionPlan = [];
+    normalized.currentSetCommissionPlanGeneratedAt = null;
+    normalized.currentSetCommissionPlanMarker = Math.max(
+      0,
+      Math.round(Number(normalized.tasksCompleted ?? 0) - Number(normalized.tasksCompletedInSet ?? 0)),
+    );
+  }
   normalized.taskSetCount = normalized.taskSetCountOverride ?? defaultVipTaskSetCount;
   // Tasks per set is always derived from VIP tier dailyTasks.
   normalized.tasksPerSetOverride = null;
@@ -3051,6 +3084,55 @@ function resolveVipCommissionRangeConfig(vipConfig: any, tasksPerSet: number) {
     minTotalCommission,
     maxTotalCommission,
   };
+}
+
+function isTaskPriceValidForRange(taskPrice: number, rangeConfig: ReturnType<typeof resolveVipCommissionRangeConfig>) {
+  if (!rangeConfig) {
+    return true;
+  }
+  const normalizedTaskPrice = roundMoney(Number(taskPrice ?? 0));
+  return normalizedTaskPrice >= rangeConfig.taskPriceMin
+    && normalizedTaskPrice <= rangeConfig.taskPriceMax;
+}
+
+function collectTierTaskCandidates(
+  taskCatalog: any[],
+  vipLevel: number,
+  rangeConfig: ReturnType<typeof resolveVipCommissionRangeConfig>,
+) {
+  const activeTasks = taskCatalog.filter((task) => task?.status === 'Active');
+  if (activeTasks.length === 0) {
+    return [];
+  }
+
+  if (rangeConfig) {
+    const inRange = activeTasks.filter((task) => isTaskPriceValidForRange(task?.price, rangeConfig));
+    const tierTaggedInRange = inRange.filter((task) => Number(task?.vipTier ?? 0) === vipLevel);
+    return tierTaggedInRange.length > 0 ? tierTaggedInRange : inRange;
+  }
+
+  const tierTagged = activeTasks.filter((task) => Number(task?.vipTier ?? 0) === vipLevel);
+  if (tierTagged.length > 0) {
+    return tierTagged;
+  }
+
+  return activeTasks;
+}
+
+function pickClosestTaskByPrice(candidates: any[], targetPrice: number) {
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  const normalizedTarget = roundMoney(Number(targetPrice ?? 0));
+  return candidates.reduce((closest, task) => {
+    if (!closest) {
+      return task;
+    }
+    const closestDelta = Math.abs(roundMoney(Number(closest.price ?? 0)) - normalizedTarget);
+    const taskDelta = Math.abs(roundMoney(Number(task?.price ?? 0)) - normalizedTarget);
+    return taskDelta < closestDelta ? task : closest;
+  }, null as any);
 }
 
 function buildControlledCommissionPlan(rangeConfig: ReturnType<typeof resolveVipCommissionRangeConfig>) {
@@ -4996,26 +5078,6 @@ async function submitTaskForUser(c: any, username: string, body: any) {
   const requestedTaskId = sanitizeTaskId(body?.taskId);
   const requestedProductPrice = typeof body?.productPrice === 'number' ? body.productPrice : Number(body?.productPrice);
 
-  const taskCatalog = await listTaskCatalogRecords(false);
-  let selectedTask = requestedTaskId
-    ? taskCatalog.find((task) => task.id === requestedTaskId)
-    : null;
-
-  if (!selectedTask && Number.isFinite(requestedProductPrice) && requestedProductPrice > 0) {
-    selectedTask = taskCatalog.find((task) => task.price === roundMoney(requestedProductPrice) && task.status === 'Active')
-      ?? taskCatalog.find((task) => task.status === 'Active')
-      ?? null;
-  }
-
-  if (!selectedTask) {
-    return c.json({ error: 'No active task available' }, 400);
-  }
-  if (selectedTask.status !== 'Active') {
-    return c.json({ error: 'Selected task is not active' }, 400);
-  }
-
-  const productPrice = roundMoney(selectedTask.price);
-
   return withUserFinancialLock(username, async () => {
     const userKey = `user:${username}`;
     const userData = await kv.get(userKey);
@@ -5027,6 +5089,84 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     const normalizedUserData = await syncUserWithVipConfig(userData, username);
     const before = snapshotFinancialState(normalizedUserData);
     const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
+    const taskCatalog = await listTaskCatalogRecords(false);
+    const controlledCommissionPlan = ensureUserControlledCommissionPlanForCurrentSet(normalizedUserData, vipConfig);
+    const tierTaskCandidates = collectTierTaskCandidates(
+      taskCatalog,
+      Number(normalizedUserData.vipLevel ?? 1),
+      controlledCommissionPlan.rangeConfig,
+    );
+
+    if (tierTaskCandidates.length === 0) {
+      if (controlledCommissionPlan.rangeConfig) {
+        return c.json({
+          error: `No active product found within VIP${normalizedUserData.vipLevel} range ($${controlledCommissionPlan.rangeConfig.taskPriceMin.toFixed(2)} - $${controlledCommissionPlan.rangeConfig.taskPriceMax.toFixed(2)}).`,
+          code: 'no_task_within_vip_range',
+          vipLevel: Number(normalizedUserData.vipLevel ?? 1),
+          requiredRange: {
+            min: controlledCommissionPlan.rangeConfig.taskPriceMin,
+            max: controlledCommissionPlan.rangeConfig.taskPriceMax,
+          },
+          user: normalizedUserData,
+          taskProgress: buildUserTaskProgress(normalizedUserData),
+        }, 409);
+      }
+      return c.json({ error: 'No active task available' }, 400);
+    }
+
+    const explicitlyRequestedTask = requestedTaskId
+      ? taskCatalog.find((task) => task.id === requestedTaskId)
+      : null;
+
+    if (requestedTaskId && !explicitlyRequestedTask) {
+      return c.json({ error: 'Requested task not found' }, 404);
+    }
+    if (explicitlyRequestedTask && explicitlyRequestedTask.status !== 'Active') {
+      return c.json({ error: 'Selected task is not active' }, 400);
+    }
+
+    if (
+      explicitlyRequestedTask
+      && !tierTaskCandidates.some((task) => task.id === explicitlyRequestedTask.id)
+    ) {
+      if (controlledCommissionPlan.rangeConfig) {
+        return c.json({
+          error: `Selected product price is outside the allowed VIP${normalizedUserData.vipLevel} range.`,
+          code: 'task_outside_vip_range',
+          vipLevel: Number(normalizedUserData.vipLevel ?? 1),
+          selectedTaskId: explicitlyRequestedTask.id,
+          selectedPrice: roundMoney(Number(explicitlyRequestedTask.price ?? 0)),
+          requiredRange: {
+            min: controlledCommissionPlan.rangeConfig.taskPriceMin,
+            max: controlledCommissionPlan.rangeConfig.taskPriceMax,
+          },
+        }, 409);
+      }
+      return c.json({
+        error: 'Selected task does not match your current VIP tier routing.',
+        code: 'task_tier_mismatch',
+      }, 409);
+    }
+
+    const selectedTask = explicitlyRequestedTask
+      ?? (
+        Number.isFinite(requestedProductPrice) && requestedProductPrice > 0
+          ? (
+            tierTaskCandidates.find((task) => roundMoney(Number(task.price ?? 0)) === roundMoney(requestedProductPrice))
+            ?? pickClosestTaskByPrice(tierTaskCandidates, requestedProductPrice)
+          )
+          : null
+      )
+      ?? tierTaskCandidates[
+        Math.max(0, Math.round(Number(normalizedUserData.tasksCompleted ?? 0))) % tierTaskCandidates.length
+      ];
+
+    if (!selectedTask) {
+      return c.json({ error: 'No active task available' }, 400);
+    }
+
+    const productPrice = roundMoney(selectedTask.price);
+
     const requiredFunds = roundMoney(Number(vipConfig.investment ?? 0));
     const availableFunds = roundMoney(Number(normalizedUserData.balance ?? 0) - Number(normalizedUserData.holdAmount ?? 0));
 
@@ -5126,7 +5266,6 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     // Automatic trigger-based premium assignment from user submissions is disabled.
 
     const commissionRate = vipConfig.commission;
-    const controlledCommissionPlan = ensureUserControlledCommissionPlanForCurrentSet(normalizedUserData, vipConfig);
     const currentSetTaskIndex = Math.max(0, Math.round(Number(normalizedUserData.tasksCompletedInSet ?? 0)));
     const shouldUseControlledCommission = controlledCommissionPlan.controlled
       && currentSetTaskIndex < controlledCommissionPlan.plan.length;
