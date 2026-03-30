@@ -5961,7 +5961,23 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
       cancelledPremium.cancelledAt = new Date().toISOString();
 
       if (normalizedUser.activePremium?.id === premiumId) {
-        normalizedUser.balance = roundMoney(Number(cancelledPremium.balanceBeforeAssignment ?? normalizedUser.balance));
+        const preFreezeBalance = Number.isFinite(Number(cancelledPremium.balanceBeforeAssignment))
+          ? roundMoney(Number(cancelledPremium.balanceBeforeAssignment))
+          : roundMoney(Number(normalizedUser.balance ?? 0));
+        const configuredUpholdAmount = Number.isFinite(Number(cancelledPremium.configuredUpholdAmount))
+          ? roundMoney(Math.max(0, Number(cancelledPremium.configuredUpholdAmount)))
+          : 0;
+        const outstandingTopUp = Number.isFinite(Number(cancelledPremium.topUpRequired ?? cancelledPremium.negativeAmount))
+          ? roundMoney(Math.max(0, Number(cancelledPremium.topUpRequired ?? cancelledPremium.negativeAmount)))
+          : 0;
+        const preservedHoldAmount = roundMoney(Math.max(0, Number(normalizedUser.holdAmount ?? 0)));
+        const settledUpholdAmount = roundMoney(Math.max(outstandingTopUp, configuredUpholdAmount, preservedHoldAmount));
+        const premiumCommissionEarned = Number.isFinite(Number(cancelledPremium.commissionEarned))
+          ? roundMoney(Math.max(0, Number(cancelledPremium.commissionEarned)))
+          : 0;
+
+        // Cancellation should not claw back earned premium commission or released hold funds.
+        normalizedUser.balance = roundMoney(preFreezeBalance + settledUpholdAmount + premiumCommissionEarned);
         normalizedUser.holdAmount = 0;
         premiumQueue.splice(premiumIndex, 1);
 
