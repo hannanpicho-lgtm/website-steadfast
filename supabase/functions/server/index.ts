@@ -1527,6 +1527,9 @@ function sanitizeAdminPlatformSettings(value: unknown) {
     minDeposit: 10,
     taskRefreshHours: 24,
     autoAssignTasks: 'Enabled',
+    platformHoursEnabled: false,
+    platformHoursStart: 9,
+    platformHoursEnd: 22,
     savedAt: new Date().toISOString(),
   };
 
@@ -1560,8 +1563,18 @@ function sanitizeAdminPlatformSettings(value: unknown) {
     minDeposit: Number.isFinite(minDeposit) ? Math.min(1_000_000, Math.max(1, roundMoney(minDeposit))) : defaults.minDeposit,
     taskRefreshHours: Number.isFinite(taskRefreshHours) ? Math.min(168, Math.max(1, Math.round(taskRefreshHours))) : defaults.taskRefreshHours,
     autoAssignTasks: source.autoAssignTasks === 'Disabled' ? 'Disabled' : 'Enabled',
+    platformHoursEnabled: source.platformHoursEnabled === true,
+    platformHoursStart: Number.isInteger(Number(source.platformHoursStart)) ? Math.min(23, Math.max(0, Math.round(Number(source.platformHoursStart)))) : defaults.platformHoursStart,
+    platformHoursEnd: Number.isInteger(Number(source.platformHoursEnd)) ? Math.min(24, Math.max(1, Math.round(Number(source.platformHoursEnd)))) : defaults.platformHoursEnd,
     savedAt: typeof source.savedAt === 'string' && source.savedAt ? source.savedAt : new Date().toISOString(),
   };
+}
+
+function isPlatformWithinHours(settings: { platformHoursEnabled: boolean; platformHoursStart: number; platformHoursEnd: number }): boolean {
+  if (!settings.platformHoursEnabled) return true;
+  // EST = UTC-5 (fixed offset; DST shift ignored for simplicity)
+  const estHour = (new Date().getUTCHours() - 5 + 24) % 24;
+  return estHour >= settings.platformHoursStart && estHour < settings.platformHoursEnd;
 }
 
 function sanitizeAdminObservabilityAlertConfig(value: unknown) {
@@ -5451,6 +5464,11 @@ app.post('/make-server-a1c55d7e/me/submit-task', async (c) => {
       }, 400);
     }
 
+    const taskSubmitSettings = sanitizeAdminPlatformSettings(await kv.get(ADMIN_PLATFORM_SETTINGS_KEY));
+    if (!isPlatformWithinHours(taskSubmitSettings)) {
+      return c.json({ error: 'Platform is currently closed. Working hours: 9 AM – 10 PM EST.', code: 'outside_platform_hours' }, 503);
+    }
+
     return await submitTaskForUser(c, sessionResult.session.username, body);
   } catch (error) {
     console.error('Error submitting session task:', error);
@@ -5539,8 +5557,23 @@ app.get('/make-server-a1c55d7e/me/withdrawals', async (c) => {
       return sessionResult.response;
     }
 
-    const withdrawals = await listWithdrawalRecords(sessionResult.session.username);
-    return c.json(withdrawals);
+    const username = sessionResult.session.username;
+    const [withdrawals, rawUserData] = await Promise.all([
+      listWithdrawalRecords(username),
+      kv.get(`user:${username}`),
+    ]);
+
+    // Cross-reference method with bound wallet so historical records show the correct asset type
+    const boundWalletProfile = normalizeStoredWalletProfile(normalizeUserRecord(rawUserData, username).walletProfile);
+    const boundDestination = getWalletProfileDestination(boundWalletProfile);
+    const resolvedWithdrawals = withdrawals.map((w) => {
+      if (boundWalletProfile?.type === 'crypto' && boundDestination && walletDestinationsMatch(w.walletAddress, boundDestination)) {
+        return { ...w, method: formatWalletAssetLabel(boundWalletProfile.walletType), network: sanitizeFinanceMethod(boundWalletProfile.network, 'mainnet') };
+      }
+      return w;
+    });
+
+    return c.json(resolvedWithdrawals);
   } catch (error) {
     console.error('Error fetching session withdrawal records:', error);
     return c.json({ error: 'Failed to fetch withdrawal records' }, 500);
@@ -6097,6 +6130,12 @@ app.post('/make-server-a1c55d7e/me/complete-premium-task', async (c) => {
 
     const premiumBody = await c.req.json();
     const { productPrice } = premiumBody;
+
+    const premiumTaskSettings = sanitizeAdminPlatformSettings(await kv.get(ADMIN_PLATFORM_SETTINGS_KEY));
+    if (!isPlatformWithinHours(premiumTaskSettings)) {
+      return c.json({ error: 'Platform is currently closed. Working hours: 9 AM – 10 PM EST.', code: 'outside_platform_hours' }, 503);
+    }
+
     return await completePremiumTaskForUser(c, sessionResult.session.username, productPrice);
   } catch (error) {
     console.error('Error completing session premium task:', error);
@@ -7522,6 +7561,7 @@ app.post('/make-server-a1c55d7e/admin/tasks/generate', async (c) => {
       : [1, 2, 3, 4, 5];
 
     const countPerLevel = Math.min(50, Math.max(1, Number(body?.countPerLevel) || 5));
+    const preview = body?.preview === true;
 
     const requestedCategories: string[] =
       Array.isArray(body?.categories) && body.categories.length > 0
@@ -7573,7 +7613,9 @@ app.post('/make-server-a1c55d7e/admin/tasks/generate', async (c) => {
           updatedAt: now,
         });
 
-        await kv.set(`${TASK_CATALOG_KEY_PREFIX}${task.id}`, task);
+        if (!preview) {
+          await kv.set(`${TASK_CATALOG_KEY_PREFIX}${task.id}`, task);
+        }
         created.push(task);
         usedNames.add(generated.product.toLowerCase().trim());
         levelCreated++;
@@ -7584,14 +7626,17 @@ app.post('/make-server-a1c55d7e/admin/tasks/generate', async (c) => {
     const actorEmail = typeof adminUser?.email === 'string' && adminUser.email
       ? adminUser.email
       : String(adminUser?.id ?? 'unknown');
-    await recordObservabilityAuditEvent(
-      'admin-task-catalog-generate',
-      actorEmail,
-      `Generated ${created.length} tasks across VIP levels [${requestedLevels.join(', ')}]`,
-    ).catch(() => {});
+    if (!preview) {
+      await recordObservabilityAuditEvent(
+        'admin-task-catalog-generate',
+        actorEmail,
+        `Generated ${created.length} tasks across VIP levels [${requestedLevels.join(', ')}]`,
+      ).catch(() => {});
+    }
 
     return c.json({
       success: true,
+      preview,
       generated: created.length,
       byVipLevel: requestedLevels.reduce(
         (acc, l) => {
@@ -7601,7 +7646,7 @@ app.post('/make-server-a1c55d7e/admin/tasks/generate', async (c) => {
         {} as Record<number, number>,
       ),
       tasks: created,
-    }, 201);
+    }, preview ? 200 : 201);
   } catch (error) {
     console.error('Error generating tasks:', error);
     return c.json({ error: 'Failed to generate tasks' }, 500);
@@ -7905,7 +7950,7 @@ app.put('/make-server-a1c55d7e/admin/vip-config/:level', async (c) => {
     });
 
     await kv.set(`${VIP_CONFIG_KEY_PREFIX}${level}`, updatedTier);
-    await syncUsersForVipLevel(level);
+    await syncUsersForVipLevels([level]).catch((e: unknown) => console.error('VIP sync after config update failed:', e));
 
     const vipActorEmail = typeof adminUser?.email === 'string' && adminUser.email
       ? adminUser.email
@@ -8086,20 +8131,42 @@ app.get('/make-server-a1c55d7e/admin/withdrawals', async (c) => {
     const callingAdmin = c.get('adminUser');
     const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
     const allUsers = await kv.getEntriesByPrefix('user:');
+    const normalizedUsers = allUsers
+      .map((entry) => {
+        const username = getUsernameFromUserKvEntry(entry);
+        return username ? normalizeUserRecord(entry.value, username) : null;
+      })
+      .filter((user): user is ReturnType<typeof normalizeUserRecord> => Boolean(user));
+
     const visibleUsernames = new Set(
-      allUsers
-        .map((entry) => {
-          const username = getUsernameFromUserKvEntry(entry);
-          return username ? normalizeUserRecord(entry.value, username) : null;
-        })
-        .filter((user): user is ReturnType<typeof normalizeUserRecord> => Boolean(user))
+      normalizedUsers
         .filter((user) => Boolean(user.username) && user.username !== ROOT_REFERRAL_USERNAME)
         .filter((user) => callerIsSuperAdmin || user.referredByAdminId === callingAdmin?.id)
         .map((user) => user.username),
     );
 
-    const withdrawals = (await listWithdrawalRecords())
+    // Build wallet profile map for cross-referencing withdrawal methods
+    const walletProfileByUsername = new Map<string, ReturnType<typeof normalizeStoredWalletProfile>>();
+    for (const user of normalizedUsers) {
+      if (user.username) {
+        walletProfileByUsername.set(user.username, normalizeStoredWalletProfile(user.walletProfile));
+      }
+    }
+
+    const rawWithdrawals = (await listWithdrawalRecords())
       .filter((withdrawal) => visibleUsernames.has(withdrawal.username));
+
+    // Correct historical records where method doesn't reflect bound wallet
+    const withdrawals = rawWithdrawals.map((w) => {
+      const profile = walletProfileByUsername.get(w.username) ?? null;
+      if (profile?.type === 'crypto') {
+        const dest = getWalletProfileDestination(profile);
+        if (dest && walletDestinationsMatch(w.walletAddress, dest)) {
+          return { ...w, method: formatWalletAssetLabel(profile.walletType), network: sanitizeFinanceMethod(profile.network, 'mainnet') };
+        }
+      }
+      return w;
+    });
 
     return c.json({ withdrawals });
   } catch (error) {
@@ -8361,7 +8428,11 @@ function sanitizeSupportLinks(value: unknown) {
 // Get support contact links
 app.get("/make-server-a1c55d7e/cs/support-links", async (c) => {
   try {
-    const saved = await kv.get(SUPPORT_LINKS_KEY);
+    const [saved, csSettingsRaw] = await Promise.all([kv.get(SUPPORT_LINKS_KEY), kv.get(ADMIN_PLATFORM_SETTINGS_KEY)]);
+    const csSettings = sanitizeAdminPlatformSettings(csSettingsRaw);
+    if (!isPlatformWithinHours(csSettings)) {
+      return c.json({ error: 'Customer support is not available outside platform working hours (9 AM – 10 PM EST).', code: 'outside_platform_hours' }, 503);
+    }
     return c.json(sanitizeSupportLinks(saved));
   } catch (error) {
     console.error('Error fetching support links:', error);

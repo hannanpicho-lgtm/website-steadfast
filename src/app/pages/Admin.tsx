@@ -479,6 +479,7 @@ export default function Admin() {
   const [aiGenerateCount, setAiGenerateCount] = useState(5);
   const [aiGenerateCategories, setAiGenerateCategories] = useState<string[]>([]);
   const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiPreviewItems, setAiPreviewItems] = useState<Array<{ id: string; product: string; merchant: string; price: number; commission: number; vipTier: number; category: string }> | null>(null);
 
   // CSV/JSON import file ref
   const productImportInputRef = useRef<HTMLInputElement | null>(null);
@@ -1708,7 +1709,7 @@ export default function Admin() {
     const toastId = 'admin-generate-products';
     const total = aiGenerateVipLevels.length * aiGenerateCount;
     try {
-      toast.loading(`Generating up to ${total} products...`, { id: toastId });
+      toast.loading(`Previewing up to ${total} products...`, { id: toastId });
       const headers = await buildAdminAuthHeaders();
       const response = await fetch(`${serverUrl}/admin/tasks/generate`, {
         method: 'POST',
@@ -1717,22 +1718,46 @@ export default function Admin() {
           vipLevels: aiGenerateVipLevels,
           countPerLevel: aiGenerateCount,
           categories: aiGenerateCategories.length > 0 ? aiGenerateCategories : undefined,
+          preview: true,
         }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(payload?.error ?? 'Failed to generate products');
       }
-      const byLevel = payload?.byVipLevel ?? {};
-      const levelSummary = aiGenerateVipLevels
-        .map((l) => `VIP${l}: ${byLevel[l] ?? 0}`)
-        .join(', ');
-      toast.success(`Generated ${payload.generated} products (${levelSummary})`, { id: toastId });
+      toast.dismiss(toastId);
+      setAiPreviewItems(Array.isArray(payload?.tasks) ? payload.tasks : []);
+    } catch (error) {
+      toast.dismiss(toastId);
+      handleAdminRequestError(error, 'Failed to generate products', { suppressToast: false });
+    } finally {
+      setAiGenerating(false);
+    }
+  };
+
+  const handleConfirmGenerateProducts = async () => {
+    if (!aiPreviewItems || aiPreviewItems.length === 0) return;
+    setAiGenerating(true);
+    const toastId = 'admin-confirm-products';
+    try {
+      toast.loading(`Saving ${aiPreviewItems.length} products...`, { id: toastId });
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/tasks/bulk`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ tasks: aiPreviewItems, skipDuplicates: true }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to save products');
+      }
+      toast.success(`Saved ${payload.created ?? aiPreviewItems.length} products successfully.`, { id: toastId });
+      setAiPreviewItems(null);
       setModalType(null);
       void loadTaskConfigurations({ suppressToast: true });
     } catch (error) {
       toast.dismiss(toastId);
-      handleAdminRequestError(error, 'Failed to generate products', { suppressToast: false });
+      handleAdminRequestError(error, 'Failed to save products', { suppressToast: false });
     } finally {
       setAiGenerating(false);
     }
@@ -3555,34 +3580,95 @@ export default function Admin() {
               {/* Summary */}
               <div className="mb-5 p-3 bg-[#1a1f2e] rounded-lg border border-gray-700 text-xs text-gray-400">
                 <div className="flex items-center justify-between">
-                  <span>Will generate up to <span className="text-white font-semibold">{aiGenerateVipLevels.length * aiGenerateCount}</span> products</span>
+                  <span>Will preview up to <span className="text-white font-semibold">{aiGenerateVipLevels.length * aiGenerateCount}</span> products</span>
                   <span>Tiers: <span className="text-purple-300 font-semibold">{aiGenerateVipLevels.length > 0 ? aiGenerateVipLevels.map((l) => `VIP${l}`).join(', ') : 'None'}</span></span>
                 </div>
-                <div className="mt-1 text-[11px] text-gray-500">Duplicate names are auto-skipped. Products are tagged with their VIP tier for easy filtering.</div>
+                <div className="mt-1 text-[11px] text-gray-500">Products are shown for review before saving. Duplicate names auto-skipped. Remove items you don't want before confirming.</div>
               </div>
 
+              {/* Preview table — shown after generation, before commit */}
+              {aiPreviewItems && (
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-semibold text-white">{aiPreviewItems.length} products ready — review before saving</p>
+                    <button type="button" onClick={() => setAiPreviewItems(null)} className="text-xs text-gray-400 hover:text-white underline">Clear preview</button>
+                  </div>
+                  <div className="max-h-52 overflow-y-auto rounded-lg border border-gray-700 text-xs">
+                    <table className="w-full">
+                      <thead className="bg-[#1a1f2e] sticky top-0">
+                        <tr className="text-gray-400 text-left">
+                          <th className="px-3 py-2">Product</th>
+                          <th className="px-3 py-2">Merchant</th>
+                          <th className="px-3 py-2">Price</th>
+                          <th className="px-3 py-2">Commission</th>
+                          <th className="px-3 py-2">VIP</th>
+                          <th className="px-3 py-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {aiPreviewItems.map((item, idx) => (
+                          <tr key={item.id ?? idx} className="border-t border-gray-700/50 hover:bg-white/5">
+                            <td className="px-3 py-2 text-white font-medium">{item.product}</td>
+                            <td className="px-3 py-2 text-gray-300">{item.merchant}</td>
+                            <td className="px-3 py-2 text-green-400">${Number(item.price).toFixed(2)}</td>
+                            <td className="px-3 py-2 text-purple-300">{(Number(item.commission) * 100).toFixed(2)}%</td>
+                            <td className="px-3 py-2 text-cyan-400">VIP{item.vipTier}</td>
+                            <td className="px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() => setAiPreviewItems((prev) => prev ? prev.filter((_, i) => i !== idx) : prev)}
+                                className="text-red-400 hover:text-red-300 font-bold"
+                                title="Remove"
+                              >✕</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3">
+                {aiPreviewItems ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={aiGenerating || aiPreviewItems.length === 0}
+                      onClick={() => void handleConfirmGenerateProducts()}
+                      className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                      {aiGenerating ? (
+                        <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Saving...</>
+                      ) : (
+                        <>Confirm &amp; Save {aiPreviewItems.length} Product{aiPreviewItems.length !== 1 ? 's' : ''}</>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAiPreviewItems(null)}
+                      className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-5 rounded-lg transition-colors"
+                    >
+                      Regenerate
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={aiGenerating || aiGenerateVipLevels.length === 0}
+                    onClick={() => void handleGenerateProducts()}
+                    className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                  >
+                    {aiGenerating ? (
+                      <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Generating preview...</>
+                    ) : (
+                      <><Sparkles size={18} />Preview Products</>
+                    )}
+                  </button>
+                )}
                 <button
                   type="button"
-                  disabled={aiGenerating || aiGenerateVipLevels.length === 0}
-                  onClick={() => void handleGenerateProducts()}
-                  className="flex-1 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  {aiGenerating ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={18} />
-                      Generate Products
-                    </>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setModalType(null)}
+                  onClick={() => { setModalType(null); setAiPreviewItems(null); }}
                   className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors"
                 >
                   Cancel

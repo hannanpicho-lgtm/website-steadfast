@@ -10,6 +10,9 @@ export type AdminPlatformSettings = {
   minDeposit: number;
   taskRefreshHours: number;
   autoAssignTasks: 'Enabled' | 'Disabled';
+  platformHoursEnabled: boolean;
+  platformHoursStart: number;
+  platformHoursEnd: number;
   savedAt: string;
 };
 
@@ -36,6 +39,9 @@ export function getDefaultAdminPlatformSettings(): AdminPlatformSettings {
     minDeposit: 10,
     taskRefreshHours: 24,
     autoAssignTasks: 'Enabled',
+    platformHoursEnabled: false,
+    platformHoursStart: 9,
+    platformHoursEnd: 22,
     savedAt: new Date().toISOString(),
   };
 }
@@ -77,6 +83,9 @@ export function normalizeAdminPlatformSettings(value: unknown): AdminPlatformSet
     minDeposit: clamp(Math.round(minDeposit * 100) / 100, 1, 1_000_000),
     taskRefreshHours: clamp(Math.round(taskRefreshHours), 1, 168),
     autoAssignTasks: sanitizeAutoAssignTasks(source.autoAssignTasks),
+    platformHoursEnabled: source.platformHoursEnabled === true,
+    platformHoursStart: Number.isInteger(Number(source.platformHoursStart)) ? Math.min(23, Math.max(0, Math.round(Number(source.platformHoursStart)))) : 9,
+    platformHoursEnd: Number.isInteger(Number(source.platformHoursEnd)) ? Math.min(24, Math.max(1, Math.round(Number(source.platformHoursEnd)))) : 22,
     savedAt: typeof source.savedAt === 'string' && source.savedAt ? source.savedAt : new Date().toISOString(),
   };
 }
