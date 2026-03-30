@@ -91,21 +91,10 @@ export default function Certificate() {
     ? new Date(userData.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
     : '—';
 
-  const formatLicenseDate = (dateValue: string): string => {
-    const parsed = new Date(dateValue);
-    if (Number.isNaN(parsed.getTime())) {
-      return '-- -- --';
-    }
-    const mm = String(parsed.getMonth() + 1).padStart(2, '0');
-    const dd = String(parsed.getDate()).padStart(2, '0');
-    const yy = String(parsed.getFullYear()).slice(-2);
-    return `${mm} ${dd} ${yy}`;
-  };
-
-  const uniqueIdNumber = '070320000444';
-  const controlNumber = '1759124';
-  const effectiveDateRaw = '1993-09-23T00:00:00.000Z';
-  const expirationDateRaw = '2025-09-30T00:00:00.000Z';
+  void vipName;
+  void memberSince;
+  void totalCommission;
+  void referralEarnings;
 
   return (
     <div className="size-full overflow-auto bg-gray-50 pb-20">
@@ -136,60 +125,14 @@ export default function Certificate() {
         {!loading && !error && userData && (
           <>
             {/* Official Certificate */}
-            <div className="mb-6 rounded-lg border border-gray-300 bg-[#dcdcdc] p-4 shadow-sm">
-              <div
-                className="border border-gray-500 bg-[#efefef] p-4 text-gray-800"
-                style={{
-                  backgroundImage: 'radial-gradient(circle at 20px 20px, rgba(255,255,255,0.45) 0 2px, transparent 2.5px)',
-                  backgroundSize: '28px 28px',
-                }}
-              >
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <p className="tracking-wide">UNIQUE ID NUMBER</p>
-                    <p className="text-xl font-bold tracking-wider">{uniqueIdNumber}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="tracking-wide">FOR OFFICE USE ONLY</p>
-                    <p className="text-sm">Control No.</p>
-                    <p className="text-3xl font-bold tracking-wider">{controlNumber}</p>
-                  </div>
-                </div>
-
-                <div className="mt-4 text-center">
-                  <p className="text-2xl font-semibold italic">State of New York</p>
-                  <p className="text-3xl font-semibold italic">Department of State</p>
-                  <p className="text-xl font-bold tracking-wide">DIVISION OF LICENSING SERVICES</p>
-                </div>
-
-                <div className="mt-6 text-center">
-                  <p className="text-lg font-bold tracking-widest">ARTICLE 203 OF THE LLC LIMITED LIABILITY COMPANY LAW</p>
-                  <p className="mt-5 text-3xl font-extrabold tracking-wide">STEADFAST, INC.</p>
-                  <p className="text-lg font-bold tracking-wide">425 E 53RD ST, NEW YORK</p>
-                  <p className="text-lg font-bold tracking-wide">NY 10022</p>
-                </div>
-
-                <div className="mt-6 grid grid-cols-2 gap-4 text-sm font-semibold">
-                  <div>
-                    <p>HAS BEEN DULY LICENSED TO TRANSACT BUSINESS AS A</p>
-                    <p>DOMESTIC BUSINESS CORPORATION</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs">EFFECTIVE DATE</p>
-                    <p className="text-lg tracking-[0.2em]">{formatLicenseDate(effectiveDateRaw)}</p>
-                    <p className="mt-3 text-xs">EXPIRATION DATE</p>
-                    <p className="text-lg tracking-[0.2em]">{formatLicenseDate(expirationDateRaw)}</p>
-                  </div>
-                </div>
-
-                <div className="mt-8 flex items-end justify-between text-[11px] text-gray-700">
-                  <p>DOS-099 (Rev. 4/03)</p>
-                  <div className="text-right">
-                    <p>WALTER T. MOSLEY</p>
-                    <p>SECRETARY OF STATE</p>
-                  </div>
-                </div>
-              </div>
+            <div className="mb-6 overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm">
+              <img
+                src="/certificate-official.png"
+                alt="Official business certificate"
+                className="block h-auto w-full"
+                loading="eager"
+                decoding="async"
+              />
             </div>
           </>
         )}
