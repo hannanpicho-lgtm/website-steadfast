@@ -1,4 +1,4 @@
-import { UserCircle, Rocket, CreditCard, Snowflake, Loader2, Lock, AlertTriangle, DollarSign, ChevronLeft, ChevronRight, CheckCircle2, MessageCircle } from 'lucide-react';
+import { UserCircle, Rocket, CreditCard, Snowflake, Loader2, Lock, AlertTriangle, AlertCircle, DollarSign, ChevronLeft, ChevronRight, CheckCircle2, MessageCircle } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useState, useEffect, useRef, useMemo, lazy, Suspense, type MouseEvent as ReactMouseEvent } from 'react';
 import { toast } from 'sonner';
@@ -309,7 +309,20 @@ export default function Starting() {
   const username = sessionUsername;
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
-  const activeTasks = useMemo(() => taskCatalog.filter((task) => task.status === 'Active'), [taskCatalog]);
+  const activeVipTier = userData
+    ? (vipConfigurations.find((tier) => tier.level === userData.vipLevel) ?? null)
+    : null;
+  const vipPriceMin = Number(activeVipTier?.taskPriceMin ?? 0);
+  const vipPriceMax = Number(activeVipTier?.taskPriceMax ?? 0);
+  const hasVipPriceRange = vipPriceMin > 0 && vipPriceMax > 0 && vipPriceMax >= vipPriceMin;
+
+  const activeTasks = useMemo(() => {
+    const allActive = taskCatalog.filter((task) => task.status === 'Active');
+    if (hasVipPriceRange) {
+      return allActive.filter((task) => task.price >= vipPriceMin && task.price <= vipPriceMax);
+    }
+    return allActive;
+  }, [taskCatalog, vipPriceMin, vipPriceMax, hasVipPriceRange]);
   const currentProduct = activeTasks.length > 0 ? activeTasks[currentProductIndex % activeTasks.length] : null;
 
   // Auto-advance carousel
@@ -322,9 +335,6 @@ export default function Starting() {
     }, 3000);
     return () => clearInterval(timer);
   }, [activeTasks.length]);
-  const activeVipTier = userData
-    ? (vipConfigurations.find((tier) => tier.level === userData.vipLevel) ?? null)
-    : null;
   const commissionRate = userData
     ? (activeVipTier?.commission ?? 0.005) * 100
     : 0.5;
@@ -365,6 +375,7 @@ export default function Starting() {
   const availableFundsForSubmit = roundMoney(Number(userData?.availableAmount ?? ((userData?.balance ?? 0) - (userData?.holdAmount ?? 0))));
   const vipFundingBlocked = Boolean(userData) && availableFundsForSubmit < requiredFundsForVip;
   const isAccountSuspended = Boolean(userData?.isSuspended);
+  const noTasksInVipRange = hasVipPriceRange && activeTasks.length === 0 && !loading && userData !== null;
   const taskSetResetRequired = Boolean(userData?.pendingTaskReset);
   const isAllSetsComplete = Boolean(userData && userData.completedTaskSets != null && userData.taskSetCount != null && userData.completedTaskSets >= userData.taskSetCount);
   const completionStorageKey = userData ? `sf_complete_${userData.username}` : null;
@@ -712,6 +723,14 @@ export default function Starting() {
           && errorPayload?.user
         ) {
           setUserData(errorPayload.user);
+          return;
+        }
+        if (
+          response.status === 409
+          && errorPayload?.code === 'no_task_within_vip_range'
+        ) {
+          toast.error('No products available in your tier range — the catalog has been refreshed.');
+          void fetchUserData();
           return;
         }
         if (
@@ -1144,12 +1163,32 @@ export default function Starting() {
               Contact Support for Reset
             </button>
           </div>
+        ) : noTasksInVipRange && !isPremiumTaskActive ? (
+          <div className="bg-gradient-to-br from-[#1a0a00] to-[#2d1600] border-2 border-amber-500/60 rounded-xl p-6 mb-6 shadow-xl">
+            <div className="flex items-center justify-center gap-3 mb-3">
+              <AlertCircle className="text-amber-400" size={32} />
+              <h2 className="text-xl font-bold text-white text-center">NO PRODUCTS AVAILABLE</h2>
+            </div>
+            <p className="text-amber-300 font-semibold text-center mb-1">
+              VIP{userData?.vipLevel} range: ${vipPriceMin.toFixed(2)} – ${vipPriceMax.toFixed(2)}
+            </p>
+            <p className="text-white/70 text-sm text-center mb-5">
+              No active products are currently available within your tier price range. Please check back soon or contact support.
+            </p>
+            <button
+              onClick={() => setIsChatOpen(true)}
+              className="w-full flex items-center justify-center gap-2 bg-amber-500 text-[#1a0a00] font-bold py-3 rounded-lg hover:bg-amber-400 transition-colors text-lg"
+            >
+              <MessageCircle size={22} />
+              Contact Support
+            </button>
+          </div>
         ) : (
           <>
             <button
               className={`w-full bg-gradient-to-r from-[#00D9FF] to-[#0099cc] hover:from-[#00c5e6] hover:to-[#0088bb] text-[#08111f] font-bold py-4 rounded-xl mb-6 text-xl transition-all shadow-[0_4px_20px_rgba(0,217,255,0.4)] hover:shadow-[0_6px_28px_rgba(0,217,255,0.6)] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none ${submitting ? 'animate-pulse' : ''}`}
               onClick={handleSubmitTask}
-              disabled={submitting || (!currentProduct && !isPremiumTaskActive) || premiumSubmissionBlocked || vipFundingBlocked || taskSetResetRequired || isAccountSuspended}
+              disabled={submitting || (!currentProduct && !isPremiumTaskActive) || noTasksInVipRange || premiumSubmissionBlocked || vipFundingBlocked || taskSetResetRequired || isAccountSuspended}
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">
