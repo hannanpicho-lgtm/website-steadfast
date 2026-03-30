@@ -9578,6 +9578,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
     const body = await c.req.json().catch(() => ({} as any));
     const requestedUsername = sanitizeUsername(body?.username);
     const dryRun = body?.dryRun !== false;
+    const reconcileTodayCommission = body?.reconcileTodayCommission === true;
     const maxUsers = Number.isFinite(Number(body?.maxUsers))
       ? Math.max(1, Math.min(500, Math.round(Number(body.maxUsers))))
       : 200;
@@ -9638,13 +9639,15 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
         const transactions = await listTransactionRecords(username);
         const writes: Array<{ key: string; value: unknown }> = [];
 
-        const commissionResetDate = getCommissionDateKey();
-        const commissionTotal = sumCompletedCommissionTransactions(transactions, commissionResetDate);
-        if (Math.abs(commissionTotal - Number(normalizedUser.todayCommission ?? 0)) > RECONCILIATION_EPSILON) {
-          userCommissionReconciliations += 1;
-          changed = true;
-          normalizedUser.todayCommission = commissionTotal;
-          normalizedUser.lastCommissionResetDate = commissionResetDate;
+        if (reconcileTodayCommission) {
+          const commissionResetDate = getCommissionDateKey();
+          const commissionTotal = sumCompletedCommissionTransactions(transactions, commissionResetDate);
+          if (Math.abs(commissionTotal - Number(normalizedUser.todayCommission ?? 0)) > RECONCILIATION_EPSILON) {
+            userCommissionReconciliations += 1;
+            changed = true;
+            normalizedUser.todayCommission = commissionTotal;
+            normalizedUser.lastCommissionResetDate = commissionResetDate;
+          }
         }
 
         const outstandingTopUp = Number(normalizedUser?.activePremium?.topUpRequired ?? normalizedUser?.activePremium?.negativeAmount ?? 0);
@@ -9818,12 +9821,13 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
     await recordObservabilityAuditEvent(
       'admin-premium-settlement-reconcile',
       actorEmail,
-      `Reconciled premium settlements (dryRun: ${dryRun ? 'yes' : 'no'}, processed: ${processed}, changed: ${usersChanged}, settlementBackfills: ${settlementBackfills}, amount: $${settlementBackfillAmount.toFixed(2)})`,
+      `Reconciled premium settlements (dryRun: ${dryRun ? 'yes' : 'no'}, reconcileTodayCommission: ${reconcileTodayCommission ? 'yes' : 'no'}, processed: ${processed}, changed: ${usersChanged}, settlementBackfills: ${settlementBackfills}, amount: $${settlementBackfillAmount.toFixed(2)})`,
     ).catch((e) => console.error('Failed to record admin-premium-settlement-reconcile audit event:', e));
 
     return c.json({
       success: true,
       dryRun,
+      reconcileTodayCommission,
       processed,
       usersChanged,
       skippedUnauthorized,

@@ -826,6 +826,7 @@ export default function Admin() {
         body: JSON.stringify({
           username: params?.username,
           dryRun: params?.dryRun ?? false,
+          reconcileTodayCommission: false,
           maxUsers: params?.maxUsers,
         }),
       });
