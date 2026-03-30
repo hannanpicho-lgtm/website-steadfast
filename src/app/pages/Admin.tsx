@@ -413,6 +413,8 @@ export default function Admin() {
   const [userBalanceAdjustmentSaving, setUserBalanceAdjustmentSaving] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
   const [activeAdminTab, setActiveAdminTab] = useState('admins');
+  const [userVipLevelDraft, setUserVipLevelDraft] = useState<UserVipLevelDraft | null>(null);
+  const [userVipLevelSaving, setUserVipLevelSaving] = useState(false);
   const [activeRewardTab, setActiveRewardTab] = useState<RewardTab>('workday');
   const [salaryPayments, setSalaryPayments] = useState<SalaryPayment[]>(initialSalaryPayments);
   const [salaryRestorePoints, setSalaryRestorePoints] = useState<SalaryRestorePoint[]>([]);
@@ -577,6 +579,7 @@ export default function Admin() {
   useEffect(() => {
     if (modalType !== 'adjust-user-balance' || !selectedItem) {
       setUserBalanceAdjustmentDraft(null);
+      setUserVipLevelDraft(null);
       return;
     }
 
@@ -942,7 +945,7 @@ export default function Admin() {
     } finally {
       setUserBalanceAdjustmentSaving(false);
     }
-  };
+  };$handler
 
   const handleStartVipInlineEdit = (vip: VipLevelConfig) => {
     setEditingVipLevel(vip.level);
@@ -5497,4 +5500,9 @@ export default function Admin() {
     </div>
   );
 }
+
+
+
+
+
 
