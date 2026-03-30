@@ -1082,22 +1082,18 @@ export default function Starting() {
             </button>
           </div>
         ) : taskSetResetRequired ? (
-          <div className="bg-gradient-to-br from-yellow-700 to-amber-600 border-2 border-yellow-300 rounded-lg p-6 mb-6 shadow-xl">
+          <div className="bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-600 border-2 border-emerald-300 rounded-xl p-6 mb-6 shadow-xl shadow-emerald-900/25">
             <div className="flex items-center justify-center gap-3 mb-3">
-              <AlertTriangle className="text-yellow-200" size={32} />
-              <h2 className="text-xl font-bold text-white text-center">TASK SET RESET REQUIRED</h2>
-              <AlertTriangle className="text-yellow-200" size={32} />
+              <CheckCircle2 className="text-emerald-100" size={32} />
+              <h2 className="text-xl font-bold text-white text-center">TODAY'S WORK COMPLETED</h2>
+              <CheckCircle2 className="text-emerald-100" size={32} />
             </div>
-            <p className="text-yellow-100 font-semibold text-center mb-2">
+            <p className="text-emerald-50 font-semibold text-center mb-1">
               Current set complete: {userData?.tasksCompletedInSet ?? 0} / {userData?.tasksPerSet ?? 0} tasks
             </p>
-            <button
-              onClick={() => setIsChatOpen(true)}
-              className="w-full flex items-center justify-center gap-2 bg-white text-[#7a4a00] font-bold py-3 rounded-lg hover:bg-yellow-50 transition-colors text-lg"
-            >
-              <MessageCircle size={22} />
-              Contact Support for Set Reset
-            </button>
+            <p className="text-white/90 text-sm text-center">
+              You have successfully completed your day's work.
+            </p>
           </div>
         ) : userData && (userData.completedTaskSets >= userData.taskSetCount) ? (
           <div className="bg-gradient-to-br from-[#003d99] to-[#0055cc] border-2 border-[#00D9FF] rounded-lg p-6 mb-6 shadow-xl">
