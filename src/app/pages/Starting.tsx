@@ -44,6 +44,7 @@ interface TaskCatalogItem {
   image: string;
   rating: number;
   productUrl: string;
+  vipTier?: number;
 }
 
 type TaskCatalogResponse = {
@@ -312,17 +313,31 @@ export default function Starting() {
   const activeVipTier = userData
     ? (vipConfigurations.find((tier) => tier.level === userData.vipLevel) ?? null)
     : null;
-  const vipPriceMin = Number(activeVipTier?.taskPriceMin ?? 0);
-  const vipPriceMax = Number(activeVipTier?.taskPriceMax ?? 0);
+  const currentVipLevel = Number(userData?.vipLevel ?? 1);
+  const vipPriceMin = roundMoney(Number(activeVipTier?.taskPriceMin ?? 0));
+  const vipPriceMax = roundMoney(Number(activeVipTier?.taskPriceMax ?? 0));
   const hasVipPriceRange = vipPriceMin > 0 && vipPriceMax > 0 && vipPriceMax >= vipPriceMin;
 
   const activeTasks = useMemo(() => {
     const allActive = taskCatalog.filter((task) => task.status === 'Active');
-    if (hasVipPriceRange) {
-      return allActive.filter((task) => task.price >= vipPriceMin && task.price <= vipPriceMax);
+    if (allActive.length === 0) {
+      return [];
     }
-    return allActive;
-  }, [taskCatalog, vipPriceMin, vipPriceMax, hasVipPriceRange]);
+
+    const tierTagged = (tasks: TaskCatalogItem[]) => tasks.filter((task) => Number(task.vipTier ?? 0) === currentVipLevel);
+
+    if (hasVipPriceRange) {
+      const inRange = allActive.filter((task) => {
+        const normalizedTaskPrice = roundMoney(Number(task.price ?? 0));
+        return normalizedTaskPrice >= vipPriceMin && normalizedTaskPrice <= vipPriceMax;
+      });
+      const tierTaggedInRange = tierTagged(inRange);
+      return tierTaggedInRange.length > 0 ? tierTaggedInRange : inRange;
+    }
+
+    const tierTaggedActive = tierTagged(allActive);
+    return tierTaggedActive.length > 0 ? tierTaggedActive : allActive;
+  }, [taskCatalog, currentVipLevel, vipPriceMin, vipPriceMax, hasVipPriceRange]);
   const currentProduct = activeTasks.length > 0 ? activeTasks[currentProductIndex % activeTasks.length] : null;
 
   // Auto-advance carousel
