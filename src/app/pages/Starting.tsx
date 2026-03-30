@@ -346,13 +346,12 @@ export default function Starting() {
     Number(userData?.activePremium?.totalBundleValue ?? userData?.activePremium?.premiumProductValue ?? 0)
       * (premiumCommissionRate / 100),
   );
-  const frozenPremiumProfit = Number(userData?.activePremium?.commissionEarned ?? 0) > 0
-    ? Number(userData?.activePremium?.commissionEarned ?? 0)
-    : projectedPremiumProfit;
+  const earnedPremiumProfit = roundMoney(Math.max(0, Number(userData?.activePremium?.commissionEarned ?? 0)));
+  const frozenPremiumProfit = earnedPremiumProfit;
   const todayCommissionDisplay = roundMoney(Number(userData?.todayCommission ?? 0));
   const totalAccountBalanceDisplay = roundMoney(Math.max(0, Number(userData?.balance ?? 0)));
   const afterSettlementProjection = userData?.isFrozen
-    ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze + frozenUpholdAmount + frozenPremiumProfit))
+    ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze + frozenUpholdAmount + earnedPremiumProfit))
     : roundMoney(Math.max(0, Number(userData?.availableAmount ?? ((userData?.balance ?? 0) - (userData?.holdAmount ?? 0)))));
   const requiredFundsForVip = userData
     ? Number(vipConfigurations.find((tier) => tier.level === userData.vipLevel)?.investment ?? 100)
@@ -1259,7 +1258,7 @@ export default function Starting() {
                 <p className="mt-1.5 text-center text-[1.75rem] font-bold">{totalAccountBalanceDisplay.toFixed(2)} USD</p>
                 <p className="mt-1.5 text-center text-[11px] text-white/75">
                   {userData?.isFrozen
-                    ? 'Includes pre-freeze balance, current hold amount, and projected premium profit.'
+                    ? 'Includes pre-freeze balance, current hold amount, and earned premium profit.'
                     : 'Reflects the active account balance across the current task cycle.'}
                 </p>
               </div>
@@ -1296,7 +1295,9 @@ export default function Starting() {
                 <span data-financial-sheen className={financialSheenFx} />
                 <div className="relative z-[1] text-center">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200/90">Premium Estimated Profit</p>
-                  <p className="mt-1 text-xl font-bold text-[#b8ffd4]">{frozenPremiumProfit.toFixed(2)} USD</p>
+                  <p className="mt-1 text-xl font-bold text-[#b8ffd4]">
+                    {(Number(userData?.activePremium?.commissionEarned ?? 0) > 0 ? earnedPremiumProfit : projectedPremiumProfit).toFixed(2)} USD
+                  </p>
                   <p className="mt-1.5 text-[11px] text-white/75">
                     {Number(userData?.activePremium?.commissionEarned ?? 0) > 0
                       ? 'Earned premium commission from completed premium tasks.'

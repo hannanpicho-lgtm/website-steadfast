@@ -226,7 +226,20 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
       }
 
       const result = await response.json();
-      toast.success(`Premium bundle assigned to queue ${result.queuePosition}. Balance after: $${result.balanceAfter.toFixed(2)}, Top-up: $${result.topUpRequired.toFixed(2)}`, { id: assignToastId });
+      const queuePosition = Number.isFinite(Number(result?.queuePosition))
+        ? Math.max(1, Math.round(Number(result.queuePosition)))
+        : 1;
+      const settledBalanceAfter = Number.isFinite(Number(result?.balanceAfter ?? result?.balanceAfterAssignment))
+        ? Number(result.balanceAfter ?? result.balanceAfterAssignment)
+        : balanceAfter;
+      const settledTopUpRequired = Number.isFinite(Number(result?.topUpRequired ?? result?.negativeAmount))
+        ? Number(result.topUpRequired ?? result.negativeAmount)
+        : topUpRequired;
+
+      toast.success(
+        `Premium bundle assigned to queue ${queuePosition}. Balance after: $${settledBalanceAfter.toFixed(2)}, Top-up: $${settledTopUpRequired.toFixed(2)}`,
+        { id: assignToastId },
+      );
 
       // Reset form
       setSelectedUsername('');
