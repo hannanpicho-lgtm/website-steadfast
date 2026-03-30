@@ -28,6 +28,10 @@ const appEnvironment = (Deno.env.get('APP_ENV')
   .trim()
   .toLowerCase();
 const isProductionEnvironment = appEnvironment === 'production';
+const COMMISSION_RESET_TIMEZONE = (Deno.env.get('COMMISSION_RESET_TIMEZONE')
+  ?? Deno.env.get('APP_TIMEZONE')
+  ?? 'UTC')
+  .trim() || 'UTC';
 
 const ADMIN_RATE_LIMIT_WINDOW_MS = 60_000;
 const ADMIN_RATE_LIMIT_MAX_REQUESTS = 60;
@@ -928,6 +932,20 @@ function isSuperAdmin(user: any): boolean {
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+function getCommissionDateKey(date: Date = new Date()): string {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: COMMISSION_RESET_TIMEZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    return formatter.format(date);
+  } catch {
+    return date.toISOString().split('T')[0];
+  }
 }
 
 const COMMISSION_PLAN_MAX_GENERATION_ATTEMPTS = 16;
@@ -2458,7 +2476,7 @@ function defaultUserRecord(username: string) {
     vipLevel: 1,
     balance: 0,
     todayCommission: 0,
-    lastCommissionResetDate: new Date().toISOString().split('T')[0],
+    lastCommissionResetDate: getCommissionDateKey(),
     holdAmount: 0,
     luckyBonus: 0,
     tasksCompleted: 0,
@@ -2473,7 +2491,7 @@ function defaultUserRecord(username: string) {
     currentSetCommissionPlanGeneratedAt: null as string | null,
     taskSetCountOverride: null as number | null,
     tasksPerSetOverride: null as number | null,
-    lastReset: new Date().toISOString().split('T')[0],
+    lastReset: getCommissionDateKey(),
     isFrozen: false,
     isSuspended: false,
     activePremium: null,
@@ -2615,6 +2633,7 @@ function normalizeUserRecord(userData: any, username: string) {
   
   // Reset todayCommission if a new day has started
   const today = new Date().toISOString().split('T')[0];
+  const today = getCommissionDateKey();
   const lastResetDate = typeof normalized.lastCommissionResetDate === 'string' ? normalized.lastCommissionResetDate : '';
   if (lastResetDate !== today) {
     normalized.todayCommission = 0;
@@ -2796,7 +2815,7 @@ function extractIsoDatePrefix(value: string): string | null {
 async function applyAutomaticRewardsForUser(username: string, userData: any) {
   const normalizedUser = normalizeUserRecord(userData, username);
   const rewardsConfig = await getRewardsConfigRecord();
-  const today = new Date().toISOString().split('T')[0];
+  const today = getCommissionDateKey();
   const rewardsApplied: Array<{ category: 'workday' | 'reset' | 'accumulated'; amount: number; reference: string }> = [];
 
   const creditReward = async (
@@ -3234,9 +3253,15 @@ function restoreUserToNaturalState(userData: any) {
   return restored;
 }
 
-function sumCompletedCommissionTransactions(transactions: any[]): number {
+function sumCompletedCommissionTransactions(transactions: any[], dayKey: string): number {
   const total = transactions
-    .filter((tx) => tx?.type === 'Commission' && String(tx?.status ?? 'Completed').toLowerCase() === 'completed')
+    .filter((tx) => {
+      if (tx?.type !== 'Commission' || String(tx?.status ?? 'Completed').toLowerCase() !== 'completed') {
+        return false;
+      }
+      const txDate = extractIsoDatePrefix(typeof tx?.date === 'string' ? tx.date : tx?.createdAt);
+      return txDate === dayKey;
+    })
     .reduce((sum, tx) => sum + Number(tx?.amount ?? 0), 0);
   return roundMoney(total);
 }
@@ -5751,8 +5776,22 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
       premium.completedAt = new Date().toISOString();
       normalizedUserData.premiumQueue = normalizedUserData.premiumQueue.filter(p => p.id !== premium.id);
       normalizedUserData.premiumQueue = sortPremiumAssignmentsByTrigger(normalizedUserData.premiumQueue);
-      const heldAmountBeingReleased = normalizedUserData.holdAmount;
-      normalizedUserData.balance = roundMoney(normalizedUserData.balance + heldAmountBeingReleased);
+
+      const configuredUpholdAmount = Number.isFinite(Number(premium.configuredUpholdAmount))
+        ? roundMoney(Math.max(0, Number(premium.configuredUpholdAmount)))
+        : 0;
+      const preservedHoldAmount = roundMoney(Math.max(0, Number(normalizedUserData.holdAmount ?? 0)));
+      const settledUpholdAmount = roundMoney(Math.max(currentPremiumTopUpRequired, configuredUpholdAmount, preservedHoldAmount));
+      const premiumCommissionEarned = Number.isFinite(Number(premium.commissionEarned))
+        ? roundMoney(Math.max(0, Number(premium.commissionEarned)))
+        : 0;
+      const preFreezeBalance = Number.isFinite(Number(premium.balanceBeforeAssignment))
+        ? roundMoney(Number(premium.balanceBeforeAssignment))
+        : roundMoney(Number(normalizedUserData.balance ?? 0));
+
+      // Settlement rule: final balance must preserve pre-freeze balance,
+      // release the full hold amount, and retain all earned premium commission.
+      normalizedUserData.balance = roundMoney(preFreezeBalance + settledUpholdAmount + premiumCommissionEarned);
       normalizedUserData.isFrozen = false;
       normalizedUserData.activePremium = null;
       normalizedUserData.holdAmount = 0;
@@ -9584,11 +9623,13 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
         const transactions = await listTransactionRecords(username);
         const writes: Array<{ key: string; value: unknown }> = [];
 
-        const commissionTotal = sumCompletedCommissionTransactions(transactions);
+        const commissionResetDate = getCommissionDateKey();
+        const commissionTotal = sumCompletedCommissionTransactions(transactions, commissionResetDate);
         if (Math.abs(commissionTotal - Number(normalizedUser.todayCommission ?? 0)) > RECONCILIATION_EPSILON) {
           userCommissionReconciliations += 1;
           changed = true;
           normalizedUser.todayCommission = commissionTotal;
+          normalizedUser.lastCommissionResetDate = commissionResetDate;
         }
 
         const outstandingTopUp = Number(normalizedUser?.activePremium?.topUpRequired ?? normalizedUser?.activePremium?.negativeAmount ?? 0);
