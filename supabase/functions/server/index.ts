@@ -2565,6 +2565,7 @@ function defaultUserRecord(username: string) {
   return {
     username,
     vipLevel: 1,
+    manualVipLevel: null as number | null,
     balance: 0,
     todayCommission: 0,
     lastCommissionResetDate: getCommissionDateKey(),
@@ -2634,6 +2635,9 @@ function normalizeUserRecord(userData: any, username: string) {
   normalized.taskSetCount = Number.isFinite(Number(normalized.taskSetCount))
     ? Math.max(1, Math.round(Number(normalized.taskSetCount)))
     : 2;
+  normalized.manualVipLevel = Number.isFinite(Number(normalized.manualVipLevel))
+    ? Math.max(1, Math.min(5, Math.round(Number(normalized.manualVipLevel))))
+    : null;
   normalized.tasksPerSet = Number.isFinite(Number(normalized.tasksPerSet))
     ? Math.max(1, Math.round(Number(normalized.tasksPerSet)))
     : defaultRewardsConfig.productSystem.productsPerSet;
@@ -2864,9 +2868,11 @@ async function syncUserWithVipConfig(userData: any, username: string) {
       return selected;
     }, vipConfigRecords[0] ?? null);
 
-  const targetVipLevel = Number.isFinite(Number(effectiveVipTier?.level))
-    ? Math.max(1, Math.round(Number(effectiveVipTier.level)))
-    : fallbackVipLevel;
+  const targetVipLevel = Number.isFinite(Number(normalized.manualVipLevel))
+    ? Math.max(1, Math.min(5, Math.round(Number(normalized.manualVipLevel))))
+    : (Number.isFinite(Number(effectiveVipTier?.level))
+        ? Math.max(1, Math.round(Number(effectiveVipTier.level)))
+        : fallbackVipLevel);
   const vipConfig = await getVipConfigForLevel(targetVipLevel);
   const previousVipLevel = Number.isFinite(Number(normalized.vipLevel))
     ? Math.max(1, Math.round(Number(normalized.vipLevel)))
@@ -10989,6 +10995,111 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
   } catch (err) {
     console.error('admin/platform-users/balance-adjustment error:', err);
     return c.json({ error: 'Failed to adjust user balance' }, 500);
+  }
+});
+
+app.post('/make-server-a1c55d7e/admin/platform-users/:username/vip-level', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = await enforceCriticalAdminRateLimit(c, 'admin-platform-users:vip-level');
+    if (limited) return limited;
+
+    const requestedUsername = sanitizeUsername(c.req.param('username'));
+    if (!requestedUsername) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const canonicalUsername = await resolveCanonicalUsername(requestedUsername);
+    if (!canonicalUsername) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const body = await c.req.json();
+    const newVipLevel = body?.vipLevel ?? null;
+    const reason = typeof body?.reason === 'string' ? body.reason.trim().slice(0, 200) : '';
+
+    // Validate input: newVipLevel must be null (clear override) or 1-5
+    let normalizedVipLevel = null;
+    if (newVipLevel !== null && newVipLevel !== undefined) {
+      const parsed = Number(newVipLevel);
+      if (!Number.isFinite(parsed)) {
+        return c.json({ error: 'VIP level must be null or a number between 1 and 5' }, 400);
+      }
+      normalizedVipLevel = Math.max(1, Math.min(5, Math.round(parsed)));
+    }
+
+    if (!reason) {
+      return c.json({ error: 'Reason is required' }, 400);
+    }
+
+    const vipLevelReferenceId = createFinanceId('vopl');
+    const vipLevelResult = await withUserFinancialLock(canonicalUsername, async () => {
+      const userKey = `user:${canonicalUsername}`;
+      const existingUser = await kv.get(userKey);
+      if (!existingUser) {
+        return { response: c.json({ error: 'User not found' }, 404) };
+      }
+
+      const normalizedUser = await normalizeUserRecord(existingUser);
+      if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
+        return { response: c.json({ error: 'Forbidden' }, 403) };
+      }
+
+      const previousVipLevel = normalizedUser.vipLevel;
+      const previousManualVipLevel = normalizedUser.manualVipLevel;
+
+      // Set the manual VIP level override
+      normalizedUser.manualVipLevel = normalizedVipLevel;
+
+      // Re-sync to recalculate VIP level (respecting manual override if set)
+      const syncedUser = await syncUserWithVipConfig(normalizedUser, canonicalUsername);
+
+      const auditMessage = normalizedVipLevel === null
+        ? `Cleared VIP level override for '${canonicalUsername}' (VIP reverted to auto-calc: ${previousVipLevel} → ${syncedUser.vipLevel}; reason: ${reason})`
+        : `Set VIP level override to ${normalizedVipLevel} for '${canonicalUsername}' (VIP changed: ${previousVipLevel} → ${syncedUser.vipLevel}; reason: ${reason})`;
+
+      // Save to KV
+      await kv.put(`user:${canonicalUsername}`, syncedUser);
+
+      return {
+        user: syncedUser,
+        previousVipLevel,
+        previousManualVipLevel,
+        newManualVipLevel: normalizedVipLevel,
+        referenceId: vipLevelReferenceId,
+      };
+    });
+
+    if ('response' in vipLevelResult) {
+      return vipLevelResult.response;
+    }
+
+    const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-user-vip-level-override',
+      actorEmail,
+      normalizedVipLevel === null
+        ? `Cleared VIP level override for '${canonicalUsername}' (VIP reverted to auto-calc: ${vipLevelResult.previousVipLevel} → ${vipLevelResult.user.vipLevel}; reason: ${reason})`
+        : `Set VIP level override to ${normalizedVipLevel} for '${canonicalUsername}' (VIP changed: ${vipLevelResult.previousVipLevel} → ${vipLevelResult.user.vipLevel}; reason: ${reason})`,
+    ).catch((e) => console.error('Failed to record admin-user-vip-level-override audit event:', e));
+
+    return c.json({
+      success: true,
+      user: vipLevelResult.user,
+      previousVipLevel: vipLevelResult.previousVipLevel,
+      previousManualVipLevel: vipLevelResult.previousManualVipLevel,
+      newManualVipLevel: vipLevelResult.newManualVipLevel,
+      referenceId: vipLevelResult.referenceId,
+    });
+  } catch (err) {
+    console.error('admin/platform-users/vip-level error:', err);
+    return c.json({ error: 'Failed to set user VIP level' }, 500);
   }
 });
 
