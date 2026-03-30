@@ -12,6 +12,7 @@ import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 import { fetchPublicRewardsConfig, type RewardsConfig, defaultRewardsConfig } from '../services/rewardsConfig';
 import { fetchFinancialSummary } from '../services/financialReadModel';
 import { acknowledgeBonusFeedItems, fetchBonusFeed } from '../services/bonusFeed';
+import { fetchJsonWithRetry, invalidateSessionCacheByPrefix } from '../services/networkClient';
 
 interface UserData {
   username: string;
@@ -790,6 +791,24 @@ export default function Starting() {
       setLastCommission(result.commission);
       setIsPremium(Boolean(result.isPremium ?? isSubmittingPremiumTask));
       setShowSuccess(true);
+
+      if (username) {
+        invalidateSessionCacheByPrefix(`records:${username}:`);
+        void fetchJsonWithRetry({
+          url: `${serverUrl}/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true`,
+          init: {
+            credentials: 'include',
+          },
+          timeoutMs: 7000,
+          retries: 1,
+          retryDelayMs: 250,
+          cacheKey: `records:${username}:snapshot:v1`,
+          cacheTtlMs: 45 * 1000,
+          pageTag: 'starting-post-submit-prefetch',
+        }).catch(() => {
+          // Prefetch is best-effort and should never block submission UX.
+        });
+      }
       
       // Move to next product
       if (!isSubmittingPremiumTask) {

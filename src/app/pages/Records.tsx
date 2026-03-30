@@ -5,10 +5,10 @@ import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { projectId } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
-import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
+import { type VipConfig } from '../services/vipConfig';
 import { fetchJsonWithRetry } from '../services/networkClient';
 
 interface UserData {
@@ -106,9 +106,21 @@ type RecordListItem = CompletedRecordItem | PendingPremiumRecordItem;
 
 const RECORDS_REQUEST_TIMEOUT_MS = 7000;
 const RECORDS_USER_CACHE_TTL_MS = 45 * 1000;
-const RECORDS_TASKS_CACHE_TTL_MS = 45 * 1000;
-const RECORDS_TX_CACHE_TTL_MS = 45 * 1000;
-const RECORDS_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
+const RECORDS_SNAPSHOT_CACHE_TTL_MS = 45 * 1000;
+
+type RecordsSnapshotResponse = {
+  user: UserData;
+  tasks: TaskRecord[];
+  transactions: TransactionRecord[];
+  taskCatalog: TaskCatalogItem[];
+  vipConfig: VipConfig[];
+  meta?: {
+    tasksTotal?: number;
+    tasksReturned?: number;
+    transactionsTotal?: number;
+    transactionsReturned?: number;
+  };
+};
 
 export default function Records() {
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -146,79 +158,17 @@ export default function Records() {
     fetchData();
   }, [location.pathname, navigate, sessionUsername]);
 
-  const fetchUser = async () => {
-    return fetchJsonWithRetry<UserData>({
-      url: `${serverUrl}/me/financials`,
+  const fetchRecordsSnapshot = async () => {
+    return fetchJsonWithRetry<RecordsSnapshotResponse>({
+      url: `${serverUrl}/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true`,
       init: {
         credentials: 'include',
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          apikey: publicAnonKey,
-        },
       },
       timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
       retries: 2,
       retryDelayMs: 250,
-      cacheKey: `records:${username}:financials:v2`,
-      cacheTtlMs: RECORDS_USER_CACHE_TTL_MS,
-      pageTag: 'records',
-    });
-  };
-
-  const fetchTasks = async () => {
-    const data = await fetchJsonWithRetry<any>({
-      url: `${serverUrl}/me/tasks`,
-      init: {
-        credentials: 'include',
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          apikey: publicAnonKey,
-        },
-      },
-      timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
-      retries: 2,
-      retryDelayMs: 250,
-      cacheKey: `records:${username}:tasks:v2`,
-      cacheTtlMs: RECORDS_TASKS_CACHE_TTL_MS,
-      pageTag: 'records',
-    });
-    // Handle both old array format and new paginated {tasks, total, returned} format
-    return Array.isArray(data) ? data : (Array.isArray(data?.tasks) ? data.tasks : []);
-  };
-
-  const fetchTransactions = async () => {
-    return fetchJsonWithRetry<TransactionRecord[]>({
-      url: `${serverUrl}/me/transactions`,
-      init: {
-        credentials: 'include',
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          apikey: publicAnonKey,
-        },
-      },
-      timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
-      retries: 2,
-      retryDelayMs: 250,
-      cacheKey: `records:${username}:transactions:v2`,
-      cacheTtlMs: RECORDS_TX_CACHE_TTL_MS,
-      pageTag: 'records',
-    });
-  };
-
-  const fetchTaskCatalog = async () => {
-    return fetchJsonWithRetry<any>({
-      url: `${serverUrl}/tasks/catalog`,
-      init: {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          apikey: publicAnonKey,
-        },
-      },
-      timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
-      retries: 2,
-      retryDelayMs: 250,
-      cacheKey: 'records:task-catalog:v2',
-      cacheTtlMs: RECORDS_CATALOG_CACHE_TTL_MS,
+      cacheKey: `records:${username}:snapshot:v1`,
+      cacheTtlMs: RECORDS_SNAPSHOT_CACHE_TTL_MS,
       pageTag: 'records',
     });
   };
@@ -238,61 +188,13 @@ export default function Records() {
         setIsRefreshing(true);
       }
 
-      const [userResult, tasksResult, transactionResult, catalogResult] = await Promise.allSettled([
-        fetchUser(),
-        fetchTasks(),
-        fetchTransactions(),
-        fetchTaskCatalog(),
-      ]);
+      const snapshot = await fetchRecordsSnapshot();
 
-      const failures: string[] = [];
-
-      if (userResult.status === 'fulfilled') {
-        setUserData(userResult.value);
-      } else {
-        failures.push('account summary');
-      }
-
-      if (tasksResult.status === 'fulfilled') {
-        setTaskRecords(Array.isArray(tasksResult.value) ? tasksResult.value : []);
-      } else {
-        failures.push('task records');
-      }
-
-      if (transactionResult.status === 'fulfilled') {
-        setTransactions(Array.isArray(transactionResult.value) ? transactionResult.value : []);
-      } else {
-        failures.push('transaction history');
-      }
-
-      if (catalogResult.status === 'fulfilled') {
-        setTaskCatalog(Array.isArray(catalogResult.value?.tasks) ? catalogResult.value.tasks : []);
-      } else {
-        failures.push('task catalog');
-      }
-
-      const resolvedUser = userResult.status === 'fulfilled' ? userResult.value : userData;
-      if (resolvedUser?.activePremium) {
-        try {
-          const vipConfig = await fetchPublicVipConfig();
-          setVipConfigurations(Array.isArray(vipConfig) ? vipConfig : []);
-        } catch {
-          failures.push('VIP config');
-        }
-      } else {
-        setVipConfigurations([]);
-      }
-
-      if (failures.length > 0) {
-        const errorSummary = `Some data could not be refreshed: ${failures.join(', ')}.`;
-        setLoadError(errorSummary);
-
-        if (shouldBlockRender) {
-          toast.error('Network instability detected. Retrying may help.');
-        } else {
-          toast.warning(errorSummary);
-        }
-      }
+      setUserData(snapshot?.user ?? null);
+      setTaskRecords(Array.isArray(snapshot?.tasks) ? snapshot.tasks : []);
+      setTransactions(Array.isArray(snapshot?.transactions) ? snapshot.transactions : []);
+      setTaskCatalog(Array.isArray(snapshot?.taskCatalog) ? snapshot.taskCatalog : []);
+      setVipConfigurations(Array.isArray(snapshot?.vipConfig) ? snapshot.vipConfig : []);
     } catch (error) {
       console.error('Error fetching data:', error);
       setLoadError('Failed to refresh records due to network instability.');

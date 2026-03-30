@@ -977,6 +977,7 @@ function randomIntInclusive(min: number, max: number): number {
 }
 
 const TRANSACTION_KEY_PREFIX = 'transaction:';
+const TRANSACTION_USER_KEY_PREFIX = 'transaction-user:';
 const WITHDRAWAL_KEY_PREFIX = 'withdrawal:';
 const FINANCIAL_LEDGER_KEY_PREFIX = 'financial-ledger:';
 const TASK_CATALOG_KEY_PREFIX = 'task-catalog:';
@@ -1000,6 +1001,27 @@ const ADMIN_SALARY_MAX_RESTORE_POINTS = 10;
 const ADMIN_SALARY_MAX_AUDIT_EVENTS = 50;
 const PREMIUM_SETTLEMENT_FIX_DEPLOYED_AT_MS = new Date('2026-03-25T02:53:42.000Z').getTime();
 const RECONCILIATION_EPSILON = 0.009;
+const TASK_CATALOG_RUNTIME_CACHE_TTL_MS = 20_000;
+
+let taskCatalogRuntimeCacheAll: { expiresAt: number; tasks: any[] } | null = null;
+let taskCatalogRuntimeCacheActive: { expiresAt: number; tasks: any[] } | null = null;
+
+function parsePositiveIntQuery(value: string | undefined, fallback: number, min: number, max: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.max(min, Math.min(max, Math.round(parsed)));
+}
+
+function cloneTaskCatalogRecords(tasks: any[]): any[] {
+  return tasks.map((task) => ({ ...task }));
+}
+
+function invalidateTaskCatalogRuntimeCache(): void {
+  taskCatalogRuntimeCacheAll = null;
+  taskCatalogRuntimeCacheActive = null;
+}
 
 const defaultTaskCatalog = [
   {
@@ -2342,13 +2364,22 @@ async function ensureTaskCatalogSeeded() {
     });
     await kv.set(`${TASK_CATALOG_KEY_PREFIX}${normalized.id}`, normalized);
   }
+
+  invalidateTaskCatalogRuntimeCache();
 }
 
 async function listTaskCatalogRecords(includePaused = true) {
+  const now = Date.now();
+  const cached = includePaused ? taskCatalogRuntimeCacheAll : taskCatalogRuntimeCacheActive;
+  if (cached && cached.expiresAt > now) {
+    return cloneTaskCatalogRecords(cached.tasks);
+  }
+
   await ensureTaskCatalogSeeded();
   const rawTasks = await kv.getByPrefix(TASK_CATALOG_KEY_PREFIX);
 
   // Auto-repair historical fallback/default prices so each task carries its own value.
+  let repairedCount = 0;
   const repairedTasks = await Promise.all(rawTasks.map(async (task: any) => {
     const taskId = sanitizeTaskId(task?.id);
     if (!taskId) {
@@ -2372,13 +2403,30 @@ async function listTaskCatalogRecords(includePaused = true) {
     });
 
     await kv.set(`${TASK_CATALOG_KEY_PREFIX}${taskId}`, repairedTask);
+    repairedCount += 1;
     return repairedTask;
   }));
 
-  return repairedTasks
+  if (repairedCount > 0) {
+    invalidateTaskCatalogRuntimeCache();
+  }
+
+  const normalized = repairedTasks
     .map((task) => normalizeTaskCatalogRecord(task))
     .filter((task) => includePaused || task.status === 'Active')
     .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+
+  const cacheEntry = {
+    expiresAt: now + TASK_CATALOG_RUNTIME_CACHE_TTL_MS,
+    tasks: cloneTaskCatalogRecords(normalized),
+  };
+  if (includePaused) {
+    taskCatalogRuntimeCacheAll = cacheEntry;
+  } else {
+    taskCatalogRuntimeCacheActive = cacheEntry;
+  }
+
+  return normalized;
 }
 
 async function getTaskCatalogRecord(taskId: string) {
@@ -2495,17 +2543,44 @@ async function createTransactionRecord(input: {
   referenceId?: string;
 }) {
   const transaction = buildTransactionRecord(input);
-
-  await kv.set(`${TRANSACTION_KEY_PREFIX}${transaction.id}`, transaction);
+  await persistKvEntries([
+    { key: `${TRANSACTION_KEY_PREFIX}${transaction.id}`, value: transaction },
+    { key: `${TRANSACTION_USER_KEY_PREFIX}${transaction.username}:${transaction.id}`, value: transaction },
+  ]);
   return transaction;
 }
 
 async function listTransactionRecords(username?: string) {
+  const normalizedUsername = sanitizeUsername(username);
+  if (normalizedUsername) {
+    const userScopedRecords = await kv.getByPrefix(`${TRANSACTION_USER_KEY_PREFIX}${normalizedUsername}:`);
+    if (userScopedRecords.length > 0) {
+      return userScopedRecords
+        .map((record) => normalizeTransactionRecord(record))
+        .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
+    }
+  }
+
   const records = await kv.getByPrefix(TRANSACTION_KEY_PREFIX);
-  return records
+  const normalized = records
     .map((record) => normalizeTransactionRecord(record))
-    .filter((record) => !username || record.username === username)
+    .filter((record) => !normalizedUsername || record.username === normalizedUsername)
     .sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
+
+  if (normalizedUsername && normalized.length > 0) {
+    const mirrorWrites = normalized.slice(0, 300).map((record) => ({
+      key: `${TRANSACTION_USER_KEY_PREFIX}${normalizedUsername}:${record.id}`,
+      value: record,
+    }));
+
+    if (mirrorWrites.length > 0) {
+      await persistKvEntries(mirrorWrites).catch(() => {
+        // Best-effort optimization path.
+      });
+    }
+  }
+
+  return normalized;
 }
 
 async function listWithdrawalRecords(username?: string) {
@@ -2549,10 +2624,19 @@ async function persistFinancialState(params: {
     metadata: params.ledgerMetadata,
   });
 
+  const mirroredWrites = (params.writes ?? [])
+    .filter((write) => typeof write?.key === 'string' && write.key.startsWith(TRANSACTION_KEY_PREFIX))
+    .map((write) => normalizeTransactionRecord(write.value))
+    .map((transaction) => ({
+      key: `${TRANSACTION_USER_KEY_PREFIX}${sanitizeUsername(transaction.username) || params.username}:${transaction.id}`,
+      value: transaction,
+    }));
+
   await persistKvEntries([
     { key: `user:${params.username}`, value: normalizedUser },
     { key: `${FINANCIAL_LEDGER_KEY_PREFIX}${ledgerRecord.id}`, value: ledgerRecord },
     ...(params.writes ?? []),
+    ...mirroredWrites,
   ]);
 
   return {
@@ -5492,12 +5576,32 @@ app.get('/make-server-a1c55d7e/me/tasks', async (c) => {
       return sessionResult.response;
     }
 
+    const limitRaw = c.req.query('limit');
+    const offsetRaw = c.req.query('offset');
+    const includePagingEnvelope = c.req.query('format') === 'paged';
+    const requestedLimit = parsePositiveIntQuery(limitRaw, 120, 1, 500);
+    const requestedOffset = parsePositiveIntQuery(offsetRaw, 0, 0, 10_000);
+
     const tasks = await kv.getByPrefix(`task:${sessionResult.session.username}:`);
     const sortedTasks = tasks.sort((a, b) =>
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
 
-    return c.json(sortedTasks);
+    const pagedTasks = typeof limitRaw === 'string'
+      ? sortedTasks.slice(requestedOffset, requestedOffset + requestedLimit)
+      : sortedTasks;
+
+    if (includePagingEnvelope) {
+      return c.json({
+        tasks: pagedTasks,
+        total: sortedTasks.length,
+        returned: pagedTasks.length,
+        offset: requestedOffset,
+        limit: requestedLimit,
+      });
+    }
+
+    return c.json(pagedTasks);
   } catch (error) {
     console.error('Error fetching session task records:', error);
     return c.json({ error: 'Failed to fetch task records' }, 500);
@@ -5551,11 +5655,85 @@ app.get('/make-server-a1c55d7e/me/transactions', async (c) => {
       return sessionResult.response;
     }
 
+    const limitRaw = c.req.query('limit');
+    const offsetRaw = c.req.query('offset');
+    const includePagingEnvelope = c.req.query('format') === 'paged';
+    const requestedLimit = parsePositiveIntQuery(limitRaw, 120, 1, 500);
+    const requestedOffset = parsePositiveIntQuery(offsetRaw, 0, 0, 10_000);
+
     const transactions = await listTransactionRecords(sessionResult.session.username);
-    return c.json(transactions);
+    const pagedTransactions = typeof limitRaw === 'string'
+      ? transactions.slice(requestedOffset, requestedOffset + requestedLimit)
+      : transactions;
+
+    if (includePagingEnvelope) {
+      return c.json({
+        transactions: pagedTransactions,
+        total: transactions.length,
+        returned: pagedTransactions.length,
+        offset: requestedOffset,
+        limit: requestedLimit,
+      });
+    }
+
+    return c.json(pagedTransactions);
   } catch (error) {
     console.error('Error fetching session transaction records:', error);
     return c.json({ error: 'Failed to fetch transaction records' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/records-snapshot', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const tasksLimit = parsePositiveIntQuery(c.req.query('tasksLimit'), 120, 1, 500);
+    const transactionsLimit = parsePositiveIntQuery(c.req.query('transactionsLimit'), 120, 1, 500);
+    const includeCatalog = c.req.query('includeCatalog') !== 'false';
+    const includeVip = c.req.query('includeVip') !== 'false';
+    const username = sessionResult.session.username;
+
+    const [rawUserData, tasks, transactions, taskCatalog] = await Promise.all([
+      kv.get(`user:${username}`),
+      kv.getByPrefix(`task:${username}:`),
+      listTransactionRecords(username),
+      includeCatalog ? listTaskCatalogRecords(false) : Promise.resolve([]),
+    ]);
+
+    if (!rawUserData) {
+      return jsonError(c, 404, 'user_not_found', 'User not found');
+    }
+
+    const normalizedUserData = await syncUserWithVipConfig(rawUserData, username);
+    const sortedTasks = tasks.sort((left, right) =>
+      new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime()
+    );
+
+    const pagedTasks = sortedTasks.slice(0, tasksLimit);
+    const pagedTransactions = transactions.slice(0, transactionsLimit);
+    const vipConfig = includeVip && normalizedUserData.activePremium
+      ? await listVipConfigRecords()
+      : [];
+
+    return c.json({
+      user: normalizedUserData,
+      tasks: pagedTasks,
+      transactions: pagedTransactions,
+      taskCatalog,
+      vipConfig,
+      meta: {
+        tasksTotal: sortedTasks.length,
+        tasksReturned: pagedTasks.length,
+        transactionsTotal: transactions.length,
+        transactionsReturned: pagedTransactions.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching records snapshot:', error);
+    return c.json({ error: 'Failed to fetch records snapshot' }, 500);
   }
 });
 

@@ -240,3 +240,21 @@ export function readApiMetrics(): ApiMetricSample[] {
     return [];
   }
 }
+
+export function invalidateSessionCacheByPrefix(prefix: string): void {
+  try {
+    const keysToRemove: string[] = [];
+    for (let index = 0; index < sessionStorage.length; index += 1) {
+      const key = sessionStorage.key(index);
+      if (typeof key === 'string' && key.startsWith(prefix)) {
+        keysToRemove.push(key);
+      }
+    }
+
+    for (const key of keysToRemove) {
+      sessionStorage.removeItem(key);
+    }
+  } catch {
+    // Cache invalidation should never block user flows.
+  }
+}
