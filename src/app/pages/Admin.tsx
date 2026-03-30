@@ -1713,8 +1713,9 @@ export default function Admin() {
       return;
     }
 
+    const loadingToastId = 'admin-create-product';
     try {
-      toast.loading('Creating product...');
+      toast.loading('Creating product...', { id: loadingToastId });
       const headers = await buildAdminAuthHeaders();
       const response = await fetch(`${serverUrl}/admin/tasks`, {
         method: 'POST',
@@ -1735,7 +1736,7 @@ export default function Admin() {
       
       // Reset form and close modal immediately
       formElement.reset();
-      toast.success('Product created successfully!');
+      toast.success('Product created successfully!', { id: loadingToastId });
       setModalType(null);
       
       // Update the list in background
@@ -1757,6 +1758,7 @@ export default function Admin() {
     } catch (error) {
       console.error('[DEBUG] Error creating task:', error);
       // Don't close the modal on error - let user try again or must close manually
+      toast.dismiss(loadingToastId);
       handleAdminRequestError(error, 'Failed to create product', { suppressToast: false });
     }
   };

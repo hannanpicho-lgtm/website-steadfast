@@ -150,7 +150,9 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
       return;
     }
 
+    const cancelToastId = `premium-cancel-${assignment.id}`;
     try {
+      toast.loading('Cancelling assignment...', { id: cancelToastId });
       const response = await fetch(`${serverUrl}/admin/cancel-premium/${assignment.username}/${assignment.id}`, {
         method: 'DELETE',
         headers: await buildAdminAuthHeaders(),
@@ -160,9 +162,10 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
         throw new Error(payload?.error ?? 'Failed to cancel premium assignment');
       }
       await loadAssignments();
-      toast.success('Premium assignment cancelled successfully.');
+      toast.success('Premium assignment cancelled successfully.', { id: cancelToastId });
     } catch (error) {
       console.error('Error cancelling premium assignment:', error);
+      toast.dismiss(cancelToastId);
       handleAdminError(error, 'Failed to cancel premium assignment');
     }
   };
@@ -188,8 +191,10 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
       return;
     }
 
+    const assignToastId = 'admin-assign-premium';
     try {
       setAssigningPremium(true);
+      toast.loading('Assigning premium bundle...', { id: assignToastId });
 
       const response = await fetch(`${serverUrl}/admin/assign-premium-bundle`, {
         method: 'POST',
@@ -221,8 +226,7 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
       }
 
       const result = await response.json();
-      toast.success('Premium bundle assigned successfully.');
-      toast.info(`Queue ${result.queuePosition} · Balance after $${result.balanceAfter.toFixed(2)} · Top-up $${result.topUpRequired.toFixed(2)}`);
+      toast.success(`Premium bundle assigned to queue ${result.queuePosition}. Balance after: $${result.balanceAfter.toFixed(2)}, Top-up: $${result.topUpRequired.toFixed(2)}`, { id: assignToastId });
 
       // Reset form
       setSelectedUsername('');
@@ -234,6 +238,7 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
       await loadAssignments();
     } catch (error) {
       console.error('Error assigning premium bundle:', error);
+      toast.dismiss(assignToastId);
       handleAdminError(error, 'Failed to assign premium bundle');
     } finally {
       setAssigningPremium(false);
