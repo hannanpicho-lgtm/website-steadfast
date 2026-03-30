@@ -86,15 +86,21 @@ export default function VipConfig({
       {/* VIP Levels Grid */}
       <div className="grid grid-cols-1 gap-4">
         {vipConfigurations.map((vip) => {
-          const priceMin = Number(vip.taskPriceMin ?? 0);
-          const priceMax = Number(vip.taskPriceMax ?? 0);
+          const isEditingCurrentVip = editingVipLevel === vip.level && Boolean(vipDraft);
+          const effectiveDailyTasks = Number(isEditingCurrentVip ? vipDraft?.dailyTasks : vip.dailyTasks);
+          const effectiveCommission = Number(isEditingCurrentVip ? vipDraft?.commissionPercent : vip.commission * 100) / 100;
+          const priceMin = Number(isEditingCurrentVip ? vipDraft?.taskPriceMin : vip.taskPriceMin ?? 0);
+          const priceMax = Number(isEditingCurrentVip ? vipDraft?.taskPriceMax : vip.taskPriceMax ?? 0);
+          const earningsDenominator = effectiveDailyTasks > 0 && effectiveCommission > 0
+            ? effectiveDailyTasks * effectiveCommission
+            : 0;
           const hasControlledRange = priceMin > 0 && priceMax > 0 && priceMax >= priceMin;
           const minDailyEarnings = hasControlledRange
-            ? priceMin * vip.commission * vip.dailyTasks
+            ? priceMin * effectiveCommission * effectiveDailyTasks
             : 0;
           const maxDailyEarnings = hasControlledRange
-            ? priceMax * vip.commission * vip.dailyTasks
-            : vip.dailyTasks * 100 * vip.commission;
+            ? priceMax * effectiveCommission * effectiveDailyTasks
+            : effectiveDailyTasks * 100 * effectiveCommission;
 
           return (
             <div key={vip.level} className="bg-[#252b3d] rounded-lg p-6 border-l-4 border-purple-500">
@@ -216,7 +222,64 @@ export default function VipConfig({
                       <TrendingUp size={16} className="text-gray-400" />
                       <p className="text-gray-400 text-xs">Max Daily Earnings</p>
                     </div>
-                    {hasControlledRange ? (
+                    {editingVipLevel === vip.level && vipDraft ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-400 text-sm">$</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={minDailyEarnings > 0 ? minDailyEarnings.toFixed(2) : ''}
+                            onChange={(e) => {
+                              const rawValue = e.target.value;
+                              if (!rawValue.trim()) {
+                                setVipDraft((prev: any) => (prev ? { ...prev, taskPriceMin: '' } : prev));
+                                return;
+                              }
+
+                              const earnings = Number(rawValue);
+                              const derivedTaskPriceMin = earningsDenominator > 0 && Number.isFinite(earnings)
+                                ? (earnings / earningsDenominator).toFixed(2)
+                                : '0';
+
+                              setVipDraft((prev: any) => (prev ? { ...prev, taskPriceMin: derivedTaskPriceMin } : prev));
+                            }}
+                            disabled={savingVipLevel === vip.level}
+                            placeholder="Min"
+                            className="w-full bg-[#11182a] border border-gray-600 rounded px-2 py-2 text-purple-300 font-bold text-sm focus:border-[#00D9FF] focus:outline-none"
+                          />
+                          <span className="text-gray-500">-</span>
+                          <span className="text-gray-400 text-sm">$</span>
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={maxDailyEarnings > 0 ? maxDailyEarnings.toFixed(2) : ''}
+                            onChange={(e) => {
+                              const rawValue = e.target.value;
+                              if (!rawValue.trim()) {
+                                setVipDraft((prev: any) => (prev ? { ...prev, taskPriceMax: '' } : prev));
+                                return;
+                              }
+
+                              const earnings = Number(rawValue);
+                              const derivedTaskPriceMax = earningsDenominator > 0 && Number.isFinite(earnings)
+                                ? (earnings / earningsDenominator).toFixed(2)
+                                : '0';
+
+                              setVipDraft((prev: any) => (prev ? { ...prev, taskPriceMax: derivedTaskPriceMax } : prev));
+                            }}
+                            disabled={savingVipLevel === vip.level}
+                            placeholder="Max"
+                            className="w-full bg-[#11182a] border border-gray-600 rounded px-2 py-2 text-purple-300 font-bold text-sm focus:border-[#00D9FF] focus:outline-none"
+                          />
+                        </div>
+                        <p className="text-[11px] text-purple-200/80">
+                          Editing earnings auto-calculates task range from commission and products/set
+                        </p>
+                      </div>
+                    ) : hasControlledRange ? (
                       <>
                         <p className="text-purple-300 font-bold text-xl">
                           ${minDailyEarnings.toFixed(2)} - ${maxDailyEarnings.toFixed(2)}
