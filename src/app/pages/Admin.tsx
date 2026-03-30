@@ -945,7 +945,7 @@ export default function Admin() {
     } finally {
       setUserBalanceAdjustmentSaving(false);
     }
-  };$handler
+  };
 
   const handleStartVipInlineEdit = (vip: VipLevelConfig) => {
     setEditingVipLevel(vip.level);
