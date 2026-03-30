@@ -301,6 +301,7 @@ export default function Starting() {
   const [rewardsConfig, setRewardsConfig] = useState<RewardsConfig>(defaultRewardsConfig);
   const [taskRuleConfig, setTaskRuleConfig] = useState<TaskCatalogResponse['ruleConfig'] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [today, setToday] = useState(() => new Date().toDateString());
   const connectionToastShownRef = useRef(false);
   const routeEntryTimeRef = useRef(performance.now());
   
@@ -365,6 +366,12 @@ export default function Starting() {
   const vipFundingBlocked = Boolean(userData) && availableFundsForSubmit < requiredFundsForVip;
   const isAccountSuspended = Boolean(userData?.isSuspended);
   const taskSetResetRequired = Boolean(userData?.pendingTaskReset);
+  const isAllSetsComplete = Boolean(userData && userData.completedTaskSets != null && userData.taskSetCount != null && userData.completedTaskSets >= userData.taskSetCount);
+  const completionStorageKey = userData ? `sf_complete_${userData.username}` : null;
+  const completionDateStored = completionStorageKey ? localStorage.getItem(completionStorageKey) : null;
+  const completionIsToday = completionDateStored === today;
+  const showDayCompletionBanner = taskSetResetRequired && isAllSetsComplete && completionIsToday;
+  const showCsResetBanner = taskSetResetRequired && !showDayCompletionBanner;
   const activePremiumQueuePosition = userData?.activePremium && Array.isArray(userData?.premiumQueue)
     ? Math.max(1, userData.premiumQueue.findIndex((premium) => premium?.id === userData.activePremium?.id) + 1)
     : 1;
@@ -503,6 +510,27 @@ export default function Starting() {
 
     void pollBonusFeed();
   }, [sessionUsername]);
+
+  // Auto-update 'today' at midnight so banner transitions correctly to next day
+  useEffect(() => {
+    const midnight = new Date();
+    midnight.setHours(24, 0, 0, 0);
+    const t = setTimeout(() => setToday(new Date().toDateString()), midnight.getTime() - Date.now());
+    return () => clearTimeout(t);
+  }, [today]);
+
+  // Track the calendar date when the user first completes ALL sets for Banner 2
+  // Cleared when admin resets (pendingTaskReset goes false)
+  useEffect(() => {
+    if (!completionStorageKey) return;
+    if (taskSetResetRequired && isAllSetsComplete) {
+      if (!localStorage.getItem(completionStorageKey)) {
+        localStorage.setItem(completionStorageKey, new Date().toDateString());
+      }
+    } else if (!taskSetResetRequired) {
+      localStorage.removeItem(completionStorageKey);
+    }
+  }, [taskSetResetRequired, isAllSetsComplete, completionStorageKey]);
 
   const fetchSessionUser = async () => {
     return fetchFinancialSummary();
@@ -1081,7 +1109,7 @@ export default function Starting() {
               Contact Support
             </button>
           </div>
-        ) : taskSetResetRequired ? (
+        ) : showDayCompletionBanner ? (
           <div className="bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-600 border-2 border-emerald-300 rounded-xl p-6 mb-6 shadow-xl shadow-emerald-900/25">
             <div className="flex items-center justify-center gap-3 mb-3">
               <CheckCircle2 className="text-emerald-100" size={32} />
@@ -1095,7 +1123,7 @@ export default function Starting() {
               You have successfully completed your day's work.
             </p>
           </div>
-        ) : userData && (userData.completedTaskSets >= userData.taskSetCount) ? (
+        ) : showCsResetBanner ? (
           <div className="bg-gradient-to-br from-[#003d99] to-[#0055cc] border-2 border-[#00D9FF] rounded-lg p-6 mb-6 shadow-xl">
             <div className="flex items-center justify-center gap-3 mb-3">
               <CheckCircle2 className="text-[#00D9FF]" size={32} />
