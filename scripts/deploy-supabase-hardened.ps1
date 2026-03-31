@@ -176,7 +176,7 @@ try {
   }
 
   $ErrorActionPreference = "Continue"
-  $deployOutput = & supabase functions deploy $FunctionName --project-ref $ProjectRef 2>&1
+  $deployOutput = & supabase functions deploy $FunctionName --project-ref $ProjectRef --no-verify-jwt 2>&1
   $deployExitCode = $LASTEXITCODE
   $ErrorActionPreference = $previousPreference
 
