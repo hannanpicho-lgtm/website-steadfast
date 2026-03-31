@@ -69,7 +69,7 @@ import {
   updateAdminRewardsConfig,
 } from '../services/rewardsConfig';
 import { fetchAdminVipConfig, type VipConfig, updateAdminVipConfig } from '../services/vipConfig';
-import { projectId } from '@utils/supabase/info';
+import { getRuntimeEnvironmentDebugSnapshot, RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 import {
   AUTO_BACKUP_INTERVAL_MS,
   MAX_AUDIT_EVENTS,
@@ -398,7 +398,9 @@ type ModalType = 'add-user' | 'edit-user' | 'view-user' | 'delete-user' | 'adjus
 
 export default function Admin() {
   const navigate = useNavigate();
-  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
+  const runtimeEnvDebug = getRuntimeEnvironmentDebugSnapshot();
+  const [showEnvironmentDebug, setShowEnvironmentDebug] = useState(false);
   const productsPerPage = 12;
   const usersPerPage = 15;
   const [activeMenu, setActiveMenu] = useState('home');
@@ -491,6 +493,15 @@ export default function Admin() {
 
   // CSV/JSON import file ref
   const productImportInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    try {
+      const enabled = localStorage.getItem('sf_debug_env') === '1' || window.location.search.includes('debugEnv=1');
+      setShowEnvironmentDebug(enabled);
+    } catch {
+      setShowEnvironmentDebug(false);
+    }
+  }, []);
 
 
 
@@ -5441,6 +5452,13 @@ export default function Admin() {
               <p className="text-gray-400 text-xs">Admin Panel</p>
             </div>
           </div>
+          {showEnvironmentDebug && (
+            <div className="mt-3 rounded-lg border border-cyan-400/40 bg-cyan-500/10 p-2 text-[10px] leading-4 text-cyan-100 break-all">
+              <p><strong>Project:</strong> {runtimeEnvDebug.projectRef}</p>
+              <p><strong>Function:</strong> {runtimeEnvDebug.functionName}</p>
+              <p><strong>API:</strong> {runtimeEnvDebug.apiBaseUrl}</p>
+            </div>
+          )}
         </div>
 
         {/* Navigation Menu */}

@@ -6,11 +6,12 @@ import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { defaultRewardsConfig, type RewardsConfig } from '../services/rewardsConfig';
 import { type VipConfig } from '../services/vipConfig';
-import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { publicAnonKey } from '@utils/supabase/info';
 import { fetchBonusFeed, type BonusFeedItem } from '../services/bonusFeed';
 import { fetchJsonWithRetry } from '../services/networkClient';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildUserScopedCacheKey, reportClientCompatibilityEvent, resolveFeatureEndpoint } from '../services/apiCompatibility';
+import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 
 const vipColorByTier: Record<string, string> = {
   bronze: 'bg-slate-300',
@@ -101,7 +102,7 @@ export default function Activity() {
   const [recentBonuses, setRecentBonuses] = useState<BonusFeedItem[]>([]);
 
   const username = getCurrentUsername();
-  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
   const ACTIVITY_SNAPSHOT_CACHE_TTL_MS = 45 * 1000;
   const resetDisplayOrder = [100, 1000, 5500, 500, 1600, 10000];
   const resetBadgeByDeposit: Record<number, string> = {

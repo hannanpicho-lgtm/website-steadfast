@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import { assertProjectRef } from './shared/resolve-runtime-env.mjs';
 
 function readArg(flag, fallback = '') {
   const index = process.argv.indexOf(flag);
@@ -10,14 +11,20 @@ function readArg(flag, fallback = '') {
   return process.argv[index + 1];
 }
 
-const base = readArg('--base', process.env.API_BASE_URL ?? '');
-const expectedFunction = readArg('--expected-function', process.env.EXPECTED_FUNCTION ?? 'make-server-a1c55d7e');
-const expectedFrontendContract = readArg('--expected-frontend-contract', process.env.EXPECTED_FRONTEND_CONTRACT ?? '2026-03-31-contract-v1');
+const resolvedEnv = await assertProjectRef(readArg('--project-ref', process.env.SUPABASE_PROJECT_REF ?? '').trim());
+const base = readArg('--base', process.env.API_BASE_URL ?? resolvedEnv.apiBaseUrl);
+const expectedFunction = readArg('--expected-function', process.env.EXPECTED_FUNCTION ?? resolvedEnv.functionName);
+const expectedFrontendContract = readArg('--expected-frontend-contract', process.env.EXPECTED_FRONTEND_CONTRACT ?? resolvedEnv.frontendContractVersion);
+const expectedCommit = readArg('--expected-commit', process.env.EXPECTED_COMMIT_SHA ?? '').trim();
 const requiredApiVersion = readArg('--require-api-version', process.env.REQUIRED_API_VERSION ?? 'v2');
 const requiredFeatures = readArg(
   '--require-features',
   process.env.REQUIRED_API_FEATURES ?? 'startingSnapshotV2,recordsSnapshotV2,activitySnapshotV2,compatibilityTelemetryV2',
 );
+const expectedProjectRef = readArg('--project-ref', process.env.SUPABASE_PROJECT_REF ?? '').trim();
+if (expectedProjectRef) {
+  await assertProjectRef(expectedProjectRef);
+}
 
 const childArgs = [
   'scripts/verify-live-version.mjs',
@@ -26,6 +33,10 @@ const childArgs = [
   '--require-api-version', requiredApiVersion,
   '--require-features', requiredFeatures,
 ];
+
+if (expectedCommit) {
+  childArgs.push('--expected-commit', expectedCommit);
+}
 
 if (base) {
   childArgs.push('--base', base);

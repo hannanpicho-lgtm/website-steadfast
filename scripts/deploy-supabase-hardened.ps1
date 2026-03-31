@@ -1,5 +1,5 @@
 param(
-  [string]$ProjectRef = "gvqwvuqeenkusdayosty",
+  [string]$ProjectRef = "",
   [string]$FunctionName = "make-server-a1c55d7e",
   [string]$ExpectedProductionFunction = "make-server-a1c55d7e",
   [switch]$AllowDirty,
@@ -17,6 +17,21 @@ function Require-Command {
   if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
     throw "Required command '$Name' is not available in PATH."
   }
+}
+
+function Resolve-FrontendProjectRef {
+  $infoPath = Join-Path (Join-Path $PSScriptRoot "..") "utils/supabase/info.tsx"
+  if (-not (Test-Path $infoPath)) {
+    throw "Unable to resolve frontend project ref: missing $infoPath"
+  }
+
+  $infoSource = Get-Content $infoPath -Raw
+  $match = [regex]::Match($infoSource, 'projectId\s*=\s*"([a-z0-9-]+)"')
+  if (-not $match.Success) {
+    throw "Unable to resolve frontend project ref from $infoPath"
+  }
+
+  return $match.Groups[1].Value
 }
 
 function Invoke-CheckedCommand {
@@ -114,6 +129,10 @@ Require-Command -Name "node"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Push-Location $repoRoot
 
+if ([string]::IsNullOrWhiteSpace($ProjectRef)) {
+  $ProjectRef = Resolve-FrontendProjectRef
+}
+
 try {
   if (-not $AllowNonProductionFunction.IsPresent -and $FunctionName -ne $ExpectedProductionFunction) {
     throw "Refusing deploy: FunctionName '$FunctionName' does not match expected production function '$ExpectedProductionFunction'. Use -AllowNonProductionFunction to override intentionally."
@@ -130,6 +149,10 @@ try {
   Write-Host "[HARDENED-DEPLOY] Function: $FunctionName"
   Write-Host "[HARDENED-DEPLOY] Git: $($gitState.Branch) @ $($gitState.HeadShort)"
   Write-Host "[HARDENED-DEPLOY] Before: version=$($before.Version) updated=$($before.UpdatedAtUtc.ToString('u'))"
+
+  Invoke-CheckedCommand -Label "Frontend/backend project alignment check" -Command {
+    node scripts/verify-environment-alignment.mjs --project-ref $ProjectRef
+  }
 
   $previousPreference = $ErrorActionPreference
   $ErrorActionPreference = "Continue"
@@ -181,6 +204,10 @@ try {
   try {
     Invoke-CheckedCommand -Label "Live /version verification" -Command {
       node scripts/verify-live-version.mjs --base $apiBaseUrl --expected-function $FunctionName --expected-commit $($gitState.HeadLong) --expected-frontend-contract 2026-03-31-contract-v1 --require-api-version v2 --require-features startingSnapshotV2,recordsSnapshotV2,activitySnapshotV2,compatibilityTelemetryV2 --fail-on-stale --verify-route-health true
+    }
+
+    Invoke-CheckedCommand -Label "Frontend/backend post-deploy compatibility verification" -Command {
+      node scripts/verify-frontend-backend-compat.mjs --base $apiBaseUrl --project-ref $ProjectRef --expected-function $FunctionName --expected-frontend-contract 2026-03-31-contract-v1 --expected-commit $($gitState.HeadLong) --require-api-version v2 --require-features startingSnapshotV2,recordsSnapshotV2,activitySnapshotV2,compatibilityTelemetryV2
     }
 
     # Capture live version payload for stale check in alerts log

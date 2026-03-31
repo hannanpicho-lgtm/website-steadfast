@@ -1,5 +1,5 @@
 param(
-  [string]$ProjectRef = "gvqwvuqeenkusdayosty",
+  [string]$ProjectRef = "",
   [string]$FunctionName = "make-server-a1c55d7e",
   [string]$CommitSha = "",
   [switch]$DryRun,
@@ -16,12 +16,31 @@ function Require-Command {
   }
 }
 
+function Resolve-FrontendProjectRef {
+  $infoPath = Join-Path (Join-Path $PSScriptRoot "..") "utils/supabase/info.tsx"
+  if (-not (Test-Path $infoPath)) {
+    throw "Unable to resolve frontend project ref: missing $infoPath"
+  }
+
+  $infoSource = Get-Content $infoPath -Raw
+  $match = [regex]::Match($infoSource, 'projectId\s*=\s*"([a-z0-9-]+)"')
+  if (-not $match.Success) {
+    throw "Unable to resolve frontend project ref from $infoPath"
+  }
+
+  return $match.Groups[1].Value
+}
+
 Require-Command -Name "supabase"
 Require-Command -Name "git"
 Require-Command -Name "node"
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 Push-Location $repoRoot
+
+if ([string]::IsNullOrWhiteSpace($ProjectRef)) {
+  $ProjectRef = Resolve-FrontendProjectRef
+}
 
 try {
   $lkgPath = Join-Path $repoRoot "deployment_reports/supabase/last-known-good.json"

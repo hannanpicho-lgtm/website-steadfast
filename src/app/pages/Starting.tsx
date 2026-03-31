@@ -5,13 +5,15 @@ import { toast } from 'sonner';
 const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
 import { type VipConfig } from '../services/vipConfig';
 import { type RewardsConfig, defaultRewardsConfig } from '../services/rewardsConfig';
 import { acknowledgeBonusFeedItems, fetchBonusFeed } from '../services/bonusFeed';
+import { fetchWinnersTicker, type WinnersTickerEntry } from '../services/winnersTicker';
 import { fetchJsonWithRetry, invalidateSessionCacheByPrefix } from '../services/networkClient';
+import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 import {
   buildPublicCacheKey,
   buildUserScopedCacheKey,
@@ -62,7 +64,7 @@ type TaskCatalogResponse = {
   };
 };
 
-const LIVE_TICKER_ENTRIES: Array<{ emoji: string; user: string; amount: string }> = [
+const LIVE_TICKER_FALLBACK_ENTRIES: WinnersTickerEntry[] = [
   { emoji: '🏆', user: 'Fugene55', amount: '$15,257.00 USD' },
   { emoji: '🎉', user: 'RewardKing_89', amount: '$12,450.00 USD' },
   { emoji: '💰', user: 'SleepAre8', amount: '$77.00 USD' },
@@ -262,6 +264,7 @@ export default function Starting() {
   const [vipConfigurations, setVipConfigurations] = useState<VipConfig[]>([]);
   const [rewardsConfig, setRewardsConfig] = useState<RewardsConfig>(defaultRewardsConfig);
   const [taskRuleConfig, setTaskRuleConfig] = useState<TaskCatalogResponse['ruleConfig'] | null>(null);
+  const [liveTickerEntries, setLiveTickerEntries] = useState<WinnersTickerEntry[]>(LIVE_TICKER_FALLBACK_ENTRIES);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [today, setToday] = useState(() => new Date().toDateString());
   const connectionToastShownRef = useRef(false);
@@ -269,7 +272,7 @@ export default function Starting() {
   
   const sessionUsername = getCurrentUsername();
   const username = sessionUsername;
-  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
 
   const activeVipTier = userData
     ? (vipConfigurations.find((tier) => tier.level === userData.vipLevel) ?? null)
@@ -497,6 +500,33 @@ export default function Starting() {
 
     void pollBonusFeed();
   }, [sessionUsername]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncTicker = async () => {
+      try {
+        const entries = await fetchWinnersTicker();
+        if (!cancelled && entries.length > 0) {
+          setLiveTickerEntries(entries);
+        }
+      } catch {
+        if (!cancelled) {
+          setLiveTickerEntries(LIVE_TICKER_FALLBACK_ENTRIES);
+        }
+      }
+    };
+
+    void syncTicker();
+    const intervalId = window.setInterval(() => {
+      void syncTicker();
+    }, 60_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, []);
 
   // Auto-update 'today' at midnight so banner transitions correctly to next day
   useEffect(() => {
@@ -1039,7 +1069,7 @@ export default function Starting() {
         </div>
         {/* Scrolling winners */}
         <div className="pl-28 animate-marquee whitespace-nowrap">
-          {[...LIVE_TICKER_ENTRIES, ...LIVE_TICKER_ENTRIES].map((entry, idx) => (
+          {[...liveTickerEntries, ...liveTickerEntries].map((entry, idx) => (
             <span key={`${entry.user}-${idx}`}>
               <span className="mx-6 text-sm font-semibold text-[#00D9FF]">
                 {entry.emoji} <span className="text-white">{entry.user}</span> just won <span className="text-[#00D9FF] font-bold">{entry.amount}</span>

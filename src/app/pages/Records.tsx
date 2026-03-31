@@ -5,12 +5,13 @@ import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
 import { type VipConfig } from '../services/vipConfig';
 import { fetchJsonWithRetry } from '../services/networkClient';
 import { reportClientCompatibilityEvent, resolveFeatureEndpoint } from '../services/apiCompatibility';
+import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 
 interface UserData {
   username: string;
@@ -139,7 +140,7 @@ export default function Records() {
 
   const sessionUsername = getCurrentUsername();
   const username = sessionUsername;
-  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
   const hasRenderableData = Boolean(userData)
     || taskRecords.length > 0
     || transactions.length > 0

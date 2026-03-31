@@ -1,9 +1,6 @@
 #!/usr/bin/env node
 
-const DEFAULT_PROJECT_REF = 'gvqwvuqeenkusdayosty';
-const DEFAULT_FUNCTION = 'make-server-a1c55d7e';
-const DEFAULT_BASE = `https://${DEFAULT_PROJECT_REF}.supabase.co/functions/v1/${DEFAULT_FUNCTION}`;
-const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2cXd2dXFlZW5rdXNkYXlvc3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxODA3ODksImV4cCI6MjA4ODc1Njc4OX0.R0dNwSW9ibeU0XE9kYdKI3E2D6vEP6dVu2VATAHXK1A';
+import { resolveRuntimeEnvironment } from './shared/resolve-runtime-env.mjs';
 
 function readArg(flag, fallback = '') {
   const i = process.argv.indexOf(flag);
@@ -13,11 +10,12 @@ function readArg(flag, fallback = '') {
   return process.argv[i + 1];
 }
 
-const base = readArg('--base', process.env.API_BASE_URL ?? DEFAULT_BASE).replace(/\/$/, '');
-const expectedFunction = readArg('--expected-function', DEFAULT_FUNCTION);
+const runtimeEnv = await resolveRuntimeEnvironment();
+const base = readArg('--base', process.env.API_BASE_URL ?? runtimeEnv.apiBaseUrl).replace(/\/$/, '');
+const expectedFunction = readArg('--expected-function', runtimeEnv.functionName);
 const expectedCommit = readArg('--expected-commit', process.env.EXPECTED_COMMIT_SHA ?? '').trim().toLowerCase();
 const maxAgeMinutes = Number(readArg('--max-age-minutes', process.env.MAX_DEPLOY_AGE_MINUTES ?? '240'));
-const anonKey = process.env.SUPABASE_ANON_KEY ?? DEFAULT_ANON_KEY;
+const anonKey = process.env.SUPABASE_ANON_KEY ?? runtimeEnv.anonKey;
 const trustedOrigin = readArg('--trusted-origin', process.env.TRUSTED_ORIGIN ?? 'https://steadfastworkbench.org').trim();
 const verifyRouteHealthArg = readArg('--verify-route-health', process.env.VERIFY_ROUTE_HEALTH ?? 'false').toLowerCase();
 const verifyRouteHealth = verifyRouteHealthArg === 'true' || verifyRouteHealthArg === '1';

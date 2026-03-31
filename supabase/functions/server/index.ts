@@ -1737,6 +1737,53 @@ function sanitizeAdminSalaryAuditLog(values: unknown): any[] {
     .slice(0, ADMIN_SALARY_MAX_AUDIT_EVENTS);
 }
 
+function sanitizeWinnersTickerEntries(value: unknown) {
+  const fallback = [
+    { emoji: '🏆', user: 'Fugene55', amount: '$15,257.00 USD' },
+    { emoji: '🎉', user: 'RewardKing_89', amount: '$12,450.00 USD' },
+    { emoji: '💰', user: 'SleepAre8', amount: '$77.00 USD' },
+    { emoji: '🌟', user: 'PlatinumUser7', amount: '$18,000.00 USD' },
+    { emoji: '🏆', user: 'Diamond_Quest88', amount: '$22,300.00 USD' },
+    { emoji: '🎉', user: 'Lamar_K', amount: '$4,820.00 USD' },
+    { emoji: '💰', user: 'CryptoEagle9', amount: '$5,750.00 USD' },
+    { emoji: '🌟', user: 'MastermindQ', amount: '$14,500.00 USD' },
+    { emoji: '🏆', user: 'jhoman1988', amount: '$2,350.00 USD' },
+    { emoji: '🎉', user: 'ProfitPilot', amount: '$9,100.00 USD' },
+    { emoji: '💰', user: 'TechMaster_Pro', amount: '$3,125.00 USD' },
+    { emoji: '🌟', user: 'GoldenPath_X', amount: '$8,900.00 USD' },
+  ];
+
+  if (!Array.isArray(value)) {
+    return fallback;
+  }
+
+  const entries = value
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return null;
+      }
+
+      const source = entry as Record<string, unknown>;
+      const user = typeof source.user === 'string' ? source.user.trim() : '';
+      const amount = typeof source.amount === 'string' ? source.amount.trim() : '';
+      const emoji = typeof source.emoji === 'string' && source.emoji.trim() ? source.emoji.trim().slice(0, 4) : '🏆';
+
+      if (!user || !amount) {
+        return null;
+      }
+
+      return {
+        emoji,
+        user: user.slice(0, 64),
+        amount: amount.slice(0, 64),
+      };
+    })
+    .filter((entry): entry is { emoji: string; user: string; amount: string } => entry !== null)
+    .slice(0, 32);
+
+  return entries.length > 0 ? entries : fallback;
+}
+
 function sanitizeAdminPlatformSettings(value: unknown) {
   const defaults = {
     maintenanceMode: false,
@@ -1751,6 +1798,7 @@ function sanitizeAdminPlatformSettings(value: unknown) {
     platformHoursStart: 9,
     platformHoursEnd: 22,
     defaultTaskSetCount: 2,
+    winnersTicker: sanitizeWinnersTickerEntries(null),
     savedAt: new Date().toISOString(),
   };
 
@@ -1788,6 +1836,7 @@ function sanitizeAdminPlatformSettings(value: unknown) {
     platformHoursStart: Number.isInteger(Number(source.platformHoursStart)) ? Math.min(23, Math.max(0, Math.round(Number(source.platformHoursStart)))) : defaults.platformHoursStart,
     platformHoursEnd: Number.isInteger(Number(source.platformHoursEnd)) ? Math.min(24, Math.max(1, Math.round(Number(source.platformHoursEnd)))) : defaults.platformHoursEnd,
     defaultTaskSetCount: Number.isFinite(Number(source.defaultTaskSetCount)) ? Math.min(10, Math.max(1, Math.round(Number(source.defaultTaskSetCount)))) : 2,
+    winnersTicker: sanitizeWinnersTickerEntries(source.winnersTicker),
     savedAt: typeof source.savedAt === 'string' && source.savedAt ? source.savedAt : new Date().toISOString(),
   };
 }
@@ -7111,6 +7160,19 @@ app.get('/make-server-a1c55d7e/admin/platform-settings', async (c) => {
   }
 });
 
+app.get('/make-server-a1c55d7e/public/winners-ticker', async (c) => {
+  try {
+    const settings = sanitizeAdminPlatformSettings(await kv.get(ADMIN_PLATFORM_SETTINGS_KEY));
+    return c.json({
+      entries: Array.isArray(settings.winnersTicker) ? settings.winnersTicker : [],
+      updatedAt: settings.savedAt,
+    });
+  } catch (error) {
+    console.error('Error fetching public winners ticker:', error);
+    return c.json({ error: 'Failed to fetch winners ticker' }, 500);
+  }
+});
+
 app.put('/make-server-a1c55d7e/admin/platform-settings', async (c) => {
   try {
     const unauthorized = await requireAdmin(c);
@@ -7127,7 +7189,12 @@ app.put('/make-server-a1c55d7e/admin/platform-settings', async (c) => {
     }
 
     const body = await c.req.json();
-    const settings = sanitizeAdminPlatformSettings((body as any)?.settings ?? body);
+    const existingSettings = sanitizeAdminPlatformSettings(await kv.get(ADMIN_PLATFORM_SETTINGS_KEY));
+    const incomingSettings = (body as any)?.settings ?? body;
+    const settings = sanitizeAdminPlatformSettings({
+      ...existingSettings,
+      ...(incomingSettings && typeof incomingSettings === 'object' ? incomingSettings : {}),
+    });
     await kv.set(ADMIN_PLATFORM_SETTINGS_KEY, settings);
 
     const platformSettingsActor = c.get('adminUser');

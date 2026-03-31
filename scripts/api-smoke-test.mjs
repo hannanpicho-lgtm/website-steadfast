@@ -11,8 +11,12 @@
  *   node scripts/api-smoke-test.mjs --verbose
  */
 
-const BASE = 'https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2cXd2dXFlZW5rdXNkYXlvc3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxODA3ODksImV4cCI6MjA4ODc1Njc4OX0.R0dNwSW9ibeU0XE9kYdKI3E2D6vEP6dVu2VATAHXK1A';
+import { resolveRuntimeEnvironment } from './shared/resolve-runtime-env.mjs';
+
+const runtimeEnv = await resolveRuntimeEnvironment();
+
+const BASE = process.env.API_BASE_URL ?? runtimeEnv.apiBaseUrl;
+const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? runtimeEnv.anonKey;
 const TRUSTED_ORIGIN = 'https://steadfastworkbench.org';
 const ADMIN_JWT = process.env.SUPABASE_ADMIN_TEST_JWT ?? '';
 const VERBOSE = process.argv.includes('--verbose');

@@ -1,7 +1,9 @@
 import { beforeAll, describe, expect, it } from 'vitest';
+import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { FUNCTION_SERVICE_NAME } from '@utils/environment/config';
 
-const BASE = 'https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2cXd2dXFlZW5rdXNkYXlvc3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxODA3ODksImV4cCI6MjA4ODc1Njc4OX0.R0dNwSW9ibeU0XE9kYdKI3E2D6vEP6dVu2VATAHXK1A';
+const BASE = `https://${projectId}.supabase.co/functions/v1/${FUNCTION_SERVICE_NAME}`;
+const ANON_KEY = publicAnonKey;
 const TRUSTED_ORIGIN = 'https://steadfastworkbench.org';
 const UNTRUSTED_SUBDOMAIN_ORIGIN = 'https://subdomain.steadfastworkbench.org';
 const SESSION_USER = 'ugreen';

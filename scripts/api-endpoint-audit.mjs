@@ -18,18 +18,18 @@
 
 import { readFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
+import { resolveRuntimeEnvironment } from './shared/resolve-runtime-env.mjs';
 
-const DEFAULT_BASE = 'https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e';
-const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2cXd2dXFlZW5rdXNkYXlvc3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxODA3ODksImV4cCI6MjA4ODc1Njc4OX0.R0dNwSW9ibeU0XE9kYdKI3E2D6vEP6dVu2VATAHXK1A';
-const BASE = process.env.API_BASE_URL ?? DEFAULT_BASE;
-const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? DEFAULT_ANON_KEY;
+const runtimeEnv = await resolveRuntimeEnvironment();
+const BASE = process.env.API_BASE_URL ?? runtimeEnv.apiBaseUrl;
+const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? runtimeEnv.anonKey;
 const ADMIN_TEST_JWT = process.env.SUPABASE_ADMIN_TEST_JWT ?? '';
 const TIMEOUT_MS = Number(process.env.AUDIT_TIMEOUT_MS ?? '30000');
 const MAX_ATTEMPTS = Math.max(1, Number(process.env.AUDIT_MAX_ATTEMPTS ?? '3'));
 
 const SERVER_FILE = new URL('../supabase/functions/server/index.ts', import.meta.url);
 
-const ROUTE_PREFIX = '/make-server-a1c55d7e';
+const ROUTE_PREFIX = `/${runtimeEnv.functionName}`;
 const ROUTE_REGEX = /app\.(get|post|put|patch|delete)\(\s*['\"]([^'\"]+)['\"]/g;
 
 const SAFE_STATUSES = new Set([200, 201, 204, 400, 401, 403, 404, 405, 409, 410, 415, 422, 429, 503]);

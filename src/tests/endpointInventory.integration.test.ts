@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { FUNCTION_SERVICE_NAME } from '@utils/environment/config';
 
-const BASE = process.env.API_BASE_URL ?? 'https://gvqwvuqeenkusdayosty.supabase.co/functions/v1/make-server-a1c55d7e';
-const ANON_KEY = process.env.SUPABASE_ANON_KEY
-  ?? 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2cXd2dXFlZW5rdXNkYXlvc3R5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMxODA3ODksImV4cCI6MjA4ODc1Njc4OX0.R0dNwSW9ibeU0XE9kYdKI3E2D6vEP6dVu2VATAHXK1A';
+const BASE = process.env.API_BASE_URL ?? `https://${projectId}.supabase.co/functions/v1/${FUNCTION_SERVICE_NAME}`;
+const ANON_KEY = process.env.SUPABASE_ANON_KEY ?? publicAnonKey;
 const ADMIN_TEST_JWT = process.env.SUPABASE_ADMIN_TEST_JWT ?? '';
-const ROUTE_PREFIX = '/make-server-a1c55d7e';
+const ROUTE_PREFIX = `/${FUNCTION_SERVICE_NAME}`;
 const ROUTE_REGEX = /app\.(get|post|put|patch|delete)\(\s*['\"]([^'\"]+)['\"]/g;
 
 const __filename = fileURLToPath(import.meta.url);

@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 
-const EXPECTED_SERVICE = 'make-server-a1c55d7e';
-const BASE_URL = `https://${projectId}.supabase.co/functions/v1/${EXPECTED_SERVICE}`;
+const EXPECTED_SERVICE = RUNTIME_ENVIRONMENT.functionName;
+const BASE_URL = RUNTIME_ENVIRONMENT.apiBaseUrl;
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 export interface VersionCheckPayload {
@@ -28,8 +28,8 @@ async function fetchVersionState(): Promise<VersionCheckState> {
   try {
     const res = await fetch(`${BASE_URL}/version`, {
       headers: {
-        apikey: publicAnonKey,
-        Authorization: `Bearer ${publicAnonKey}`,
+        apikey: RUNTIME_ENVIRONMENT.publicAnonKey,
+        Authorization: `Bearer ${RUNTIME_ENVIRONMENT.publicAnonKey}`,
       },
     });
 

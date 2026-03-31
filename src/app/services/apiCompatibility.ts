@@ -1,14 +1,15 @@
-import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { FUNCTION_SERVICE_NAME } from '@utils/environment/config';
+import { RUNTIME_ENVIRONMENT } from './runtimeEnvironment';
 
 export type ApiVersion = 'v1' | 'v2';
 export type CompatibilityFeatureName = 'startingSnapshotV2' | 'recordsSnapshotV2' | 'activitySnapshotV2' | 'compatibilityTelemetryV2';
 
-export const FRONTEND_APP_VERSION = 'frontend-2026-03-31-integrity-1';
-export const FRONTEND_CONTRACT_VERSION = '2026-03-31-contract-v1';
+export const FRONTEND_APP_VERSION = RUNTIME_ENVIRONMENT.frontendAppVersion;
+export const FRONTEND_CONTRACT_VERSION = RUNTIME_ENVIRONMENT.frontendContractVersion;
 export const FRONTEND_SUPPORTED_API_VERSIONS: ApiVersion[] = ['v1', 'v2'];
 
-const EXPECTED_SERVICE = 'make-server-a1c55d7e';
-const BASE_URL = `https://${projectId}.supabase.co/functions/v1/${EXPECTED_SERVICE}`;
+const EXPECTED_SERVICE = FUNCTION_SERVICE_NAME;
+const BASE_URL = RUNTIME_ENVIRONMENT.apiBaseUrl;
 const COMPATIBILITY_CACHE_KEY = `compatibility:${FRONTEND_CONTRACT_VERSION}:${EXPECTED_SERVICE}`;
 const COMPATIBILITY_CACHE_TTL_MS = 30 * 1000;
 
@@ -199,8 +200,8 @@ export async function getApiCompatibilityState(force = false): Promise<ApiCompat
   compatibilityPromise = (async () => {
     const response = await fetch(getLegacyApiUrl('/version'), {
       headers: {
-        apikey: publicAnonKey,
-        Authorization: `Bearer ${publicAnonKey}`,
+        apikey: RUNTIME_ENVIRONMENT.publicAnonKey,
+        Authorization: `Bearer ${RUNTIME_ENVIRONMENT.publicAnonKey}`,
         'x-client-app-version': FRONTEND_APP_VERSION,
         'x-client-contract-version': FRONTEND_CONTRACT_VERSION,
         'x-client-supported-api-versions': FRONTEND_SUPPORTED_API_VERSIONS.join(','),
@@ -306,8 +307,8 @@ export async function reportClientCompatibilityEvent(input: CompatibilityEvent):
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        apikey: publicAnonKey,
-        Authorization: `Bearer ${publicAnonKey}`,
+        apikey: RUNTIME_ENVIRONMENT.publicAnonKey,
+        Authorization: `Bearer ${RUNTIME_ENVIRONMENT.publicAnonKey}`,
         'x-client-app-version': FRONTEND_APP_VERSION,
         'x-client-contract-version': FRONTEND_CONTRACT_VERSION,
         'x-client-supported-api-versions': FRONTEND_SUPPORTED_API_VERSIONS.join(','),
