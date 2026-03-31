@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { defaultRewardsConfig, fetchPublicRewardsConfig } from '../services/rewardsConfig';
-import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
-import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { defaultRewardsConfig, type RewardsConfig } from '../services/rewardsConfig';
+import { type VipConfig } from '../services/vipConfig';
+import { projectId } from '@utils/supabase/info';
 import { fetchBonusFeed, type BonusFeedItem } from '../services/bonusFeed';
+import { fetchJsonWithRetry } from '../services/networkClient';
 
 const vipColorByTier: Record<string, string> = {
   bronze: 'bg-slate-300',
@@ -40,6 +41,14 @@ type ActivityLogItem = {
   amount: number;
   status: string;
   at: string;
+};
+
+type ActivitySnapshotResponse = {
+  financialSnapshot?: FinancialSnapshot;
+  transactions?: any[];
+  withdrawals?: any[];
+  vipConfig?: VipConfig[];
+  rewardsConfig?: RewardsConfig | null;
 };
 
 const fallbackVipLevels: ActivityVipLevel[] = [
@@ -90,6 +99,8 @@ export default function Activity() {
   const [recentBonuses, setRecentBonuses] = useState<BonusFeedItem[]>([]);
 
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const ACTIVITY_SNAPSHOT_CACHE_KEY = 'activity:snapshot:v1';
+  const ACTIVITY_SNAPSHOT_CACHE_TTL_MS = 45 * 1000;
   const resetDisplayOrder = [100, 1000, 5500, 500, 1600, 10000];
   const resetBadgeByDeposit: Record<number, string> = {
     500: 'HOT PICKS',
@@ -108,82 +119,65 @@ export default function Activity() {
   useEffect(() => {
     const loadActivityConfig = async () => {
       try {
-        const [rewards, vipTiers] = await Promise.all([
-          fetchPublicRewardsConfig(),
-          fetchPublicVipConfig(),
-        ]);
+        const snapshot = await fetchJsonWithRetry<ActivitySnapshotResponse>({
+          url: `${serverUrl}/me/activity-snapshot?includeConfig=true&transactionsLimit=80&withdrawalsLimit=40`,
+          init: {
+            credentials: 'include',
+          },
+          timeoutMs: 7000,
+          retries: 2,
+          retryDelayMs: 250,
+          cacheKey: ACTIVITY_SNAPSHOT_CACHE_KEY,
+          cacheTtlMs: ACTIVITY_SNAPSHOT_CACHE_TTL_MS,
+          pageTag: 'activity',
+        });
+
+        const rewards = snapshot?.rewardsConfig && typeof snapshot.rewardsConfig === 'object'
+          ? snapshot.rewardsConfig
+          : defaultRewardsConfig;
+        const vipTiers = Array.isArray(snapshot?.vipConfig)
+          ? snapshot.vipConfig
+          : [];
 
         setWorkdayRewards(rewards.workday);
         setResetRewards(rewards.reset);
         setAccumulatedRewards(rewards.accumulated);
+        setVipLevels(vipTiers.length > 0 ? mapVipConfigToActivity(vipTiers) : fallbackVipLevels);
 
-        if (vipTiers.length > 0) {
-          setVipLevels(mapVipConfigToActivity(vipTiers));
-        }
-      } catch {
-        setWorkdayRewards(defaultRewardsConfig.workday);
-        setResetRewards(defaultRewardsConfig.reset);
-        setAccumulatedRewards(defaultRewardsConfig.accumulated);
-        setVipLevels(fallbackVipLevels);
-      }
+        setFinancialSnapshot({
+          balance: Number(snapshot?.financialSnapshot?.balance ?? 0),
+          holdAmount: Number(snapshot?.financialSnapshot?.holdAmount ?? 0),
+          availableAmount: Number(snapshot?.financialSnapshot?.availableAmount ?? 0),
+          todayCommission: Number(snapshot?.financialSnapshot?.todayCommission ?? 0),
+          luckyBonus: Number(snapshot?.financialSnapshot?.luckyBonus ?? 0),
+        });
 
-      try {
-        const headers = {
-          Authorization: `Bearer ${publicAnonKey}`,
-        };
-
-        const [financialsResponse, transactionsResponse, withdrawalsResponse] = await Promise.all([
-          fetch(`${serverUrl}/me/financials`, { credentials: 'include', headers }),
-          fetch(`${serverUrl}/me/transactions`, { credentials: 'include', headers }),
-          fetch(`${serverUrl}/me/withdrawals`, { credentials: 'include', headers }),
-        ]);
-
-        if (financialsResponse.ok) {
-          const financialsPayload = await financialsResponse.json().catch(() => ({}));
-          setFinancialSnapshot({
-            balance: Number(financialsPayload?.balance ?? 0),
-            holdAmount: Number(financialsPayload?.holdAmount ?? 0),
-            availableAmount: Number(financialsPayload?.availableAmount ?? 0),
-            todayCommission: Number(financialsPayload?.todayCommission ?? 0),
-            luckyBonus: Number(financialsPayload?.luckyBonus ?? 0),
-          });
-        } else {
-          setFinancialSnapshot(null);
-        }
-
-        const bonusFeed = await fetchBonusFeed({ limit: 8 }).catch(() => []);
-        setRecentBonuses(bonusFeed);
-
-        const transactionPayload = transactionsResponse.ok
-          ? await transactionsResponse.json().catch(() => [])
+        const transactionPayload = Array.isArray(snapshot?.transactions)
+          ? snapshot.transactions
           : [];
-        const withdrawalPayload = withdrawalsResponse.ok
-          ? await withdrawalsResponse.json().catch(() => [])
+        const withdrawalPayload = Array.isArray(snapshot?.withdrawals)
+          ? snapshot.withdrawals
           : [];
 
-        const transactionItems: ActivityLogItem[] = Array.isArray(transactionPayload)
-          ? transactionPayload.map((item: any, index: number) => ({
-            id: String(item?.id ?? `tx-${index}`),
-            label: typeof item?.description === 'string' && item.description.trim()
-              ? item.description
-              : String(item?.type ?? 'Transaction'),
-            amount: Number(item?.amount ?? 0),
-            status: String(item?.status ?? 'Completed'),
-            at: typeof item?.date === 'string' ? item.date : new Date().toISOString(),
-          }))
-          : [];
+        const transactionItems: ActivityLogItem[] = transactionPayload.map((item: any, index: number) => ({
+          id: String(item?.id ?? `tx-${index}`),
+          label: typeof item?.description === 'string' && item.description.trim()
+            ? item.description
+            : String(item?.type ?? 'Transaction'),
+          amount: Number(item?.amount ?? 0),
+          status: String(item?.status ?? 'Completed'),
+          at: typeof item?.date === 'string' ? item.date : new Date().toISOString(),
+        }));
 
-        const withdrawalItems: ActivityLogItem[] = Array.isArray(withdrawalPayload)
-          ? withdrawalPayload.map((item: any, index: number) => ({
-            id: String(item?.id ?? `wd-${index}`),
-            label: 'Withdrawal Request',
-            amount: Number(item?.amount ?? 0),
-            status: String(item?.status ?? 'Pending'),
-            at: typeof item?.createdAt === 'string'
-              ? item.createdAt
-              : (typeof item?.requestedAt === 'string' ? item.requestedAt : new Date().toISOString()),
-          }))
-          : [];
+        const withdrawalItems: ActivityLogItem[] = withdrawalPayload.map((item: any, index: number) => ({
+          id: String(item?.id ?? `wd-${index}`),
+          label: 'Withdrawal Request',
+          amount: Number(item?.amount ?? 0),
+          status: String(item?.status ?? 'Pending'),
+          at: typeof item?.createdAt === 'string'
+            ? item.createdAt
+            : (typeof item?.requestedAt === 'string' ? item.requestedAt : new Date().toISOString()),
+        }));
 
         const combined = [...transactionItems, ...withdrawalItems]
           .sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime())
@@ -191,8 +185,18 @@ export default function Activity() {
 
         setRecentActivity(combined);
       } catch {
+        setWorkdayRewards(defaultRewardsConfig.workday);
+        setResetRewards(defaultRewardsConfig.reset);
+        setAccumulatedRewards(defaultRewardsConfig.accumulated);
+        setVipLevels(fallbackVipLevels);
         setFinancialSnapshot(null);
         setRecentActivity([]);
+      }
+
+      try {
+        const bonusFeed = await fetchBonusFeed({ limit: 8 }).catch(() => []);
+        setRecentBonuses(bonusFeed);
+      } catch {
         setRecentBonuses([]);
       }
     };

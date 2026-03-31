@@ -8,9 +8,8 @@ import { Header } from '../components/Header';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
-import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
-import { fetchPublicRewardsConfig, type RewardsConfig, defaultRewardsConfig } from '../services/rewardsConfig';
-import { fetchFinancialSummary } from '../services/financialReadModel';
+import { type VipConfig } from '../services/vipConfig';
+import { type RewardsConfig, defaultRewardsConfig } from '../services/rewardsConfig';
 import { acknowledgeBonusFeedItems, fetchBonusFeed } from '../services/bonusFeed';
 import { fetchJsonWithRetry, invalidateSessionCacheByPrefix } from '../services/networkClient';
 
@@ -72,11 +71,12 @@ const LIVE_TICKER_ENTRIES: Array<{ emoji: string; user: string; amount: string }
   { emoji: '🌟', user: 'GoldenPath_X', amount: '$8,900.00 USD' },
 ];
 
-const REQUEST_TIMEOUT_MS = 6000;
 const TASK_CATALOG_CACHE_KEY = 'starting:task-catalog:v1';
 const TASK_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
 const FINANCIAL_SUMMARY_CACHE_KEY = 'starting:financial-summary:v1';
 const FINANCIAL_SUMMARY_CACHE_TTL_MS = 60 * 1000;
+const STARTING_SNAPSHOT_CACHE_KEY = 'starting:snapshot:v1';
+const STARTING_SNAPSHOT_CACHE_TTL_MS = 45 * 1000;
 const STARTING_PERF_SAMPLES_KEY = 'starting:perf-samples:v1';
 const STARTING_PERF_MAX_SAMPLES = 30;
 const STARTING_PERF_EVENTS_KEY = 'starting:perf-events:v1';
@@ -97,50 +97,6 @@ type StartingPerfSample = {
 
 function roundMoney(value: number): number {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-async function withRetry<T>(operation: () => Promise<T>, retries = 2, delayMs = 450): Promise<T> {
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-      if (attempt < retries) {
-        await sleep(delayMs * (attempt + 1));
-      }
-    }
-  }
-
-  throw lastError;
-}
-
-async function fetchJsonWithTimeout(url: string, init: RequestInit): Promise<any> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-
-  try {
-    const response = await fetch(url, {
-      ...init,
-      signal: controller.signal,
-    });
-
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(payload?.error ?? 'Request failed');
-    }
-
-    return payload;
-  } finally {
-    clearTimeout(timeoutId);
-  }
 }
 
 function readTaskCatalogCache(): TaskCatalogResponse | null {
@@ -559,10 +515,6 @@ export default function Starting() {
     }
   }, [taskSetResetRequired, isAllSetsComplete, completionStorageKey]);
 
-  const fetchSessionUser = async () => {
-    return fetchFinancialSummary();
-  };
-
   const fetchUserData = async () => {
     if (!username) {
       return;
@@ -590,63 +542,44 @@ export default function Starting() {
         catalogLoadOk = true;
       }
 
-      const sessionPromise = withRetry(async () => {
-        const startedAt = performance.now();
-        const result = await fetchSessionUser();
-        sessionFetchMs = roundMoney(performance.now() - startedAt);
-        return result;
-      }, 1);
+      const snapshotStartedAt = performance.now();
+      const snapshot = await fetchJsonWithRetry<any>({
+        url: `${serverUrl}/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=200`,
+        init: {
+          credentials: 'include',
+        },
+        timeoutMs: 7000,
+        retries: 2,
+        retryDelayMs: 250,
+        cacheKey: `${STARTING_SNAPSHOT_CACHE_KEY}:${username}`,
+        cacheTtlMs: STARTING_SNAPSHOT_CACHE_TTL_MS,
+        pageTag: 'starting',
+      });
+      sessionFetchMs = roundMoney(performance.now() - snapshotStartedAt);
 
-      const tasksPromise = cachedTaskCatalog
-        ? Promise.resolve(cachedTaskCatalog)
-        : withRetry(async () => {
-            const startedAt = performance.now();
-            const result = await fetchJsonWithTimeout(`${serverUrl}/tasks/catalog`, {
-              headers: {
-                Authorization: `Bearer ${publicAnonKey}`,
-              },
-            });
-            catalogFetchMs = roundMoney(performance.now() - startedAt);
-            return result;
-          }, 1);
-
-      void withRetry(() => fetchPublicVipConfig(), 1)
-        .then((value) => {
-          setVipConfigurations(value);
-        })
-        .catch(() => {
-          // Keep default VIP values if this non-critical call fails.
-        });
-
-      void withRetry(() => fetchPublicRewardsConfig(), 1)
-        .then((value) => {
-          setRewardsConfig(value);
-        })
-        .catch(() => {
-          // Keep default rewards config if this non-critical call fails.
-        });
-
-      // Critical path: unlock page as soon as account/session data is ready.
-      const sessionData = await sessionPromise;
-      sessionLoadOk = true;
-      setUserData(sessionData);
-      writeFinancialSummaryCache(sessionData as UserData);
-      setLoading(false);
-
-      try {
-        const tasksResult = await tasksPromise;
-        const nextPayload: TaskCatalogResponse = {
-          tasks: Array.isArray(tasksResult?.tasks) ? tasksResult.tasks : [],
-          ruleConfig: tasksResult?.ruleConfig,
-        };
-        setTaskCatalog(nextPayload.tasks ?? []);
-        setTaskRuleConfig(nextPayload.ruleConfig ?? null);
-        writeTaskCatalogCache(nextPayload);
-        catalogLoadOk = true;
-      } catch {
-        catalogLoadOk = false;
-        // Keep cached catalog if present; otherwise keep an empty list.
+      if (snapshot?.user) {
+        setUserData(snapshot.user as UserData);
+        writeFinancialSummaryCache(snapshot.user as UserData);
+        sessionLoadOk = true;
       }
+
+      const nextPayload: TaskCatalogResponse = {
+        tasks: Array.isArray(snapshot?.taskCatalog?.tasks) ? snapshot.taskCatalog.tasks : [],
+        ruleConfig: snapshot?.taskCatalog?.ruleConfig,
+      };
+      setTaskCatalog(nextPayload.tasks ?? []);
+      setTaskRuleConfig(nextPayload.ruleConfig ?? null);
+      writeTaskCatalogCache(nextPayload);
+      catalogLoadOk = true;
+
+      if (Array.isArray(snapshot?.vipConfig)) {
+        setVipConfigurations(snapshot.vipConfig as VipConfig[]);
+      }
+      if (snapshot?.rewardsConfig && typeof snapshot.rewardsConfig === 'object') {
+        setRewardsConfig(snapshot.rewardsConfig as RewardsConfig);
+      }
+
+      setLoading(false);
 
       const fetchPhaseMs = roundMoney(performance.now() - fetchStart);
       const routeToInteractiveMs = roundMoney(performance.now() - routeEntryTimeRef.current);

@@ -299,6 +299,72 @@ function percentile(values: number[], percentileTarget: number): number | null {
   return sorted[index];
 }
 
+type EndpointLatencyStats = {
+  endpoint: string;
+  count: number;
+  successCount: number;
+  failureCount: number;
+  failureRatePct: number;
+  p50Ms: number | null;
+  p95Ms: number | null;
+};
+
+function computeEndpointLatencyStats(
+  requestEvents: RuntimeObservedEvent[],
+  endpoints: string[],
+): EndpointLatencyStats[] {
+  return endpoints.map((endpoint) => {
+    const endpointEvents = requestEvents.filter((entry) => entry.path === endpoint);
+    const durations = endpointEvents
+      .map((entry) => entry.durationMs)
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+
+    const failureCount = endpointEvents.filter((entry) => entry.statusClass === '4xx' || entry.statusClass === '5xx').length;
+    const successCount = endpointEvents.length - failureCount;
+
+    return {
+      endpoint,
+      count: endpointEvents.length,
+      successCount,
+      failureCount,
+      failureRatePct: endpointEvents.length > 0 ? roundMoney((failureCount / endpointEvents.length) * 100) : 0,
+      p50Ms: percentile(durations, 0.5),
+      p95Ms: percentile(durations, 0.95),
+    };
+  });
+}
+
+function buildEndpointLatencyComparison(
+  latest: EndpointLatencyStats[],
+  previous: EndpointLatencyStats[],
+) {
+  const previousMap = new Map(previous.map((entry) => [entry.endpoint, entry]));
+
+  return latest.map((entry) => {
+    const baseline = previousMap.get(entry.endpoint);
+    const p50DeltaMs = baseline && typeof baseline.p50Ms === 'number' && typeof entry.p50Ms === 'number'
+      ? roundMoney(entry.p50Ms - baseline.p50Ms)
+      : null;
+    const p95DeltaMs = baseline && typeof baseline.p95Ms === 'number' && typeof entry.p95Ms === 'number'
+      ? roundMoney(entry.p95Ms - baseline.p95Ms)
+      : null;
+    const failureRateDeltaPct = baseline
+      ? roundMoney(entry.failureRatePct - baseline.failureRatePct)
+      : null;
+
+    return {
+      endpoint: entry.endpoint,
+      latest: entry,
+      previous: baseline ?? null,
+      delta: {
+        p50Ms: p50DeltaMs,
+        p95Ms: p95DeltaMs,
+        failureRatePct: failureRateDeltaPct,
+      },
+    };
+  });
+}
+
 function evaluateSecurityAlerts(
   windowEvents: RuntimeObservedEvent[],
   windowMinutes: number,
@@ -5587,9 +5653,7 @@ app.get('/make-server-a1c55d7e/me/tasks', async (c) => {
       new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
     );
 
-    const pagedTasks = typeof limitRaw === 'string'
-      ? sortedTasks.slice(requestedOffset, requestedOffset + requestedLimit)
-      : sortedTasks;
+    const pagedTasks = sortedTasks.slice(requestedOffset, requestedOffset + requestedLimit);
 
     if (includePagingEnvelope) {
       return c.json({
@@ -5662,9 +5726,7 @@ app.get('/make-server-a1c55d7e/me/transactions', async (c) => {
     const requestedOffset = parsePositiveIntQuery(offsetRaw, 0, 0, 10_000);
 
     const transactions = await listTransactionRecords(sessionResult.session.username);
-    const pagedTransactions = typeof limitRaw === 'string'
-      ? transactions.slice(requestedOffset, requestedOffset + requestedLimit)
-      : transactions;
+    const pagedTransactions = transactions.slice(requestedOffset, requestedOffset + requestedLimit);
 
     if (includePagingEnvelope) {
       return c.json({
@@ -5680,6 +5742,56 @@ app.get('/make-server-a1c55d7e/me/transactions', async (c) => {
   } catch (error) {
     console.error('Error fetching session transaction records:', error);
     return c.json({ error: 'Failed to fetch transaction records' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/starting-snapshot', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const includeCatalog = c.req.query('includeCatalog') !== 'false';
+    const includeConfig = c.req.query('includeConfig') !== 'false';
+    const catalogLimit = parsePositiveIntQuery(c.req.query('catalogLimit'), 200, 1, 500);
+    const username = sessionResult.session.username;
+
+    const [rawUserData, taskCatalog, rewardsConfig, vipTiers] = await Promise.all([
+      kv.get(`user:${username}`),
+      includeCatalog ? listTaskCatalogRecords(false) : Promise.resolve([]),
+      includeConfig ? getRewardsConfigRecord() : Promise.resolve(null),
+      includeConfig ? listVipConfigRecords() : Promise.resolve([]),
+    ]);
+
+    if (!rawUserData) {
+      return jsonError(c, 404, 'user_not_found', 'User not found');
+    }
+
+    const normalizedUserData = await syncUserWithVipConfig(rawUserData, username);
+    const normalizedRewardsConfig = normalizeProductSystemConfig(rewardsConfig?.productSystem);
+    const catalogTasks = Array.isArray(taskCatalog) ? taskCatalog.slice(0, catalogLimit) : [];
+
+    return c.json({
+      user: normalizedUserData,
+      taskCatalog: {
+        tasks: catalogTasks,
+        ruleConfig: {
+          premiumEnabled: normalizedRewardsConfig.premiumEnabled,
+          premiumTriggerTaskNumber: normalizedRewardsConfig.premiumTriggerTaskNumber,
+          premiumValueMode: normalizedRewardsConfig.premiumValueMode,
+        },
+      },
+      vipConfig: Array.isArray(vipTiers) ? vipTiers : [],
+      rewardsConfig: includeConfig ? rewardsConfig : null,
+      meta: {
+        catalogLimit,
+        catalogReturned: catalogTasks.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching starting snapshot:', error);
+    return c.json({ error: 'Failed to fetch starting snapshot' }, 500);
   }
 });
 
@@ -5734,6 +5846,72 @@ app.get('/make-server-a1c55d7e/me/records-snapshot', async (c) => {
   } catch (error) {
     console.error('Error fetching records snapshot:', error);
     return c.json({ error: 'Failed to fetch records snapshot' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/me/activity-snapshot', async (c) => {
+  try {
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) {
+      return sessionResult.response;
+    }
+
+    const includeConfig = c.req.query('includeConfig') !== 'false';
+    const transactionsLimit = parsePositiveIntQuery(c.req.query('transactionsLimit'), 60, 1, 200);
+    const withdrawalsLimit = parsePositiveIntQuery(c.req.query('withdrawalsLimit'), 40, 1, 200);
+    const username = sessionResult.session.username;
+
+    const [rawUserData, transactions, withdrawals, rewardsConfig, vipTiers] = await Promise.all([
+      kv.get(`user:${username}`),
+      listTransactionRecords(username),
+      listWithdrawalRecords(username),
+      includeConfig ? getRewardsConfigRecord() : Promise.resolve(null),
+      includeConfig ? listVipConfigRecords() : Promise.resolve([]),
+    ]);
+
+    if (!rawUserData) {
+      return jsonError(c, 404, 'user_not_found', 'User not found');
+    }
+
+    const normalizedUserData = await syncUserWithVipConfig(rawUserData, username);
+    const boundWalletProfile = normalizeStoredWalletProfile(normalizedUserData.walletProfile);
+    const boundDestination = getWalletProfileDestination(boundWalletProfile);
+    const resolvedWithdrawals = withdrawals.map((w) => {
+      if (boundWalletProfile?.type === 'crypto' && boundDestination && walletDestinationsMatch(w.walletAddress, boundDestination)) {
+        return {
+          ...w,
+          method: formatWalletAssetLabel(boundWalletProfile.walletType),
+          network: sanitizeFinanceMethod(boundWalletProfile.network, 'mainnet'),
+        };
+      }
+      return w;
+    });
+
+    const pagedTransactions = transactions.slice(0, transactionsLimit);
+    const pagedWithdrawals = resolvedWithdrawals.slice(0, withdrawalsLimit);
+
+    return c.json({
+      financialSnapshot: {
+        balance: roundMoney(Number(normalizedUserData.balance ?? 0)),
+        holdAmount: roundMoney(Number(normalizedUserData.holdAmount ?? 0)),
+        availableAmount: roundMoney(Number(normalizedUserData.availableAmount ?? (normalizedUserData.balance ?? 0))),
+        todayCommission: roundMoney(Number(normalizedUserData.todayCommission ?? 0)),
+        luckyBonus: roundMoney(Number(normalizedUserData.luckyBonus ?? 0)),
+      },
+      transactions: pagedTransactions,
+      withdrawals: pagedWithdrawals,
+      vipConfig: Array.isArray(vipTiers) ? vipTiers : [],
+      rewardsConfig: includeConfig ? rewardsConfig : null,
+      meta: {
+        transactionsTotal: transactions.length,
+        transactionsReturned: pagedTransactions.length,
+        withdrawalsTotal: resolvedWithdrawals.length,
+        withdrawalsReturned: pagedWithdrawals.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching activity snapshot:', error);
+    return c.json({ error: 'Failed to fetch activity snapshot' }, 500);
   }
 });
 
@@ -6840,6 +7018,77 @@ app.get('/make-server-a1c55d7e/admin/observability/security-summary', async (c) 
   } catch (error) {
     console.error('Error fetching admin observability security summary:', error);
     return c.json({ error: 'Failed to fetch observability security summary' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/observability/endpoint-latency-report', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:observability-endpoint-latency-report-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const requestedWindow = Number(c.req.query('windowMinutes') ?? 30);
+    const windowMinutes = Number.isFinite(requestedWindow)
+      ? Math.min(120, Math.max(5, Math.round(requestedWindow)))
+      : 30;
+
+    const endpointTargets = [
+      '/make-server-a1c55d7e/me/records-snapshot',
+      '/make-server-a1c55d7e/me/activity-snapshot',
+      '/make-server-a1c55d7e/me/submit-task',
+      '/make-server-a1c55d7e/me/complete-premium-task',
+      '/make-server-a1c55d7e/me/starting-snapshot',
+      '/make-server-a1c55d7e/me/financials',
+      '/make-server-a1c55d7e/tasks/catalog',
+      '/make-server-a1c55d7e/vip-config',
+      '/make-server-a1c55d7e/rewards-config',
+    ];
+
+    const now = Date.now();
+    pruneRuntimeObservedEvents(now);
+
+    const requestEvents = runtimeObservedEvents.filter((entry) => entry.event === 'request_metric');
+    const latestCutoff = now - windowMinutes * 60_000;
+    const previousCutoff = now - (windowMinutes * 2) * 60_000;
+
+    const latestWindowEvents = requestEvents.filter((entry) => entry.atMs >= latestCutoff);
+    const previousWindowEvents = requestEvents.filter((entry) => entry.atMs >= previousCutoff && entry.atMs < latestCutoff);
+
+    const latestStats = computeEndpointLatencyStats(latestWindowEvents, endpointTargets);
+    const previousStats = computeEndpointLatencyStats(previousWindowEvents, endpointTargets);
+    const comparison = buildEndpointLatencyComparison(latestStats, previousStats);
+
+    return c.json({
+      generatedAt: new Date(now).toISOString(),
+      windowMinutes,
+      windows: {
+        latest: {
+          from: new Date(latestCutoff).toISOString(),
+          to: new Date(now).toISOString(),
+          requestEvents: latestWindowEvents.length,
+        },
+        previous: {
+          from: new Date(previousCutoff).toISOString(),
+          to: new Date(latestCutoff).toISOString(),
+          requestEvents: previousWindowEvents.length,
+        },
+      },
+      comparison,
+    });
+  } catch (error) {
+    console.error('Error fetching admin endpoint latency report:', error);
+    return c.json({ error: 'Failed to fetch endpoint latency report' }, 500);
   }
 });
 
