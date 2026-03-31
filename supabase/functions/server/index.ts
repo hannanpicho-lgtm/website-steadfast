@@ -668,7 +668,17 @@ app.use(
   cors({
     origin: (origin) => resolveCorsOrigin(origin),
     credentials: true,
-    allowHeaders: ["Content-Type", "Authorization", "apikey", "x-admin-secret", "x-user-jwt", "x-user-session-token"],
+    allowHeaders: [
+      "Content-Type",
+      "Authorization",
+      "apikey",
+      "x-admin-secret",
+      "x-user-jwt",
+      "x-user-session-token",
+      "x-client-contract-version",
+      "x-client-app-version",
+      "x-client-platform"
+    ],
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length", "X-Request-Id"],
     maxAge: 600,
