@@ -675,11 +675,13 @@ export default function Starting() {
 
       try {
         const snapshotRoute = await resolveFeatureEndpoint('startingSnapshotV2', '/me/financials');
+        console.log('[starting] snapshotRoute:', snapshotRoute.usingFallback ? 'FALLBACK' : 'V2', 'url=', snapshotRoute.url, 'reason=', snapshotRoute.reason);
         if (snapshotRoute.usingFallback) {
           throw new Error(snapshotRoute.reason ?? 'starting_snapshot_disabled');
         }
 
         const snapshotStartedAt = performance.now();
+        console.log('[starting] fetching v2 snapshot...');
         const snapshot = await fetchJsonWithRetry<any>({
           url: `${snapshotRoute.url}?includeCatalog=true&includeConfig=true&catalogLimit=200`,
           init: {
@@ -693,6 +695,7 @@ export default function Starting() {
           expectedApiVersion: 'v2',
         });
         sessionFetchMs = roundMoney(performance.now() - snapshotStartedAt);
+        console.log('[starting] v2 snapshot SUCCESS in', sessionFetchMs, 'ms, hasUser=', !!snapshot?.user);
 
         if (snapshot?.user) {
           setUserData(snapshot.user as UserData);
@@ -716,6 +719,7 @@ export default function Starting() {
           setRewardsConfig(snapshot.rewardsConfig as RewardsConfig);
         }
       } catch (snapshotError) {
+        console.warn('[starting] V2 FAILED — falling back to V1.', snapshotError instanceof Error ? snapshotError.message : snapshotError);
         console.warn('Starting snapshot endpoint unavailable, using legacy fallback.', snapshotError);
         void reportClientCompatibilityEvent({
           event: 'fallback_used',

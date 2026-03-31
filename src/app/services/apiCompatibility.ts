@@ -198,7 +198,10 @@ export async function getApiCompatibilityState(force = false): Promise<ApiCompat
   }
 
   compatibilityPromise = (async () => {
-    const response = await fetch(getLegacyApiUrl('/version'), {
+    const versionUrl = getLegacyApiUrl('/version');
+    console.log('[compat] fetching /version from:', versionUrl);
+    const t0 = performance.now();
+    const response = await fetch(versionUrl, {
       headers: {
         apikey: RUNTIME_ENVIRONMENT.publicAnonKey,
         Authorization: `Bearer ${RUNTIME_ENVIRONMENT.publicAnonKey}`,
@@ -208,11 +211,15 @@ export async function getApiCompatibilityState(force = false): Promise<ApiCompat
       },
     });
     const payload = await response.json().catch(() => ({}));
+    console.log('[compat] /version status:', response.status, 'time:', Math.round(performance.now() - t0), 'ms');
     if (!response.ok) {
       throw new Error(`Version endpoint returned ${response.status}`);
     }
 
     const parsed = parseCompatibilityState(payload);
+    console.log('[compat] parsed: frontendCompatible=', parsed.frontendCompatible,
+      'supportedVersions=', parsed.supportedApiVersions,
+      'features=', Object.entries(parsed.features).map(([k, v]) => `${k}:${(v as any).enabled}`).join(', '));
     writeCompatibilityCache(parsed);
 
     if (!parsed.frontendCompatible && !mismatchReported) {
@@ -246,11 +253,15 @@ export async function resolveFeatureEndpoint(
   featureName: CompatibilityFeatureName,
   fallbackPath: string,
 ): Promise<{ url: string; usingFallback: boolean; expectedApiVersion: ApiVersion; reason: string | null; state: ApiCompatibilityState }> {
+  console.log('[compat] resolveFeatureEndpoint:', featureName);
   const state = await getApiCompatibilityState(false);
   const feature = state.features[featureName] ?? DEFAULT_FEATURES[featureName];
+  console.log('[compat] feature state:', featureName, 'enabled=', feature.enabled, 'apiVersion=', feature.apiVersion,
+    'frontendCompatible=', state.frontendCompatible, 'supportedVersions=', state.supportedApiVersions);
 
   if (!state.frontendCompatible) {
     const reason = 'frontend_contract_mismatch';
+    console.warn('[compat] FALLBACK:', featureName, 'reason=', reason);
     const dedupeKey = `${featureName}:${reason}`;
     if (!fallbackReportSet.has(dedupeKey)) {
       fallbackReportSet.add(dedupeKey);
@@ -291,8 +302,10 @@ export async function resolveFeatureEndpoint(
     };
   }
 
+  const v2Url = `${BASE_URL}${normalizeAdvertisedFeaturePath(feature.versionedPath)}`;
+  console.log('[compat] V2 resolved:', featureName, 'url=', v2Url);
   return {
-    url: `${BASE_URL}${normalizeAdvertisedFeaturePath(feature.versionedPath)}`,
+    url: v2Url,
     usingFallback: false,
     expectedApiVersion: feature.apiVersion,
     reason: null,

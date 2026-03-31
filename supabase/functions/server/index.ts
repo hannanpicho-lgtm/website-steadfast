@@ -1053,25 +1053,37 @@ function generateUserInviteCode(): string {
   return code;
 }
 
+const canonicalUsernameCache = new Map<string, { value: string | null; expiresAt: number }>();
+const CANONICAL_USERNAME_CACHE_TTL_MS = 30_000;
+
 async function resolveCanonicalUsername(username: string): Promise<string | null> {
   const normalized = username.trim().toLowerCase();
   if (!normalized) return null;
 
+  const cached = canonicalUsernameCache.get(normalized);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.value;
+  }
+
   const lookup = await kv.get(`user:lookup:${normalized}`);
   if (typeof lookup === 'string' && lookup) {
+    canonicalUsernameCache.set(normalized, { value: lookup, expiresAt: Date.now() + CANONICAL_USERNAME_CACHE_TTL_MS });
     return lookup;
   }
 
   const exact = await kv.get(`user:${username}`);
   if (exact) {
+    canonicalUsernameCache.set(normalized, { value: username, expiresAt: Date.now() + CANONICAL_USERNAME_CACHE_TTL_MS });
     return username;
   }
 
   const lowerRecord = await kv.get(`user:${normalized}`);
   if (lowerRecord) {
+    canonicalUsernameCache.set(normalized, { value: normalized, expiresAt: Date.now() + CANONICAL_USERNAME_CACHE_TTL_MS });
     return normalized;
   }
 
+  canonicalUsernameCache.set(normalized, { value: null, expiresAt: Date.now() + CANONICAL_USERNAME_CACHE_TTL_MS });
   return null;
 }
 
@@ -2461,7 +2473,10 @@ async function getRewardsConfigRecord() {
   const existing = await kv.get(REWARDS_CONFIG_KEY);
   if (existing) {
     const normalized = applyRewardsConfigMigrations(existing);
-    await kv.set(REWARDS_CONFIG_KEY, normalized);
+    // Only write back if migration actually changed the data.
+    if (JSON.stringify(normalized) !== JSON.stringify(existing)) {
+      await kv.set(REWARDS_CONFIG_KEY, normalized);
+    }
     return normalized;
   }
 
@@ -2505,7 +2520,7 @@ function normalizeVipConfigRecord(record: any) {
   };
 }
 
-async function ensureVipConfigSeeded() {
+async function ensureVipConfigSeeded(): Promise<ReturnType<typeof normalizeVipConfigRecord>[] | null> {
   const existing = await kv.getByPrefix(VIP_CONFIG_KEY_PREFIX);
   if (existing.length > 0) {
     const normalized = existing
@@ -2524,6 +2539,7 @@ async function ensureVipConfigSeeded() {
       });
 
     if (matchesLegacyDefaults) {
+      const migrated: ReturnType<typeof normalizeVipConfigRecord>[] = [];
       for (const tier of defaultVipConfig) {
         const normalizedTier = normalizeVipConfigRecord({
           ...tier,
@@ -2531,11 +2547,14 @@ async function ensureVipConfigSeeded() {
           updatedAt: new Date().toISOString(),
         });
         await kv.set(`${VIP_CONFIG_KEY_PREFIX}${normalizedTier.level}`, normalizedTier);
+        migrated.push(normalizedTier);
       }
+      return migrated.sort((a, b) => a.level - b.level);
     }
-    return;
+    return normalized;
   }
 
+  const seeded: ReturnType<typeof normalizeVipConfigRecord>[] = [];
   for (const tier of defaultVipConfig) {
     const normalized = normalizeVipConfigRecord({
       ...tier,
@@ -2543,11 +2562,16 @@ async function ensureVipConfigSeeded() {
       updatedAt: new Date().toISOString(),
     });
     await kv.set(`${VIP_CONFIG_KEY_PREFIX}${normalized.level}`, normalized);
+    seeded.push(normalized);
   }
+  return seeded.sort((a, b) => a.level - b.level);
 }
 
 async function listVipConfigRecords() {
-  await ensureVipConfigSeeded();
+  const seeded = await ensureVipConfigSeeded();
+  if (seeded) {
+    return seeded;
+  }
   const tiers = await kv.getByPrefix(VIP_CONFIG_KEY_PREFIX);
   return tiers
     .map((tier) => normalizeVipConfigRecord(tier))
@@ -3191,7 +3215,11 @@ async function withUserFinancialLock<T>(username: string, work: () => Promise<T>
   return withDistributedLock(`financial:${username}`, work);
 }
 
-async function syncUserWithVipConfig(userData: any, username: string) {
+async function syncUserWithVipConfig(
+  userData: any,
+  username: string,
+  prefetch?: { vipTiers?: any[]; platformSettings?: any },
+) {
   const normalized = normalizeUserRecord(userData, username);
   const persistedVipLevel = Number.isFinite(Number(normalized.vipLevel))
     ? Math.max(1, Math.round(Number(normalized.vipLevel)))
@@ -3200,14 +3228,18 @@ async function syncUserWithVipConfig(userData: any, username: string) {
   const targetVipLevel = Number.isFinite(Number(normalized.manualVipLevel))
     ? Math.max(1, Math.min(5, Math.round(Number(normalized.manualVipLevel))))
     : persistedVipLevel;
-  const vipConfig = await getVipConfigForLevel(targetVipLevel);
+  const vipConfig = prefetch?.vipTiers
+    ? resolveVipConfigFromTiers(prefetch.vipTiers, targetVipLevel)
+    : await getVipConfigForLevel(targetVipLevel);
   const previousVipLevel = Number.isFinite(Number(normalized.vipLevel))
     ? Math.max(1, Math.round(Number(normalized.vipLevel)))
     : vipConfig.level;
 
   // VIP chart is the primary source of truth for required products/tasks per user.
   // New users default to two sets, while admin overrides remain authoritative.
-  const platformSettings = sanitizeAdminPlatformSettings(await kv.get(ADMIN_PLATFORM_SETTINGS_KEY));
+  const platformSettings = sanitizeAdminPlatformSettings(
+    prefetch?.platformSettings ?? await kv.get(ADMIN_PLATFORM_SETTINGS_KEY),
+  );
   const defaultVipTaskSetCount = platformSettings.defaultTaskSetCount ?? 2;
   const vipTaskBaselineByLevel: Record<number, number> = {
     1: 40,
@@ -3258,6 +3290,19 @@ async function syncUserWithVipConfig(userData: any, username: string) {
   }
 
   return normalized;
+}
+
+function resolveVipConfigFromTiers(tiers: any[], level: number) {
+  const sorted = tiers
+    .map((tier) => normalizeVipConfigRecord(tier))
+    .sort((a, b) => a.level - b.level);
+  if (sorted.length === 0) {
+    return normalizeVipConfigRecord(defaultVipConfig[0]);
+  }
+  const exact = sorted.find((t) => t.level === level);
+  if (exact) return exact;
+  const highestBelow = [...sorted].reverse().find((t) => t.level <= level);
+  return highestBelow ?? sorted[0];
 }
 
 function extractIsoDatePrefix(value: string): string | null {
@@ -5150,8 +5195,13 @@ async function getValidSessionById(sessionId: string): Promise<UserSessionRecord
 
   const userData = await kv.get(`user:${canonicalUsername}`);
   session.mustChangePassword = Boolean((userData as any)?.mustChangePassword);
-  session.lastSeenAt = new Date().toISOString();
-  await kv.set(`${USER_SESSION_PREFIX}${sessionId}`, session);
+  const now = new Date().toISOString();
+  const lastSeenMs = Date.parse(String(session.lastSeenAt ?? ''));
+  // Only persist lastSeenAt every 60 seconds to reduce DB writes on each request.
+  if (!Number.isFinite(lastSeenMs) || Date.now() - lastSeenMs > 60_000) {
+    session.lastSeenAt = now;
+    await kv.set(`${USER_SESSION_PREFIX}${sessionId}`, session);
+  }
   return session;
 }
 
@@ -5975,18 +6025,22 @@ async function handleStartingSnapshot(c: any) {
     const catalogLimit = parsePositiveIntQuery(c.req.query('catalogLimit'), 200, 1, 500);
     const username = sessionResult.session.username;
 
-    const [rawUserData, taskCatalog, rewardsConfig, vipTiers] = await Promise.all([
+    const [rawUserData, taskCatalog, rewardsConfig, vipTiers, platformSettingsRaw] = await Promise.all([
       kv.get(`user:${username}`),
       includeCatalog ? listTaskCatalogRecords(false) : Promise.resolve([]),
       includeConfig ? getRewardsConfigRecord() : Promise.resolve(null),
       includeConfig ? listVipConfigRecords() : Promise.resolve([]),
+      kv.get(ADMIN_PLATFORM_SETTINGS_KEY),
     ]);
 
     if (!rawUserData) {
       return jsonError(c, 404, 'user_not_found', 'User not found');
     }
 
-    const normalizedUserData = await syncUserWithVipConfig(rawUserData, username);
+    const normalizedUserData = await syncUserWithVipConfig(rawUserData, username, {
+      vipTiers: Array.isArray(vipTiers) ? vipTiers : undefined,
+      platformSettings: platformSettingsRaw,
+    });
     const normalizedRewardsConfig = normalizeProductSystemConfig(rewardsConfig?.productSystem);
     const catalogTasks = Array.isArray(taskCatalog) ? taskCatalog.slice(0, catalogLimit) : [];
 
@@ -6026,34 +6080,36 @@ async function handleRecordsSnapshot(c: any) {
     const includeVip = c.req.query('includeVip') !== 'false';
     const username = sessionResult.session.username;
 
-    const [rawUserData, tasks, transactions, taskCatalog] = await Promise.all([
+    const [rawUserData, tasks, transactions, taskCatalog, vipTiers, platformSettingsRaw] = await Promise.all([
       kv.get(`user:${username}`),
       kv.getByPrefix(`task:${username}:`),
       listTransactionRecords(username),
       includeCatalog ? listTaskCatalogRecords(false) : Promise.resolve([]),
+      includeVip ? listVipConfigRecords() : Promise.resolve([]),
+      kv.get(ADMIN_PLATFORM_SETTINGS_KEY),
     ]);
 
     if (!rawUserData) {
       return jsonError(c, 404, 'user_not_found', 'User not found');
     }
 
-    const normalizedUserData = await syncUserWithVipConfig(rawUserData, username);
+    const normalizedUserData = await syncUserWithVipConfig(rawUserData, username, {
+      vipTiers: Array.isArray(vipTiers) ? vipTiers : undefined,
+      platformSettings: platformSettingsRaw,
+    });
     const sortedTasks = tasks.sort((left, right) =>
       new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime()
     );
 
     const pagedTasks = sortedTasks.slice(0, tasksLimit);
     const pagedTransactions = transactions.slice(0, transactionsLimit);
-    const vipConfig = includeVip && normalizedUserData.activePremium
-      ? await listVipConfigRecords()
-      : [];
 
     return c.json({
       user: normalizedUserData,
       tasks: pagedTasks,
       transactions: pagedTransactions,
       taskCatalog,
-      vipConfig,
+      vipConfig: includeVip ? (Array.isArray(vipTiers) ? vipTiers : []) : [],
       meta: {
         tasksTotal: sortedTasks.length,
         tasksReturned: pagedTasks.length,
@@ -6079,19 +6135,23 @@ async function handleActivitySnapshot(c: any) {
     const withdrawalsLimit = parsePositiveIntQuery(c.req.query('withdrawalsLimit'), 40, 1, 200);
     const username = sessionResult.session.username;
 
-    const [rawUserData, transactions, withdrawals, rewardsConfig, vipTiers] = await Promise.all([
+    const [rawUserData, transactions, withdrawals, rewardsConfig, vipTiers, platformSettingsRaw] = await Promise.all([
       kv.get(`user:${username}`),
       listTransactionRecords(username),
       listWithdrawalRecords(username),
       includeConfig ? getRewardsConfigRecord() : Promise.resolve(null),
       includeConfig ? listVipConfigRecords() : Promise.resolve([]),
+      kv.get(ADMIN_PLATFORM_SETTINGS_KEY),
     ]);
 
     if (!rawUserData) {
       return jsonError(c, 404, 'user_not_found', 'User not found');
     }
 
-    const normalizedUserData = await syncUserWithVipConfig(rawUserData, username);
+    const normalizedUserData = await syncUserWithVipConfig(rawUserData, username, {
+      vipTiers: Array.isArray(vipTiers) ? vipTiers : undefined,
+      platformSettings: platformSettingsRaw,
+    });
     const boundWalletProfile = normalizeStoredWalletProfile(normalizedUserData.walletProfile);
     const boundDestination = getWalletProfileDestination(boundWalletProfile);
     const resolvedWithdrawals = withdrawals.map((w) => {
