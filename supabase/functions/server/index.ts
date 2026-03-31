@@ -3390,9 +3390,9 @@ function extractIsoDatePrefix(value: string): string | null {
   return /^\d{4}-\d{2}-\d{2}/.test(trimmed) ? trimmed.slice(0, 10) : null;
 }
 
-async function applyAutomaticRewardsForUser(username: string, userData: any) {
+async function applyAutomaticRewardsForUser(username: string, userData: any, prefetch?: { rewardsConfig?: any }) {
   const normalizedUser = normalizeUserRecord(userData, username);
-  const rewardsConfig = await getRewardsConfigRecord();
+  const rewardsConfig = prefetch?.rewardsConfig ?? await getRewardsConfigRecord();
   const today = getCommissionDateKey();
   const rewardsApplied: Array<{ category: 'workday' | 'reset' | 'accumulated'; amount: number; reference: string }> = [];
 
@@ -3457,17 +3457,34 @@ async function applyAutomaticRewardsForUser(username: string, userData: any) {
     }
   }
 
-  const transactions = await listTransactionRecords(username);
-  const completedDeposits = transactions.filter((transaction) => transaction.type === 'Deposit' && transaction.status === 'Completed');
-  const lifetimeDepositTotal = roundMoney(
-    completedDeposits.reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0),
-  );
-
   const resetRewards = Array.isArray(rewardsConfig.reset)
     ? rewardsConfig.reset
       .filter((reward: any) => reward?.enabled)
       .sort((left: any, right: any) => Number(left?.deposit ?? 0) - Number(right?.deposit ?? 0))
     : [];
+
+  const accumulatedRewards = Array.isArray(rewardsConfig.accumulated)
+    ? rewardsConfig.accumulated
+      .filter((reward: any) => reward?.enabled)
+      .sort((left: any, right: any) => Number(left?.minDeposit ?? 0) - Number(right?.minDeposit ?? 0))
+    : [];
+
+  let completedDeposits: any[] = [];
+  let lifetimeDepositTotal = 0;
+  let todayDepositTotal = 0;
+
+  if (resetRewards.length > 0 || accumulatedRewards.length > 0) {
+    const transactions = await listTransactionRecords(username);
+    completedDeposits = transactions.filter((transaction) => transaction.type === 'Deposit' && transaction.status === 'Completed');
+    lifetimeDepositTotal = roundMoney(
+      completedDeposits.reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0),
+    );
+    todayDepositTotal = roundMoney(
+      completedDeposits
+        .filter((transaction) => extractIsoDatePrefix(String(transaction.date ?? transaction.createdAt ?? '')) === today)
+        .reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0),
+    );
+  }
 
   for (const reward of resetRewards) {
     const rewardId = Math.round(Number(reward?.id ?? 0));
@@ -3489,18 +3506,6 @@ async function applyAutomaticRewardsForUser(username: string, userData: any) {
       normalizedUser.claimedResetRewardIds.push(rewardId);
     }
   }
-
-  const todayDepositTotal = roundMoney(
-    completedDeposits
-      .filter((transaction) => extractIsoDatePrefix(String(transaction.date ?? transaction.createdAt ?? '')) === today)
-      .reduce((sum, transaction) => sum + Number(transaction.amount ?? 0), 0),
-  );
-
-  const accumulatedRewards = Array.isArray(rewardsConfig.accumulated)
-    ? rewardsConfig.accumulated
-      .filter((reward: any) => reward?.enabled)
-      .sort((left: any, right: any) => Number(left?.minDeposit ?? 0) - Number(right?.minDeposit ?? 0))
-    : [];
 
   const claimsSource = normalizedUser.accumulatedRewardClaims && typeof normalizedUser.accumulatedRewardClaims === 'object'
     ? normalizedUser.accumulatedRewardClaims
@@ -3989,12 +3994,16 @@ async function ensureRootReferralUser() {
   await kv.set(`referral:invite:${ROOT_REFERRAL_INVITE_CODE}`, ROOT_REFERRAL_USERNAME);
 }
 
-async function creditParentReferralFromChildCommission(childUsername: string, childCommission: number) {
+async function creditParentReferralFromChildCommission(childUsername: string, childCommission: number, childUserHint?: any) {
   if (!Number.isFinite(childCommission) || childCommission <= 0) {
     return { rewarded: false, parentReward: 0 };
   }
 
-  const childUser = await getOrCreateUserRecord(childUsername);
+  const childUserKey = `user:${childUsername}`;
+  const rawChildUser = childUserHint ?? await kv.get(childUserKey);
+  const childUser = childUserHint
+    ? normalizeUserRecord(childUserHint, childUsername)
+    : (rawChildUser ? normalizeUserRecord(rawChildUser, childUsername) : await getOrCreateUserRecord(childUsername));
   const invitedByCode = sanitizeInviteCode(childUser.invitedByCode);
   if (!invitedByCode) {
     return { rewarded: false, parentReward: 0 };
@@ -4005,14 +4014,17 @@ async function creditParentReferralFromChildCommission(childUsername: string, ch
     return { rewarded: false, parentReward: 0 };
   }
 
-  const parentUser = await getOrCreateUserRecord(parentUsername);
   const parentReward = roundMoney(childCommission * REFERRAL_PARENT_RATE);
   if (parentReward <= 0) {
     return { rewarded: false, parentReward: 0 };
   }
 
   await withUserFinancialLock(parentUsername, async () => {
-    const lockedParentUser = await getOrCreateUserRecord(parentUsername);
+    const parentUserKey = `user:${parentUsername}`;
+    const rawParentUser = await kv.get(parentUserKey);
+    const lockedParentUser = rawParentUser
+      ? normalizeUserRecord(rawParentUser, parentUsername)
+      : await getOrCreateUserRecord(parentUsername);
     const before = snapshotFinancialState(lockedParentUser);
 
     lockedParentUser.balance = roundMoney(Number(lockedParentUser.balance ?? 0) + parentReward);
@@ -5673,16 +5685,24 @@ async function submitTaskForUser(c: any, username: string, body: any) {
 
   return withUserFinancialLock(username, async () => {
     const userKey = `user:${username}`;
-    const userData = await kv.get(userKey);
+    const [userData, vipTiers, taskCatalog, rewardsConfig, platformSettingsRaw] = await Promise.all([
+      kv.get(userKey),
+      listVipConfigRecords(),
+      listTaskCatalogRecords(false),
+      getRewardsConfigRecord(),
+      getCachedPlatformSettings(),
+    ]);
 
     if (!userData) {
       return jsonError(c, 404, 'user_not_found', 'User not found');
     }
 
-    const normalizedUserData = await syncUserWithVipConfig(userData, username);
+    const normalizedUserData = await syncUserWithVipConfig(userData, username, {
+      vipTiers,
+      platformSettings: platformSettingsRaw,
+    });
     const before = snapshotFinancialState(normalizedUserData);
-    const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
-    const taskCatalog = await listTaskCatalogRecords(false);
+    const vipConfig = resolveVipConfigFromTiers(vipTiers, Number(normalizedUserData.vipLevel ?? 1));
     const controlledCommissionPlan = ensureUserControlledCommissionPlanForCurrentSet(normalizedUserData, vipConfig);
     const tierTaskCandidates = collectTierTaskCandidates(
       taskCatalog,
@@ -5789,7 +5809,6 @@ async function submitTaskForUser(c: any, username: string, body: any) {
       return jsonError(c, 400, 'daily_task_limit_reached', 'Daily task limit reached');
     }
 
-    const rewardsConfig = await getRewardsConfigRecord();
     const productSystem = normalizeProductSystemConfig(rewardsConfig?.productSystem);
     const nextSubmissionNumber = Number(normalizedUserData.tasksCompleted ?? 0) + 1;
     const queuedPremiumAssignments = Array.isArray(normalizedUserData.premiumQueue)
@@ -5892,9 +5911,11 @@ async function submitTaskForUser(c: any, username: string, body: any) {
     const writes: Array<{ key: string; value: unknown }> = [];
     // Lucky bonuses are admin-managed only. Automatic random trigger has been removed.
 
-    const rewardResult = await applyAutomaticRewardsForUser(username, normalizedUserData);
+    const rewardResult = await applyAutomaticRewardsForUser(username, normalizedUserData, {
+      rewardsConfig,
+    });
     const rewardedUserData = rewardResult.normalizedUser;
-    const referralPayout = await creditParentReferralFromChildCommission(username, commission);
+    const referralPayoutPromise = creditParentReferralFromChildCommission(username, commission, rewardedUserData);
 
     const taskKey = `task:${username}:${Date.now()}`;
     const taskRecord = {
@@ -5939,6 +5960,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
         controlledCommissionRange: shouldUseControlledCommission,
       },
     });
+    const referralPayout = await referralPayoutPromise;
 
     return c.json({
       success: true,
@@ -5963,6 +5985,7 @@ async function submitTaskForUser(c: any, username: string, body: any) {
 }
 
 app.post('/make-server-a1c55d7e/me/submit-task', async (c) => {
+  const t0 = performance.now();
   try {
     const rateLimited = await enforceCriticalUserRateLimit(c, 'user:submit-task');
     if (rateLimited) return rateLimited;
@@ -5987,6 +6010,7 @@ app.post('/make-server-a1c55d7e/me/submit-task', async (c) => {
     }
 
     const taskResult = await submitTaskForUser(c, sessionResult.session.username, body);
+    c.header('X-Submit-Task-Timing-Ms', String(Math.round(performance.now() - t0)));
     invalidateUserSnapshots(sessionResult.session.username);
     return taskResult;
   } catch (error) {
