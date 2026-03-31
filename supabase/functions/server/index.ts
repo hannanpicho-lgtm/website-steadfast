@@ -677,7 +677,8 @@ app.use(
       "x-user-session-token",
       "x-client-contract-version",
       "x-client-app-version",
-      "x-client-platform"
+      "x-client-platform",
+      "x-client-supported-api-versions"
     ],
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length", "X-Request-Id"],
