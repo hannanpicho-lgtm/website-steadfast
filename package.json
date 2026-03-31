@@ -115,7 +115,8 @@
     "jsdom": "^25.0.1",
     "tailwindcss": "4.1.12",
     "vite": "6.3.5",
-    "vitest": "^4.1.0"
+    "vitest": "^4.1.0",
+    "wrangler": "^4.78.0"
   },
   "pnpm": {
     "overrides": {
