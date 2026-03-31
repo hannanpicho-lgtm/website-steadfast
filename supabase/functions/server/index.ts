@@ -1227,6 +1227,75 @@ const TASK_CATALOG_RUNTIME_CACHE_TTL_MS = 20_000;
 let taskCatalogRuntimeCacheAll: { expiresAt: number; tasks: any[] } | null = null;
 let taskCatalogRuntimeCacheActive: { expiresAt: number; tasks: any[] } | null = null;
 
+// ── Session validation cache ────────────────────────────────────────────────
+// Caches validated session records in-memory to avoid 3-5 DB queries per request.
+const SESSION_VALIDATION_CACHE_TTL_MS = 30_000;
+const sessionValidationCache = new Map<string, { session: any; expiresAt: number }>();
+
+function getCachedSession(sessionId: string): any | null {
+  const entry = sessionValidationCache.get(sessionId);
+  if (!entry || Date.now() > entry.expiresAt) {
+    sessionValidationCache.delete(sessionId);
+    return null;
+  }
+  return entry.session;
+}
+
+function setCachedSession(sessionId: string, session: any): void {
+  sessionValidationCache.set(sessionId, {
+    session: { ...session },
+    expiresAt: Date.now() + SESSION_VALIDATION_CACHE_TTL_MS,
+  });
+  // Prevent unbounded growth
+  if (sessionValidationCache.size > 500) {
+    const oldest = sessionValidationCache.keys().next().value;
+    if (oldest) sessionValidationCache.delete(oldest);
+  }
+}
+
+function invalidateSessionCache(sessionId: string): void {
+  sessionValidationCache.delete(sessionId);
+}
+
+// ── Snapshot response cache ─────────────────────────────────────────────────
+// Caches fully-built snapshot JSON per user to serve repeat requests instantly.
+const SNAPSHOT_CACHE_TTL_MS = 10_000;
+const snapshotResponseCache = new Map<string, { payload: any; expiresAt: number }>();
+
+function getCachedSnapshotResponse(key: string): any | null {
+  const entry = snapshotResponseCache.get(key);
+  if (!entry || Date.now() > entry.expiresAt) {
+    snapshotResponseCache.delete(key);
+    return null;
+  }
+  return entry.payload;
+}
+
+function setCachedSnapshotResponse(key: string, payload: any): void {
+  snapshotResponseCache.set(key, {
+    payload,
+    expiresAt: Date.now() + SNAPSHOT_CACHE_TTL_MS,
+  });
+  // Prevent unbounded growth
+  if (snapshotResponseCache.size > 200) {
+    const oldest = snapshotResponseCache.keys().next().value;
+    if (oldest) snapshotResponseCache.delete(oldest);
+  }
+}
+
+function invalidateUserSnapshots(username: string): void {
+  snapshotResponseCache.delete(`snapshot:starting:${username}`);
+  snapshotResponseCache.delete(`snapshot:records:${username}`);
+  snapshotResponseCache.delete(`snapshot:activity:${username}`);
+}
+
+// ── Config runtime cache ────────────────────────────────────────────────────
+// Caches rewards config + platform settings in-memory since they change rarely.
+const CONFIG_RUNTIME_CACHE_TTL_MS = 30_000;
+let rewardsConfigRuntimeCache: { data: any; expiresAt: number } | null = null;
+let platformSettingsRuntimeCache: { data: any; expiresAt: number } | null = null;
+let vipConfigRuntimeCache: { data: any[]; expiresAt: number } | null = null;
+
 function parsePositiveIntQuery(value: string | undefined, fallback: number, min: number, max: number): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) {
@@ -2470,6 +2539,10 @@ function applyRewardsConfigMigrations(record: any) {
 }
 
 async function getRewardsConfigRecord() {
+  if (rewardsConfigRuntimeCache && rewardsConfigRuntimeCache.expiresAt > Date.now()) {
+    return rewardsConfigRuntimeCache.data;
+  }
+
   const existing = await kv.get(REWARDS_CONFIG_KEY);
   if (existing) {
     const normalized = applyRewardsConfigMigrations(existing);
@@ -2477,6 +2550,7 @@ async function getRewardsConfigRecord() {
     if (JSON.stringify(normalized) !== JSON.stringify(existing)) {
       await kv.set(REWARDS_CONFIG_KEY, normalized);
     }
+    rewardsConfigRuntimeCache = { data: normalized, expiresAt: Date.now() + CONFIG_RUNTIME_CACHE_TTL_MS };
     return normalized;
   }
 
@@ -2489,11 +2563,13 @@ async function getRewardsConfigRecord() {
     const migrated = applyRewardsConfigMigrations(legacy);
     await kv.set(REWARDS_CONFIG_KEY, migrated);
     await kv.delete(legacyKey);
+    rewardsConfigRuntimeCache = { data: migrated, expiresAt: Date.now() + CONFIG_RUNTIME_CACHE_TTL_MS };
     return migrated;
   }
 
   const seeded = applyRewardsConfigMigrations(defaultRewardsConfig);
   await kv.set(REWARDS_CONFIG_KEY, seeded);
+  rewardsConfigRuntimeCache = { data: seeded, expiresAt: Date.now() + CONFIG_RUNTIME_CACHE_TTL_MS };
   return seeded;
 }
 
@@ -2568,14 +2644,14 @@ async function ensureVipConfigSeeded(): Promise<ReturnType<typeof normalizeVipCo
 }
 
 async function listVipConfigRecords() {
-  const seeded = await ensureVipConfigSeeded();
-  if (seeded) {
-    return seeded;
+  if (vipConfigRuntimeCache && vipConfigRuntimeCache.expiresAt > Date.now()) {
+    return vipConfigRuntimeCache.data;
   }
-  const tiers = await kv.getByPrefix(VIP_CONFIG_KEY_PREFIX);
-  return tiers
-    .map((tier) => normalizeVipConfigRecord(tier))
-    .sort((left, right) => left.level - right.level);
+
+  const seeded = await ensureVipConfigSeeded();
+  const tiers = seeded ?? (await kv.getByPrefix(VIP_CONFIG_KEY_PREFIX)).map((tier) => normalizeVipConfigRecord(tier)).sort((a, b) => a.level - b.level);
+  vipConfigRuntimeCache = { data: tiers, expiresAt: Date.now() + CONFIG_RUNTIME_CACHE_TTL_MS };
+  return tiers;
 }
 
 async function getVipConfigForLevel(level: number) {
@@ -5028,6 +5104,8 @@ app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
       await kv.set(`user:${parentUsername}`, parentData);
     }
 
+    invalidateUserSnapshots(canonicalUsername);
+    invalidateUserSnapshots(parentUsername);
     return c.json({
       success: true,
       username: canonicalUsername,
@@ -5169,6 +5247,12 @@ async function getValidSessionById(sessionId: string): Promise<UserSessionRecord
     return null;
   }
 
+  // Check in-memory session cache first (avoids 3-5 DB queries).
+  const cached = getCachedSession(sessionId);
+  if (cached) {
+    return { ...cached } as UserSessionRecord;
+  }
+
   const raw = await kv.get(`${USER_SESSION_PREFIX}${sessionId}`);
   if (!raw || typeof raw !== 'object') {
     return null;
@@ -5202,6 +5286,9 @@ async function getValidSessionById(sessionId: string): Promise<UserSessionRecord
     session.lastSeenAt = now;
     await kv.set(`${USER_SESSION_PREFIX}${sessionId}`, session);
   }
+
+  // Cache the validated session for subsequent requests.
+  setCachedSession(sessionId, session);
   return session;
 }
 
@@ -5408,6 +5495,8 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
     parentData.referralEarnings = roundMoney(Number(parentData.referralEarnings ?? 0) + parentReward);
     await kv.set(`user:${parentUsername}`, parentData);
 
+    invalidateUserSnapshots(username);
+    invalidateUserSnapshots(parentUsername);
     return c.json({
       ok: true,
       user: {
@@ -5474,6 +5563,7 @@ app.post('/make-server-a1c55d7e/auth/login', async (c) => {
     const session = await createUserSession(canonicalUsername, mustChangePassword);
     c.header('Set-Cookie', buildSessionCookieValue(session.sessionId));
 
+    invalidateUserSnapshots(canonicalUsername);
     return c.json({
       ok: true,
       username: canonicalUsername,
@@ -5896,7 +5986,9 @@ app.post('/make-server-a1c55d7e/me/submit-task', async (c) => {
       return c.json({ error: 'Platform is currently closed. Working hours: 9 AM – 10 PM EST.', code: 'outside_platform_hours' }, 503);
     }
 
-    return await submitTaskForUser(c, sessionResult.session.username, body);
+    const taskResult = await submitTaskForUser(c, sessionResult.session.username, body);
+    invalidateUserSnapshots(sessionResult.session.username);
+    return taskResult;
   } catch (error) {
     console.error('Error submitting session task:', error);
     return c.json({ error: 'Failed to submit task' }, 500);
@@ -6013,9 +6105,26 @@ app.get('/make-server-a1c55d7e/me/transactions', async (c) => {
   }
 });
 
+async function getCachedPlatformSettings(): Promise<any> {
+  if (platformSettingsRuntimeCache && platformSettingsRuntimeCache.expiresAt > Date.now()) {
+    return platformSettingsRuntimeCache.data;
+  }
+  const raw = await kv.get(ADMIN_PLATFORM_SETTINGS_KEY);
+  platformSettingsRuntimeCache = { data: raw, expiresAt: Date.now() + CONFIG_RUNTIME_CACHE_TTL_MS };
+  return raw;
+}
+
+function invalidateConfigCaches(): void {
+  rewardsConfigRuntimeCache = null;
+  platformSettingsRuntimeCache = null;
+  vipConfigRuntimeCache = null;
+}
+
 async function handleStartingSnapshot(c: any) {
+  const t0 = performance.now();
   try {
     const sessionResult = await requireActiveUserSession(c);
+    const tSession = performance.now();
     if ('response' in sessionResult) {
       return sessionResult.response;
     }
@@ -6025,13 +6134,23 @@ async function handleStartingSnapshot(c: any) {
     const catalogLimit = parsePositiveIntQuery(c.req.query('catalogLimit'), 200, 1, 500);
     const username = sessionResult.session.username;
 
+    // Check snapshot response cache.
+    const cacheKey = `snapshot:starting:${username}`;
+    const cached = getCachedSnapshotResponse(cacheKey);
+    if (cached) {
+      c.header('X-Snapshot-Cache', 'hit');
+      c.header('X-Timing-Total-Ms', String(Math.round(performance.now() - t0)));
+      return c.json(cached);
+    }
+
     const [rawUserData, taskCatalog, rewardsConfig, vipTiers, platformSettingsRaw] = await Promise.all([
       kv.get(`user:${username}`),
       includeCatalog ? listTaskCatalogRecords(false) : Promise.resolve([]),
       includeConfig ? getRewardsConfigRecord() : Promise.resolve(null),
       includeConfig ? listVipConfigRecords() : Promise.resolve([]),
-      kv.get(ADMIN_PLATFORM_SETTINGS_KEY),
+      getCachedPlatformSettings(),
     ]);
+    const tData = performance.now();
 
     if (!rawUserData) {
       return jsonError(c, 404, 'user_not_found', 'User not found');
@@ -6043,8 +6162,9 @@ async function handleStartingSnapshot(c: any) {
     });
     const normalizedRewardsConfig = normalizeProductSystemConfig(rewardsConfig?.productSystem);
     const catalogTasks = Array.isArray(taskCatalog) ? taskCatalog.slice(0, catalogLimit) : [];
+    const tBuild = performance.now();
 
-    return c.json({
+    const payload = {
       user: normalizedUserData,
       taskCatalog: {
         tasks: catalogTasks,
@@ -6060,7 +6180,15 @@ async function handleStartingSnapshot(c: any) {
         catalogLimit,
         catalogReturned: catalogTasks.length,
       },
-    });
+    };
+
+    setCachedSnapshotResponse(cacheKey, payload);
+    c.header('X-Snapshot-Cache', 'miss');
+    c.header('X-Timing-Session-Ms', String(Math.round(tSession - t0)));
+    c.header('X-Timing-Data-Ms', String(Math.round(tData - tSession)));
+    c.header('X-Timing-Build-Ms', String(Math.round(tBuild - tData)));
+    c.header('X-Timing-Total-Ms', String(Math.round(performance.now() - t0)));
+    return c.json(payload);
   } catch (error) {
     console.error('Error fetching starting snapshot:', error);
     return c.json({ error: 'Failed to fetch starting snapshot' }, 500);
@@ -6068,8 +6196,10 @@ async function handleStartingSnapshot(c: any) {
 }
 
 async function handleRecordsSnapshot(c: any) {
+  const t0 = performance.now();
   try {
     const sessionResult = await requireActiveUserSession(c);
+    const tSession = performance.now();
     if ('response' in sessionResult) {
       return sessionResult.response;
     }
@@ -6080,14 +6210,24 @@ async function handleRecordsSnapshot(c: any) {
     const includeVip = c.req.query('includeVip') !== 'false';
     const username = sessionResult.session.username;
 
+    // Check snapshot response cache.
+    const cacheKey = `snapshot:records:${username}`;
+    const cached = getCachedSnapshotResponse(cacheKey);
+    if (cached) {
+      c.header('X-Snapshot-Cache', 'hit');
+      c.header('X-Timing-Total-Ms', String(Math.round(performance.now() - t0)));
+      return c.json(cached);
+    }
+
     const [rawUserData, tasks, transactions, taskCatalog, vipTiers, platformSettingsRaw] = await Promise.all([
       kv.get(`user:${username}`),
       kv.getByPrefix(`task:${username}:`),
       listTransactionRecords(username),
       includeCatalog ? listTaskCatalogRecords(false) : Promise.resolve([]),
       includeVip ? listVipConfigRecords() : Promise.resolve([]),
-      kv.get(ADMIN_PLATFORM_SETTINGS_KEY),
+      getCachedPlatformSettings(),
     ]);
+    const tData = performance.now();
 
     if (!rawUserData) {
       return jsonError(c, 404, 'user_not_found', 'User not found');
@@ -6097,14 +6237,15 @@ async function handleRecordsSnapshot(c: any) {
       vipTiers: Array.isArray(vipTiers) ? vipTiers : undefined,
       platformSettings: platformSettingsRaw,
     });
-    const sortedTasks = tasks.sort((left, right) =>
+    const sortedTasks = tasks.sort((left: any, right: any) =>
       new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime()
     );
 
     const pagedTasks = sortedTasks.slice(0, tasksLimit);
     const pagedTransactions = transactions.slice(0, transactionsLimit);
+    const tBuild = performance.now();
 
-    return c.json({
+    const payload = {
       user: normalizedUserData,
       tasks: pagedTasks,
       transactions: pagedTransactions,
@@ -6116,7 +6257,15 @@ async function handleRecordsSnapshot(c: any) {
         transactionsTotal: transactions.length,
         transactionsReturned: pagedTransactions.length,
       },
-    });
+    };
+
+    setCachedSnapshotResponse(cacheKey, payload);
+    c.header('X-Snapshot-Cache', 'miss');
+    c.header('X-Timing-Session-Ms', String(Math.round(tSession - t0)));
+    c.header('X-Timing-Data-Ms', String(Math.round(tData - tSession)));
+    c.header('X-Timing-Build-Ms', String(Math.round(tBuild - tData)));
+    c.header('X-Timing-Total-Ms', String(Math.round(performance.now() - t0)));
+    return c.json(payload);
   } catch (error) {
     console.error('Error fetching records snapshot:', error);
     return c.json({ error: 'Failed to fetch records snapshot' }, 500);
@@ -6124,8 +6273,10 @@ async function handleRecordsSnapshot(c: any) {
 }
 
 async function handleActivitySnapshot(c: any) {
+  const t0 = performance.now();
   try {
     const sessionResult = await requireActiveUserSession(c);
+    const tSession = performance.now();
     if ('response' in sessionResult) {
       return sessionResult.response;
     }
@@ -6135,14 +6286,24 @@ async function handleActivitySnapshot(c: any) {
     const withdrawalsLimit = parsePositiveIntQuery(c.req.query('withdrawalsLimit'), 40, 1, 200);
     const username = sessionResult.session.username;
 
+    // Check snapshot response cache.
+    const cacheKey = `snapshot:activity:${username}`;
+    const cached = getCachedSnapshotResponse(cacheKey);
+    if (cached) {
+      c.header('X-Snapshot-Cache', 'hit');
+      c.header('X-Timing-Total-Ms', String(Math.round(performance.now() - t0)));
+      return c.json(cached);
+    }
+
     const [rawUserData, transactions, withdrawals, rewardsConfig, vipTiers, platformSettingsRaw] = await Promise.all([
       kv.get(`user:${username}`),
       listTransactionRecords(username),
       listWithdrawalRecords(username),
       includeConfig ? getRewardsConfigRecord() : Promise.resolve(null),
       includeConfig ? listVipConfigRecords() : Promise.resolve([]),
-      kv.get(ADMIN_PLATFORM_SETTINGS_KEY),
+      getCachedPlatformSettings(),
     ]);
+    const tData = performance.now();
 
     if (!rawUserData) {
       return jsonError(c, 404, 'user_not_found', 'User not found');
@@ -6154,7 +6315,7 @@ async function handleActivitySnapshot(c: any) {
     });
     const boundWalletProfile = normalizeStoredWalletProfile(normalizedUserData.walletProfile);
     const boundDestination = getWalletProfileDestination(boundWalletProfile);
-    const resolvedWithdrawals = withdrawals.map((w) => {
+    const resolvedWithdrawals = withdrawals.map((w: any) => {
       if (boundWalletProfile?.type === 'crypto' && boundDestination && walletDestinationsMatch(w.walletAddress, boundDestination)) {
         return {
           ...w,
@@ -6167,8 +6328,9 @@ async function handleActivitySnapshot(c: any) {
 
     const pagedTransactions = transactions.slice(0, transactionsLimit);
     const pagedWithdrawals = resolvedWithdrawals.slice(0, withdrawalsLimit);
+    const tBuild = performance.now();
 
-    return c.json({
+    const payload = {
       financialSnapshot: {
         balance: roundMoney(Number(normalizedUserData.balance ?? 0)),
         holdAmount: roundMoney(Number(normalizedUserData.holdAmount ?? 0)),
@@ -6186,7 +6348,15 @@ async function handleActivitySnapshot(c: any) {
         withdrawalsTotal: resolvedWithdrawals.length,
         withdrawalsReturned: pagedWithdrawals.length,
       },
-    });
+    };
+
+    setCachedSnapshotResponse(cacheKey, payload);
+    c.header('X-Snapshot-Cache', 'miss');
+    c.header('X-Timing-Session-Ms', String(Math.round(tSession - t0)));
+    c.header('X-Timing-Data-Ms', String(Math.round(tData - tSession)));
+    c.header('X-Timing-Build-Ms', String(Math.round(tBuild - tData)));
+    c.header('X-Timing-Total-Ms', String(Math.round(performance.now() - t0)));
+    return c.json(payload);
   } catch (error) {
     console.error('Error fetching activity snapshot:', error);
     return c.json({ error: 'Failed to fetch activity snapshot' }, 500);
@@ -6408,7 +6578,9 @@ app.post('/make-server-a1c55d7e/me/withdrawals/request', async (c) => {
       }, 400);
     }
 
-    return await submitWithdrawalRequest(c, sessionResult.session.username, body);
+    const withdrawalResult = await submitWithdrawalRequest(c, sessionResult.session.username, body);
+    invalidateUserSnapshots(sessionResult.session.username);
+    return withdrawalResult;
   } catch (error) {
     console.error('Error submitting session withdrawal request:', error);
     return c.json({ error: 'Failed to submit withdrawal request' }, 500);
@@ -6648,6 +6820,7 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
       `Assigned premium bundle ($${sanitizedPremiumValue}, ${effectiveBundledCount} bundled product${effectiveBundledCount !== 1 ? 's' : ''}) to user '${canonicalUsername}' for task #${requestedTriggerTaskNumber} — total value $${totalBundleValue}`,
     ).catch((e) => console.error('Failed to record admin-premium-bundle-assign audit event:', e));
 
+    invalidateUserSnapshots(canonicalUsername);
     return c.json({
       success: true,
       premiumAssignment: assignmentResult.premiumAssignment,
@@ -6803,7 +6976,9 @@ app.post('/make-server-a1c55d7e/me/complete-premium-task', async (c) => {
       return c.json({ error: 'Platform is currently closed. Working hours: 9 AM – 10 PM EST.', code: 'outside_platform_hours' }, 503);
     }
 
-    return await completePremiumTaskForUser(c, sessionResult.session.username, productPrice);
+    const premiumResult = await completePremiumTaskForUser(c, sessionResult.session.username, productPrice);
+    invalidateUserSnapshots(sessionResult.session.username);
+    return premiumResult;
   } catch (error) {
     console.error('Error completing session premium task:', error);
     return c.json({ error: 'Failed to complete premium task' }, 500);
@@ -6956,6 +7131,7 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
       `Cancelled premium assignment '${premiumId}' ($${cancellation.cancelledPremium.totalBundleValue ?? 0}) for user '${username}'`,
     ).catch((e) => console.error('Failed to record admin-premium-cancel audit event:', e));
 
+    invalidateUserSnapshots(username);
     return c.json({ success: true, message: 'Premium assignment cancelled' });
   } catch (error) {
     console.error('Error cancelling premium assignment:', error);
@@ -9107,6 +9283,7 @@ app.post('/make-server-a1c55d7e/admin/withdrawals/:withdrawalId/review', async (
       reviewAuditDetail,
     ).catch((e) => console.error('Failed to record withdrawal-review audit event:', e));
 
+    invalidateUserSnapshots(withdrawal.username);
     return c.json({
       success: true,
       withdrawal: reviewResult.withdrawal,
@@ -11007,6 +11184,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
       `Modified task controls for user '${username}' (taskSetCount: ${appliedTaskSetCount ?? 'n/a'}, vipTasksPerSet: ${appliedTasksPerSet ?? 'n/a'}, action: ${ctrlAction})`,
     ).catch((e) => console.error('Failed to record admin-user-task-controls-update audit event:', e));
 
+    invalidateUserSnapshots(username);
     return c.json({
       success: true,
       user: controlResult.user,
@@ -11118,6 +11296,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/recalculate-finan
       `Recalculated financial state for user '${canonicalUsername}' (autoUnfreeze: ${shouldAutoUnfreeze ? 'yes' : 'no'})`,
     ).catch((e) => console.error('Failed to record admin-user-financial-recalculate audit event:', e));
 
+    invalidateUserSnapshots(canonicalUsername);
     return c.json({
       success: true,
       autoUnfreezeApplied: recalculationResult.shouldAutoUnfreeze,
@@ -11378,6 +11557,9 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
         before: reconciliation.before,
         after: reconciliation.after,
       });
+      if (reconciliation.changed) {
+        invalidateUserSnapshots(username);
+      }
     }
 
     const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
@@ -11781,6 +11963,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
       `${mode === 'credit' ? 'Credited' : 'Debited'} $${amount.toFixed(2)} for user '${canonicalUsername}' (new balance: $${adjustmentResult.user.balance.toFixed(2)}; reason: ${reason})`,
     ).catch((e) => console.error('Failed to record admin-user-balance-adjustment audit event:', e));
 
+    invalidateUserSnapshots(canonicalUsername);
     return c.json({
       success: true,
       user: adjustmentResult.user,
@@ -11884,6 +12067,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/vip-level', async
         : `Set VIP level override to ${normalizedVipLevel} for '${canonicalUsername}' (VIP changed: ${vipLevelResult.previousVipLevel} → ${vipLevelResult.user.vipLevel}; reason: ${reason})`,
     ).catch((e) => console.error('Failed to record admin-user-vip-level-override audit event:', e));
 
+    invalidateUserSnapshots(canonicalUsername);
     return c.json({
       success: true,
       user: vipLevelResult.user,

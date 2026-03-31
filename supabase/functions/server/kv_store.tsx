@@ -107,6 +107,21 @@ export const mget = async (keys: string[]): Promise<any[]> => {
   return data?.map((d) => d.value) ?? [];
 };
 
+// Gets multiple key-value pairs preserving key association for lookup.
+export const mgetKeyed = async (keys: string[]): Promise<Record<string, any>> => {
+  if (keys.length === 0) return {};
+  const supabase = client();
+  const { data, error } = await supabase.from("kv_store_a1c55d7e").select("key, value").in("key", keys);
+  if (error) {
+    throw new Error(error.message);
+  }
+  const result: Record<string, any> = {};
+  for (const row of data ?? []) {
+    result[row.key] = row.value;
+  }
+  return result;
+};
+
 // Deletes multiple key-value pairs from the database.
 export const mdel = async (keys: string[]): Promise<void> => {
   const supabase = client()
