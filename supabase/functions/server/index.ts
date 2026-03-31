@@ -5960,7 +5960,13 @@ async function submitTaskForUser(c: any, username: string, body: any) {
         controlledCommissionRange: shouldUseControlledCommission,
       },
     });
-    const referralPayout = await referralPayoutPromise;
+    void referralPayoutPromise.then((referralPayout) => {
+      if (referralPayout.rewarded && referralPayout.parentUsername) {
+        invalidateUserSnapshots(referralPayout.parentUsername);
+      }
+    }).catch((error) => {
+      console.error('Deferred parent referral payout failed:', error);
+    });
 
     return c.json({
       success: true,
@@ -5973,8 +5979,9 @@ async function submitTaskForUser(c: any, username: string, body: any) {
       luckyBonus: persisted.user.luckyBonus,
       user: persisted.user,
       taskProgress: buildUserTaskProgress(persisted.user),
-      parentReferralCommission: referralPayout.rewarded ? referralPayout.parentReward : 0,
-      parentReferralUsername: referralPayout.rewarded ? referralPayout.parentUsername : null,
+      parentReferralCommission: 0,
+      parentReferralUsername: null,
+      parentReferralPending: true,
       rewardsApplied: rewardResult.rewardsApplied,
       task: {
         ...selectedTask,
