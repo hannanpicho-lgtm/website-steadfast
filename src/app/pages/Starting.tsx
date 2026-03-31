@@ -133,9 +133,9 @@ function writeTaskCatalogCache(payload: TaskCatalogResponse) {
   }
 }
 
-function readFinancialSummaryCache(): UserData | null {
+function readFinancialSummaryCache(username: string): UserData | null {
   try {
-    const rawValue = sessionStorage.getItem(FINANCIAL_SUMMARY_CACHE_KEY);
+    const rawValue = sessionStorage.getItem(`${FINANCIAL_SUMMARY_CACHE_KEY}:${username}`);
     if (!rawValue) {
       return null;
     }
@@ -156,9 +156,9 @@ function readFinancialSummaryCache(): UserData | null {
   }
 }
 
-function writeFinancialSummaryCache(payload: UserData) {
+function writeFinancialSummaryCache(username: string, payload: UserData) {
   try {
-    sessionStorage.setItem(FINANCIAL_SUMMARY_CACHE_KEY, JSON.stringify({
+    sessionStorage.setItem(`${FINANCIAL_SUMMARY_CACHE_KEY}:${username}`, JSON.stringify({
       timestamp: Date.now(),
       payload,
     }));
@@ -515,6 +515,108 @@ export default function Starting() {
     }
   }, [taskSetResetRequired, isAllSetsComplete, completionStorageKey]);
 
+  const fetchStartingFallbackData = async (): Promise<{
+    sessionFetchMs: number | null;
+    catalogFetchMs: number | null;
+    sessionLoadOk: boolean;
+    catalogLoadOk: boolean;
+  }> => {
+    let sessionFetchMs: number | null = null;
+    let catalogFetchMs: number | null = null;
+    let sessionLoadOk = false;
+    let catalogLoadOk = false;
+
+    const sessionStartedAt = performance.now();
+    const [sessionResult, catalogResult, vipResult, rewardsResult] = await Promise.allSettled([
+      fetchJsonWithRetry<UserData>({
+        url: `${serverUrl}/me/financials`,
+        init: {
+          credentials: 'include',
+        },
+        timeoutMs: 7000,
+        retries: 1,
+        retryDelayMs: 250,
+        pageTag: 'starting-fallback',
+      }),
+      fetchJsonWithRetry<any>({
+        url: `${serverUrl}/tasks/catalog`,
+        init: {
+          credentials: 'include',
+          headers: {
+            Authorization: `Bearer ${publicAnonKey}`,
+          },
+        },
+        timeoutMs: 7000,
+        retries: 1,
+        retryDelayMs: 250,
+        pageTag: 'starting-fallback',
+      }),
+      fetchJsonWithRetry<any>({
+        url: `${serverUrl}/vip-config`,
+        init: {
+          credentials: 'include',
+          headers: {
+            Authorization: `Bearer ${publicAnonKey}`,
+          },
+        },
+        timeoutMs: 7000,
+        retries: 1,
+        retryDelayMs: 250,
+        pageTag: 'starting-fallback',
+      }),
+      fetchJsonWithRetry<any>({
+        url: `${serverUrl}/rewards-config`,
+        init: {
+          credentials: 'include',
+          headers: {
+            Authorization: `Bearer ${publicAnonKey}`,
+          },
+        },
+        timeoutMs: 7000,
+        retries: 1,
+        retryDelayMs: 250,
+        pageTag: 'starting-fallback',
+      }),
+    ]);
+    sessionFetchMs = roundMoney(performance.now() - sessionStartedAt);
+
+    if (sessionResult.status === 'fulfilled' && sessionResult.value) {
+      setUserData(sessionResult.value);
+      writeFinancialSummaryCache(username, sessionResult.value);
+      sessionLoadOk = true;
+    }
+
+    if (catalogResult.status === 'fulfilled') {
+      const nextPayload: TaskCatalogResponse = {
+        tasks: Array.isArray(catalogResult.value?.tasks) ? catalogResult.value.tasks : [],
+        ruleConfig: catalogResult.value?.ruleConfig,
+      };
+      setTaskCatalog(nextPayload.tasks ?? []);
+      setTaskRuleConfig(nextPayload.ruleConfig ?? null);
+      writeTaskCatalogCache(nextPayload);
+      catalogFetchMs = roundMoney(performance.now() - sessionStartedAt);
+      catalogLoadOk = true;
+    }
+
+    if (vipResult.status === 'fulfilled' && Array.isArray(vipResult.value?.tiers)) {
+      setVipConfigurations(vipResult.value.tiers as VipConfig[]);
+    }
+    if (rewardsResult.status === 'fulfilled' && rewardsResult.value?.config) {
+      setRewardsConfig(rewardsResult.value.config as RewardsConfig);
+    }
+
+    if (!sessionLoadOk) {
+      throw new Error('Fallback session load failed');
+    }
+
+    return {
+      sessionFetchMs,
+      catalogFetchMs,
+      sessionLoadOk,
+      catalogLoadOk,
+    };
+  };
+
   const fetchUserData = async () => {
     if (!username) {
       return;
@@ -529,11 +631,6 @@ export default function Starting() {
 
       setLoading(true);
       setLoadError(null);
-      const cachedFinancialSummary = readFinancialSummaryCache();
-      if (cachedFinancialSummary) {
-        setUserData(cachedFinancialSummary);
-        setLoading(false);
-      }
       const cachedTaskCatalog = readTaskCatalogCache();
       const usedCachedCatalog = Boolean(cachedTaskCatalog);
       if (cachedTaskCatalog) {
@@ -542,41 +639,48 @@ export default function Starting() {
         catalogLoadOk = true;
       }
 
-      const snapshotStartedAt = performance.now();
-      const snapshot = await fetchJsonWithRetry<any>({
-        url: `${serverUrl}/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=200`,
-        init: {
-          credentials: 'include',
-        },
-        timeoutMs: 7000,
-        retries: 2,
-        retryDelayMs: 250,
-        cacheKey: `${STARTING_SNAPSHOT_CACHE_KEY}:${username}`,
-        cacheTtlMs: STARTING_SNAPSHOT_CACHE_TTL_MS,
-        pageTag: 'starting',
-      });
-      sessionFetchMs = roundMoney(performance.now() - snapshotStartedAt);
+      try {
+        const snapshotStartedAt = performance.now();
+        const snapshot = await fetchJsonWithRetry<any>({
+          url: `${serverUrl}/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=200`,
+          init: {
+            credentials: 'include',
+          },
+          timeoutMs: 7000,
+          retries: 2,
+          retryDelayMs: 250,
+          pageTag: 'starting',
+        });
+        sessionFetchMs = roundMoney(performance.now() - snapshotStartedAt);
 
-      if (snapshot?.user) {
-        setUserData(snapshot.user as UserData);
-        writeFinancialSummaryCache(snapshot.user as UserData);
-        sessionLoadOk = true;
-      }
+        if (snapshot?.user) {
+          setUserData(snapshot.user as UserData);
+          writeFinancialSummaryCache(username, snapshot.user as UserData);
+          sessionLoadOk = true;
+        }
 
-      const nextPayload: TaskCatalogResponse = {
-        tasks: Array.isArray(snapshot?.taskCatalog?.tasks) ? snapshot.taskCatalog.tasks : [],
-        ruleConfig: snapshot?.taskCatalog?.ruleConfig,
-      };
-      setTaskCatalog(nextPayload.tasks ?? []);
-      setTaskRuleConfig(nextPayload.ruleConfig ?? null);
-      writeTaskCatalogCache(nextPayload);
-      catalogLoadOk = true;
+        const nextPayload: TaskCatalogResponse = {
+          tasks: Array.isArray(snapshot?.taskCatalog?.tasks) ? snapshot.taskCatalog.tasks : [],
+          ruleConfig: snapshot?.taskCatalog?.ruleConfig,
+        };
+        setTaskCatalog(nextPayload.tasks ?? []);
+        setTaskRuleConfig(nextPayload.ruleConfig ?? null);
+        writeTaskCatalogCache(nextPayload);
+        catalogLoadOk = true;
 
-      if (Array.isArray(snapshot?.vipConfig)) {
-        setVipConfigurations(snapshot.vipConfig as VipConfig[]);
-      }
-      if (snapshot?.rewardsConfig && typeof snapshot.rewardsConfig === 'object') {
-        setRewardsConfig(snapshot.rewardsConfig as RewardsConfig);
+        if (Array.isArray(snapshot?.vipConfig)) {
+          setVipConfigurations(snapshot.vipConfig as VipConfig[]);
+        }
+        if (snapshot?.rewardsConfig && typeof snapshot.rewardsConfig === 'object') {
+          setRewardsConfig(snapshot.rewardsConfig as RewardsConfig);
+        }
+      } catch (snapshotError) {
+        console.warn('Starting snapshot endpoint unavailable, using legacy fallback.', snapshotError);
+        const fallback = await fetchStartingFallbackData();
+        sessionFetchMs = fallback.sessionFetchMs;
+        catalogFetchMs = fallback.catalogFetchMs;
+        sessionLoadOk = fallback.sessionLoadOk;
+        catalogLoadOk = fallback.catalogLoadOk;
       }
 
       setLoading(false);
@@ -657,10 +761,7 @@ export default function Starting() {
             ? {
                 productPrice: premiumDisplayPrice,
               }
-            : {
-                taskId: currentProduct?.id,
-                productPrice: currentProduct?.price,
-              },
+            : {},
         ),
       });
 
@@ -735,8 +836,6 @@ export default function Starting() {
           timeoutMs: 7000,
           retries: 1,
           retryDelayMs: 250,
-          cacheKey: `records:${username}:snapshot:v1`,
-          cacheTtlMs: 45 * 1000,
           pageTag: 'starting-post-submit-prefetch',
         }).catch(() => {
           // Prefetch is best-effort and should never block submission UX.

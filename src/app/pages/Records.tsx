@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { projectId } from '@utils/supabase/info';
+import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
 import { type VipConfig } from '../services/vipConfig';
@@ -167,10 +167,81 @@ export default function Records() {
       timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
       retries: 2,
       retryDelayMs: 250,
-      cacheKey: `records:${username}:snapshot:v1`,
-      cacheTtlMs: RECORDS_SNAPSHOT_CACHE_TTL_MS,
       pageTag: 'records',
     });
+  };
+
+  const fetchLegacyRecordsSnapshot = async (): Promise<RecordsSnapshotResponse> => {
+    const [userResult, tasksResult, transactionsResult, catalogResult, vipResult] = await Promise.allSettled([
+      fetchJsonWithRetry<UserData>({
+        url: `${serverUrl}/me/financials`,
+        init: {
+          credentials: 'include',
+        },
+        timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
+        retries: 1,
+        retryDelayMs: 250,
+        pageTag: 'records-fallback',
+      }),
+      fetchJsonWithRetry<TaskRecord[]>({
+        url: `${serverUrl}/me/tasks?limit=120`,
+        init: {
+          credentials: 'include',
+        },
+        timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
+        retries: 1,
+        retryDelayMs: 250,
+        pageTag: 'records-fallback',
+      }),
+      fetchJsonWithRetry<TransactionRecord[]>({
+        url: `${serverUrl}/me/transactions?limit=120`,
+        init: {
+          credentials: 'include',
+        },
+        timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
+        retries: 1,
+        retryDelayMs: 250,
+        pageTag: 'records-fallback',
+      }),
+      fetchJsonWithRetry<any>({
+        url: `${serverUrl}/tasks/catalog`,
+        init: {
+          credentials: 'include',
+          headers: {
+            Authorization: `Bearer ${publicAnonKey}`,
+          },
+        },
+        timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
+        retries: 1,
+        retryDelayMs: 250,
+        pageTag: 'records-fallback',
+      }),
+      fetchJsonWithRetry<any>({
+        url: `${serverUrl}/vip-config`,
+        init: {
+          credentials: 'include',
+          headers: {
+            Authorization: `Bearer ${publicAnonKey}`,
+          },
+        },
+        timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
+        retries: 1,
+        retryDelayMs: 250,
+        pageTag: 'records-fallback',
+      }),
+    ]);
+
+    if (userResult.status !== 'fulfilled' || !userResult.value) {
+      throw new Error('Failed to load session user');
+    }
+
+    return {
+      user: userResult.value,
+      tasks: tasksResult.status === 'fulfilled' && Array.isArray(tasksResult.value) ? tasksResult.value : [],
+      transactions: transactionsResult.status === 'fulfilled' && Array.isArray(transactionsResult.value) ? transactionsResult.value : [],
+      taskCatalog: catalogResult.status === 'fulfilled' && Array.isArray(catalogResult.value?.tasks) ? catalogResult.value.tasks : [],
+      vipConfig: vipResult.status === 'fulfilled' && Array.isArray(vipResult.value?.tiers) ? vipResult.value.tiers : [],
+    };
   };
 
   const fetchData = async () => {
@@ -188,7 +259,13 @@ export default function Records() {
         setIsRefreshing(true);
       }
 
-      const snapshot = await fetchRecordsSnapshot();
+      let snapshot: RecordsSnapshotResponse;
+      try {
+        snapshot = await fetchRecordsSnapshot();
+      } catch (snapshotError) {
+        console.warn('Records snapshot endpoint unavailable, using legacy fallback.', snapshotError);
+        snapshot = await fetchLegacyRecordsSnapshot();
+      }
 
       setUserData(snapshot?.user ?? null);
       setTaskRecords(Array.isArray(snapshot?.tasks) ? snapshot.tasks : []);

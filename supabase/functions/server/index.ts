@@ -3001,28 +3001,13 @@ async function withUserFinancialLock<T>(username: string, work: () => Promise<T>
 
 async function syncUserWithVipConfig(userData: any, username: string) {
   const normalized = normalizeUserRecord(userData, username);
-  const availableFunds = roundMoney(Number(normalized.balance ?? 0) - Number(normalized.holdAmount ?? 0));
-  const vipConfigRecords = await listVipConfigRecords();
-  const fallbackVipLevel = Number.isFinite(Number(normalized.vipLevel))
+  const persistedVipLevel = Number.isFinite(Number(normalized.vipLevel))
     ? Math.max(1, Math.round(Number(normalized.vipLevel)))
     : 1;
 
-  const effectiveVipTier = vipConfigRecords
-    .slice()
-    .sort((left, right) => Number(left.investment ?? 0) - Number(right.investment ?? 0))
-    .reduce((selected, tier) => {
-      const threshold = roundMoney(Number(tier?.investment ?? 0));
-      if (availableFunds >= threshold) {
-        return tier;
-      }
-      return selected;
-    }, vipConfigRecords[0] ?? null);
-
   const targetVipLevel = Number.isFinite(Number(normalized.manualVipLevel))
     ? Math.max(1, Math.min(5, Math.round(Number(normalized.manualVipLevel))))
-    : (Number.isFinite(Number(effectiveVipTier?.level))
-        ? Math.max(1, Math.round(Number(effectiveVipTier.level)))
-        : fallbackVipLevel);
+    : persistedVipLevel;
   const vipConfig = await getVipConfigForLevel(targetVipLevel);
   const previousVipLevel = Number.isFinite(Number(normalized.vipLevel))
     ? Math.max(1, Math.round(Number(normalized.vipLevel)))
