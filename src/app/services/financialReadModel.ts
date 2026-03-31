@@ -1,4 +1,6 @@
 import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { getCurrentUsername } from './referralSystem';
+import { buildUserScopedCacheKey } from './apiCompatibility';
 import { fetchJsonWithRetry } from './networkClient';
 
 const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
@@ -42,6 +44,8 @@ export type FinancialSummaryResponse = {
 };
 
 export async function fetchFinancialSummary(): Promise<FinancialSummaryResponse> {
+  const username = getCurrentUsername();
+
   return fetchJsonWithRetry<FinancialSummaryResponse>({
     url: `${SERVER_URL}/me/financials`,
     init: {
@@ -54,7 +58,7 @@ export async function fetchFinancialSummary(): Promise<FinancialSummaryResponse>
     timeoutMs: FINANCIAL_FETCH_TIMEOUT_MS,
     retries: 2,
     retryDelayMs: 250,
-    cacheKey: 'me:financial-summary:v2',
+    cacheKey: buildUserScopedCacheKey('me:financial-summary', username, 'v1'),
     cacheTtlMs: 45_000,
     pageTag: 'financial-summary',
   });

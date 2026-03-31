@@ -6,9 +6,11 @@ import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { defaultRewardsConfig, type RewardsConfig } from '../services/rewardsConfig';
 import { type VipConfig } from '../services/vipConfig';
-import { projectId } from '@utils/supabase/info';
+import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { fetchBonusFeed, type BonusFeedItem } from '../services/bonusFeed';
 import { fetchJsonWithRetry } from '../services/networkClient';
+import { getCurrentUsername } from '../services/referralSystem';
+import { buildUserScopedCacheKey, reportClientCompatibilityEvent, resolveFeatureEndpoint } from '../services/apiCompatibility';
 
 const vipColorByTier: Record<string, string> = {
   bronze: 'bg-slate-300',
@@ -98,8 +100,8 @@ export default function Activity() {
   const [recentActivity, setRecentActivity] = useState<ActivityLogItem[]>([]);
   const [recentBonuses, setRecentBonuses] = useState<BonusFeedItem[]>([]);
 
+  const username = getCurrentUsername();
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
-  const ACTIVITY_SNAPSHOT_CACHE_KEY = 'activity:snapshot:v1';
   const ACTIVITY_SNAPSHOT_CACHE_TTL_MS = 45 * 1000;
   const resetDisplayOrder = [100, 1000, 5500, 500, 1600, 10000];
   const resetBadgeByDeposit: Record<number, string> = {
@@ -118,18 +120,120 @@ export default function Activity() {
 
   useEffect(() => {
     const loadActivityConfig = async () => {
+      const loadLegacyActivityData = async () => {
+        const headers = {
+          Authorization: `Bearer ${publicAnonKey}`,
+        };
+
+        const [rewards, vipTiers, financialsResponse, transactionsResponse, withdrawalsResponse] = await Promise.all([
+          fetchJsonWithRetry<any>({
+            url: `${serverUrl}/rewards-config`,
+            init: { headers },
+            timeoutMs: 7000,
+            retries: 1,
+            retryDelayMs: 250,
+            pageTag: 'activity-fallback',
+          }),
+          fetchJsonWithRetry<any>({
+            url: `${serverUrl}/vip-config`,
+            init: { headers },
+            timeoutMs: 7000,
+            retries: 1,
+            retryDelayMs: 250,
+            pageTag: 'activity-fallback',
+          }),
+          fetchJsonWithRetry<any>({
+            url: `${serverUrl}/me/financials`,
+            init: { credentials: 'include' },
+            timeoutMs: 7000,
+            retries: 1,
+            retryDelayMs: 250,
+            pageTag: 'activity-fallback',
+          }),
+          fetchJsonWithRetry<any[]>({
+            url: `${serverUrl}/me/transactions?limit=80`,
+            init: { credentials: 'include' },
+            timeoutMs: 7000,
+            retries: 1,
+            retryDelayMs: 250,
+            pageTag: 'activity-fallback',
+          }),
+          fetchJsonWithRetry<any[]>({
+            url: `${serverUrl}/me/withdrawals`,
+            init: { credentials: 'include' },
+            timeoutMs: 7000,
+            retries: 1,
+            retryDelayMs: 250,
+            pageTag: 'activity-fallback',
+          }),
+        ]);
+
+        const rewardsPayload = rewards?.config && typeof rewards.config === 'object'
+          ? rewards.config as RewardsConfig
+          : defaultRewardsConfig;
+        const vipPayload = Array.isArray(vipTiers?.tiers) ? vipTiers.tiers as VipConfig[] : [];
+        setWorkdayRewards(rewardsPayload.workday);
+        setResetRewards(rewardsPayload.reset);
+        setAccumulatedRewards(rewardsPayload.accumulated);
+        setVipLevels(vipPayload.length > 0 ? mapVipConfigToActivity(vipPayload) : fallbackVipLevels);
+
+        setFinancialSnapshot({
+          balance: Number(financialsResponse?.balance ?? 0),
+          holdAmount: Number(financialsResponse?.holdAmount ?? 0),
+          availableAmount: Number(financialsResponse?.availableAmount ?? 0),
+          todayCommission: Number(financialsResponse?.todayCommission ?? 0),
+          luckyBonus: Number(financialsResponse?.luckyBonus ?? 0),
+        });
+
+        const transactionPayload = Array.isArray(transactionsResponse) ? transactionsResponse : [];
+        const withdrawalPayload = Array.isArray(withdrawalsResponse) ? withdrawalsResponse : [];
+
+        const transactionItems: ActivityLogItem[] = transactionPayload.map((item: any, index: number) => ({
+          id: String(item?.id ?? `tx-${index}`),
+          label: typeof item?.description === 'string' && item.description.trim()
+            ? item.description
+            : String(item?.type ?? 'Transaction'),
+          amount: Number(item?.amount ?? 0),
+          status: String(item?.status ?? 'Completed'),
+          at: typeof item?.date === 'string' ? item.date : new Date().toISOString(),
+        }));
+
+        const withdrawalItems: ActivityLogItem[] = withdrawalPayload.map((item: any, index: number) => ({
+          id: String(item?.id ?? `wd-${index}`),
+          label: 'Withdrawal Request',
+          amount: Number(item?.amount ?? 0),
+          status: String(item?.status ?? 'Pending'),
+          at: typeof item?.createdAt === 'string'
+            ? item.createdAt
+            : (typeof item?.requestedAt === 'string' ? item.requestedAt : new Date().toISOString()),
+        }));
+
+        setRecentActivity(
+          [...transactionItems, ...withdrawalItems]
+            .sort((left, right) => new Date(right.at).getTime() - new Date(left.at).getTime())
+            .slice(0, 8),
+        );
+      };
+
       try {
+        const snapshotRoute = await resolveFeatureEndpoint('activitySnapshotV2', '/me/financials');
+        if (snapshotRoute.usingFallback) {
+          throw new Error(snapshotRoute.reason ?? 'activity_snapshot_disabled');
+        }
+
         const snapshot = await fetchJsonWithRetry<ActivitySnapshotResponse>({
-          url: `${serverUrl}/me/activity-snapshot?includeConfig=true&transactionsLimit=80&withdrawalsLimit=40`,
+          url: `${snapshotRoute.url}?includeConfig=true&transactionsLimit=80&withdrawalsLimit=40`,
           init: {
             credentials: 'include',
           },
           timeoutMs: 7000,
           retries: 2,
           retryDelayMs: 250,
-          cacheKey: ACTIVITY_SNAPSHOT_CACHE_KEY,
+          cacheKey: buildUserScopedCacheKey('activity:snapshot', username, 'v2'),
           cacheTtlMs: ACTIVITY_SNAPSHOT_CACHE_TTL_MS,
           pageTag: 'activity',
+          featureTag: 'activitySnapshotV2',
+          expectedApiVersion: 'v2',
         });
 
         const rewards = snapshot?.rewardsConfig && typeof snapshot.rewardsConfig === 'object'
@@ -184,13 +288,27 @@ export default function Activity() {
           .slice(0, 8);
 
         setRecentActivity(combined);
-      } catch {
-        setWorkdayRewards(defaultRewardsConfig.workday);
-        setResetRewards(defaultRewardsConfig.reset);
-        setAccumulatedRewards(defaultRewardsConfig.accumulated);
-        setVipLevels(fallbackVipLevels);
-        setFinancialSnapshot(null);
-        setRecentActivity([]);
+      } catch (snapshotError) {
+        void reportClientCompatibilityEvent({
+          event: 'fallback_used',
+          feature: 'activitySnapshotV2',
+          expectedApiVersion: 'v2',
+          reason: 'activity_snapshot_request_failed',
+          detail: {
+            message: snapshotError instanceof Error ? snapshotError.message : 'unknown',
+          },
+        });
+
+        try {
+          await loadLegacyActivityData();
+        } catch {
+          setWorkdayRewards(defaultRewardsConfig.workday);
+          setResetRewards(defaultRewardsConfig.reset);
+          setAccumulatedRewards(defaultRewardsConfig.accumulated);
+          setVipLevels(fallbackVipLevels);
+          setFinancialSnapshot(null);
+          setRecentActivity([]);
+        }
       }
 
       try {
@@ -202,7 +320,7 @@ export default function Activity() {
     };
 
     void loadActivityConfig();
-  }, []);
+  }, [serverUrl, username]);
 
   const bonusTotal = recentBonuses.reduce((sum, bonus) => sum + Number(bonus.amount ?? 0), 0);
   const bonusByAssignmentMode = recentBonuses.reduce((acc, bonus) => {

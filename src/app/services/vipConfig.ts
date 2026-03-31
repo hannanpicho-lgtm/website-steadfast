@@ -1,5 +1,6 @@
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { buildAdminAuthHeaders } from './supabaseAuth';
+import { buildPublicCacheKey } from './apiCompatibility';
 import { fetchJsonWithRetry } from './networkClient';
 
 export type VipConfig = {
@@ -40,7 +41,7 @@ export async function fetchPublicVipConfig() {
     timeoutMs: 7000,
     retries: 2,
     retryDelayMs: 250,
-    cacheKey: 'public:vip-config:v2',
+    cacheKey: buildPublicCacheKey('vip-config', 'v1'),
     cacheTtlMs: 5 * 60 * 1000,
     pageTag: 'vip-config',
   });

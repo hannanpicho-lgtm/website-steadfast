@@ -22,6 +22,12 @@ const trustedOrigin = readArg('--trusted-origin', process.env.TRUSTED_ORIGIN ?? 
 const verifyRouteHealthArg = readArg('--verify-route-health', process.env.VERIFY_ROUTE_HEALTH ?? 'false').toLowerCase();
 const verifyRouteHealth = verifyRouteHealthArg === 'true' || verifyRouteHealthArg === '1';
 const adminJwt = String(process.env.SUPABASE_ADMIN_TEST_JWT ?? '').trim();
+const expectedFrontendContract = readArg('--expected-frontend-contract', process.env.EXPECTED_FRONTEND_CONTRACT ?? '').trim();
+const requiredApiVersion = readArg('--require-api-version', process.env.REQUIRED_API_VERSION ?? '').trim().toLowerCase();
+const requiredFeatures = readArg('--require-features', process.env.REQUIRED_API_FEATURES ?? '')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
 // --fail-on-stale: exit 1 if live version reports stale=true (default: true when --expected-commit provided)
 const failOnStaleArg = readArg('--fail-on-stale', '');
 const failOnStale = failOnStaleArg === '' ? Boolean(expectedCommit) : failOnStaleArg !== 'false' && failOnStaleArg !== '0';
@@ -108,6 +114,7 @@ async function main() {
   }
 
   const version = payload.version;
+  const api = payload.api && typeof payload.api === 'object' ? payload.api : {};
   if (!version || typeof version !== 'object') {
     throw new Error('Version endpoint returned malformed payload: missing version object');
   }
@@ -133,6 +140,34 @@ async function main() {
     );
   }
 
+  if (expectedFrontendContract) {
+    const minimumFrontendContract = typeof api.minimumFrontendContractVersion === 'string'
+      ? api.minimumFrontendContractVersion
+      : '';
+    if (minimumFrontendContract && minimumFrontendContract !== expectedFrontendContract) {
+      throw new Error(
+        `Frontend contract mismatch: expected minimum '${expectedFrontendContract}', got '${minimumFrontendContract || '<missing>'}'`,
+      );
+    }
+  }
+
+  if (requiredApiVersion) {
+    const supportedVersions = Array.isArray(api.supportedVersions) ? api.supportedVersions.map((value) => String(value)) : [];
+    if (!supportedVersions.includes(requiredApiVersion)) {
+      throw new Error(`Required API version '${requiredApiVersion}' is not supported by live backend.`);
+    }
+  }
+
+  if (requiredFeatures.length > 0) {
+    const features = api.features && typeof api.features === 'object' ? api.features : {};
+    for (const featureName of requiredFeatures) {
+      const feature = features[featureName];
+      if (!feature || feature.enabled !== true) {
+        throw new Error(`Required feature '${featureName}' is not enabled in live backend version contract.`);
+      }
+    }
+  }
+
   const summary = {
     status: payload.status,
     service: version.service,
@@ -141,6 +176,14 @@ async function main() {
     deployedAtUtc: version.deployedAtUtc ?? null,
     deploymentAgeMinutes: Number.isFinite(deploymentAgeMinutes) ? deploymentAgeMinutes : null,
     stale: Boolean(version.stale),
+    api: {
+      defaultVersion: typeof api.defaultVersion === 'string' ? api.defaultVersion : null,
+      supportedVersions: Array.isArray(api.supportedVersions) ? api.supportedVersions : [],
+      minimumFrontendContractVersion: typeof api.minimumFrontendContractVersion === 'string' ? api.minimumFrontendContractVersion : null,
+      stage: typeof api.stage === 'string' ? api.stage : null,
+      environment: typeof api.environment === 'string' ? api.environment : null,
+      features: api.features && typeof api.features === 'object' ? api.features : {},
+    },
   };
 
   if (verifyRouteHealth) {

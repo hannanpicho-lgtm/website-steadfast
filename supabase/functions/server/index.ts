@@ -32,6 +32,85 @@ const COMMISSION_RESET_TIMEZONE = (Deno.env.get('COMMISSION_RESET_TIMEZONE')
   ?? Deno.env.get('APP_TIMEZONE')
   ?? 'UTC')
   .trim() || 'UTC';
+type ApiVersionIdentifier = 'v1' | 'v2';
+
+type CompatibilityFeatureDefinition = {
+  enabled: boolean;
+  apiVersion: ApiVersionIdentifier;
+  versionedPath: string;
+  legacyPath: string | null;
+  description: string;
+};
+
+const API_DEFAULT_VERSION: ApiVersionIdentifier = 'v1';
+const API_SUPPORTED_VERSIONS: ApiVersionIdentifier[] = ['v1', 'v2'];
+const FRONTEND_CONTRACT_MIN_VERSION = Deno.env.get('FRONTEND_CONTRACT_MIN_VERSION') ?? '2026-03-31-contract-v1';
+const DEPLOYMENT_STAGE = appEnvironment === 'production'
+  ? 'production'
+  : (appEnvironment === 'staging' ? 'staging' : 'development');
+const COMPATIBILITY_FALLBACK_ALERT_THRESHOLD = Math.max(1, Number(Deno.env.get('COMPATIBILITY_FALLBACK_ALERT_THRESHOLD') ?? '5'));
+const COMPATIBILITY_VERSION_MISMATCH_ALERT_THRESHOLD = Math.max(1, Number(Deno.env.get('COMPATIBILITY_VERSION_MISMATCH_ALERT_THRESHOLD') ?? '1'));
+
+function readBooleanEnvFlag(name: string, fallback: boolean): boolean {
+  const raw = Deno.env.get(name);
+  if (typeof raw !== 'string' || !raw.trim()) {
+    return fallback;
+  }
+
+  const normalized = raw.trim().toLowerCase();
+  if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on') {
+    return true;
+  }
+  if (normalized === '0' || normalized === 'false' || normalized === 'no' || normalized === 'off') {
+    return false;
+  }
+  return fallback;
+}
+
+function buildApiCompatibilityFeatureFlags(): Record<string, CompatibilityFeatureDefinition> {
+  return {
+    startingSnapshotV2: {
+      enabled: readBooleanEnvFlag('FEATURE_STARTING_SNAPSHOT_V2', true),
+      apiVersion: 'v2',
+      versionedPath: `/${FUNCTION_SERVICE_NAME}/v2/me/starting-snapshot`,
+      legacyPath: null,
+      description: 'Versioned starting page snapshot endpoint',
+    },
+    recordsSnapshotV2: {
+      enabled: readBooleanEnvFlag('FEATURE_RECORDS_SNAPSHOT_V2', true),
+      apiVersion: 'v2',
+      versionedPath: `/${FUNCTION_SERVICE_NAME}/v2/me/records-snapshot`,
+      legacyPath: null,
+      description: 'Versioned records page snapshot endpoint',
+    },
+    activitySnapshotV2: {
+      enabled: readBooleanEnvFlag('FEATURE_ACTIVITY_SNAPSHOT_V2', true),
+      apiVersion: 'v2',
+      versionedPath: `/${FUNCTION_SERVICE_NAME}/v2/me/activity-snapshot`,
+      legacyPath: null,
+      description: 'Versioned activity page snapshot endpoint',
+    },
+    compatibilityTelemetryV2: {
+      enabled: readBooleanEnvFlag('FEATURE_COMPATIBILITY_TELEMETRY_V2', true),
+      apiVersion: 'v2',
+      versionedPath: `/${FUNCTION_SERVICE_NAME}/v2/client/compatibility-events`,
+      legacyPath: `/${FUNCTION_SERVICE_NAME}/client/compatibility-events`,
+      description: 'Client compatibility telemetry ingestion endpoint',
+    },
+  };
+}
+
+function buildApiCompatibilityPayload(requestedVersion: string | null = null) {
+  return {
+    defaultVersion: API_DEFAULT_VERSION,
+    requestedVersion,
+    supportedVersions: API_SUPPORTED_VERSIONS,
+    minimumFrontendContractVersion: FRONTEND_CONTRACT_MIN_VERSION,
+    environment: appEnvironment,
+    stage: DEPLOYMENT_STAGE,
+    features: buildApiCompatibilityFeatureFlags(),
+  };
+}
 
 const ADMIN_RATE_LIMIT_WINDOW_MS = 60_000;
 const ADMIN_RATE_LIMIT_MAX_REQUESTS = 60;
@@ -196,6 +275,17 @@ function buildDeploymentVersionPayload() {
     deploymentAgeMinutes: ageMinutes,
     staleThresholdMinutes: DEPLOYMENT_STALE_THRESHOLD_MINUTES,
     stale: isStale,
+    environment: appEnvironment,
+    stage: DEPLOYMENT_STAGE,
+  };
+}
+
+function buildVersionResponsePayload(requestedVersion: string | null = null) {
+  return {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    version: buildDeploymentVersionPayload(),
+    api: buildApiCompatibilityPayload(requestedVersion),
   };
 }
 
@@ -365,6 +455,39 @@ function buildEndpointLatencyComparison(
   });
 }
 
+function buildCompatibilityTelemetrySummary(windowEvents: RuntimeObservedEvent[], windowMinutes: number) {
+  const fallbackEvents = windowEvents.filter((entry) => entry.event === 'client_fallback_used');
+  const mismatchEvents = windowEvents.filter((entry) => entry.event === 'client_version_mismatch');
+  const endpointFailureEvents = windowEvents.filter((entry) => entry.event === 'client_endpoint_failure');
+  const perMinuteDivisor = Math.max(windowMinutes, 1);
+  const fallbackPerMinute = Number((fallbackEvents.length / perMinuteDivisor).toFixed(2));
+
+  return {
+    totals: {
+      fallbackEvents: fallbackEvents.length,
+      versionMismatches: mismatchEvents.length,
+      endpointFailures: endpointFailureEvents.length,
+      fallbackPerMinute,
+    },
+    alerts: [
+      {
+        id: 'fallback_usage_spike',
+        triggered: fallbackEvents.length >= COMPATIBILITY_FALLBACK_ALERT_THRESHOLD,
+        observed: fallbackEvents.length,
+        threshold: COMPATIBILITY_FALLBACK_ALERT_THRESHOLD,
+        unit: 'events_per_window',
+      },
+      {
+        id: 'version_mismatch_detected',
+        triggered: mismatchEvents.length >= COMPATIBILITY_VERSION_MISMATCH_ALERT_THRESHOLD,
+        observed: mismatchEvents.length,
+        threshold: COMPATIBILITY_VERSION_MISMATCH_ALERT_THRESHOLD,
+        unit: 'events_per_window',
+      },
+    ],
+  };
+}
+
 function evaluateSecurityAlerts(
   windowEvents: RuntimeObservedEvent[],
   windowMinutes: number,
@@ -485,12 +608,20 @@ function applySecurityHeaders(c: any): void {
   c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
 }
 
+function applyApiCompatibilityHeaders(c: any): void {
+  c.header('X-Api-Default-Version', API_DEFAULT_VERSION);
+  c.header('X-Api-Supported-Versions', API_SUPPORTED_VERSIONS.join(','));
+  c.header('X-Frontend-Contract-Min', FRONTEND_CONTRACT_MIN_VERSION);
+  c.header('X-Deployment-Stage', DEPLOYMENT_STAGE);
+}
+
 app.use('*', async (c, next) => {
   const requestId = resolveRequestId(c);
   const startedAt = Date.now();
   c.set('requestId', requestId);
   c.header('X-Request-Id', requestId);
   applySecurityHeaders(c);
+  applyApiCompatibilityHeaders(c);
   await next();
   const totalMs = Date.now() - startedAt;
   if (c.req.method !== 'OPTIONS') {
@@ -511,6 +642,7 @@ app.use('*', async (c, next) => {
   }
   c.header('X-Request-Id', requestId);
   applySecurityHeaders(c);
+  applyApiCompatibilityHeaders(c);
 });
 
 app.use('*', async (c, next) => {
@@ -3877,11 +4009,52 @@ app.get("/make-server-a1c55d7e/health", (c) => {
 });
 
 app.get("/make-server-a1c55d7e/version", (c) => {
-  return c.json({
-    status: "ok",
-    timestamp: new Date().toISOString(),
-    version: buildDeploymentVersionPayload(),
-  }, 200);
+  return c.json(buildVersionResponsePayload(null), 200);
+});
+
+app.get('/make-server-a1c55d7e/v1/version', (c) => {
+  return c.json(buildVersionResponsePayload('v1'), 200);
+});
+
+app.get('/make-server-a1c55d7e/v2/version', (c) => {
+  return c.json(buildVersionResponsePayload('v2'), 200);
+});
+
+async function handleClientCompatibilityEvent(c: any) {
+  try {
+    const body = await c.req.json().catch(() => ({} as any));
+    const rawEvent = typeof body?.event === 'string' ? body.event.trim() : '';
+    const eventMap: Record<string, { event: string; severity: 'info' | 'warn' | 'error' }> = {
+      endpoint_failure: { event: 'client_endpoint_failure', severity: 'warn' },
+      fallback_used: { event: 'client_fallback_used', severity: 'warn' },
+      version_mismatch: { event: 'client_version_mismatch', severity: 'error' },
+    };
+    const mappedEvent = eventMap[rawEvent];
+    if (!mappedEvent) {
+      return jsonError(c, 400, 'invalid_client_compatibility_event', 'Invalid compatibility event');
+    }
+
+    logStructuredEvent(c, mappedEvent.event, mappedEvent.severity, {
+      feature: typeof body?.feature === 'string' ? body.feature : null,
+      endpoint: typeof body?.endpoint === 'string' ? body.endpoint : null,
+      expectedApiVersion: typeof body?.expectedApiVersion === 'string' ? body.expectedApiVersion : null,
+      status: Number.isFinite(Number(body?.status)) ? Number(body.status) : null,
+      reason: typeof body?.reason === 'string' ? body.reason : null,
+    });
+
+    return c.json({ ok: true }, 202);
+  } catch (error) {
+    console.error('Error recording client compatibility event:', error);
+    return c.json({ error: 'Failed to record compatibility event' }, 500);
+  }
+}
+
+app.post('/make-server-a1c55d7e/client/compatibility-events', async (c) => {
+  return handleClientCompatibilityEvent(c);
+});
+
+app.post('/make-server-a1c55d7e/v2/client/compatibility-events', async (c) => {
+  return handleClientCompatibilityEvent(c);
 });
 
 app.get("/make-server-a1c55d7e/health/live", (c) => {
@@ -5730,7 +5903,7 @@ app.get('/make-server-a1c55d7e/me/transactions', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/me/starting-snapshot', async (c) => {
+async function handleStartingSnapshot(c: any) {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -5778,9 +5951,9 @@ app.get('/make-server-a1c55d7e/me/starting-snapshot', async (c) => {
     console.error('Error fetching starting snapshot:', error);
     return c.json({ error: 'Failed to fetch starting snapshot' }, 500);
   }
-});
+}
 
-app.get('/make-server-a1c55d7e/me/records-snapshot', async (c) => {
+async function handleRecordsSnapshot(c: any) {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -5832,9 +6005,9 @@ app.get('/make-server-a1c55d7e/me/records-snapshot', async (c) => {
     console.error('Error fetching records snapshot:', error);
     return c.json({ error: 'Failed to fetch records snapshot' }, 500);
   }
-});
+}
 
-app.get('/make-server-a1c55d7e/me/activity-snapshot', async (c) => {
+async function handleActivitySnapshot(c: any) {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -5898,6 +6071,30 @@ app.get('/make-server-a1c55d7e/me/activity-snapshot', async (c) => {
     console.error('Error fetching activity snapshot:', error);
     return c.json({ error: 'Failed to fetch activity snapshot' }, 500);
   }
+}
+
+app.get('/make-server-a1c55d7e/me/starting-snapshot', async (c) => {
+  return handleStartingSnapshot(c);
+});
+
+app.get('/make-server-a1c55d7e/v2/me/starting-snapshot', async (c) => {
+  return handleStartingSnapshot(c);
+});
+
+app.get('/make-server-a1c55d7e/me/records-snapshot', async (c) => {
+  return handleRecordsSnapshot(c);
+});
+
+app.get('/make-server-a1c55d7e/v2/me/records-snapshot', async (c) => {
+  return handleRecordsSnapshot(c);
+});
+
+app.get('/make-server-a1c55d7e/me/activity-snapshot', async (c) => {
+  return handleActivitySnapshot(c);
+});
+
+app.get('/make-server-a1c55d7e/v2/me/activity-snapshot', async (c) => {
+  return handleActivitySnapshot(c);
 });
 
 app.get('/make-server-a1c55d7e/me/withdrawals', async (c) => {
@@ -7030,10 +7227,13 @@ app.get('/make-server-a1c55d7e/admin/observability/endpoint-latency-report', asy
 
     const endpointTargets = [
       '/make-server-a1c55d7e/me/records-snapshot',
+      '/make-server-a1c55d7e/v2/me/records-snapshot',
       '/make-server-a1c55d7e/me/activity-snapshot',
+      '/make-server-a1c55d7e/v2/me/activity-snapshot',
       '/make-server-a1c55d7e/me/submit-task',
       '/make-server-a1c55d7e/me/complete-premium-task',
       '/make-server-a1c55d7e/me/starting-snapshot',
+      '/make-server-a1c55d7e/v2/me/starting-snapshot',
       '/make-server-a1c55d7e/me/financials',
       '/make-server-a1c55d7e/tasks/catalog',
       '/make-server-a1c55d7e/vip-config',
@@ -7074,6 +7274,51 @@ app.get('/make-server-a1c55d7e/admin/observability/endpoint-latency-report', asy
   } catch (error) {
     console.error('Error fetching admin endpoint latency report:', error);
     return c.json({ error: 'Failed to fetch endpoint latency report' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/observability/compatibility-report', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) {
+      return unauthorized;
+    }
+
+    const adminUser = c.get('adminUser');
+    if (!isSuperAdmin(adminUser)) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:observability-compatibility-report-read');
+    if (rateLimited) {
+      return rateLimited;
+    }
+
+    const requestedWindow = Number(c.req.query('windowMinutes') ?? 30);
+    const windowMinutes = Number.isFinite(requestedWindow)
+      ? Math.min(120, Math.max(5, Math.round(requestedWindow)))
+      : 30;
+
+    const now = Date.now();
+    pruneRuntimeObservedEvents(now);
+    const cutoff = now - windowMinutes * 60_000;
+    const windowEvents = runtimeObservedEvents.filter((entry) => entry.atMs >= cutoff);
+    const summary = buildCompatibilityTelemetrySummary(windowEvents, windowMinutes);
+
+    return c.json({
+      generatedAt: new Date(now).toISOString(),
+      windowMinutes,
+      summary,
+      recent: windowEvents
+        .filter((entry) =>
+          entry.event === 'client_fallback_used'
+          || entry.event === 'client_version_mismatch'
+          || entry.event === 'client_endpoint_failure')
+        .slice(-25),
+    });
+  } catch (error) {
+    console.error('Error fetching compatibility observability report:', error);
+    return c.json({ error: 'Failed to fetch compatibility report' }, 500);
   }
 });
 

@@ -180,7 +180,7 @@ try {
   $liveVersionJson = $null
   try {
     Invoke-CheckedCommand -Label "Live /version verification" -Command {
-      node scripts/verify-live-version.mjs --base $apiBaseUrl --expected-function $FunctionName --expected-commit $($gitState.HeadLong) --fail-on-stale --verify-route-health true
+      node scripts/verify-live-version.mjs --base $apiBaseUrl --expected-function $FunctionName --expected-commit $($gitState.HeadLong) --expected-frontend-contract 2026-03-31-contract-v1 --require-api-version v2 --require-features startingSnapshotV2,recordsSnapshotV2,activitySnapshotV2,compatibilityTelemetryV2 --fail-on-stale --verify-route-health true
     }
 
     # Capture live version payload for stale check in alerts log

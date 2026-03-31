@@ -1,5 +1,6 @@
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { buildAdminAuthHeaders } from './supabaseAuth';
+import { buildPublicCacheKey } from './apiCompatibility';
 import { fetchJsonWithRetry } from './networkClient';
 
 export type WorkdayReward = {
@@ -208,7 +209,7 @@ export async function fetchPublicRewardsConfig() {
     timeoutMs: 7000,
     retries: 2,
     retryDelayMs: 250,
-    cacheKey: 'public:rewards-config:v2',
+    cacheKey: buildPublicCacheKey('rewards-config', 'v1'),
     cacheTtlMs: 5 * 60 * 1000,
     pageTag: 'rewards-config',
   });

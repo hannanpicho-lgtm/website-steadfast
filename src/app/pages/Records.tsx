@@ -10,6 +10,7 @@ import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
 import { type VipConfig } from '../services/vipConfig';
 import { fetchJsonWithRetry } from '../services/networkClient';
+import { reportClientCompatibilityEvent, resolveFeatureEndpoint } from '../services/apiCompatibility';
 
 interface UserData {
   username: string;
@@ -159,8 +160,13 @@ export default function Records() {
   }, [location.pathname, navigate, sessionUsername]);
 
   const fetchRecordsSnapshot = async () => {
+    const snapshotRoute = await resolveFeatureEndpoint('recordsSnapshotV2', '/me/tasks');
+    if (snapshotRoute.usingFallback) {
+      throw new Error(snapshotRoute.reason ?? 'records_snapshot_disabled');
+    }
+
     return fetchJsonWithRetry<RecordsSnapshotResponse>({
-      url: `${serverUrl}/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true`,
+      url: `${snapshotRoute.url}?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true`,
       init: {
         credentials: 'include',
       },
@@ -168,6 +174,8 @@ export default function Records() {
       retries: 2,
       retryDelayMs: 250,
       pageTag: 'records',
+      featureTag: 'recordsSnapshotV2',
+      expectedApiVersion: 'v2',
     });
   };
 
@@ -264,6 +272,15 @@ export default function Records() {
         snapshot = await fetchRecordsSnapshot();
       } catch (snapshotError) {
         console.warn('Records snapshot endpoint unavailable, using legacy fallback.', snapshotError);
+        void reportClientCompatibilityEvent({
+          event: 'fallback_used',
+          feature: 'recordsSnapshotV2',
+          expectedApiVersion: 'v2',
+          reason: 'records_snapshot_request_failed',
+          detail: {
+            message: snapshotError instanceof Error ? snapshotError.message : 'unknown',
+          },
+        });
         snapshot = await fetchLegacyRecordsSnapshot();
       }
 

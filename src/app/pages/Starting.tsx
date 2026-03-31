@@ -12,6 +12,12 @@ import { type VipConfig } from '../services/vipConfig';
 import { type RewardsConfig, defaultRewardsConfig } from '../services/rewardsConfig';
 import { acknowledgeBonusFeedItems, fetchBonusFeed } from '../services/bonusFeed';
 import { fetchJsonWithRetry, invalidateSessionCacheByPrefix } from '../services/networkClient';
+import {
+  buildPublicCacheKey,
+  buildUserScopedCacheKey,
+  reportClientCompatibilityEvent,
+  resolveFeatureEndpoint,
+} from '../services/apiCompatibility';
 
 interface UserData {
   username: string;
@@ -71,12 +77,10 @@ const LIVE_TICKER_ENTRIES: Array<{ emoji: string; user: string; amount: string }
   { emoji: '🌟', user: 'GoldenPath_X', amount: '$8,900.00 USD' },
 ];
 
-const TASK_CATALOG_CACHE_KEY = 'starting:task-catalog:v1';
+const TASK_CATALOG_CACHE_KEY = buildPublicCacheKey('starting:task-catalog', 'v1');
 const TASK_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
-const FINANCIAL_SUMMARY_CACHE_KEY = 'starting:financial-summary:v1';
+const FINANCIAL_SUMMARY_CACHE_KEY = 'starting:financial-summary';
 const FINANCIAL_SUMMARY_CACHE_TTL_MS = 60 * 1000;
-const STARTING_SNAPSHOT_CACHE_KEY = 'starting:snapshot:v1';
-const STARTING_SNAPSHOT_CACHE_TTL_MS = 45 * 1000;
 const STARTING_PERF_SAMPLES_KEY = 'starting:perf-samples:v1';
 const STARTING_PERF_MAX_SAMPLES = 30;
 const STARTING_PERF_EVENTS_KEY = 'starting:perf-events:v1';
@@ -135,7 +139,7 @@ function writeTaskCatalogCache(payload: TaskCatalogResponse) {
 
 function readFinancialSummaryCache(username: string): UserData | null {
   try {
-    const rawValue = sessionStorage.getItem(`${FINANCIAL_SUMMARY_CACHE_KEY}:${username}`);
+    const rawValue = sessionStorage.getItem(buildUserScopedCacheKey(FINANCIAL_SUMMARY_CACHE_KEY, username, 'v1'));
     if (!rawValue) {
       return null;
     }
@@ -158,7 +162,7 @@ function readFinancialSummaryCache(username: string): UserData | null {
 
 function writeFinancialSummaryCache(username: string, payload: UserData) {
   try {
-    sessionStorage.setItem(`${FINANCIAL_SUMMARY_CACHE_KEY}:${username}`, JSON.stringify({
+    sessionStorage.setItem(buildUserScopedCacheKey(FINANCIAL_SUMMARY_CACHE_KEY, username, 'v1'), JSON.stringify({
       timestamp: Date.now(),
       payload,
     }));
@@ -640,9 +644,14 @@ export default function Starting() {
       }
 
       try {
+        const snapshotRoute = await resolveFeatureEndpoint('startingSnapshotV2', '/me/financials');
+        if (snapshotRoute.usingFallback) {
+          throw new Error(snapshotRoute.reason ?? 'starting_snapshot_disabled');
+        }
+
         const snapshotStartedAt = performance.now();
         const snapshot = await fetchJsonWithRetry<any>({
-          url: `${serverUrl}/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=200`,
+          url: `${snapshotRoute.url}?includeCatalog=true&includeConfig=true&catalogLimit=200`,
           init: {
             credentials: 'include',
           },
@@ -650,6 +659,8 @@ export default function Starting() {
           retries: 2,
           retryDelayMs: 250,
           pageTag: 'starting',
+          featureTag: 'startingSnapshotV2',
+          expectedApiVersion: 'v2',
         });
         sessionFetchMs = roundMoney(performance.now() - snapshotStartedAt);
 
@@ -676,6 +687,15 @@ export default function Starting() {
         }
       } catch (snapshotError) {
         console.warn('Starting snapshot endpoint unavailable, using legacy fallback.', snapshotError);
+        void reportClientCompatibilityEvent({
+          event: 'fallback_used',
+          feature: 'startingSnapshotV2',
+          expectedApiVersion: 'v2',
+          reason: 'starting_snapshot_request_failed',
+          detail: {
+            message: snapshotError instanceof Error ? snapshotError.message : 'unknown',
+          },
+        });
         const fallback = await fetchStartingFallbackData();
         sessionFetchMs = fallback.sessionFetchMs;
         catalogFetchMs = fallback.catalogFetchMs;

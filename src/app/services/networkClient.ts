@@ -1,3 +1,12 @@
+import {
+  FRONTEND_APP_VERSION,
+  FRONTEND_CONTRACT_VERSION,
+  FRONTEND_SUPPORTED_API_VERSIONS,
+  reportClientCompatibilityEvent,
+  type ApiVersion,
+  type CompatibilityFeatureName,
+} from './apiCompatibility';
+
 type CacheEnvelope<T> = {
   timestamp: number;
   payload: T;
@@ -24,6 +33,8 @@ type FetchJsonWithRetryParams = {
   cacheKey?: string;
   cacheTtlMs?: number;
   pageTag?: string;
+  featureTag?: CompatibilityFeatureName;
+  expectedApiVersion?: ApiVersion;
 };
 
 const API_METRICS_STORAGE_KEY = 'perf:api-metrics:v1';
@@ -123,10 +134,22 @@ function recordApiMetric(sample: ApiMetricSample): void {
 async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<any> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const headers = new Headers(init.headers ?? {});
+
+  if (!headers.has('x-client-app-version')) {
+    headers.set('x-client-app-version', FRONTEND_APP_VERSION);
+  }
+  if (!headers.has('x-client-contract-version')) {
+    headers.set('x-client-contract-version', FRONTEND_CONTRACT_VERSION);
+  }
+  if (!headers.has('x-client-supported-api-versions')) {
+    headers.set('x-client-supported-api-versions', FRONTEND_SUPPORTED_API_VERSIONS.join(','));
+  }
 
   try {
     const response = await fetch(url, {
       ...init,
+      headers,
       signal: controller.signal,
     });
     const payload = await response.json().catch(() => ({}));
@@ -154,6 +177,8 @@ export async function fetchJsonWithRetry<T>(params: FetchJsonWithRetryParams): P
     cacheKey,
     cacheTtlMs,
     pageTag,
+    featureTag,
+    expectedApiVersion,
   } = params;
 
   if (cacheKey && cacheTtlMs && cacheTtlMs > 0) {
@@ -216,6 +241,19 @@ export async function fetchJsonWithRetry<T>(params: FetchJsonWithRetryParams): P
           pageTag,
           retriesUsed: attempt,
           cacheHit: false,
+        });
+
+        void reportClientCompatibilityEvent({
+          event: 'endpoint_failure',
+          feature: featureTag ?? null,
+          endpoint: normalizeEndpoint(url),
+          expectedApiVersion: expectedApiVersion ?? null,
+          status,
+          reason: error instanceof Error ? error.message : 'request_failed',
+          detail: {
+            pageTag: pageTag ?? null,
+            retriesUsed: attempt,
+          },
         });
 
         throw error;
