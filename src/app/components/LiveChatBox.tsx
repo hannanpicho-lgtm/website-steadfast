@@ -102,7 +102,6 @@ export function LiveChatBox({ isOpen, onClose, message }: LiveChatBoxProps) {
                 telegramUsername={supportLinks.telegramUsername}
                 onOpenLiveChat={() => {
                   setIsUserLiveChatOpen(true);
-                  onClose();
                 }}
                 layout="stack"
               />

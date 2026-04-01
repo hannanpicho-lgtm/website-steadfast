@@ -52,7 +52,7 @@ function applyCorsHeaders(request: Request, env: Env, response: Response): Respo
   const allowOrigin = origin && isOriginAllowed(origin, env) ? origin : '*';
   response.headers.set('access-control-allow-origin', allowOrigin);
   response.headers.set('access-control-allow-methods', 'GET,POST,PATCH,OPTIONS');
-  response.headers.set('access-control-allow-headers', 'authorization,content-type,x-chat-role,x-chat-user-id,x-chat-admin-id,x-user-jwt');
+  response.headers.set('access-control-allow-headers', 'authorization,content-type,x-chat-role,x-chat-user-id,x-chat-admin-id,x-user-jwt,x-session-username,apikey');
   response.headers.set('access-control-max-age', '86400');
   response.headers.set('vary', 'Origin');
   return response;

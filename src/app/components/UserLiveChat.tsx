@@ -62,6 +62,8 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
   const realtimeSocketRef = useRef<WebSocket | null>(null);
   const realtimeRefreshTimeoutRef = useRef<number | null>(null);
   const reconnectToastShownRef = useRef(false);
+  const wsReconnectTimerRef = useRef<number | null>(null);
+  const reconnectToastTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const username = getCurrentUsername();
   const draftStorageKey = username ? `live-chat-draft:${username}` : null;
@@ -134,8 +136,10 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
 
     void loadConversation();
 
+    let cancelled = false;
     if (realtimeEnabled && username) {
-      void (async () => {
+      const connectSocket = async () => {
+        if (cancelled) return;
         try {
           realtimeSocketRef.current?.close();
           const socket = await openRealtimeChatSocket({
@@ -143,7 +147,12 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
             actorId: username,
             actorRole: 'user',
             onOpen: () => setConnectionState('live'),
-            onClose: () => setConnectionState('reconnecting'),
+            onClose: () => {
+              setConnectionState('reconnecting');
+              if (!cancelled) {
+                wsReconnectTimerRef.current = window.setTimeout(connectSocket, 3000);
+              }
+            },
             onError: () => setConnectionState('reconnecting'),
             onEvent: () => {
               if (realtimeRefreshTimeoutRef.current !== null) {
@@ -154,11 +163,19 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
               }, 120);
             },
           });
-          realtimeSocketRef.current = socket;
+          if (!cancelled) {
+            realtimeSocketRef.current = socket;
+          } else {
+            socket?.close();
+          }
         } catch {
-          setConnectionState('reconnecting');
+          if (!cancelled) {
+            setConnectionState('reconnecting');
+            wsReconnectTimerRef.current = window.setTimeout(connectSocket, 5000);
+          }
         }
-      })();
+      };
+      void connectSocket();
     }
 
     pollRef.current = window.setInterval(() => {
@@ -166,11 +183,15 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
     }, realtimeEnabled ? 15000 : 4000);
 
     return () => {
+      cancelled = true;
       if (pollRef.current !== null) {
         window.clearInterval(pollRef.current);
       }
       if (realtimeRefreshTimeoutRef.current !== null) {
         window.clearTimeout(realtimeRefreshTimeoutRef.current);
+      }
+      if (wsReconnectTimerRef.current !== null) {
+        window.clearTimeout(wsReconnectTimerRef.current);
       }
       realtimeSocketRef.current?.close();
       realtimeSocketRef.current = null;
@@ -199,9 +220,19 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
 
   useEffect(() => {
     if (connectionState === 'reconnecting' && !reconnectToastShownRef.current) {
-      toast.error('Live channel dropped. Reconnecting in the background.');
-      reconnectToastShownRef.current = true;
+      // Debounce: only show toast after 4s of sustained disconnection to avoid
+      // false alarms from brief WS close/reopen cycles (e.g. after sending a message).
+      reconnectToastTimerRef.current = window.setTimeout(() => {
+        reconnectToastShownRef.current = true;
+        toast.error('Live channel dropped. Reconnecting in the background.');
+      }, 4000);
       return;
+    }
+
+    // Clear pending toast if we recovered quickly.
+    if (reconnectToastTimerRef.current !== null) {
+      window.clearTimeout(reconnectToastTimerRef.current);
+      reconnectToastTimerRef.current = null;
     }
 
     if (connectionState === 'live' && reconnectToastShownRef.current) {
@@ -220,7 +251,12 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
       setSending(true);
       const payload = encodeChatMessage(trimmedMessage, selectedAttachment);
       if (realtimeEnabled && username) {
-        await sendRealtimeUserChatMessage(username, username, payload);
+        try {
+          await sendRealtimeUserChatMessage(username, username, payload);
+        } catch {
+          // Realtime worker unavailable - fall back to main REST endpoint silently.
+          await sendUserChatMessage(payload);
+        }
       } else {
         await sendUserChatMessage(payload);
       }

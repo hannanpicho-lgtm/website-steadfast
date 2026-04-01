@@ -3,14 +3,12 @@ import { Link, isRouteErrorResponse, useRouteError } from 'react-router';
 
 function getErrorMessage(error: unknown): string {
   if (isRouteErrorResponse(error)) {
-    return `${error.status} ${error.statusText}`.trim();
+    if (error.status === 404) return 'Page not found.';
+    if (error.status === 403) return 'You do not have permission to view this page.';
+    return 'This page is temporarily unavailable.';
   }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return 'Something went wrong while loading this page.';
+  // Never expose raw JS error messages (stack traces, variable names) to users in production.
+  return '';
 }
 
 export default function RouteErrorBoundary() {
@@ -25,7 +23,7 @@ export default function RouteErrorBoundary() {
           <h1 className="text-xl font-semibold">We hit a temporary page issue</h1>
         </div>
         <p className="text-gray-200 mb-2">Your session is still active. Please continue from another page.</p>
-        <p className="text-sm text-gray-400 break-words">Details: {message}</p>
+        {message ? <p className="text-sm text-gray-400 break-words">{message}</p> : null}
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
             to="/home"

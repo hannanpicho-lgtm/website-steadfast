@@ -370,7 +370,7 @@ async function buildRealtimeAdminIdentityHeaders(contentType = false): Promise<R
 
   return {
     ...headers,
-    ...(REALTIME_CHAT_TOKEN ? { authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
+    ...(REALTIME_CHAT_TOKEN ? { Authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
     'x-chat-role': 'admin',
     'x-chat-admin-id': adminId,
   };
@@ -435,11 +435,9 @@ export async function sendRealtimeUserChatMessage(conversationId: string, sender
       method: 'POST',
       credentials: 'include',
       headers: {
-        ...buildPublicApiHeaders(true),
-        ...(REALTIME_CHAT_TOKEN ? { authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
+        ...(REALTIME_CHAT_TOKEN ? { Authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
         'x-chat-role': 'user',
         'x-chat-user-id': sessionUsername,
-        'x-session-username': sessionUsername,
         'content-type': 'application/json',
       },
       body: JSON.stringify({
@@ -479,7 +477,7 @@ export async function sendRealtimeTyping(conversationId: string, actorId: string
     method: 'POST',
     credentials: 'include',
     headers: {
-      ...(REALTIME_CHAT_TOKEN ? { authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
+      ...(REALTIME_CHAT_TOKEN ? { Authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
       'x-chat-role': 'user',
       'x-chat-user-id': sessionUsername,
       'content-type': 'application/json',
@@ -630,8 +628,7 @@ export async function fetchRealtimeSocketTicket(conversationId: string, actorRol
       method: 'POST',
       credentials: 'include',
       headers: {
-        ...buildPublicApiHeaders(true),
-        ...(REALTIME_CHAT_TOKEN ? { authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
+        ...(REALTIME_CHAT_TOKEN ? { Authorization: `Bearer ${REALTIME_CHAT_TOKEN}` } : {}),
         'x-chat-role': 'user',
         'x-chat-user-id': sessionUsername,
         'content-type': 'application/json',

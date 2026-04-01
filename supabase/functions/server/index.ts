@@ -1289,6 +1289,82 @@ function invalidateUserSnapshots(username: string): void {
   snapshotResponseCache.delete(`snapshot:activity:${username}`);
 }
 
+/**
+ * Proactively patches all three snapshot caches after a successful task submit,
+ * avoiding the need for a cold cache rebuild on the very next records/starting/activity load.
+ *
+ * Falls back to full invalidation if reward transactions were also credited (rare path)
+ * since we don't have those extra transactions in scope.
+ */
+function patchSnapshotCacheAfterTaskSubmit(
+  username: string,
+  opts: { taskRecord: any; commissionTx: any; updatedUser: any; rewardsApplied: any[] },
+): void {
+  // Rare path: rewards fired extra transactions we can't safely inject without re-fetching.
+  if (opts.rewardsApplied.length > 0) {
+    invalidateUserSnapshots(username);
+    return;
+  }
+
+  const { taskRecord, commissionTx, updatedUser } = opts;
+
+  // ── Records snapshot ───────────────────────────────────────────────────
+  const recordsKey = `snapshot:records:${username}`;
+  const cachedRecords = getCachedSnapshotResponse(recordsKey);
+  if (cachedRecords) {
+    const existingTasks: any[] = cachedRecords.tasks ?? [];
+    const existingTxs: any[] = cachedRecords.transactions ?? [];
+    const updatedTasks = [taskRecord, ...existingTasks].slice(0, 500);
+    const updatedTxs = [commissionTx, ...existingTxs].slice(0, 500);
+    setCachedSnapshotResponse(recordsKey, {
+      ...cachedRecords,
+      user: updatedUser,
+      tasks: updatedTasks,
+      transactions: updatedTxs,
+      meta: {
+        ...cachedRecords.meta,
+        tasksTotal: (cachedRecords.meta?.tasksTotal ?? existingTasks.length) + 1,
+        tasksReturned: updatedTasks.length,
+        transactionsTotal: (cachedRecords.meta?.transactionsTotal ?? existingTxs.length) + 1,
+        transactionsReturned: updatedTxs.length,
+      },
+    });
+  }
+  // If not cached, it's cold — next request rebuilds it from DB (correct behavior).
+
+  // ── Starting snapshot ──────────────────────────────────────────────────
+  const startingKey = `snapshot:starting:${username}`;
+  const cachedStarting = getCachedSnapshotResponse(startingKey);
+  if (cachedStarting) {
+    setCachedSnapshotResponse(startingKey, { ...cachedStarting, user: updatedUser });
+  }
+
+  // ── Activity snapshot ──────────────────────────────────────────────────
+  const activityKey = `snapshot:activity:${username}`;
+  const cachedActivity = getCachedSnapshotResponse(activityKey);
+  if (cachedActivity) {
+    const existingActivityTxs: any[] = cachedActivity.transactions ?? [];
+    const updatedActivityTxs = [commissionTx, ...existingActivityTxs].slice(0, 500);
+    setCachedSnapshotResponse(activityKey, {
+      ...cachedActivity,
+      financialSnapshot: {
+        ...cachedActivity.financialSnapshot,
+        balance: roundMoney(Number(updatedUser.balance ?? 0)),
+        holdAmount: roundMoney(Number(updatedUser.holdAmount ?? 0)),
+        availableAmount: roundMoney(Number(updatedUser.availableAmount ?? (updatedUser.balance ?? 0))),
+        todayCommission: roundMoney(Number(updatedUser.todayCommission ?? 0)),
+        luckyBonus: roundMoney(Number(updatedUser.luckyBonus ?? 0)),
+      },
+      transactions: updatedActivityTxs,
+      meta: {
+        ...cachedActivity.meta,
+        transactionsTotal: (cachedActivity.meta?.transactionsTotal ?? existingActivityTxs.length) + 1,
+        transactionsReturned: updatedActivityTxs.length,
+      },
+    });
+  }
+}
+
 // ── Config runtime cache ────────────────────────────────────────────────────
 // Caches rewards config + platform settings in-memory since they change rarely.
 const CONFIG_RUNTIME_CACHE_TTL_MS = 30_000;
@@ -3287,8 +3363,35 @@ async function withDistributedLock<T>(lockName: string, work: () => Promise<T>):
   }
 }
 
+// In-memory serialization queue for user financial operations.
+// This replaces the DB-backed distributed lock for per-user mutations.
+// Within a single edge-function instance, concurrent financial mutations
+// for the same user are serialized with zero network overhead.
+const userFinancialLockMap = new Map<string, Promise<void>>();
+
 async function withUserFinancialLock<T>(username: string, work: () => Promise<T>): Promise<T> {
-  return withDistributedLock(`financial:${username}`, work);
+  // Grab whatever is at the tail of this user's queue (or a resolved noop).
+  const prev = userFinancialLockMap.get(username) ?? Promise.resolve();
+
+  // Build a promise that signals when *our* work is done.
+  let releaseOurSlot!: () => void;
+  const ourSlotDone = new Promise<void>((res) => { releaseOurSlot = res; });
+
+  // The next waiter for this user must wait for both prev AND ourSlotDone.
+  userFinancialLockMap.set(username, prev.then(() => ourSlotDone));
+
+  // Wait for the previous work to complete before we start ours.
+  await prev;
+
+  try {
+    return await work();
+  } finally {
+    releaseOurSlot();
+    // Clean up the map if nobody else is queued for this user.
+    if (userFinancialLockMap.get(username) === prev.then(() => ourSlotDone)) {
+      userFinancialLockMap.delete(username);
+    }
+  }
 }
 
 async function syncUserWithVipConfig(
@@ -5679,7 +5782,12 @@ app.post('/make-server-a1c55d7e/auth/session/logout', async (c) => {
   }
 });
 
-async function submitTaskForUser(c: any, username: string, body: any) {
+async function submitTaskForUser(
+  c: any,
+  username: string,
+  body: any,
+  sideChannel?: { taskRecord?: any; commissionTx?: any; updatedUser?: any; rewardsApplied?: any[] },
+) {
   const requestedTaskId = sanitizeTaskId(body?.taskId);
   const requestedProductPrice = typeof body?.productPrice === 'number' ? body.productPrice : Number(body?.productPrice);
 
@@ -5968,6 +6076,15 @@ async function submitTaskForUser(c: any, username: string, body: any) {
       console.error('Deferred parent referral payout failed:', error);
     });
 
+    // Populate the side-channel so the route handler can patch snapshot caches
+    // in-memory instead of invalidating and forcing a fresh DB rebuild.
+    if (sideChannel) {
+      sideChannel.taskRecord = taskRecord;
+      sideChannel.commissionTx = commissionTx;
+      sideChannel.updatedUser = persisted.user;
+      sideChannel.rewardsApplied = rewardResult.rewardsApplied;
+    }
+
     return c.json({
       success: true,
       commission,
@@ -5994,7 +6111,8 @@ async function submitTaskForUser(c: any, username: string, body: any) {
 app.post('/make-server-a1c55d7e/me/submit-task', async (c) => {
   const t0 = performance.now();
   try {
-    const rateLimited = await enforceCriticalUserRateLimit(c, 'user:submit-task');
+    // Use in-memory rate limiter (saves 4 DB round-trips vs DB-backed version).
+    const rateLimited = enforceUserRateLimit(c, 'user:submit-task');
     if (rateLimited) return rateLimited;
 
     const sessionResult = await requireActiveUserSession(c);
@@ -6011,14 +6129,28 @@ app.post('/make-server-a1c55d7e/me/submit-task', async (c) => {
       }, 400);
     }
 
-    const taskSubmitSettings = sanitizeAdminPlatformSettings(await kv.get(ADMIN_PLATFORM_SETTINGS_KEY));
+    const taskSubmitSettings = sanitizeAdminPlatformSettings(await getCachedPlatformSettings());
     if (!isPlatformWithinHours(taskSubmitSettings)) {
       return c.json({ error: 'Platform is currently closed. Working hours: 9 AM – 10 PM EST.', code: 'outside_platform_hours' }, 503);
     }
 
-    const taskResult = await submitTaskForUser(c, sessionResult.session.username, body);
+    const submitSideChannel: { taskRecord?: any; commissionTx?: any; updatedUser?: any; rewardsApplied?: any[] } = {};
+    const taskResult = await submitTaskForUser(c, sessionResult.session.username, body, submitSideChannel);
     c.header('X-Submit-Task-Timing-Ms', String(Math.round(performance.now() - t0)));
-    invalidateUserSnapshots(sessionResult.session.username);
+
+    // Patch all snapshot caches in-memory (0 DB reads) when submit succeeded.
+    // Falls back to full invalidation if rewards fired with extra transactions.
+    if (submitSideChannel.updatedUser) {
+      patchSnapshotCacheAfterTaskSubmit(sessionResult.session.username, {
+        taskRecord: submitSideChannel.taskRecord,
+        commissionTx: submitSideChannel.commissionTx,
+        updatedUser: submitSideChannel.updatedUser,
+        rewardsApplied: submitSideChannel.rewardsApplied ?? [],
+      });
+    }
+    // If sideChannel wasn't populated it means submitTaskForUser returned an error
+    // response before persisting — no cache invalidation needed.
+
     return taskResult;
   } catch (error) {
     console.error('Error submitting session task:', error);
@@ -6592,7 +6724,7 @@ async function submitWithdrawalRequest(c: any, username: string, body: any) {
 
 app.post('/make-server-a1c55d7e/me/withdrawals/request', async (c) => {
   try {
-    const rateLimited = await enforceCriticalUserRateLimit(c, 'user:withdrawal-request');
+    const rateLimited = enforceUserRateLimit(c, 'user:withdrawal-request');
     if (rateLimited) return rateLimited;
 
     const sessionResult = await requireActiveUserSession(c);
