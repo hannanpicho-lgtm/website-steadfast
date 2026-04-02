@@ -788,16 +788,29 @@ function sanitizeAdminScriptTokenScopes(value: unknown): AdminScriptTokenScope[]
   return Array.from(scopes);
 }
 
+function normalizeAdminScriptTokenRequestPath(path: string): string {
+  const trimmed = typeof path === 'string' ? path.trim() : '';
+  if (!trimmed) {
+    return '';
+  }
+
+  return trimmed
+    .replace(/^\/functions\/v1/, '')
+    .replace(/^\/make-server-a1c55d7e/, '');
+}
+
 function isAdminScriptTokenScopeAllowedForRequest(scope: AdminScriptTokenScope, method: string, path: string): boolean {
   if (scope !== 'platform-users:reconcile') {
     return false;
   }
 
-  if (method === 'GET' && path === '/make-server-a1c55d7e/admin/platform-users') {
+  const normalizedPath = normalizeAdminScriptTokenRequestPath(path);
+
+  if (method === 'GET' && normalizedPath === '/admin/platform-users') {
     return true;
   }
 
-  if (method === 'POST' && /^\/make-server-a1c55d7e\/admin\/platform-users\/[^/]+\/task-controls$/.test(path)) {
+  if (method === 'POST' && /^\/admin\/platform-users\/[^/]+\/task-controls$/.test(normalizedPath)) {
     return true;
   }
 
