@@ -23,6 +23,7 @@
     "test:predeploy:admin-platform-users": "node scripts/admin-platform-users-regression.mjs",
     "reconcile:users:tasksets:dry": "node scripts/reconcile-platform-users-tasksets.mjs --dry-run",
     "reconcile:users:tasksets": "node scripts/reconcile-platform-users-tasksets.mjs --apply",
+    "reconcile:users:tasksets:secure": "powershell -ExecutionPolicy Bypass -File scripts/reconcile-platform-users-tasksets.ps1",
     "test:predeploy:realtime": "node scripts/realtime-smoke-gate.mjs",
     "test:integration": "vitest run src/tests/api.integration.test.ts",
     "test:all": "vitest run",

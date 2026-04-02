@@ -45,11 +45,12 @@ async function resolveAnonKey(repoRoot) {
   return keyMatch[1];
 }
 
-function buildHeaders({ anonKey, adminJwt }) {
+function buildHeaders({ anonKey, adminJwt, adminScriptToken }) {
   return {
     Authorization: `Bearer ${anonKey}`,
     apikey: anonKey,
-    'x-user-jwt': adminJwt,
+    ...(adminJwt ? { 'x-user-jwt': adminJwt } : {}),
+    ...(adminScriptToken ? { 'x-admin-script-token': adminScriptToken } : {}),
     Origin: TRUSTED_ORIGIN,
     'Content-Type': 'application/json',
   };
@@ -103,9 +104,10 @@ async function main() {
   const functionUrl = await resolveFunctionUrl(repoRoot);
   const anonKey = await resolveAnonKey(repoRoot);
 
+  const adminScriptToken = String(process.env.SUPABASE_ADMIN_SCRIPT_TOKEN ?? '').trim();
   const adminJwt = String(process.env.SUPABASE_ADMIN_TEST_JWT ?? process.env.SUPABASE_SUB_ADMIN_TEST_JWT ?? '').trim();
-  if (!adminJwt) {
-    throw new Error('Missing admin JWT. Set SUPABASE_ADMIN_TEST_JWT or SUPABASE_SUB_ADMIN_TEST_JWT.');
+  if (!adminScriptToken && !adminJwt) {
+    throw new Error('Missing admin auth. Set SUPABASE_ADMIN_SCRIPT_TOKEN or SUPABASE_ADMIN_TEST_JWT or SUPABASE_SUB_ADMIN_TEST_JWT.');
   }
 
   const dryRunFromEnv = String(process.env.RECONCILE_DRY_RUN ?? 'true').toLowerCase() !== 'false';
@@ -113,7 +115,7 @@ async function main() {
   const minTaskSetCount = Math.max(DEFAULT_MIN_TASK_SET_COUNT, toPositiveInt(process.env.RECONCILE_MIN_TASK_SET_COUNT, DEFAULT_MIN_TASK_SET_COUNT));
   const delayMs = toPositiveInt(process.env.RECONCILE_DELAY_MS, DEFAULT_DELAY_MS);
 
-  const headers = buildHeaders({ anonKey, adminJwt });
+  const headers = buildHeaders({ anonKey, adminJwt, adminScriptToken });
   const initial = await listPlatformUsers({ functionUrl, headers });
 
   const candidates = initial.users.filter((user) => {

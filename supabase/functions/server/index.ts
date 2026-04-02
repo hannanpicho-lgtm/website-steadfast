@@ -115,6 +115,11 @@ function buildApiCompatibilityPayload(requestedVersion: string | null = null) {
 const ADMIN_RATE_LIMIT_WINDOW_MS = 60_000;
 const ADMIN_RATE_LIMIT_MAX_REQUESTS = 60;
 const adminRateLimitStore = new Map<string, { count: number; resetAt: number }>();
+const ADMIN_SCRIPT_TOKEN_PREFIX = 'admin:script-token:';
+const ADMIN_SCRIPT_TOKEN_DEFAULT_TTL_MS = 10 * 60_000;
+const ADMIN_SCRIPT_TOKEN_MAX_TTL_MS = 15 * 60_000;
+const ADMIN_SCRIPT_TOKEN_DEFAULT_MAX_USES = 1500;
+const ADMIN_SCRIPT_TOKEN_MAX_USES = 2000;
 const REFERRAL_PARENT_RATE = 0.2;
 const ROOT_REFERRAL_USERNAME = 'steadfast_root';
 const ROOT_REFERRAL_INVITE_CODE = 'STF01';
@@ -673,6 +678,7 @@ app.use(
       "Authorization",
       "apikey",
       "x-admin-secret",
+      "x-admin-script-token",
       "x-user-jwt",
       "x-user-session-token",
       "x-client-contract-version",
@@ -723,6 +729,205 @@ function hasAdminRole(user: any): boolean {
   return roles.has('admin') || roles.has('super_admin');
 }
 
+type AdminScriptTokenScope = 'platform-users:reconcile';
+
+type AdminScriptTokenRecord = {
+  tokenId: string;
+  secretHash: string;
+  scopes: AdminScriptTokenScope[];
+  adminUser: {
+    id: string;
+    email: string | null;
+    app_metadata: Record<string, unknown>;
+    user_metadata: Record<string, unknown>;
+  };
+  label: string | null;
+  issuedAt: string;
+  expiresAt: string;
+  remainingUses: number;
+  lastUsedAt: string | null;
+};
+
+function clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, Math.round(parsed)));
+}
+
+function sanitizeAdminScriptTokenLabel(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  return trimmed.slice(0, 120);
+}
+
+function sanitizeAdminScriptTokenScopes(value: unknown): AdminScriptTokenScope[] {
+  const requested = Array.isArray(value)
+    ? value
+    : (typeof value === 'string' && value.trim() ? [value] : []);
+  const scopes = new Set<AdminScriptTokenScope>();
+
+  requested.forEach((entry) => {
+    if (entry === 'platform-users:reconcile') {
+      scopes.add('platform-users:reconcile');
+    }
+  });
+
+  if (scopes.size === 0) {
+    scopes.add('platform-users:reconcile');
+  }
+
+  return Array.from(scopes);
+}
+
+function isAdminScriptTokenScopeAllowedForRequest(scope: AdminScriptTokenScope, method: string, path: string): boolean {
+  if (scope !== 'platform-users:reconcile') {
+    return false;
+  }
+
+  if (method === 'GET' && path === '/make-server-a1c55d7e/admin/platform-users') {
+    return true;
+  }
+
+  if (method === 'POST' && /^\/make-server-a1c55d7e\/admin\/platform-users\/[^/]+\/task-controls$/.test(path)) {
+    return true;
+  }
+
+  return false;
+}
+
+function buildAdminScriptTokenSnapshot(user: any) {
+  return {
+    id: String(user?.id ?? ''),
+    email: typeof user?.email === 'string' ? user.email : null,
+    app_metadata: typeof user?.app_metadata === 'object' && user.app_metadata ? user.app_metadata : {},
+    user_metadata: typeof user?.user_metadata === 'object' && user.user_metadata ? user.user_metadata : {},
+  };
+}
+
+function createAdminScriptTokenValue(tokenId: string): { rawToken: string; secret: string } {
+  const secret = `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, '');
+  return {
+    rawToken: `ast_${tokenId}.${secret}`,
+    secret,
+  };
+}
+
+function parseAdminScriptToken(rawToken: string): { tokenId: string; secret: string } | null {
+  const trimmed = rawToken.trim();
+  if (!trimmed.startsWith('ast_')) {
+    return null;
+  }
+
+  const separatorIndex = trimmed.indexOf('.');
+  if (separatorIndex <= 4 || separatorIndex >= trimmed.length - 1) {
+    return null;
+  }
+
+  const tokenId = trimmed.slice(4, separatorIndex).trim();
+  const secret = trimmed.slice(separatorIndex + 1).trim();
+  if (!tokenId || !secret) {
+    return null;
+  }
+
+  return { tokenId, secret };
+}
+
+async function hashAdminScriptTokenSecret(secret: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
+  return Array.from(new Uint8Array(digest))
+    .map((value) => value.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function createAdminScriptTokenRecord(user: any, input: { scopes: AdminScriptTokenScope[]; ttlMs: number; maxUses: number; label: string | null }) {
+  const tokenId = crypto.randomUUID().replace(/-/g, '');
+  const { rawToken, secret } = createAdminScriptTokenValue(tokenId);
+  const issuedAt = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + input.ttlMs).toISOString();
+  const record: AdminScriptTokenRecord = {
+    tokenId,
+    secretHash: await hashAdminScriptTokenSecret(secret),
+    scopes: input.scopes,
+    adminUser: buildAdminScriptTokenSnapshot(user),
+    label: input.label,
+    issuedAt,
+    expiresAt,
+    remainingUses: input.maxUses,
+    lastUsedAt: null,
+  };
+
+  await kv.set(`${ADMIN_SCRIPT_TOKEN_PREFIX}${tokenId}`, record);
+
+  return {
+    rawToken,
+    record,
+  };
+}
+
+async function consumeAdminScriptToken(c: any, rawToken: string): Promise<{ ok: true; record: AdminScriptTokenRecord } | { ok: false; reason: string }> {
+  const parsed = parseAdminScriptToken(rawToken);
+  if (!parsed) {
+    return { ok: false, reason: 'malformed_script_token' };
+  }
+
+  const key = `${ADMIN_SCRIPT_TOKEN_PREFIX}${parsed.tokenId}`;
+  const existing = await kv.get(key);
+  if (!existing || typeof existing !== 'object') {
+    return { ok: false, reason: 'script_token_not_found' };
+  }
+
+  const record = existing as AdminScriptTokenRecord;
+  const expiresAtMs = Date.parse(String(record.expiresAt ?? ''));
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
+    await kv.del(key).catch(() => undefined);
+    return { ok: false, reason: 'script_token_expired' };
+  }
+
+  if (!Array.isArray(record.scopes) || !record.scopes.some((scope) => isAdminScriptTokenScopeAllowedForRequest(scope, c.req.method, c.req.path))) {
+    return { ok: false, reason: 'script_token_scope_denied' };
+  }
+
+  if (!Number.isFinite(Number(record.remainingUses)) || Number(record.remainingUses) <= 0) {
+    await kv.del(key).catch(() => undefined);
+    return { ok: false, reason: 'script_token_exhausted' };
+  }
+
+  const suppliedHash = await hashAdminScriptTokenSecret(parsed.secret);
+  if (suppliedHash !== record.secretHash) {
+    return { ok: false, reason: 'script_token_secret_mismatch' };
+  }
+
+  const nextRemainingUses = Math.max(0, Number(record.remainingUses) - 1);
+  const lastUsedAt = new Date().toISOString();
+  if (nextRemainingUses === 0) {
+    await kv.del(key).catch(() => undefined);
+  } else {
+    await kv.set(key, {
+      ...record,
+      remainingUses: nextRemainingUses,
+      lastUsedAt,
+    });
+  }
+
+  return {
+    ok: true,
+    record: {
+      ...record,
+      remainingUses: nextRemainingUses,
+      lastUsedAt,
+    },
+  };
+}
+
 function adminRequestContext(c: any) {
   const adminUser = c.get('adminUser');
   return {
@@ -761,7 +966,29 @@ async function requireAdmin(c: any) {
 
   const authHeaderToken = authorization.slice('Bearer '.length).trim();
   const forwardedUserJwt = c.req.header('x-user-jwt')?.trim() ?? '';
+  const forwardedScriptToken = c.req.header('x-admin-script-token')?.trim() ?? '';
   const isGatewayToken = authHeaderToken === supabaseAnonKey || authHeaderToken === supabaseServiceRoleKey;
+  if (forwardedScriptToken) {
+    if (!isGatewayToken) {
+      logAdminAuthFailure(c, 'script_token_requires_gateway_authorization');
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const consumed = await consumeAdminScriptToken(c, forwardedScriptToken);
+    if (!consumed.ok) {
+      logAdminAuthFailure(c, 'invalid_admin_script_token', {
+        tokenSource: 'x-admin-script-token',
+        scriptTokenReason: consumed.reason,
+      });
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    c.set('adminUser', consumed.record.adminUser);
+    c.set('adminAuthMethod', 'script-token');
+    c.set('adminScriptToken', consumed.record);
+    return null;
+  }
+
   if (!forwardedUserJwt && isGatewayToken) {
     logAdminAuthFailure(c, 'gateway_token_without_user_jwt');
     return c.json({ error: 'Unauthorized' }, 401);
@@ -791,6 +1018,7 @@ async function requireAdmin(c: any) {
   }
 
   c.set('adminUser', data.user);
+  c.set('adminAuthMethod', 'session');
   return null;
 }
 
@@ -1150,6 +1378,61 @@ async function bootstrapMissingPlatformUserRecord(
 function isSuperAdmin(user: any): boolean {
   return getAdminRoleClaim(user) === 'super_admin';
 }
+
+app.post('/make-server-a1c55d7e/admin/script-tokens', async (c) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    if (c.get('adminAuthMethod') !== 'session') {
+      return c.json({ error: 'Script tokens can only be issued from an authenticated admin session.' }, 403);
+    }
+
+    const limited = await enforceCriticalAdminRateLimit(c, 'admin-script-tokens:issue', 12);
+    if (limited) return limited;
+
+    const body = await c.req.json().catch(() => ({}));
+    const scopes = sanitizeAdminScriptTokenScopes(body?.scopes);
+    const ttlSeconds = clampNumber(
+      body?.ttlSeconds,
+      60,
+      Math.round(ADMIN_SCRIPT_TOKEN_MAX_TTL_MS / 1000),
+      Math.round(ADMIN_SCRIPT_TOKEN_DEFAULT_TTL_MS / 1000),
+    );
+    const maxUses = clampNumber(body?.maxUses, 1, ADMIN_SCRIPT_TOKEN_MAX_USES, ADMIN_SCRIPT_TOKEN_DEFAULT_MAX_USES);
+    const label = sanitizeAdminScriptTokenLabel(body?.label);
+    const adminUser = c.get('adminUser');
+
+    const created = await createAdminScriptTokenRecord(adminUser, {
+      scopes,
+      ttlMs: ttlSeconds * 1000,
+      maxUses,
+      label,
+    });
+
+    await recordObservabilityAuditEvent(
+      'admin-script-token-issued',
+      typeof adminUser?.email === 'string' && adminUser.email ? adminUser.email : String(adminUser?.id ?? 'unknown'),
+      `Issued admin script token (${scopes.join(', ')}, uses: ${maxUses}, expires: ${created.record.expiresAt}${label ? `, label: ${label}` : ''})`,
+    ).catch((error) => console.error('Failed to record admin-script-token-issued audit event:', error));
+
+    return c.json({
+      success: true,
+      scriptToken: created.rawToken,
+      expiresAt: created.record.expiresAt,
+      issuedAt: created.record.issuedAt,
+      remainingUses: created.record.remainingUses,
+      scopes: created.record.scopes,
+      label: created.record.label,
+      authMethod: 'script-token',
+      headerName: 'x-admin-script-token',
+      envVarName: 'SUPABASE_ADMIN_SCRIPT_TOKEN',
+    });
+  } catch (err) {
+    console.error('admin/script-tokens error:', err);
+    return c.json({ error: 'Failed to issue admin script token' }, 500);
+  }
+});
 
 const VIP_CONFIG_EDITOR_ALLOWLIST = new Set([
   'hillarydark6@gmail.com',
