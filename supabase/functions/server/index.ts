@@ -2003,7 +2003,7 @@ function sanitizeAdminPlatformSettings(value: unknown) {
     platformHoursEnabled: source.platformHoursEnabled === true,
     platformHoursStart: Number.isInteger(Number(source.platformHoursStart)) ? Math.min(23, Math.max(0, Math.round(Number(source.platformHoursStart)))) : defaults.platformHoursStart,
     platformHoursEnd: Number.isInteger(Number(source.platformHoursEnd)) ? Math.min(24, Math.max(1, Math.round(Number(source.platformHoursEnd)))) : defaults.platformHoursEnd,
-    defaultTaskSetCount: Number.isFinite(Number(source.defaultTaskSetCount)) ? Math.min(10, Math.max(1, Math.round(Number(source.defaultTaskSetCount)))) : 2,
+    defaultTaskSetCount: Number.isFinite(Number(source.defaultTaskSetCount)) ? Math.min(10, Math.max(2, Math.round(Number(source.defaultTaskSetCount)))) : 2,
     winnersTicker: sanitizeWinnersTickerEntries(source.winnersTicker),
     savedAt: typeof source.savedAt === 'string' && source.savedAt ? source.savedAt : new Date().toISOString(),
   };
@@ -3419,7 +3419,9 @@ async function syncUserWithVipConfig(
   const platformSettings = sanitizeAdminPlatformSettings(
     prefetch?.platformSettings ?? await kv.get(ADMIN_PLATFORM_SETTINGS_KEY),
   );
-  const defaultVipTaskSetCount = platformSettings.defaultTaskSetCount ?? 2;
+  // Business rule: automatic assignment for non-overridden users must never
+  // drop below 2 sets. Admin per-user overrides can still explicitly set 1.
+  const defaultVipTaskSetCount = Math.max(2, Number(platformSettings.defaultTaskSetCount ?? 2));
   const vipTaskBaselineByLevel: Record<number, number> = {
     1: 40,
     2: 45,

@@ -88,7 +88,7 @@ export function normalizeAdminPlatformSettings(value: unknown): AdminPlatformSet
     platformHoursEnabled: source.platformHoursEnabled === true,
     platformHoursStart: Number.isInteger(Number(source.platformHoursStart)) ? Math.min(23, Math.max(0, Math.round(Number(source.platformHoursStart)))) : 9,
     platformHoursEnd: Number.isInteger(Number(source.platformHoursEnd)) ? Math.min(24, Math.max(1, Math.round(Number(source.platformHoursEnd)))) : 22,
-    defaultTaskSetCount: Number.isFinite(Number(source.defaultTaskSetCount)) ? Math.min(10, Math.max(1, Math.round(Number(source.defaultTaskSetCount)))) : 2,
+    defaultTaskSetCount: Number.isFinite(Number(source.defaultTaskSetCount)) ? Math.min(10, Math.max(2, Math.round(Number(source.defaultTaskSetCount)))) : 2,
     savedAt: typeof source.savedAt === 'string' && source.savedAt ? source.savedAt : new Date().toISOString(),
   };
 }

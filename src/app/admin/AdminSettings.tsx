@@ -96,7 +96,7 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
       if (isNaN(pEnd) || pEnd < 1 || pEnd > 24) { toast.error('Working hours end must be between 1 and 24.'); return; }
       if (pEnd <= pStart) { toast.error('Working hours end must be after start.'); return; }
     }
-    if (isNaN(sets) || sets < 1 || sets > 10) { toast.error('Default task sets must be between 1 and 10.'); return; }
+    if (isNaN(sets) || sets < 2 || sets > 10) { toast.error('Default task sets must be between 2 and 10.'); return; }
 
     setSaving(true);
     try {
@@ -311,11 +311,11 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
           <h3 className="text-white font-semibold text-lg mb-1">Default Task Sets Per User</h3>
           <p className="text-gray-400 text-sm mb-4">Number of task sets automatically assigned to every newly created user account. All existing users are re-synced to this value on their next login or VIP sync.</p>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Task Sets (1–10)</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Task Sets (2–10)</label>
             <input
               type="number"
               value={defaultTaskSetCount}
-              min={1}
+              min={2}
               max={10}
               onChange={(e) => setDefaultTaskSetCount(e.target.value)}
               className="w-full max-w-xs px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
