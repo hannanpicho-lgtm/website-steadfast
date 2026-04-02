@@ -21,6 +21,8 @@
     "test:predeploy": "npm run verify:env:alignment && npm run validate:guardrails && npm run audit:constants && npm run detect:tdz && npm run test:tier1 && npm run test:tier2 && npm run test:tier2:origin && npm run test:tier2:endpoints && npm run test:predeploy:admin && npm run test:predeploy:admin-smoke && npm run test:predeploy:admin-platform-users && npm run test:predeploy:realtime && npm run audit:endpoints && npm run test:tier3",
     "test:predeploy:admin-smoke": "node scripts/admin-endpoint-smoke.mjs",
     "test:predeploy:admin-platform-users": "node scripts/admin-platform-users-regression.mjs",
+    "reconcile:users:tasksets:dry": "node scripts/reconcile-platform-users-tasksets.mjs --dry-run",
+    "reconcile:users:tasksets": "node scripts/reconcile-platform-users-tasksets.mjs --apply",
     "test:predeploy:realtime": "node scripts/realtime-smoke-gate.mjs",
     "test:integration": "vitest run src/tests/api.integration.test.ts",
     "test:all": "vitest run",
