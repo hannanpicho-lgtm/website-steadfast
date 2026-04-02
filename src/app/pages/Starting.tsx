@@ -401,6 +401,12 @@ export default function Starting() {
     : estimatedCommission;
   const displaySetProgress = Math.max(0, Number(userData?.tasksCompletedInSet ?? 0));
   const displaySetRequired = Math.max(1, Number(userData?.tasksPerSet ?? 40));
+  const totalSetCount = Math.max(1, Number(userData?.taskSetCount ?? 1));
+  const completedSetCount = Math.max(0, Number(userData?.completedTaskSets ?? 0));
+  const currentSetComplete = displaySetProgress >= displaySetRequired;
+  const inferredCompletedSetCount = currentSetComplete
+    ? Math.max(completedSetCount, 1)
+    : completedSetCount;
   const financialBlockBaseFx = 'relative overflow-hidden rounded-xl border border-white/20 bg-white/12 p-3 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform';
   const financialBlockHoverFx = 'hover:border-white/50 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)]';
   const financialBlockGlossFx = 'before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.20)_0%,rgba(255,255,255,0.04)_45%,rgba(4,34,93,0.06)_100%)]';
@@ -1229,7 +1235,7 @@ export default function Starting() {
         </div>
 
         {/* Starting Button */}
-        {/* Reset Required Banner — shown when the full task set is complete */}
+        {/* Reset banners are split between intermediate set completion and final all-sets completion */}
         {isAccountSuspended ? (
           <div className="bg-gradient-to-br from-red-700 to-rose-700 border-2 border-red-300 rounded-lg p-6 mb-6 shadow-xl">
             <div className="flex items-center justify-center gap-3 mb-3">
@@ -1266,14 +1272,14 @@ export default function Starting() {
           <div className="bg-gradient-to-br from-[#003d99] to-[#0055cc] border-2 border-[#00D9FF] rounded-lg p-6 mb-6 shadow-xl">
             <div className="flex items-center justify-center gap-3 mb-3">
               <CheckCircle2 className="text-[#00D9FF]" size={32} />
-              <h2 className="text-xl font-bold text-white text-center">DAILY SET COMPLETE</h2>
+              <h2 className="text-xl font-bold text-white text-center">SET PROGRESS COMPLETE</h2>
               <CheckCircle2 className="text-[#00D9FF]" size={32} />
             </div>
             <p className="text-[#00D9FF] font-semibold text-center mb-2">
-              VIP{userData.vipLevel} — {userData.tasksCompleted} / {userData.tasksLimit} tasks completed
+              Set {Math.min(inferredCompletedSetCount, totalSetCount)} / {totalSetCount} completed
             </p>
             <p className="text-white/80 text-sm text-center mb-5">
-              You have completed your full task set for this cycle. Contact customer support to request a reset and continue earning commissions.
+              You have completed one set for this cycle. Contact customer support to request a reset and continue with the next set.
             </p>
             <button
               onClick={() => setIsChatOpen(true)}
