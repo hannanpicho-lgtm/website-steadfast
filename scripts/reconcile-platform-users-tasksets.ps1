@@ -2,6 +2,7 @@ param(
   [switch]$Apply,
   [switch]$SkipDryRun,
   [string]$AdminEmail,
+  [string]$AdminPassword,
   [int]$TokenTtlSeconds = 600,
   [int]$TokenMaxUses = 1500
 )
@@ -58,8 +59,14 @@ if (-not $AdminEmail) {
   $AdminEmail = Read-Host 'Admin email'
 }
 
-$passwordSecure = Read-Host 'Admin password' -AsSecureString
-$plainPassword = ConvertTo-PlainText -SecureValue $passwordSecure
+$plainPassword = ''
+if ($AdminPassword) {
+  $plainPassword = $AdminPassword
+}
+else {
+  $passwordSecure = Read-Host 'Admin password' -AsSecureString
+  $plainPassword = ConvertTo-PlainText -SecureValue $passwordSecure
+}
 
 if (-not $AdminEmail -or -not $plainPassword) {
   throw 'Admin email and password are required.'
