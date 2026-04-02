@@ -46,8 +46,12 @@ async function resolveAnonKey(repoRoot) {
 }
 
 function buildHeaders({ anonKey, adminJwt, adminScriptToken }) {
+  const authorizationValue = adminScriptToken
+    ? `Bearer ${adminScriptToken}`
+    : `Bearer ${anonKey}`;
+
   return {
-    Authorization: `Bearer ${anonKey}`,
+    Authorization: authorizationValue,
     apikey: anonKey,
     ...(adminJwt ? { 'x-user-jwt': adminJwt } : {}),
     ...(adminScriptToken ? { 'x-admin-script-token': adminScriptToken } : {}),

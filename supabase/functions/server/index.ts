@@ -979,10 +979,13 @@ async function requireAdmin(c: any) {
 
   const authHeaderToken = authorization.slice('Bearer '.length).trim();
   const forwardedUserJwt = c.req.header('x-user-jwt')?.trim() ?? '';
-  const forwardedScriptToken = c.req.header('x-admin-script-token')?.trim() ?? '';
+  const forwardedScriptTokenHeader = c.req.header('x-admin-script-token')?.trim() ?? '';
+  const parsedAuthorizationScriptToken = parseAdminScriptToken(authHeaderToken);
+  const forwardedScriptToken = forwardedScriptTokenHeader || (parsedAuthorizationScriptToken ? authHeaderToken : '');
   const isGatewayToken = authHeaderToken === supabaseAnonKey || authHeaderToken === supabaseServiceRoleKey;
   if (forwardedScriptToken) {
-    if (!isGatewayToken) {
+    const scriptTokenUsesGatewayAuth = forwardedScriptTokenHeader.length > 0;
+    if (scriptTokenUsesGatewayAuth && !isGatewayToken) {
       logAdminAuthFailure(c, 'script_token_requires_gateway_authorization');
       return c.json({ error: 'Unauthorized' }, 401);
     }
@@ -990,7 +993,7 @@ async function requireAdmin(c: any) {
     const consumed = await consumeAdminScriptToken(c, forwardedScriptToken);
     if (!consumed.ok) {
       logAdminAuthFailure(c, 'invalid_admin_script_token', {
-        tokenSource: 'x-admin-script-token',
+        tokenSource: scriptTokenUsesGatewayAuth ? 'x-admin-script-token' : 'authorization',
         scriptTokenReason: consumed.reason,
       });
       return c.json({ error: 'Unauthorized' }, 401);
