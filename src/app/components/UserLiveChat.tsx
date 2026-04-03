@@ -435,7 +435,7 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
               Human support, account-linked history, and attachment-aware replies.
             </div>
             <div className="mt-2 flex items-center gap-3 text-xs text-slate-300/70">
-              <span className="inline-flex items-center gap-1"><Clock3 size={12} /> 9AM - 10PM EST</span>
+              <span className="inline-flex items-center gap-1"><Clock3 size={12} /> 9 AM – 10 PM EST</span>
               <span className="inline-flex items-center gap-1"><Sparkles size={12} /> Modern support inbox</span>
             </div>
           </div>

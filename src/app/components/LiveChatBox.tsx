@@ -109,7 +109,7 @@ export function LiveChatBox({ isOpen, onClose, message }: LiveChatBoxProps) {
 
             <div className="border-t border-white/10 bg-slate-950/20 p-4">
               <p className="text-center text-xs text-slate-200/70">
-                Live care team coverage: 9AM to 10PM EST. Message history stays attached to your account.
+                Live care team coverage: 9 AM – 10 PM EST. Message history stays attached to your account.
               </p>
             </div>
           </div>

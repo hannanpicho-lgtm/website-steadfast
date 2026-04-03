@@ -1458,8 +1458,8 @@ export default function Starting() {
         {/* Important Notice */}
         <div className="bg-[#252d42]/80 border border-[#00D9FF]/20 rounded-xl p-6 text-center shadow-lg mb-6 backdrop-blur-sm">
           <h3 className="text-xl font-bold text-white mb-2">Important Notice</h3>
-          <p className="text-sm text-gray-300 mb-1">Online Support Hours: 9Am - 10PM EST</p>
-          <p className="text-sm text-gray-300">Please contact online support for your assistance</p>
+          <p className="text-sm text-gray-300 mb-1">Online Support Hours: 9 AM – 10 PM EST</p>
+          <p className="text-sm text-gray-300">Please contact online support for your assistance.</p>
         </div>
 
         {/* Footer */}
