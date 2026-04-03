@@ -4,6 +4,7 @@ import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 const EXPECTED_SERVICE = RUNTIME_ENVIRONMENT.functionName;
 const BASE_URL = RUNTIME_ENVIRONMENT.apiBaseUrl;
 const POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const POLL_HIDDEN_MS = 30 * 60 * 1000; // 30 minutes when tab is hidden
 
 export interface VersionCheckPayload {
   service: string;
@@ -102,11 +103,23 @@ export function useVersionCheck(onChange: OnChangeCallback): void {
     };
 
     void check();
-    const timer = window.setInterval(() => void check(), POLL_INTERVAL_MS);
+    let timer = window.setInterval(() => void check(), POLL_INTERVAL_MS);
+
+    const onVisibility = () => {
+      window.clearInterval(timer);
+      if (!document.hidden) {
+        void check();
+        timer = window.setInterval(() => void check(), POLL_INTERVAL_MS);
+      } else {
+        timer = window.setInterval(() => void check(), POLL_HIDDEN_MS);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
 
     return () => {
       cancelled = true;
       window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
 

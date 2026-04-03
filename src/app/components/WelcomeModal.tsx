@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import welcomeImage from '../../assets/ecaa8fbc2d2861ad080f3bc75a5be2355fa255a8.png';
+import welcomeImage from '../../assets/ecaa8fbc2d2861ad080f3bc75a5be2355fa255a8.webp';
 
 interface WelcomeModalProps {
   isOpen: boolean;

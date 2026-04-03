@@ -100,11 +100,21 @@ export default function AdminHome({
     };
 
     void loadVersion();
-    const refreshId = window.setInterval(loadVersion, 60_000);
+    let refreshId = window.setInterval(loadVersion, 60_000);
+
+    const onVis = () => {
+      window.clearInterval(refreshId);
+      if (!document.hidden) {
+        void loadVersion();
+        refreshId = window.setInterval(loadVersion, 60_000);
+      }
+    };
+    document.addEventListener('visibilitychange', onVis);
 
     return () => {
       cancelled = true;
       window.clearInterval(refreshId);
+      document.removeEventListener('visibilitychange', onVis);
     };
   }, []);
 

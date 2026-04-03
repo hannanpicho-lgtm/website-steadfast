@@ -129,7 +129,7 @@ export default function Certificate() {
               <div className="rounded-xl border border-slate-400/70 bg-white p-2 shadow-inner">
                 <div className="overflow-hidden rounded-lg border-2 border-slate-500/60 bg-white">
                   <img
-                    src="/certificate-official.png"
+                    src="/certificate-official.webp"
                     alt="Official business certificate"
                     className="block h-auto w-full"
                     loading="eager"

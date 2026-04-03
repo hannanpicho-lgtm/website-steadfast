@@ -77,17 +77,26 @@ export function installServerAuthFetchBridge(): void {
       return originalFetch(input, init);
     }
 
-    if (input instanceof Request) {
-      return originalFetch(new Request(input, {
-        ...init,
-        headers: buildServerSessionHeaders(init?.headers ?? input.headers),
-      }));
-    }
+    // Attach timeout via AbortController for all server-bound requests
+    // unless the caller already supplied their own signal.
+    const hasSignal = !!(init?.signal || (input instanceof Request && input.signal));
+    const controller = hasSignal ? null : new AbortController();
+    const timeoutId = controller ? setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS) : null;
 
-    return originalFetch(input, {
+    const mergedInit = {
       ...init,
-      headers: buildServerSessionHeaders(init?.headers),
-    });
+      ...(controller ? { signal: controller.signal } : {}),
+    };
+
+    const buildResult = (reqInit: RequestInit) => {
+      const p = input instanceof Request
+        ? originalFetch(new Request(input, { ...reqInit, headers: buildServerSessionHeaders(reqInit.headers ?? input.headers) }))
+        : originalFetch(input, { ...reqInit, headers: buildServerSessionHeaders(reqInit.headers) });
+
+      return timeoutId != null ? p.finally(() => clearTimeout(timeoutId)) : p;
+    };
+
+    return buildResult(mergedInit);
   };
 
   (globalThis as Record<string, unknown>)[bridgeKey] = true;
