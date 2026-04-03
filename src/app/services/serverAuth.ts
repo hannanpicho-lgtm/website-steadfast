@@ -8,6 +8,7 @@
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+const AUTH_TIMEOUT_MS = 10_000;
 const SESSION_TOKEN_KEY = 'steadfast_user_session_token_v1';
 const MUST_CHANGE_PASSWORD_KEY = 'steadfast_force_password_change_v1';
 const LEGACY_CURRENT_USER_KEY = 'steadfast_current_user_v1';
@@ -15,6 +16,12 @@ const USER_SESSION_HEADER = 'x-user-session-token';
 
 let sessionUsernameCache: string | null = null;
 let mustChangePasswordCache = false;
+
+function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = AUTH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...init, signal: controller.signal }).finally(() => clearTimeout(id));
+}
 
 function readSessionTokenFromStorage(): string | null {
   try {
@@ -146,7 +153,7 @@ export async function serverLogin(
   loginPassword: string,
 ): Promise<ServerLoginResult> {
   try {
-    const res = await fetch(`${SERVER_URL}/auth/login`, {
+    const res = await fetchWithTimeout(`${SERVER_URL}/auth/login`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -175,7 +182,7 @@ export async function serverLogin(
 
 export async function serverSignup(payload: ServerSignupPayload): Promise<ServerSignupResult> {
   try {
-    const res = await fetch(`${SERVER_URL}/auth/signup`, {
+    const res = await fetchWithTimeout(`${SERVER_URL}/auth/signup`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -212,7 +219,7 @@ export async function serverSignup(payload: ServerSignupPayload): Promise<Server
  */
 export async function verifyAndRestoreSession(): Promise<string | null> {
   try {
-    const res = await fetch(`${SERVER_URL}/auth/session/restore`, {
+    const res = await fetchWithTimeout(`${SERVER_URL}/auth/session/restore`, {
       method: 'POST',
       credentials: 'include',
       headers: buildServerSessionHeaders({
@@ -244,7 +251,7 @@ export async function verifyAndRestoreSession(): Promise<string | null> {
 
 export async function serverLogout(): Promise<void> {
   try {
-    await fetch(`${SERVER_URL}/auth/session/logout`, {
+    await fetchWithTimeout(`${SERVER_URL}/auth/session/logout`, {
       method: 'POST',
       credentials: 'include',
       headers: buildServerSessionHeaders({
@@ -268,7 +275,7 @@ export async function changeUserCredentials(params: {
   }
 
   try {
-    const res = await fetch(`${SERVER_URL}/auth/change-credentials`, {
+    const res = await fetchWithTimeout(`${SERVER_URL}/auth/change-credentials`, {
       method: 'POST',
       credentials: 'include',
       headers: {

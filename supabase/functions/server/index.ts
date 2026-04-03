@@ -1383,13 +1383,17 @@ async function resolveCanonicalUsername(username: string): Promise<string | null
     return lookup;
   }
 
-  const exact = await kv.get(`user:${username}`);
+  // Parallel probe: check both original-case and lowercase keys at once.
+  const [exact, lowerRecord] = await Promise.all([
+    kv.get(`user:${username}`),
+    username !== normalized ? kv.get(`user:${normalized}`) : Promise.resolve(undefined),
+  ]);
+
   if (exact) {
     canonicalUsernameCache.set(normalized, { value: username, expiresAt: Date.now() + CANONICAL_USERNAME_CACHE_TTL_MS });
     return username;
   }
 
-  const lowerRecord = await kv.get(`user:${normalized}`);
   if (lowerRecord) {
     canonicalUsernameCache.set(normalized, { value: normalized, expiresAt: Date.now() + CANONICAL_USERNAME_CACHE_TTL_MS });
     return normalized;
@@ -3007,15 +3011,15 @@ async function getRewardsConfigRecord() {
     return normalized;
   }
 
-  for (const legacyKey of LEGACY_REWARDS_CONFIG_KEYS) {
-    const legacy = await kv.get(legacyKey);
-    if (!legacy) {
-      continue;
-    }
-
-    const migrated = applyRewardsConfigMigrations(legacy);
+  // Batch-read all legacy keys in parallel instead of sequential awaits
+  const legacyEntries = await Promise.all(
+    LEGACY_REWARDS_CONFIG_KEYS.map(async (key) => ({ key, value: await kv.get(key) }))
+  );
+  for (const { key, value } of legacyEntries) {
+    if (!value) continue;
+    const migrated = applyRewardsConfigMigrations(value);
     await kv.set(REWARDS_CONFIG_KEY, migrated);
-    await kv.del(legacyKey);
+    await kv.del(key);
     rewardsConfigRuntimeCache = { data: migrated, expiresAt: Date.now() + CONFIG_RUNTIME_CACHE_TTL_MS };
     return migrated;
   }
