@@ -23,9 +23,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router'],
-          'vendor-ui': [
-            '@radix-ui/react-avatar',
-          ],
           'vendor-icons': ['lucide-react'],
         },
       },

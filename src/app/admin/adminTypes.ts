@@ -3,6 +3,48 @@ import type { VipConfig } from '../services/vipConfig';
 
 export type VipLevelConfig = VipConfig;
 
+export type WalletProfile = {
+  type: 'banking' | 'crypto';
+  walletType?: string;
+  network?: string;
+  walletAddress?: string;
+  accountNumber?: string;
+};
+
+export type ActivePremium = {
+  id: string;
+  premiumProductName: string;
+  premiumProductValue: number;
+  totalBundleValue: number;
+  bundledProducts: Array<{
+    id: string;
+    name: string;
+    price: number;
+    image: string;
+  }>;
+  commissionEarned: number;
+  topUpRequired: number;
+  negativeAmount: number;
+  balanceBeforeAssignment: number;
+  triggerTaskNumber: number;
+  image: string;
+  status: string;
+};
+
+export type AuditDepositRecord = {
+  id: string;
+  amount: number;
+  method: string;
+  date: string;
+};
+
+export type AuditWithdrawalRecord = {
+  id: string;
+  amount: number;
+  status: string;
+  requestedDate: string;
+};
+
 export type VipDraftState = {
   investment: string;
   dailyTasks: string;
@@ -104,7 +146,7 @@ export type PlatformUser = {
   availableAmount?: number;
   isFrozen: boolean;
   isSuspended?: boolean;
-  walletProfile?: any;
+  walletProfile?: WalletProfile | null;
   invitationCode?: string | null;
   lastLoginAt?: string | null;
   lastLoginIp?: string | null;
@@ -124,7 +166,7 @@ export type PlatformUserAudit = {
   invitationCode: string | null;
   invitedByCode: string | null;
   referredByAdminId: string | null;
-  walletProfile: any;
+  walletProfile: WalletProfile | null;
   accountStatus: {
     isFrozen: boolean;
     isSuspended?: boolean;
@@ -149,8 +191,8 @@ export type PlatformUserAudit = {
     tasksCompletedInSet?: number;
     completedTaskSets?: number;
   };
-  activePremium: any;
-  premiumQueue: any[];
+  activePremium: ActivePremium | null;
+  premiumQueue: ActivePremium[];
   audit: {
     registeredAt: string | null;
     lastLoginAt: string | null;
@@ -162,9 +204,9 @@ export type PlatformUserAudit = {
     lastDepositAt: string | null;
     lastWithdrawalAt: string | null;
   };
-  deposits: any[];
-  withdrawals: any[];
-  transactions: any[];
+  deposits: AuditDepositRecord[];
+  withdrawals: AuditWithdrawalRecord[];
+  transactions: TransactionRecord[];
 };
 
 export type UserTaskControlDraft = {
@@ -218,7 +260,7 @@ export type WithdrawalRequestRecord = {
 export type MenuItem = {
   id: string;
   label: string;
-  icon: React.ReactNode;
+  icon: import('react').ReactNode;
   badge?: number;
 };
 

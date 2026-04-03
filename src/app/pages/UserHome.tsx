@@ -82,6 +82,28 @@ const quickLinkAccents: Record<string, string> = {
   '/about':            '#f43f5e',
 };
 
+const QUICK_LINK_BG_STYLE: React.CSSProperties = {
+  background: 'linear-gradient(165deg, #00D9FF, #00a8c8)',
+  boxShadow: '0 4px 14px rgba(0,173,212,0.22)',
+};
+const QUICK_LINK_DEFAULT_SHADOW = '0 4px 14px rgba(0,173,212,0.22)';
+const QUICK_LINK_GLOW_STYLE: React.CSSProperties = {
+  background: 'radial-gradient(circle at 50% 30%, rgba(255,255,255,0.42), transparent 65%)',
+};
+const QUICK_LINK_ICON_STYLE: React.CSSProperties = {
+  background: 'rgba(255,255,255,0.22)',
+  color: '#062f49',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35)',
+};
+const VIDEO_STYLE: React.CSSProperties = {
+  filter: 'contrast(1.15) saturate(1.15) brightness(1.05)',
+  transform: 'translateZ(0)',
+  willChange: 'transform',
+};
+const FOCUS_BG_STYLE: React.CSSProperties = {
+  backgroundImage: 'radial-gradient(circle at 20% 50%, #0b5f94 0%, transparent 50%), radial-gradient(circle at 80% 80%, #0093cc 0%, transparent 50%)',
+};
+
 function QuickLinkCard({ item }: { item: QuickLinkItem }) {
   const Icon = item.icon;
   const accent = quickLinkAccents[item.to] ?? '#00D9FF';
@@ -90,31 +112,22 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
     <Link
       to={item.to}
       className="group relative overflow-hidden flex h-[82px] flex-col items-center justify-center gap-1.5 rounded-xl border border-[#00b6d6]/60 px-2 transition-all duration-300 hover:scale-[1.06] hover:-translate-y-1.5 sm:h-[88px] sm:px-3"
-      style={{
-        background: 'linear-gradient(165deg, #00D9FF, #00a8c8)',
-        boxShadow: '0 4px 14px rgba(0,173,212,0.22)',
-      }}
+      style={QUICK_LINK_BG_STYLE}
       onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.boxShadow = `0 10px 28px ${accent}55, 0 4px 14px rgba(0,173,212,0.22)`;
+        (e.currentTarget as HTMLElement).style.boxShadow = `0 10px 28px ${accent}55, ${QUICK_LINK_DEFAULT_SHADOW}`;
       }}
       onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 14px rgba(0,173,212,0.22)';
+        (e.currentTarget as HTMLElement).style.boxShadow = QUICK_LINK_DEFAULT_SHADOW;
       }}
     >
       {/* Unique per-card accent top stripe */}
       <div className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: accent }} />
 
       {/* Hover radial glow */}
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{
-        background: 'radial-gradient(circle at 50% 30%, rgba(255,255,255,0.42), transparent 65%)',
-      }} />
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={QUICK_LINK_GLOW_STYLE} />
 
       {/* Icon circle */}
-      <div className="relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-110" style={{
-        background: 'rgba(255,255,255,0.22)',
-        color: '#062f49',
-        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35)',
-      }}>
+      <div className="relative z-10 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-110" style={QUICK_LINK_ICON_STYLE}>
         <Icon size={16} strokeWidth={2.2} className="sm:w-[18px] sm:h-[18px]" />
       </div>
 
@@ -181,7 +194,7 @@ export default function UserHome() {
                 playsInline
                 preload="metadata"
                 className="absolute inset-0 h-full w-full object-cover"
-                style={{ filter: 'contrast(1.15) saturate(1.15) brightness(1.05)', transform: 'translateZ(0)', willChange: 'transform' }}
+                style={VIDEO_STYLE}
                 aria-label="Steadfast Digital background video"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#0d1117c4] via-[#0d111754] to-transparent" />
@@ -211,9 +224,7 @@ export default function UserHome() {
         {/* Areas of Focus Section */}
         <section className="mt-5 rounded-2xl border border-[#d3dde8] bg-gradient-to-br from-[#f8fafc] via-white to-[#f1f5f9] py-8 shadow-sm sm:py-10 overflow-hidden relative">
           {/* Background pattern overlay */}
-          <div className="absolute inset-0 opacity-[0.025] pointer-events-none" style={{
-            backgroundImage: 'radial-gradient(circle at 20% 50%, #0b5f94 0%, transparent 50%), radial-gradient(circle at 80% 80%, #0093cc 0%, transparent 50%)',
-          }} />
+          <div className="absolute inset-0 opacity-[0.025] pointer-events-none" style={FOCUS_BG_STYLE} />
           
           <div className="px-4 sm:px-5 relative z-10">
             <p className="text-center text-[0.65rem] sm:text-xs font-bold tracking-[0.22em] text-[#0093cc] uppercase mb-1">CORE CAPABILITIES</p>
