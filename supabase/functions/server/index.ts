@@ -620,7 +620,7 @@ function applyApiCompatibilityHeaders(c: any): void {
   c.header('X-Deployment-Stage', DEPLOYMENT_STAGE);
 }
 
-app.use('*', async (c, next) => {
+app.use('*', async (c: any, next: any) => {
   const requestId = resolveRequestId(c);
   const startedAt = Date.now();
   c.set('requestId', requestId);
@@ -650,7 +650,7 @@ app.use('*', async (c, next) => {
   applyApiCompatibilityHeaders(c);
 });
 
-app.use('*', async (c, next) => {
+app.use('*', async (c: any, next: any) => {
   const origin = c.req.header('origin');
   if (!isCorsOriginAllowed(origin)) {
     logStructuredEvent(c, 'cors_origin_rejected', 'warn', {
@@ -671,7 +671,7 @@ app.use('*', logger(console.log));
 app.use(
   "/*",
   cors({
-    origin: (origin) => resolveCorsOrigin(origin),
+    origin: (origin: string) => resolveCorsOrigin(origin),
     credentials: true,
     allowHeaders: [
       "Content-Type",
@@ -1463,7 +1463,7 @@ function isSuperAdmin(user: any): boolean {
   return getAdminRoleClaim(user) === 'super_admin';
 }
 
-app.post('/make-server-a1c55d7e/admin/script-tokens', async (c) => {
+app.post('/make-server-a1c55d7e/admin/script-tokens', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -4671,7 +4671,7 @@ function enforceUserRateLimit(c: any, bucket: string, maxRequests = USER_RATE_LI
 }
 
 // Health check endpoint
-app.get("/make-server-a1c55d7e/health", (c) => {
+app.get("/make-server-a1c55d7e/health", (c: any) => {
   return c.json({ 
     status: "ok",
     timestamp: new Date().toISOString(),
@@ -4680,15 +4680,15 @@ app.get("/make-server-a1c55d7e/health", (c) => {
   });
 });
 
-app.get("/make-server-a1c55d7e/version", (c) => {
+app.get("/make-server-a1c55d7e/version", (c: any) => {
   return c.json(buildVersionResponsePayload(null), 200);
 });
 
-app.get('/make-server-a1c55d7e/v1/version', (c) => {
+app.get('/make-server-a1c55d7e/v1/version', (c: any) => {
   return c.json(buildVersionResponsePayload('v1'), 200);
 });
 
-app.get('/make-server-a1c55d7e/v2/version', (c) => {
+app.get('/make-server-a1c55d7e/v2/version', (c: any) => {
   return c.json(buildVersionResponsePayload('v2'), 200);
 });
 
@@ -4721,15 +4721,15 @@ async function handleClientCompatibilityEvent(c: any) {
   }
 }
 
-app.post('/make-server-a1c55d7e/client/compatibility-events', async (c) => {
+app.post('/make-server-a1c55d7e/client/compatibility-events', async (c: any) => {
   return handleClientCompatibilityEvent(c);
 });
 
-app.post('/make-server-a1c55d7e/v2/client/compatibility-events', async (c) => {
+app.post('/make-server-a1c55d7e/v2/client/compatibility-events', async (c: any) => {
   return handleClientCompatibilityEvent(c);
 });
 
-app.get("/make-server-a1c55d7e/health/live", (c) => {
+app.get("/make-server-a1c55d7e/health/live", (c: any) => {
   // Liveness probe: Process is alive (minimal dependencies)
   return c.json({ 
     status: "alive",
@@ -4737,7 +4737,7 @@ app.get("/make-server-a1c55d7e/health/live", (c) => {
   }, 200);
 });
 
-app.get("/make-server-a1c55d7e/health/ready", async (c) => {
+app.get("/make-server-a1c55d7e/health/ready", async (c: any) => {
   try {
     // Readiness probe: Service is ready to handle traffic
     // Check KV store connectivity with a quick operation
@@ -4773,7 +4773,7 @@ app.get("/make-server-a1c55d7e/health/ready", async (c) => {
   }
 });
 
-app.get("/make-server-a1c55d7e/admin/kv-config-version-status", async (c) => {
+app.get("/make-server-a1c55d7e/admin/kv-config-version-status", async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -4808,7 +4808,7 @@ app.get("/make-server-a1c55d7e/admin/kv-config-version-status", async (c) => {
   }
 });
 
-app.post("/make-server-a1c55d7e/admin/sync-all-users", async (c) => {
+app.post("/make-server-a1c55d7e/admin/sync-all-users", async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -4854,7 +4854,7 @@ app.post("/make-server-a1c55d7e/admin/sync-all-users", async (c) => {
   }
 });
 
-app.get("/make-server-a1c55d7e/admin/users", async (c) => {
+app.get("/make-server-a1c55d7e/admin/users", async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -4910,7 +4910,7 @@ app.get("/make-server-a1c55d7e/admin/users", async (c) => {
   }
 });
 
-app.post("/make-server-a1c55d7e/admin/users", async (c) => {
+app.post("/make-server-a1c55d7e/admin/users", async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -5018,7 +5018,7 @@ app.post("/make-server-a1c55d7e/admin/users", async (c) => {
   }
 });
 
-app.delete("/make-server-a1c55d7e/admin/users/:adminId", async (c) => {
+app.delete("/make-server-a1c55d7e/admin/users/:adminId", async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -5135,7 +5135,7 @@ app.delete("/make-server-a1c55d7e/admin/users/:adminId", async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/referrals/overview', async (c) => {
+app.get('/make-server-a1c55d7e/admin/referrals/overview', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -5394,7 +5394,7 @@ async function buildAdminPlatformUserAudit(username: string) {
   };
 }
 
-app.get('/make-server-a1c55d7e/me/referrals/summary', async (c) => {
+app.get('/make-server-a1c55d7e/me/referrals/summary', async (c: any) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -5408,7 +5408,7 @@ app.get('/make-server-a1c55d7e/me/referrals/summary', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/me/financials', async (c) => {
+app.get('/make-server-a1c55d7e/me/financials', async (c: any) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -5422,7 +5422,7 @@ app.get('/make-server-a1c55d7e/me/financials', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/me/balance', async (c) => {
+app.get('/make-server-a1c55d7e/me/balance', async (c: any) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -5444,7 +5444,7 @@ app.get('/make-server-a1c55d7e/me/balance', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/me/earnings', async (c) => {
+app.get('/make-server-a1c55d7e/me/earnings', async (c: any) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -5458,7 +5458,7 @@ app.get('/make-server-a1c55d7e/me/earnings', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/me/user', async (c) => {
+app.get('/make-server-a1c55d7e/me/user', async (c: any) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -5474,7 +5474,7 @@ app.get('/make-server-a1c55d7e/me/user', async (c) => {
 });
 
 // Get wallet data endpoint
-app.get('/make-server-a1c55d7e/me/wallet', async (c) => {
+app.get('/make-server-a1c55d7e/me/wallet', async (c: any) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -5497,7 +5497,7 @@ app.get('/make-server-a1c55d7e/me/wallet', async (c) => {
   }
 });
 
-app.put('/make-server-a1c55d7e/me/wallet', async (c) => {
+app.put('/make-server-a1c55d7e/me/wallet', async (c: any) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:wallet-profile', 20);
     if (rateLimited) return rateLimited;
@@ -5538,7 +5538,7 @@ app.put('/make-server-a1c55d7e/me/wallet', async (c) => {
 
 // Link referral identity for a user (username -> invitation code and parent invite code)
 // Also accepts optional loginPassword / transactionPassword to store server-side hashed credentials.
-app.post('/make-server-a1c55d7e/referral/link-user', async (c) => {
+app.post('/make-server-a1c55d7e/referral/link-user', async (c: any) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:referral-link');
     if (rateLimited) return rateLimited;
@@ -5871,7 +5871,7 @@ async function getUniqueReferralInviteCode(): Promise<string> {
 }
 
 // POST /auth/signup — creates a persistent user account in KV and referral graph.
-app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
+app.post('/make-server-a1c55d7e/auth/signup', async (c: any) => {
   try {
     const rateLimited = await enforceCriticalUserRateLimit(c, 'user:signup', 10);
     if (rateLimited) return rateLimited;
@@ -6004,7 +6004,7 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c) => {
 });
 
 // POST /auth/login — verifies username + loginPassword and creates server-backed session.
-app.post('/make-server-a1c55d7e/auth/login', async (c) => {
+app.post('/make-server-a1c55d7e/auth/login', async (c: any) => {
   try {
     const rateLimited = await enforceCriticalUserRateLimit(c, 'user:login', LOGIN_RATE_LIMIT_MAX);
     if (rateLimited) return rateLimited;
@@ -6068,7 +6068,7 @@ app.post('/make-server-a1c55d7e/auth/login', async (c) => {
 });
 
 // POST /auth/session/restore — validates the cookie-backed session and restores auth state.
-app.post('/make-server-a1c55d7e/auth/session/restore', async (c) => {
+app.post('/make-server-a1c55d7e/auth/session/restore', async (c: any) => {
   try {
     const rateLimited = await enforceCriticalUserRateLimit(c, 'user:session-restore');
     if (rateLimited) return rateLimited;
@@ -6104,7 +6104,7 @@ app.post('/make-server-a1c55d7e/auth/session/restore', async (c) => {
 });
 
 // Keep backward compatibility for clients still calling /auth/verify-token.
-app.post('/make-server-a1c55d7e/auth/verify-token', async (c) => {
+app.post('/make-server-a1c55d7e/auth/verify-token', async (c: any) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:verify-token');
     if (rateLimited) return rateLimited;
@@ -6140,7 +6140,7 @@ app.post('/make-server-a1c55d7e/auth/verify-token', async (c) => {
 });
 
 // POST /auth/session/logout — revokes the current active session from cookie or header token.
-app.post('/make-server-a1c55d7e/auth/session/logout', async (c) => {
+app.post('/make-server-a1c55d7e/auth/session/logout', async (c: any) => {
   try {
     const rateLimited = await enforceCriticalUserRateLimit(c, 'user:session-logout');
     if (rateLimited) return rateLimited;
@@ -6484,7 +6484,7 @@ async function submitTaskForUser(
   });
 }
 
-app.post('/make-server-a1c55d7e/me/submit-task', async (c) => {
+app.post('/make-server-a1c55d7e/me/submit-task', async (c: any) => {
   const t0 = performance.now();
   try {
     // Use in-memory rate limiter (saves 4 DB round-trips vs DB-backed version).
@@ -6534,7 +6534,7 @@ app.post('/make-server-a1c55d7e/me/submit-task', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/me/tasks', async (c) => {
+app.get('/make-server-a1c55d7e/me/tasks', async (c: any) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -6571,7 +6571,7 @@ app.get('/make-server-a1c55d7e/me/tasks', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/tasks/catalog', async (c) => {
+app.get('/make-server-a1c55d7e/tasks/catalog', async (c: any) => {
   try {
     const includePaused = c.req.query('includePaused') === 'true';
     const tasks = await listTaskCatalogRecords(includePaused);
@@ -6591,7 +6591,7 @@ app.get('/make-server-a1c55d7e/tasks/catalog', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/vip-config', async (c) => {
+app.get('/make-server-a1c55d7e/vip-config', async (c: any) => {
   try {
     const tiers = await listVipConfigRecords();
     return c.json({ tiers });
@@ -6601,7 +6601,7 @@ app.get('/make-server-a1c55d7e/vip-config', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/rewards-config', async (c) => {
+app.get('/make-server-a1c55d7e/rewards-config', async (c: any) => {
   try {
     const config = await getRewardsConfigRecord();
     return c.json({ config });
@@ -6611,7 +6611,7 @@ app.get('/make-server-a1c55d7e/rewards-config', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/me/transactions', async (c) => {
+app.get('/make-server-a1c55d7e/me/transactions', async (c: any) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -6902,31 +6902,31 @@ async function handleActivitySnapshot(c: any) {
   }
 }
 
-app.get('/make-server-a1c55d7e/me/starting-snapshot', async (c) => {
+app.get('/make-server-a1c55d7e/me/starting-snapshot', async (c: any) => {
   return handleStartingSnapshot(c);
 });
 
-app.get('/make-server-a1c55d7e/v2/me/starting-snapshot', async (c) => {
+app.get('/make-server-a1c55d7e/v2/me/starting-snapshot', async (c: any) => {
   return handleStartingSnapshot(c);
 });
 
-app.get('/make-server-a1c55d7e/me/records-snapshot', async (c) => {
+app.get('/make-server-a1c55d7e/me/records-snapshot', async (c: any) => {
   return handleRecordsSnapshot(c);
 });
 
-app.get('/make-server-a1c55d7e/v2/me/records-snapshot', async (c) => {
+app.get('/make-server-a1c55d7e/v2/me/records-snapshot', async (c: any) => {
   return handleRecordsSnapshot(c);
 });
 
-app.get('/make-server-a1c55d7e/me/activity-snapshot', async (c) => {
+app.get('/make-server-a1c55d7e/me/activity-snapshot', async (c: any) => {
   return handleActivitySnapshot(c);
 });
 
-app.get('/make-server-a1c55d7e/v2/me/activity-snapshot', async (c) => {
+app.get('/make-server-a1c55d7e/v2/me/activity-snapshot', async (c: any) => {
   return handleActivitySnapshot(c);
 });
 
-app.get('/make-server-a1c55d7e/me/withdrawals', async (c) => {
+app.get('/make-server-a1c55d7e/me/withdrawals', async (c: any) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -6942,7 +6942,7 @@ app.get('/make-server-a1c55d7e/me/withdrawals', async (c) => {
     // Cross-reference method with bound wallet so historical records show the correct asset type
     const boundWalletProfile = normalizeStoredWalletProfile(normalizeUserRecord(rawUserData, username).walletProfile);
     const boundDestination = getWalletProfileDestination(boundWalletProfile);
-    const resolvedWithdrawals = withdrawals.map((w) => {
+    const resolvedWithdrawals = withdrawals.map((w: any) => {
       if (boundWalletProfile?.type === 'crypto' && boundDestination && walletDestinationsMatch(w.walletAddress, boundDestination)) {
         return { ...w, method: formatWalletAssetLabel(boundWalletProfile.walletType), network: sanitizeFinanceMethod(boundWalletProfile.network, 'mainnet') };
       }
@@ -7058,7 +7058,7 @@ async function submitWithdrawalRequest(c: any, username: string, body: any) {
 
     normalizedUserData.holdAmount = roundMoney(normalizedUserData.holdAmount + amount);
 
-    const writes = [
+    const writes: Array<{ key: string; value: unknown }> = [
       { key: `${TRANSACTION_KEY_PREFIX}${transaction.id}`, value: transaction },
       { key: `${WITHDRAWAL_KEY_PREFIX}${withdrawal.id}`, value: withdrawal },
     ];
@@ -7098,7 +7098,7 @@ async function submitWithdrawalRequest(c: any, username: string, body: any) {
   });
 }
 
-app.post('/make-server-a1c55d7e/me/withdrawals/request', async (c) => {
+app.post('/make-server-a1c55d7e/me/withdrawals/request', async (c: any) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:withdrawal-request');
     if (rateLimited) return rateLimited;
@@ -7134,7 +7134,7 @@ const productCatalog = [
 ];
 
 // Admin assigns premium bundle to user
-app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
+app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -7356,7 +7356,7 @@ app.post("/make-server-a1c55d7e/admin/assign-premium-bundle", async (c) => {
     await recordObservabilityAuditEvent(
       'admin-premium-bundle-assign',
       assignActorEmail,
-      `Assigned premium bundle ($${sanitizedPremiumValue}, ${effectiveBundledCount} bundled product${effectiveBundledCount !== 1 ? 's' : ''}) to user '${canonicalUsername}' for task #${requestedTriggerTaskNumber} — total value $${totalBundleValue}`,
+      `Assigned premium bundle ($${sanitizedPremiumValue}, ${effectiveBundledCount} bundled product${effectiveBundledCount !== 1 ? 's' : ''}) to user '${canonicalUsername}' for task #${assignmentResult.premiumAssignment.triggerTaskNumber} — total value $${assignmentResult.premiumAssignment.totalBundleValue}`,
     ).catch((e) => console.error('Failed to record admin-premium-bundle-assign audit event:', e));
 
     invalidateUserSnapshots(canonicalUsername);
@@ -7411,7 +7411,7 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
     if (premium.tasksCompleted >= premium.totalTasks) {
       premium.status = 'completed';
       premium.completedAt = new Date().toISOString();
-      normalizedUserData.premiumQueue = normalizedUserData.premiumQueue.filter(p => p.id !== premium.id);
+      normalizedUserData.premiumQueue = normalizedUserData.premiumQueue.filter((p: any) => p.id !== premium.id);
       normalizedUserData.premiumQueue = sortPremiumAssignmentsByTrigger(normalizedUserData.premiumQueue);
 
       const configuredUpholdAmount = Number.isFinite(Number(premium.configuredUpholdAmount))
@@ -7497,7 +7497,7 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
   });
 }
 
-app.post('/make-server-a1c55d7e/me/complete-premium-task', async (c) => {
+app.post('/make-server-a1c55d7e/me/complete-premium-task', async (c: any) => {
   try {
     const rateLimited = await enforceCriticalUserRateLimit(c, 'user:complete-premium-task');
     if (rateLimited) return rateLimited;
@@ -7525,7 +7525,7 @@ app.post('/make-server-a1c55d7e/me/complete-premium-task', async (c) => {
 });
 
 // Cancel premium assignment (admin)
-app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", async (c) => {
+app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -7573,7 +7573,7 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
         if (!callerIsSuperAdmin && user.referredByAdminId !== callingAdmin?.id) {
           return false;
         }
-        return Array.isArray(user.premiumQueue) && user.premiumQueue.some((premium) => premium.id === premiumId);
+        return Array.isArray(user.premiumQueue) && user.premiumQueue.some((premium: any) => premium.id === premiumId);
       });
 
     if (!premiumOwner?.username) {
@@ -7597,7 +7597,7 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
       const normalizedUser = normalizeUserRecord(userData, username);
       const before = snapshotFinancialState(normalizedUser);
       const premiumQueue = Array.isArray(normalizedUser.premiumQueue) ? normalizedUser.premiumQueue : [];
-      const premiumIndex = premiumQueue.findIndex((p) => p.id === premiumId);
+      const premiumIndex = premiumQueue.findIndex((p: any) => p.id === premiumId);
       if (premiumIndex === -1) {
         return { response: c.json({ error: 'Premium assignment not found' }, 404) };
       }
@@ -7678,7 +7678,7 @@ app.delete("/make-server-a1c55d7e/admin/cancel-premium/:username/:premiumId", as
   }
 })
 
-app.get('/make-server-a1c55d7e/admin/transactions', async (c) => {
+app.get('/make-server-a1c55d7e/admin/transactions', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -7714,7 +7714,7 @@ app.get('/make-server-a1c55d7e/admin/transactions', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/tasks', async (c) => {
+app.get('/make-server-a1c55d7e/admin/tasks', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -7755,7 +7755,7 @@ app.get('/make-server-a1c55d7e/admin/tasks', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/vip-config', async (c) => {
+app.get('/make-server-a1c55d7e/admin/vip-config', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -7774,7 +7774,7 @@ app.get('/make-server-a1c55d7e/admin/vip-config', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/rewards-config', async (c) => {
+app.get('/make-server-a1c55d7e/admin/rewards-config', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -7799,7 +7799,7 @@ app.get('/make-server-a1c55d7e/admin/rewards-config', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/salary/project', async (c) => {
+app.get('/make-server-a1c55d7e/admin/salary/project', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -7824,7 +7824,7 @@ app.get('/make-server-a1c55d7e/admin/salary/project', async (c) => {
   }
 });
 
-app.put('/make-server-a1c55d7e/admin/salary/project', async (c) => {
+app.put('/make-server-a1c55d7e/admin/salary/project', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -7865,7 +7865,7 @@ app.put('/make-server-a1c55d7e/admin/salary/project', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/salary/audit-log', async (c) => {
+app.get('/make-server-a1c55d7e/admin/salary/audit-log', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -7890,7 +7890,7 @@ app.get('/make-server-a1c55d7e/admin/salary/audit-log', async (c) => {
   }
 });
 
-app.put('/make-server-a1c55d7e/admin/salary/audit-log', async (c) => {
+app.put('/make-server-a1c55d7e/admin/salary/audit-log', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -7927,7 +7927,7 @@ app.put('/make-server-a1c55d7e/admin/salary/audit-log', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/platform-settings', async (c) => {
+app.get('/make-server-a1c55d7e/admin/platform-settings', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -7946,7 +7946,7 @@ app.get('/make-server-a1c55d7e/admin/platform-settings', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/public/winners-ticker', async (c) => {
+app.get('/make-server-a1c55d7e/public/winners-ticker', async (c: any) => {
   try {
     const settings = sanitizeAdminPlatformSettings(await kv.get(ADMIN_PLATFORM_SETTINGS_KEY));
     return c.json({
@@ -7959,7 +7959,7 @@ app.get('/make-server-a1c55d7e/public/winners-ticker', async (c) => {
   }
 });
 
-app.put('/make-server-a1c55d7e/admin/platform-settings', async (c) => {
+app.put('/make-server-a1c55d7e/admin/platform-settings', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -8000,7 +8000,7 @@ app.put('/make-server-a1c55d7e/admin/platform-settings', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/observability/security-summary', async (c) => {
+app.get('/make-server-a1c55d7e/admin/observability/security-summary', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -8056,7 +8056,7 @@ app.get('/make-server-a1c55d7e/admin/observability/security-summary', async (c) 
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/observability/endpoint-latency-report', async (c) => {
+app.get('/make-server-a1c55d7e/admin/observability/endpoint-latency-report', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -8130,7 +8130,7 @@ app.get('/make-server-a1c55d7e/admin/observability/endpoint-latency-report', asy
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/observability/compatibility-report', async (c) => {
+app.get('/make-server-a1c55d7e/admin/observability/compatibility-report', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -8175,7 +8175,7 @@ app.get('/make-server-a1c55d7e/admin/observability/compatibility-report', async 
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/observability/security-alerts', async (c) => {
+app.get('/make-server-a1c55d7e/admin/observability/security-alerts', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -8232,7 +8232,7 @@ app.get('/make-server-a1c55d7e/admin/observability/security-alerts', async (c) =
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/observability/security-alert-history', async (c) => {
+app.get('/make-server-a1c55d7e/admin/observability/security-alert-history', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -8296,7 +8296,7 @@ app.get('/make-server-a1c55d7e/admin/observability/security-alert-history', asyn
   }
 });
 
-app.delete('/make-server-a1c55d7e/admin/observability/security-alert-history', async (c) => {
+app.delete('/make-server-a1c55d7e/admin/observability/security-alert-history', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -8326,7 +8326,7 @@ app.delete('/make-server-a1c55d7e/admin/observability/security-alert-history', a
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/observability/security-alert-history/stats', async (c) => {
+app.get('/make-server-a1c55d7e/admin/observability/security-alert-history/stats', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -8390,7 +8390,7 @@ app.get('/make-server-a1c55d7e/admin/observability/security-alert-history/stats'
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/observability/security-alert-history/trends', async (c) => {
+app.get('/make-server-a1c55d7e/admin/observability/security-alert-history/trends', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -8474,7 +8474,7 @@ app.get('/make-server-a1c55d7e/admin/observability/security-alert-history/trends
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/observability/security-alert-history/quality', async (c) => {
+app.get('/make-server-a1c55d7e/admin/observability/security-alert-history/quality', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -8570,7 +8570,7 @@ app.get('/make-server-a1c55d7e/admin/observability/security-alert-history/qualit
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/observability/security-alert-config', async (c) => {
+app.get('/make-server-a1c55d7e/admin/observability/security-alert-config', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -8595,7 +8595,7 @@ app.get('/make-server-a1c55d7e/admin/observability/security-alert-config', async
   }
 });
 
-app.put('/make-server-a1c55d7e/admin/observability/security-alert-config', async (c) => {
+app.put('/make-server-a1c55d7e/admin/observability/security-alert-config', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
