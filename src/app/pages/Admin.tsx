@@ -1554,7 +1554,6 @@ export default function Admin() {
         // Only trust roles from Supabase user metadata to avoid stale token claims.
 
         const hasSuperAdmin = roles.has('super_admin');
-        console.log('🔐 Admin roles detected:', { hasSuperAdmin, roles: Array.from(roles) });
         setIsSuperAdmin(hasSuperAdmin);
       } catch (error) {
         console.error('Failed to resolve super-admin:', error);
@@ -1964,8 +1963,6 @@ export default function Admin() {
     const price = Number(priceRaw);
     const status = String(formData.get('status') ?? 'Active').trim();
 
-    console.log('[DEBUG] Form submission:', { product, imageUrl, price, status });
-
     if (!product) {
       toast.error('Product name is required.');
       return;
@@ -1998,7 +1995,6 @@ export default function Admin() {
         throw new Error(payload?.error ?? `Failed to create task (${response.status})`);
       }
 
-      console.log('[DEBUG] Product created successfully:', payload);
       
       // Reset form and close modal immediately
       formElement.reset();

@@ -24,16 +24,8 @@ export default defineConfig({
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router'],
           'vendor-ui': [
-            '@radix-ui/react-accordion',
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-popover',
-            '@radix-ui/react-select',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-tooltip',
-            '@radix-ui/react-scroll-area',
+            '@radix-ui/react-avatar',
           ],
-          'vendor-mui': ['@mui/material', '@emotion/react', '@emotion/styled'],
           'vendor-charts': ['recharts'],
           'vendor-icons': ['lucide-react'],
         },

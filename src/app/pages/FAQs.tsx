@@ -1,8 +1,10 @@
 import { UserCircle, ChevronLeft, ChevronDown } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { LiveChatBox } from '../components/LiveChatBox';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Header } from '../components/Header';
+
+const R = ({ children }: { children: ReactNode }) => <span className="text-red-600">{children}</span>;
 
 export default function FAQs() {
   const navigate = useNavigate();
@@ -13,12 +15,12 @@ export default function FAQs() {
     setOpenFAQ(openFAQ === index ? null : index);
   };
 
-  const faqs = [
+  const faqs: { title: string; content: ReactNode[] }[] = [
     {
       title: "I. Start Product Optimization missions",
       content: [
-        "1.1) Minimum account balance of <span className='text-red-600'>50USD</span> for the first <span className='text-red-600'>20</span> missions/ord",
-        "1.2) A minimum renewal of <span className='text-red-600'>100USD</span> is required to start the new missions",
+        <>1.1) Minimum account balance of <R>50USD</R> for the first <R>20</R> missions/ord</>,
+        <>1.2) A minimum renewal of <R>100USD</R> is required to start the new missions</>,
         "1.3) Users need to complete the missions before they can request a withdrawal"
       ]
     },
@@ -28,7 +30,7 @@ export default function FAQs() {
         "2.1) Users need to complete the missions before they can request a withdrawal",
         "2.2) You cannot request a withdrawal or refund if you choose to pre-up or withdraw in the middle of a missions optimization.",
         "2.3) No withdrawals can be processed if the user's withdrawal request has not been received",
-        "2.4) The maximum withdrawal amount for VIP1 users is <span className='text-red-600'>5000USD</span>, for VIP2 users it is <span className='text-red-600'>9000USD</span>, and for VIP3 users is <span className='text-red-600'>15000USD</span>. No maximum withdrawal limit for VIP4 and above",
+        <>2.4) The maximum withdrawal amount for VIP1 users is <R>5000USD</R>, for VIP2 users it is <R>9000USD</R>, and for VIP3 users is <R>15000USD</R>. No maximum withdrawal limit for VIP4 and above</>,
         "2.5) The user account has must-beet credit score and can't use all functions of the platform normally."
       ]
     },
@@ -52,12 +54,12 @@ export default function FAQs() {
     {
       title: "V. General Product Data",
       content: [
-        "5.1) Platform profit is categorized <span className='italic'>into</span> normal product data profit and 15 times combo product data profit",
-        "5.2) Normal users will earn <span className='text-red-600'>0.5%</span> of the profit for each normal missions of optimizing",
-        "5.3) VIP 2 users will earn <span className='text-red-600'>1%</span> of the profit for each normal missions of optimizing",
-        "5.4) VIP 3 users will earn <span className='text-red-600'>1.5%</span> of the profit for each normal missions of optimizing",
-        "5.5) VIP 4 users will earn <span className='text-red-600'>2%</span> of the profit for each normal missions of optimizing",
-        "5.6) VIP 5 users will earn <span className='text-red-600'>2.5%</span> of the profit for each normal missions of optimizing",
+        <>5.1) Platform profit is categorized <em>into</em> normal product data profit and 15 times combo product data profit</>,
+        <>5.2) Normal users will earn <R>0.5%</R> of the profit for each normal missions of optimizing</>,
+        <>5.3) VIP 2 users will earn <R>1%</R> of the profit for each normal missions of optimizing</>,
+        <>5.4) VIP 3 users will earn <R>1.5%</R> of the profit for each normal missions of optimizing</>,
+        <>5.5) VIP 4 users will earn <R>2%</R> of the profit for each normal missions of optimizing</>,
+        <>5.6) VIP 5 users will earn <R>2.5%</R> of the profit for each normal missions of optimizing</>,
         "5.7) Funds and profits will be allocated to the user's account after the user has completed all normal missions of optimizing",
         "5.8) The system will randomly allocate tasks to the user's account based on the total amount in the user's account",
         "5.9) Once a mission to optimize a product is assigned"
@@ -67,7 +69,7 @@ export default function FAQs() {
       title: "VI. Combination products Data",
       content: [
         "6.1) Combination Products: Once a composer of 0 to 3 data, the user may not necessarily 3 products, the system will randomly allocate the data in the combination products the user has a higher chance of getting 1 or 2 product",
-        "6.2) Users will receive <span className='text-red-600'>10 times</span> the profit for each combination products here for the normal product data",
+        <>6.2) Users will receive <R>10 times</R> the profit for each combination products here for the normal product data</>,
         "6.3) After the user has completed the combination products, all funds will stop rolling and will be returned to your account after you have completed each product data in the combined.",
         "6.4) The system will randomly allocate the combination products data to the user's account according to the total balance on the user's account",
         "6.5) Once the combination products data has been allocated to the user's account, it cannot be cancelled or skipped."
@@ -116,7 +118,7 @@ export default function FAQs() {
               {openFAQ === index && (
                 <div className="space-y-1">
                   {faq.content.map((line, i) => (
-                    <p key={i} dangerouslySetInnerHTML={{ __html: line }} />
+                    <p key={i}>{line}</p>
                   ))}
                 </div>
               )}
