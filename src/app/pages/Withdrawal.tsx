@@ -215,7 +215,7 @@ export default function Withdrawal() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => navigate(-1)}
+              onClick={() => navigate(-1)} aria-label="Go back"
               className="btn-mobile-icon"
             >
               <ChevronLeft size={20} />

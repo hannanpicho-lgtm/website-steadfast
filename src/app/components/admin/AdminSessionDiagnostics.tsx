@@ -138,6 +138,7 @@ export default function AdminSessionDiagnostics() {
             onClick={() => void refreshDiagnostics()}
             className="p-1 rounded text-gray-400 hover:text-white hover:bg-[#1a1f2e] transition-colors"
             title="Refresh diagnostics"
+            aria-label="Refresh diagnostics"
           >
             <RefreshCw className={diagnostics.status === 'loading' ? 'animate-spin' : ''} size={14} />
           </button>
@@ -146,6 +147,7 @@ export default function AdminSessionDiagnostics() {
             onClick={() => setIsVisible(false)}
             className="p-1 rounded text-gray-400 hover:text-white hover:bg-[#1a1f2e] transition-colors"
             title="Close diagnostics"
+            aria-label="Close diagnostics"
           >
             <X size={14} />
           </button>

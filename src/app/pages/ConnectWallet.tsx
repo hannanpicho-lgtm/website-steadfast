@@ -134,7 +134,7 @@ export default function ConnectWallet() {
         {/* Back Button and Title */}
         <div className="flex items-center gap-4 mb-6">
           <button 
-            onClick={() => navigate(-1)}
+            onClick={() => navigate(-1)} aria-label="Go back"
             className="btn-mobile-icon"
           >
             <ChevronLeft size={20} />

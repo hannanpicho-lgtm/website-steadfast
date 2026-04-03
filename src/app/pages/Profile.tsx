@@ -1,4 +1,4 @@
-﻿import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle, PencilLine, Mars, Venus, UserRound } from 'lucide-react';
+import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle, PencilLine, Mars, Venus, UserRound } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
@@ -270,7 +270,7 @@ export default function Profile() {
               <p className="text-[11px] font-semibold text-white/85 mb-1 leading-tight">My Referral<br/>Code</p>
               <div className="flex items-center gap-1.5 min-h-[28px]">
                 <p className="text-base font-bold uppercase tracking-[0.12em]">{referralCode || '—'}</p>
-                <button onClick={handleCopyReferral} className="hover:opacity-80 rounded p-0.5 hover:bg-white/10">
+                <button onClick={handleCopyReferral} className="hover:opacity-80 rounded p-0.5 hover:bg-white/10" aria-label="Copy referral code">
                   <Copy size={14} />
                 </button>
               </div>

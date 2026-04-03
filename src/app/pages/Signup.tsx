@@ -217,7 +217,7 @@ export default function Signup() {
               style={inputStyle}
               required
             />
-            <button type="button" onClick={() => setShowTransactionPassword(!showTransactionPassword)}
+            <button type="button" onClick={() => setShowTransactionPassword(!showTransactionPassword)} aria-label="Toggle transaction password visibility"
               className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors hover:text-white/70" style={{ color: 'rgba(255,255,255,0.35)' }}>
               {showTransactionPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
@@ -234,7 +234,7 @@ export default function Signup() {
               style={inputStyle}
               required
             />
-            <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)}
+            <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} aria-label="Toggle login password visibility"
               className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors hover:text-white/70" style={{ color: 'rgba(255,255,255,0.35)' }}>
               {showLoginPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>
@@ -251,7 +251,7 @@ export default function Signup() {
               style={inputStyle}
               required
             />
-            <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+            <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} aria-label="Toggle confirm password visibility"
               className="absolute right-4 top-1/2 -translate-y-1/2 transition-colors hover:text-white/70" style={{ color: 'rgba(255,255,255,0.35)' }}>
               {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
             </button>

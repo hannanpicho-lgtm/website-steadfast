@@ -665,14 +665,14 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
                         <div className="flex items-center justify-end gap-2">
                           <button
                             className="p-2 hover:bg-[#1a1f2e] rounded transition-colors"
-                            title="View Details"
+                            title="View Details" aria-label="View assignment details"
                             onClick={() => setSelectedAssignment(assignment)}
                           >
                             <Eye size={16} className="text-blue-400" />
                           </button>
                           <button
                             className="p-2 hover:bg-[#1a1f2e] rounded transition-colors"
-                            title="Cancel Assignment"
+                            title="Cancel Assignment" aria-label="Cancel assignment"
                             onClick={() => void handleCancelAssignment(assignment)}
                           >
                             <XCircle size={16} className="text-red-400" />
@@ -695,6 +695,7 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
             <button
               onClick={() => setSelectedAssignment(null)}
               className="text-gray-400 hover:text-white transition-colors"
+              aria-label="Close details"
             >
               <XCircle size={18} />
             </button>

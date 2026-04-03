@@ -64,7 +64,7 @@ export function LiveChatBox({ isOpen, onClose, message }: LiveChatBoxProps) {
                   <p className="text-xs font-medium text-slate-900/70">Fast human follow-up with account-linked history</p>
                 </div>
               </div>
-              <button onClick={onClose} className="rounded-xl p-2 text-slate-950 transition-colors hover:bg-white/20">
+              <button onClick={onClose} className="rounded-xl p-2 text-slate-950 transition-colors hover:bg-white/20" aria-label="Close live chat">
                 <X size={20} />
               </button>
             </div>

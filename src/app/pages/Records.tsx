@@ -408,7 +408,7 @@ export default function Records() {
         {/* Back Button and Title */}
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 mb-6">
           <button 
-            onClick={() => navigate(-1)}
+            onClick={() => navigate(-1)} aria-label="Go back"
             className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors justify-self-start"
           >
             <ChevronLeft size={20} />

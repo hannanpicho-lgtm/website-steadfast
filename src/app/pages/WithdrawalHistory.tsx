@@ -78,7 +78,7 @@ export default function WithdrawalHistory() {
         {/* Title row */}
         <div className="relative flex items-center justify-center mb-5">
           <button
-            onClick={() => navigate(-1)}
+            onClick={() => navigate(-1)} aria-label="Go back"
             className="absolute left-0 flex items-center justify-center w-9 h-9 rounded border border-gray-300 bg-white hover:bg-gray-50 transition-colors"
           >
             <ChevronLeft size={20} className="text-gray-700" />

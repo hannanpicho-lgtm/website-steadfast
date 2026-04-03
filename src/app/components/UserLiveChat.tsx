@@ -356,7 +356,7 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
                     <Download size={16} />
                     Download
                   </button>
-                  <button type="button" onClick={() => setPreviewAttachment(null)} className="rounded-full border border-slate-700 p-2 text-slate-300">
+                  <button type="button" onClick={() => setPreviewAttachment(null)} className="rounded-full border border-slate-700 p-2 text-slate-300" aria-label="Close attachment preview">
                     <X size={18} />
                   </button>
                 </div>
@@ -401,7 +401,7 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
               </div>
             </div>
 
-            <button onClick={onClose} className="rounded-xl p-2 text-slate-950/80 transition-colors hover:bg-white/20 hover:text-slate-950">
+            <button onClick={onClose} className="rounded-xl p-2 text-slate-950/80 transition-colors hover:bg-white/20 hover:text-slate-950" aria-label="Close live chat">
               <X size={20} />
             </button>
           </div>

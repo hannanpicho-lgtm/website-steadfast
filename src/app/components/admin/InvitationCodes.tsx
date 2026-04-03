@@ -235,6 +235,7 @@ export default function InvitationCodes({ currentAdminId }: InvitationCodesProps
                             onClick={() => void handleCopy(entry.code!)}
                             className="text-gray-400 hover:text-[#00D9FF] transition-colors"
                             title="Copy code"
+                            aria-label="Copy invitation code"
                           >
                             {copiedCode === entry.code ? (
                               <CheckCircle size={14} className="text-green-400" />

@@ -112,7 +112,7 @@ export default function Deposit() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
         {/* Back Button and Title */}
         <div className="flex items-center gap-4 mb-6">
-          <button onClick={() => navigate(-1)} className="btn-mobile-icon">
+          <button onClick={() => navigate(-1)} aria-label="Go back" className="btn-mobile-icon">
             <ChevronLeft size={20} />
           </button>
           <h1 className="text-2xl font-bold text-[#00D9FF] flex-1 text-center mr-10">Deposit</h1>

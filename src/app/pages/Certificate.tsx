@@ -103,7 +103,7 @@ export default function Certificate() {
       <div className="max-w-2xl mx-auto px-4 py-6">
         {/* Back + Title */}
         <div className="flex items-center gap-4 mb-6">
-          <button onClick={() => navigate(-1)} className="btn-mobile-icon">
+          <button onClick={() => navigate(-1)} aria-label="Go back" className="btn-mobile-icon">
             <ChevronLeft size={20} />
           </button>
           <h1 className="text-2xl font-bold text-[#0066b3] flex-1 text-center mr-10">My Certificate</h1>

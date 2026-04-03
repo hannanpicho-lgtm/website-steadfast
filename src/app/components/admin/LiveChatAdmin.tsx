@@ -577,7 +577,7 @@ export default function LiveChatAdmin() {
                     <Download size={16} />
                     Download
                   </button>
-                  <button type="button" onClick={() => setPreviewAttachment(null)} className="rounded-full border border-gray-300 p-2 text-gray-600">
+                  <button type="button" onClick={() => setPreviewAttachment(null)} className="rounded-full border border-gray-300 p-2 text-gray-600" aria-label="Close attachment preview">
                     <X size={18} />
                   </button>
                 </div>
@@ -962,7 +962,7 @@ export default function LiveChatAdmin() {
                     <button type="button" onClick={() => setPreviewAttachment(selectedAttachment)} className="text-xs font-semibold text-blue-600">
                       Preview
                     </button>
-                    <button type="button" onClick={() => setSelectedAttachment(null)} className="rounded-full bg-gray-200 p-1 text-gray-600">
+                    <button type="button" onClick={() => setSelectedAttachment(null)} className="rounded-full bg-gray-200 p-1 text-gray-600" aria-label="Remove selected attachment">
                       <X size={12} />
                     </button>
                   </div>
