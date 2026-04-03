@@ -82,7 +82,7 @@ const LIVE_TICKER_FALLBACK_ENTRIES: WinnersTickerEntry[] = [
 const TASK_CATALOG_CACHE_KEY = buildPublicCacheKey('starting:task-catalog', 'v1');
 const TASK_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
 const FINANCIAL_SUMMARY_CACHE_KEY = 'starting:financial-summary';
-const FINANCIAL_SUMMARY_CACHE_TTL_MS = 60 * 1000;
+const FINANCIAL_SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
 const STARTING_PERF_SAMPLES_KEY = 'starting:perf-samples:v1';
 const STARTING_PERF_MAX_SAMPLES = 30;
 const STARTING_PERF_EVENTS_KEY = 'starting:perf-events:v1';
@@ -689,7 +689,7 @@ export default function Starting() {
         const snapshotStartedAt = performance.now();
         console.log('[starting] fetching v2 snapshot...');
         const snapshot = await fetchJsonWithRetry<any>({
-          url: `${snapshotRoute.url}?includeCatalog=true&includeConfig=true&catalogLimit=200`,
+          url: `${snapshotRoute.url}?includeCatalog=true&includeConfig=true&catalogLimit=50`,
           init: {
             credentials: 'include',
           },

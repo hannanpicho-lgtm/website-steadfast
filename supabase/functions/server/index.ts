@@ -1593,7 +1593,7 @@ const ADMIN_SALARY_MAX_RESTORE_POINTS = 10;
 const ADMIN_SALARY_MAX_AUDIT_EVENTS = 50;
 const PREMIUM_SETTLEMENT_FIX_DEPLOYED_AT_MS = new Date('2026-03-25T02:53:42.000Z').getTime();
 const RECONCILIATION_EPSILON = 0.009;
-const TASK_CATALOG_RUNTIME_CACHE_TTL_MS = 20_000;
+const TASK_CATALOG_RUNTIME_CACHE_TTL_MS = 60_000;
 
 let taskCatalogRuntimeCacheAll: { expiresAt: number; tasks: any[] } | null = null;
 let taskCatalogRuntimeCacheActive: { expiresAt: number; tasks: any[] } | null = null;
@@ -1630,7 +1630,7 @@ function invalidateSessionCache(sessionId: string): void {
 
 // ── Snapshot response cache ─────────────────────────────────────────────────
 // Caches fully-built snapshot JSON per user to serve repeat requests instantly.
-const SNAPSHOT_CACHE_TTL_MS = 10_000;
+const SNAPSHOT_CACHE_TTL_MS = 60_000;
 const snapshotResponseCache = new Map<string, { payload: any; expiresAt: number }>();
 
 function getCachedSnapshotResponse(key: string): any | null {
@@ -3189,9 +3189,11 @@ async function listTaskCatalogRecords(includePaused = true) {
   await ensureTaskCatalogSeeded();
   const rawTasks = await kv.getByPrefix(TASK_CATALOG_KEY_PREFIX);
 
-  // Auto-repair historical fallback/default prices so each task carries its own value.
-  let repairedCount = 0;
-  const repairedTasks = await Promise.all(rawTasks.map(async (task: any) => {
+  // Auto-repair historical fallback/default prices — deferred out of the hot path.
+  // We fix prices in-memory for the current response, then persist repairs in the background
+  // so the KV writes don't block the snapshot response.
+  const tasksToRepair: Array<{ id: string; task: any }> = [];
+  const repairedTasks = rawTasks.map((task: any) => {
     const taskId = sanitizeTaskId(task?.id);
     if (!taskId) {
       return task;
@@ -3213,13 +3215,15 @@ async function listTaskCatalogRecords(includePaused = true) {
       updatedAt: new Date().toISOString(),
     });
 
-    await kv.set(`${TASK_CATALOG_KEY_PREFIX}${taskId}`, repairedTask);
-    repairedCount += 1;
+    tasksToRepair.push({ id: taskId, task: repairedTask });
     return repairedTask;
-  }));
+  });
 
-  if (repairedCount > 0) {
-    invalidateTaskCatalogRuntimeCache();
+  // Fire-and-forget: persist repairs in background without blocking the response
+  if (tasksToRepair.length > 0) {
+    Promise.all(tasksToRepair.map(({ id, task }) => kv.set(`${TASK_CATALOG_KEY_PREFIX}${id}`, task)))
+      .then(() => invalidateTaskCatalogRuntimeCache())
+      .catch(() => { /* best-effort repair — will retry on next cache miss */ });
   }
 
   const normalized = repairedTasks
