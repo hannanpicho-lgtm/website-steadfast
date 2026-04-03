@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { RouterProvider } from "react-router";
 import router from "./appRouter";
 import { Toaster } from "./components/ui/sonner";
+import { AppErrorBoundary } from "./components/AppErrorBoundary";
 
 function RouteLoadingFallback() {
   return (
@@ -16,11 +17,11 @@ function RouteLoadingFallback() {
 
 export default function App() {
   return (
-    <>
+    <AppErrorBoundary>
       <Suspense fallback={<RouteLoadingFallback />}>
         <RouterProvider router={router} />
       </Suspense>
       <Toaster position="top-center" richColors />
-    </>
+    </AppErrorBoundary>
   );
 }

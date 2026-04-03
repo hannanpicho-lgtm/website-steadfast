@@ -65,7 +65,7 @@ export default function Home() {
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="absolute inset-0 bg-[#5dade2] blur-xl opacity-30"></div>
-            <img src={logoImage} alt="Steadfast Digital Logo" className="relative z-10 w-12 h-12 object-contain drop-shadow-lg" />
+            <img src={logoImage} alt="Steadfast Digital Logo" width={48} height={48} className="relative z-10 w-12 h-12 object-contain drop-shadow-lg" />
           </div>
           <div className="flex flex-col">
             <span className="text-xl font-black tracking-tight bg-gradient-to-r from-[#5dade2] via-[#60a5fa] to-[#5dade2] bg-clip-text text-transparent">

@@ -37,6 +37,8 @@ export function BottomNavigation() {
             <img
               src={logoImage}
               alt="Steadfast Platform"
+              width={30}
+              height={30}
               className={`relative z-[1] h-[30px] w-[30px] object-contain transition-transform duration-300 ${isStartingActive ? 'platform-icon-float' : ''}`}
             />
           </div>

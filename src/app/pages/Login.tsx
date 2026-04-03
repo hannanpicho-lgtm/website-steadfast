@@ -234,6 +234,8 @@ export default function Login() {
               <img
                 src={steadfastLogo}
                 alt="Steadfast Digital Logo"
+                width={96}
+                height={96}
                 className="relative z-10 w-20 h-20 sm:w-24 sm:h-24 object-contain"
               />
             </div>

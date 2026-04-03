@@ -528,7 +528,7 @@ export default function Records() {
                           <div className="flex items-center gap-3">
                             {item.image ? (
                               <div className="shrink-0 bg-gray-100 rounded-md w-12 h-12 flex items-center justify-center overflow-hidden">
-                                <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
+                                <img src={item.image} alt={item.name} width={48} height={48} className="w-full h-full object-contain" />
                               </div>
                             ) : (
                               <div className="shrink-0 bg-gray-100 rounded-md w-12 h-12 flex items-center justify-center text-gray-400">
@@ -564,6 +564,8 @@ export default function Records() {
                       <img 
                         src={product.image} 
                         alt={product.name.split(',')[0]} 
+                        width={80}
+                        height={80}
                         className="w-20 h-20 object-contain rounded"
                       />
                     </div>

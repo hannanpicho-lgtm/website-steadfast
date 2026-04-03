@@ -131,7 +131,7 @@ function recordApiMetric(sample: ApiMetricSample): void {
   }
 }
 
-async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<any> {
+async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs: number): Promise<unknown> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const headers = new Headers(init.headers ?? {});

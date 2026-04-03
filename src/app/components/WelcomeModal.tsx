@@ -31,6 +31,8 @@ export default function WelcomeModal({ isOpen, onClose }: WelcomeModalProps) {
         <img 
           src={welcomeImage} 
           alt="Welcome - Special Reward Announcement" 
+          width={400}
+          height={300}
           className="w-full h-auto rounded-lg shadow-2xl"
         />
       </div>

@@ -2991,7 +2991,7 @@ export default function Admin() {
         {/* Logo Header */}
         <div className="p-6 border-b border-gray-700">
           <div className="flex items-center gap-3">
-            <img src={steadfastLogo} alt="Steadfast" className="w-10 h-10 object-contain" />
+            <img src={steadfastLogo} alt="Steadfast" width={40} height={40} className="w-10 h-10 object-contain" />
             <div>
               <h1 className="text-white font-bold text-lg">STEADFAST</h1>
               <p className="text-gray-400 text-xs">Admin Panel</p>

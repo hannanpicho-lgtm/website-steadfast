@@ -162,7 +162,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             <div className="flex flex-col items-center mb-5">
               <div className="relative mb-4">
                 <div className="absolute inset-0 rounded-full blur-2xl opacity-40" style={{ background: current.accentColor }} />
-                <img src={logoImage} alt="Steadfast Digital" className="relative z-10 w-16 h-16 object-contain" />
+                <img src={logoImage} alt="Steadfast Digital" width={64} height={64} className="relative z-10 w-16 h-16 object-contain" />
               </div>
               <span className="text-[10px] tracking-[0.35em] font-bold uppercase" style={{ color: current.accentColor }}>STEADFAST DIGITAL</span>
             </div>

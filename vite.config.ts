@@ -26,7 +26,6 @@ export default defineConfig({
           'vendor-ui': [
             '@radix-ui/react-avatar',
           ],
-          'vendor-charts': ['recharts'],
           'vendor-icons': ['lucide-react'],
         },
       },

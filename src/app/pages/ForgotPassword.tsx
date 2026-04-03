@@ -44,7 +44,7 @@ export default function ForgotPassword() {
     <div className="min-h-screen bg-gradient-to-br from-[#1a1f2e] to-[#2d3548] flex items-center justify-center px-6">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <img src={steadfastLogo} alt="Steadfast Digital" className="h-16 mx-auto mb-4" />
+          <img src={steadfastLogo} alt="Steadfast Digital" width={64} height={64} className="h-16 mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-white mb-2">Password Help</h1>
           <p className="text-gray-300">For password assistance, contact support via WhatsApp or Telegram only.</p>
         </div>

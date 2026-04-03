@@ -19,6 +19,8 @@ export function Header({ onContactClick }: HeaderProps) {
             <img 
               src={logoImage} 
               alt="Steadfast Digital Logo" 
+              width={32}
+              height={32}
               className="h-7 w-7 object-contain transition-transform duration-300 group-hover:scale-105 sm:h-8 sm:w-8"
             />
           </div>

@@ -131,6 +131,8 @@ export default function Certificate() {
                   <img
                     src="/certificate-official.webp"
                     alt="Official business certificate"
+                    width={800}
+                    height={600}
                     className="block h-auto w-full"
                     loading="eager"
                     decoding="async"
