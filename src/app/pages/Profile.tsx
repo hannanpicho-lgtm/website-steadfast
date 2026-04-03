@@ -266,22 +266,22 @@ export default function Profile() {
           </div>
 
           <div className="grid grid-cols-3 gap-3 mb-4 text-center">
-            <div className="flex flex-col items-center justify-center">
-              <p className="text-xs font-semibold text-white/85 mb-1">My Referral Code</p>
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-bold uppercase tracking-[0.14em]">{referralCode || '—'}</p>
-                <button onClick={handleCopyReferral} className="hover:opacity-80 rounded p-1 hover:bg-white/10">
-                  <Copy size={16} />
+            <div className="flex flex-col items-center justify-between">
+              <p className="text-[11px] font-semibold text-white/85 mb-1 leading-tight">My Referral<br/>Code</p>
+              <div className="flex items-center gap-1.5 min-h-[28px]">
+                <p className="text-base font-bold uppercase tracking-[0.12em]">{referralCode || '—'}</p>
+                <button onClick={handleCopyReferral} className="hover:opacity-80 rounded p-0.5 hover:bg-white/10">
+                  <Copy size={14} />
                 </button>
               </div>
             </div>
-            <div className="flex flex-col items-center border-l border-r border-white/30">
-              <p className="text-xs font-semibold text-white/85 mb-1">Today's Profit (USD)</p>
-              <p className="text-lg font-bold">{profileLoading ? '...' : todayProfit.toFixed(2)}</p>
+            <div className="flex flex-col items-center justify-between border-l border-r border-white/30">
+              <p className="text-[11px] font-semibold text-white/85 mb-1 leading-tight">Today's Profit<br/>(USD)</p>
+              <p className="text-base font-bold min-h-[28px] flex items-center">{profileLoading ? '...' : todayProfit.toFixed(2)}</p>
             </div>
-            <div className="flex flex-col items-center">
-              <p className="text-xs font-semibold text-white/85 mb-1">Total Commission (USD)</p>
-              <p className="text-lg font-bold">{profileLoading ? '...' : totalCommission.toFixed(2)}</p>
+            <div className="flex flex-col items-center justify-between">
+              <p className="text-[11px] font-semibold text-white/85 mb-1 leading-tight">Total Commission<br/>(USD)</p>
+              <p className="text-base font-bold min-h-[28px] flex items-center">{profileLoading ? '...' : totalCommission.toFixed(2)}</p>
             </div>
           </div>
 

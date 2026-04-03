@@ -76,6 +76,18 @@ const LIVE_TICKER_FALLBACK_ENTRIES: WinnersTickerEntry[] = [
   { emoji: '🎉', user: 'ProfitPilot', amount: '$9,100.00 USD' },
   { emoji: '💰', user: 'TechMaster_Pro', amount: '$3,125.00 USD' },
   { emoji: '🌟', user: 'GoldenPath_X', amount: '$8,900.00 USD' },
+  { emoji: '🏆', user: 'Luxe_Capital', amount: '$27,400.00 USD' },
+  { emoji: '🎉', user: 'TradeHawk22', amount: '$6,320.00 USD' },
+  { emoji: '💰', user: 'AlphaNode_7', amount: '$11,750.00 USD' },
+  { emoji: '🌟', user: 'SilverEdge_99', amount: '$1,980.00 USD' },
+  { emoji: '🏆', user: 'VaultRunner', amount: '$34,100.00 USD' },
+  { emoji: '🎉', user: 'NexGen_Pro', amount: '$8,420.00 USD' },
+  { emoji: '💰', user: 'Zenith_Mark', amount: '$19,650.00 USD' },
+  { emoji: '🌟', user: 'Opal_Trader', amount: '$4,375.00 USD' },
+  { emoji: '🏆', user: 'IronWave_X', amount: '$16,800.00 USD' },
+  { emoji: '🎉', user: 'BlueChip_Dan', amount: '$7,290.00 USD' },
+  { emoji: '💰', user: 'SwiftGain_01', amount: '$13,550.00 USD' },
+  { emoji: '🌟', user: 'QuantumLeap9', amount: '$21,000.00 USD' },
 ];
 
 const TASK_CATALOG_CACHE_KEY = buildPublicCacheKey('starting:task-catalog', 'v1');
@@ -986,9 +998,9 @@ export default function Starting() {
         </div>
         {/* Scrolling winners */}
         <div className="pl-28 animate-marquee whitespace-nowrap">
-          {[...liveTickerEntries, ...liveTickerEntries].map((entry, idx) => (
+          {[...liveTickerEntries, ...liveTickerEntries, ...liveTickerEntries].map((entry, idx) => (
             <span key={`${entry.user}-${idx}`}>
-              <span className="mx-6 text-sm font-semibold text-[#00D9FF]">
+              <span className="mx-3 text-sm font-semibold text-[#00D9FF]">
                 {entry.emoji} <span className="text-white">{entry.user}</span> just won <span className="text-[#00D9FF] font-bold">{entry.amount}</span>
               </span>
               <span className="text-[#00D9FF]/30 mx-1">•</span>
