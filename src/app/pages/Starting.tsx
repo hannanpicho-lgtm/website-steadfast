@@ -116,72 +116,44 @@ function roundMoney(value: number): number {
   return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
-function readTaskCatalogCache(): TaskCatalogResponse | null {
+function readSessionCache<T>(key: string, ttlMs: number): T | null {
   try {
-    const rawValue = sessionStorage.getItem(TASK_CATALOG_CACHE_KEY);
-    if (!rawValue) {
+    const rawValue = sessionStorage.getItem(key);
+    if (!rawValue) return null;
+    const parsed = JSON.parse(rawValue) as { timestamp?: number; payload?: T };
+    if (!parsed || typeof parsed.timestamp !== 'number' || !parsed.payload) return null;
+    if (Date.now() - parsed.timestamp > ttlMs) {
+      sessionStorage.removeItem(key);
       return null;
     }
-
-    const parsed = JSON.parse(rawValue) as { timestamp?: number; payload?: TaskCatalogResponse };
-    if (!parsed || typeof parsed.timestamp !== 'number' || !parsed.payload) {
-      return null;
-    }
-
-    if (Date.now() - parsed.timestamp > TASK_CATALOG_CACHE_TTL_MS) {
-      sessionStorage.removeItem(TASK_CATALOG_CACHE_KEY);
-      return null;
-    }
-
     return parsed.payload;
   } catch {
     return null;
   }
+}
+
+function writeSessionCache<T>(key: string, payload: T) {
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ timestamp: Date.now(), payload }));
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+function readTaskCatalogCache(): TaskCatalogResponse | null {
+  return readSessionCache<TaskCatalogResponse>(TASK_CATALOG_CACHE_KEY, TASK_CATALOG_CACHE_TTL_MS);
 }
 
 function writeTaskCatalogCache(payload: TaskCatalogResponse) {
-  try {
-    sessionStorage.setItem(TASK_CATALOG_CACHE_KEY, JSON.stringify({
-      timestamp: Date.now(),
-      payload,
-    }));
-  } catch {
-    // Ignore storage errors and continue without cache.
-  }
+  writeSessionCache(TASK_CATALOG_CACHE_KEY, payload);
 }
 
 function readFinancialSummaryCache(username: string): UserData | null {
-  try {
-    const rawValue = sessionStorage.getItem(buildUserScopedCacheKey(FINANCIAL_SUMMARY_CACHE_KEY, username, 'v1'));
-    if (!rawValue) {
-      return null;
-    }
-
-    const parsed = JSON.parse(rawValue) as { timestamp?: number; payload?: UserData };
-    if (!parsed || typeof parsed.timestamp !== 'number' || !parsed.payload) {
-      return null;
-    }
-
-    if (Date.now() - parsed.timestamp > FINANCIAL_SUMMARY_CACHE_TTL_MS) {
-      sessionStorage.removeItem(FINANCIAL_SUMMARY_CACHE_KEY);
-      return null;
-    }
-
-    return parsed.payload;
-  } catch {
-    return null;
-  }
+  return readSessionCache<UserData>(buildUserScopedCacheKey(FINANCIAL_SUMMARY_CACHE_KEY, username, 'v1'), FINANCIAL_SUMMARY_CACHE_TTL_MS);
 }
 
 function writeFinancialSummaryCache(username: string, payload: UserData) {
-  try {
-    sessionStorage.setItem(buildUserScopedCacheKey(FINANCIAL_SUMMARY_CACHE_KEY, username, 'v1'), JSON.stringify({
-      timestamp: Date.now(),
-      payload,
-    }));
-  } catch {
-    // Ignore cache write errors.
-  }
+  writeSessionCache(buildUserScopedCacheKey(FINANCIAL_SUMMARY_CACHE_KEY, username, 'v1'), payload);
 }
 
 function readStartingPerfSamples(): StartingPerfSample[] {
@@ -256,6 +228,63 @@ function getPrimaryLabel(value: string | null | undefined, fallback = 'Product')
   }
 
   return normalized.split(',')[0];
+}
+
+/* ─── Reusable financial-card wrapper with tilt + sheen FX ─── */
+const FB_BASE = 'relative overflow-hidden rounded-xl border border-white/20 bg-white/12 p-3 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform';
+const FB_HOVER = 'hover:border-white/50 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)]';
+const FB_GLOSS = 'before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.20)_0%,rgba(255,255,255,0.04)_45%,rgba(4,34,93,0.06)_100%)]';
+const FB_RING = 'after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[11px] after:border after:border-white/15 after:transition-all after:duration-300 hover:after:border-white/40';
+const FB_SHEEN = 'pointer-events-none absolute inset-y-0 -left-[55%] w-[45%] bg-[linear-gradient(110deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.45)_48%,rgba(255,255,255,0)_100%)] opacity-0';
+
+function fbMouseMove(event: ReactMouseEvent<HTMLDivElement>) {
+  if (typeof window === 'undefined' || !window.matchMedia('(pointer: fine)').matches) return;
+  const block = event.currentTarget;
+  const rect = block.getBoundingClientRect();
+  const tiltMultiplier = Number(block.dataset.tiltMult ?? 1);
+  const offsetX = event.clientX - rect.left;
+  const offsetY = event.clientY - rect.top;
+  const rotateY = ((offsetX / rect.width) - 0.5) * (6 * tiltMultiplier);
+  const rotateX = (0.5 - (offsetY / rect.height)) * (6 * tiltMultiplier);
+  block.style.transform = `perspective(960px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) translateZ(0)`;
+}
+
+function fbMouseLeave(event: ReactMouseEvent<HTMLDivElement>) {
+  event.currentTarget.style.transform = 'perspective(960px) rotateX(0deg) rotateY(0deg) translateZ(0)';
+}
+
+function fbMouseEnter(event: ReactMouseEvent<HTMLDivElement>) {
+  const block = event.currentTarget;
+  if (block.dataset.sheenPlayed === 'true') return;
+  block.dataset.sheenPlayed = 'true';
+  const sheen = block.querySelector<HTMLElement>('[data-financial-sheen]');
+  if (!sheen) return;
+  sheen.style.transition = 'none';
+  sheen.style.transform = 'translateX(-135%)';
+  sheen.style.opacity = '0';
+  requestAnimationFrame(() => {
+    window.setTimeout(() => {
+      sheen.style.transition = 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease';
+      sheen.style.opacity = '1';
+      sheen.style.transform = 'translateX(235%)';
+      window.setTimeout(() => { sheen.style.opacity = '0'; }, 620);
+    }, 120);
+  });
+}
+
+function FinancialBlock({ tiltMult = 1, className = '', children }: { tiltMult?: number; className?: string; children: React.ReactNode }) {
+  return (
+    <div
+      className={`${FB_BASE} ${FB_HOVER} ${FB_GLOSS} ${FB_RING} ${className}`}
+      onMouseMove={fbMouseMove}
+      onMouseLeave={fbMouseLeave}
+      onMouseEnter={fbMouseEnter}
+      data-tilt-mult={tiltMult}
+    >
+      <span data-financial-sheen className={FB_SHEEN} />
+      <div className="relative z-[1]">{children}</div>
+    </div>
+  );
 }
 
 // Starting page - Product submission platform with commission tracking
@@ -418,59 +447,6 @@ export default function Starting() {
   const inferredCompletedSetCount = currentSetComplete
     ? Math.max(completedSetCount, 1)
     : completedSetCount;
-  const financialBlockBaseFx = 'relative overflow-hidden rounded-xl border border-white/20 bg-white/12 p-3 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform';
-  const financialBlockHoverFx = 'hover:border-white/50 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)]';
-  const financialBlockGlossFx = 'before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.20)_0%,rgba(255,255,255,0.04)_45%,rgba(4,34,93,0.06)_100%)]';
-  const financialBlockRingFx = 'after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[11px] after:border after:border-white/15 after:transition-all after:duration-300 hover:after:border-white/40';
-  const financialSheenFx = 'pointer-events-none absolute inset-y-0 -left-[55%] w-[45%] bg-[linear-gradient(110deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.45)_48%,rgba(255,255,255,0)_100%)] opacity-0';
-
-  const handleFinancialBlockMouseMove = (event: ReactMouseEvent<HTMLDivElement>) => {
-    if (typeof window === 'undefined' || !window.matchMedia('(pointer: fine)').matches) {
-      return;
-    }
-
-    const block = event.currentTarget;
-    const rect = block.getBoundingClientRect();
-    const tiltMultiplier = Number(block.dataset.tiltMult ?? 1);
-    const offsetX = event.clientX - rect.left;
-    const offsetY = event.clientY - rect.top;
-    const rotateY = ((offsetX / rect.width) - 0.5) * (6 * tiltMultiplier);
-    const rotateX = (0.5 - (offsetY / rect.height)) * (6 * tiltMultiplier);
-    block.style.transform = `perspective(960px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) translateZ(0)`;
-  };
-
-  const resetFinancialBlockTilt = (event: ReactMouseEvent<HTMLDivElement>) => {
-    event.currentTarget.style.transform = 'perspective(960px) rotateX(0deg) rotateY(0deg) translateZ(0)';
-  };
-
-  const primeFinancialBlockFx = (event: ReactMouseEvent<HTMLDivElement>) => {
-    const block = event.currentTarget;
-    if (block.dataset.sheenPlayed === 'true') {
-      return;
-    }
-
-    block.dataset.sheenPlayed = 'true';
-    const sheen = block.querySelector<HTMLElement>('[data-financial-sheen]');
-    if (!sheen) {
-      return;
-    }
-
-    sheen.style.transition = 'none';
-    sheen.style.transform = 'translateX(-135%)';
-    sheen.style.opacity = '0';
-
-    requestAnimationFrame(() => {
-      window.setTimeout(() => {
-        sheen.style.transition = 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease';
-        sheen.style.opacity = '1';
-        sheen.style.transform = 'translateX(235%)';
-
-        window.setTimeout(() => {
-          sheen.style.opacity = '0';
-        }, 620);
-      }, 120);
-    });
-  };
 
   // Fetch user data on mount
   useEffect(() => {
@@ -1282,36 +1258,19 @@ export default function Starting() {
                 Financial Summary
               </div>
 
-              <div
-                className={`${financialBlockBaseFx} ${financialBlockHoverFx} ${financialBlockGlossFx} ${financialBlockRingFx} mt-3 px-4 py-4`}
-                onMouseMove={handleFinancialBlockMouseMove}
-                onMouseLeave={resetFinancialBlockTilt}
-                onMouseEnter={primeFinancialBlockFx}
-                data-tilt-mult="1.1"
-              >
-                <span data-financial-sheen className={financialSheenFx} />
-                <div className="relative z-[1]">
-                  <Rocket className="mx-auto" size={26} />
-                  <h3 className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Today's Commission</h3>
-                  <p className="mt-2 text-3xl font-bold leading-none">{todayCommissionDisplay.toFixed(2)} USD</p>
-                  <p className="mt-2 text-xs text-white/80">Updated from completed submissions in the current working day.</p>
-                  {userData?.isFrozen && (
-                    <p className="mt-1 text-[11px] text-amber-100/90">Includes premium commission profit shown in settlement details.</p>
-                  )}
-                </div>
-              </div>
+              <FinancialBlock tiltMult={1.1} className="mt-3 px-4 py-4">
+                <Rocket className="mx-auto" size={26} />
+                <h3 className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Today's Commission</h3>
+                <p className="mt-2 text-3xl font-bold leading-none">{todayCommissionDisplay.toFixed(2)} USD</p>
+                <p className="mt-2 text-xs text-white/80">Updated from completed submissions in the current working day.</p>
+                {userData?.isFrozen && (
+                  <p className="mt-1 text-[11px] text-amber-100/90">Includes premium commission profit shown in settlement details.</p>
+                )}
+              </FinancialBlock>
             </div>
 
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div
-                className={`${financialBlockBaseFx} ${financialBlockHoverFx} ${financialBlockGlossFx} ${financialBlockRingFx}`}
-                onMouseMove={handleFinancialBlockMouseMove}
-                onMouseLeave={resetFinancialBlockTilt}
-                onMouseEnter={primeFinancialBlockFx}
-                data-tilt-mult="1"
-              >
-                <span data-financial-sheen className={financialSheenFx} />
-                <div className="relative z-[1]">
+              <FinancialBlock>
                 <div className="flex flex-col items-center text-center gap-2 md:flex-row md:text-left md:gap-3">
                   <div className="rounded-full bg-white/15 p-1.5 shrink-0">
                     <CreditCard size={15} />
@@ -1328,18 +1287,9 @@ export default function Starting() {
                 <p className="mt-2 text-center text-[11px] text-white/75 md:text-left">
                   {userData?.isFrozen ? 'Balance held before premium settlement.' : 'Funds currently available for new submissions.'}
                 </p>
-                </div>
-              </div>
+              </FinancialBlock>
 
-              <div
-                className={`${financialBlockBaseFx} ${financialBlockHoverFx} ${financialBlockGlossFx} ${financialBlockRingFx}`}
-                onMouseMove={handleFinancialBlockMouseMove}
-                onMouseLeave={resetFinancialBlockTilt}
-                onMouseEnter={primeFinancialBlockFx}
-                data-tilt-mult="1"
-              >
-                <span data-financial-sheen className={financialSheenFx} />
-                <div className="relative z-[1]">
+              <FinancialBlock>
                 <div className="flex flex-col items-center text-center gap-2 md:flex-row md:text-left md:gap-3">
                   <div className="rounded-full bg-white/15 p-1.5 shrink-0">
                     <Snowflake size={15} />
@@ -1354,28 +1304,18 @@ export default function Starting() {
                 <p className="mt-2 text-center text-[11px] text-white/75 md:text-left">
                   {userData?.isFrozen ? 'Reserved for the premium settlement requirement.' : 'Amount currently reserved from the working balance.'}
                 </p>
-                </div>
-              </div>
+              </FinancialBlock>
             </div>
 
-            <div
-              className="relative mt-3 overflow-hidden rounded-[18px] border border-white/20 bg-white/12 p-4 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform hover:border-white/60 hover:shadow-[0_20px_34px_rgba(5,42,107,0.46)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.24)_0%,rgba(255,255,255,0.06)_45%,rgba(4,34,93,0.08)_100%)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[15px] after:border after:border-white/15 after:transition-all after:duration-300 hover:after:border-white/45"
-              onMouseMove={handleFinancialBlockMouseMove}
-              onMouseLeave={resetFinancialBlockTilt}
-              onMouseEnter={primeFinancialBlockFx}
-              data-tilt-mult="1.2"
-            >
-              <span data-financial-sheen className={financialSheenFx} />
-              <div className="relative z-[1]">
-                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">Total Account Balance</p>
-                <p className="mt-1.5 text-center text-[1.75rem] font-bold">{totalAccountBalanceDisplay.toFixed(2)} USD</p>
-                <p className="mt-1.5 text-center text-[11px] text-white/75">
-                  {userData?.isFrozen
-                    ? 'Includes pre-freeze balance, current hold amount, and earned premium profit.'
-                    : 'Reflects the active account balance across the current task cycle.'}
-                </p>
-              </div>
-            </div>
+            <FinancialBlock tiltMult={1.2} className="mt-3 rounded-[18px] after:rounded-[15px] hover:border-white/60 hover:shadow-[0_20px_34px_rgba(5,42,107,0.46)] before:bg-[linear-gradient(145deg,rgba(255,255,255,0.24)_0%,rgba(255,255,255,0.06)_45%,rgba(4,34,93,0.08)_100%)] hover:after:border-white/45 p-4">
+              <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">Total Account Balance</p>
+              <p className="mt-1.5 text-center text-[1.75rem] font-bold">{totalAccountBalanceDisplay.toFixed(2)} USD</p>
+              <p className="mt-1.5 text-center text-[11px] text-white/75">
+                {userData?.isFrozen
+                  ? 'Includes pre-freeze balance, current hold amount, and earned premium profit.'
+                  : 'Reflects the active account balance across the current task cycle.'}
+              </p>
+            </FinancialBlock>
 
             {userData?.isFrozen && (
               <div className="mt-3 rounded-[18px] border border-amber-300/30 bg-amber-500/10 p-3">
@@ -1398,15 +1338,8 @@ export default function Starting() {
             )}
 
             {isPremiumTaskActive && (
-              <div
-                className={`${financialBlockBaseFx} ${financialBlockHoverFx} ${financialBlockGlossFx} ${financialBlockRingFx} mt-3`}
-                onMouseMove={handleFinancialBlockMouseMove}
-                onMouseLeave={resetFinancialBlockTilt}
-                onMouseEnter={primeFinancialBlockFx}
-                data-tilt-mult="1"
-              >
-                <span data-financial-sheen className={financialSheenFx} />
-                <div className="relative z-[1] text-center">
+              <FinancialBlock className="mt-3">
+                <div className="text-center">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200/90">Premium Estimated Profit</p>
                   <p className="mt-1 text-xl font-bold text-[#b8ffd4]">
                     {(Number(userData?.activePremium?.commissionEarned ?? 0) > 0 ? earnedPremiumProfit : projectedPremiumProfit).toFixed(2)} USD
@@ -1417,40 +1350,26 @@ export default function Starting() {
                       : `Projected from ${premiumDisplayName} at ${premiumCommissionRate.toFixed(2)}% rate.`}
                   </p>
                 </div>
-              </div>
+              </FinancialBlock>
             )}
 
             <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div
-                className="relative overflow-hidden rounded-xl border border-white/15 bg-[#083b93]/35 p-3 transition-all duration-300 ease-out will-change-transform hover:border-white/45 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.03)_45%,rgba(4,34,93,0.10)_100%)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[11px] after:border after:border-white/10 after:transition-all after:duration-300 hover:after:border-white/30"
-                onMouseMove={handleFinancialBlockMouseMove}
-                onMouseLeave={resetFinancialBlockTilt}
-                onMouseEnter={primeFinancialBlockFx}
-                data-tilt-mult="1"
-              >
-                <span data-financial-sheen className={financialSheenFx} />
-                <div className="relative z-[1] text-center">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Lucky Bonus</p>
-                <p className="mt-1 text-xl font-bold">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
-                <p className="mt-1.5 text-[11px] text-white/75">Bonus value currently carried on the account.</p>
+              <FinancialBlock className="bg-[#083b93]/35 border-white/15 hover:border-white/45 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.03)_45%,rgba(4,34,93,0.10)_100%)] after:border-white/10 hover:after:border-white/30">
+                <div className="text-center">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Lucky Bonus</p>
+                  <p className="mt-1 text-xl font-bold">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
+                  <p className="mt-1.5 text-[11px] text-white/75">Bonus value currently carried on the account.</p>
                 </div>
-              </div>
-              <div
-                className="relative overflow-hidden rounded-xl border border-white/15 bg-[#083b93]/35 p-3 transition-all duration-300 ease-out will-change-transform hover:border-white/45 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)] before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.03)_45%,rgba(4,34,93,0.10)_100%)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[11px] after:border after:border-white/10 after:transition-all after:duration-300 hover:after:border-white/30"
-                onMouseMove={handleFinancialBlockMouseMove}
-                onMouseLeave={resetFinancialBlockTilt}
-                onMouseEnter={primeFinancialBlockFx}
-                data-tilt-mult="1"
-              >
-                <span data-financial-sheen className={financialSheenFx} />
-                <div className="relative z-[1] text-center">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Working Status</p>
-                <p className="mt-1 text-xl font-bold">{userData?.isFrozen ? 'Settlement Review' : 'Ready To Submit'}</p>
-                <p className="mt-1.5 text-[11px] text-white/75">
-                  {userData?.isFrozen ? 'Submission remains paused until the premium requirement is cleared.' : 'The account can continue processing eligible tasks.'}
-                </p>
+              </FinancialBlock>
+              <FinancialBlock className="bg-[#083b93]/35 border-white/15 hover:border-white/45 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.03)_45%,rgba(4,34,93,0.10)_100%)] after:border-white/10 hover:after:border-white/30">
+                <div className="text-center">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Working Status</p>
+                  <p className="mt-1 text-xl font-bold">{userData?.isFrozen ? 'Settlement Review' : 'Ready To Submit'}</p>
+                  <p className="mt-1.5 text-[11px] text-white/75">
+                    {userData?.isFrozen ? 'Submission remains paused until the premium requirement is cleared.' : 'The account can continue processing eligible tasks.'}
+                  </p>
                 </div>
-              </div>
+              </FinancialBlock>
             </div>
           </div>
         </div>
