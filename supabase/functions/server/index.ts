@@ -1577,6 +1577,8 @@ const DISTRIBUTED_RATE_LIMIT_LOCK_PREFIX = 'rate-limit-lock:';
 const REWARDS_CONFIG_SCHEMA_VERSION = 2;
 const REWARDS_CONFIG_KEY = `rewards-config:v${REWARDS_CONFIG_SCHEMA_VERSION}:primary`;
 const LEGACY_REWARDS_CONFIG_KEYS = ['rewards-config:primary'];
+const AUTO_WORKDAY_REWARDS_ENABLED = false;
+const AUTO_ACCUMULATED_REWARDS_ENABLED = false;
 const ADMIN_SALARY_PROJECT_KEY = 'admin-salary:project:primary';
 const ADMIN_SALARY_AUDIT_LOG_KEY = 'admin-salary:audit-log:primary';
 const ADMIN_PLATFORM_SETTINGS_KEY = 'admin-platform-settings:primary';
@@ -3909,7 +3911,7 @@ async function applyAutomaticRewardsForUser(username: string, userData: any, pre
     }
   }
 
-  const workdayRewards = Array.isArray(rewardsConfig.workday)
+  const workdayRewards = AUTO_WORKDAY_REWARDS_ENABLED && Array.isArray(rewardsConfig.workday)
     ? rewardsConfig.workday
       .filter((reward: any) => reward?.enabled)
       .sort((left: any, right: any) => Number(left?.days ?? 0) - Number(right?.days ?? 0))
@@ -4005,7 +4007,7 @@ async function applyAutomaticRewardsForUser(username: string, userData: any, pre
     };
   }
 
-  if (todayDepositTotal > 0 && accumulatedRewards.length > 0) {
+  if (AUTO_ACCUMULATED_REWARDS_ENABLED && todayDepositTotal > 0 && accumulatedRewards.length > 0) {
     const eligibleTier = [...accumulatedRewards].reverse().find((reward: any) => {
       const minDeposit = roundMoney(Number(reward?.minDeposit ?? 0));
       const maxDeposit = reward?.maxDeposit == null ? null : roundMoney(Number(reward.maxDeposit));
