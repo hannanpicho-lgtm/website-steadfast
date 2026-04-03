@@ -18,7 +18,6 @@ import {
   buildPublicCacheKey,
   buildUserScopedCacheKey,
   reportClientCompatibilityEvent,
-  resolveFeatureEndpoint,
 } from '../services/apiCompatibility';
 
 interface UserData {
@@ -680,22 +679,20 @@ export default function Starting() {
       }
 
       try {
-        const snapshotRoute = await resolveFeatureEndpoint('startingSnapshotV2', '/me/financials');
-        console.log('[starting] snapshotRoute:', snapshotRoute.usingFallback ? 'FALLBACK' : 'V2', 'url=', snapshotRoute.url, 'reason=', snapshotRoute.reason);
-        if (snapshotRoute.usingFallback) {
-          throw new Error(snapshotRoute.reason ?? 'starting_snapshot_disabled');
-        }
+        // Go directly to V2 snapshot URL — skip the /version waterfall.
+        // If V2 fails the catch block falls back to V1 endpoints.
+        const v2SnapshotUrl = `${serverUrl}/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50`;
 
         const snapshotStartedAt = performance.now();
-        console.log('[starting] fetching v2 snapshot...');
+        console.log('[starting] fetching v2 snapshot (direct)...');
         const snapshot = await fetchJsonWithRetry<any>({
-          url: `${snapshotRoute.url}?includeCatalog=true&includeConfig=true&catalogLimit=50`,
+          url: v2SnapshotUrl,
           init: {
             credentials: 'include',
           },
-          timeoutMs: 7000,
-          retries: 2,
-          retryDelayMs: 250,
+          timeoutMs: 4000,
+          retries: 1,
+          retryDelayMs: 200,
           pageTag: 'starting',
           featureTag: 'startingSnapshotV2',
           expectedApiVersion: 'v2',

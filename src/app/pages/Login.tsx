@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { signInAdmin } from '../services/supabaseAuth';
+import { warmApiCompatibilityState } from '../services/apiCompatibility';
 import { serverLogin } from '../services/serverAuth';
 import { type LoginLocationState } from '../services/loginRedirect';
 
@@ -189,6 +190,7 @@ export default function Login() {
 
       setLoginTarget('/admin');
       setShowWelcome(true);
+      void warmApiCompatibilityState();
       return;
     }
 
@@ -197,6 +199,7 @@ export default function Login() {
     if (serverResult.ok) {
       setLoginTarget(serverResult.mustChangePassword ? '/profile?forcePasswordChange=1' : (from && from !== '/login' ? from : '/home'));
       setShowWelcome(true);
+      void warmApiCompatibilityState();
       return;
     }
 

@@ -11,7 +11,7 @@ export const FRONTEND_SUPPORTED_API_VERSIONS: ApiVersion[] = ['v1', 'v2'];
 const EXPECTED_SERVICE = FUNCTION_SERVICE_NAME;
 const BASE_URL = RUNTIME_ENVIRONMENT.apiBaseUrl;
 const COMPATIBILITY_CACHE_KEY = `compatibility:${FRONTEND_CONTRACT_VERSION}:${EXPECTED_SERVICE}`;
-const COMPATIBILITY_CACHE_TTL_MS = 30 * 1000;
+const COMPATIBILITY_CACHE_TTL_MS = 5 * 60 * 1000;
 
 type CompatibilityFeatureState = {
   enabled: boolean;
