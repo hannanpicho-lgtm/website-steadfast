@@ -54,7 +54,8 @@ function buildHeaders({ anonKey, adminJwt, adminScriptToken }) {
     Authorization: authorizationValue,
     apikey: anonKey,
     ...(adminJwt ? { 'x-user-jwt': adminJwt } : {}),
-    ...(adminScriptToken ? { 'x-admin-script-token': adminScriptToken } : {}),
+    // x-admin-script-token is NOT sent when using Authorization bearer — backend reads the ast_ token
+    // directly from the Authorization header in that case (sending both triggers gateway-auth check)
     Origin: TRUSTED_ORIGIN,
     'Content-Type': 'application/json',
   };
@@ -82,21 +83,34 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function updateUserTaskSetCount({ functionUrl, headers, username, minTaskSetCount }) {
-  const response = await fetch(`${functionUrl}/admin/platform-users/${encodeURIComponent(username)}/task-controls`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      taskSetCount: minTaskSetCount,
-    }),
-  });
+async function updateUserTaskSetCount({ functionUrl, headers, username, minTaskSetCount, maxRetries = 4 }) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const response = await fetch(`${functionUrl}/admin/platform-users/${encodeURIComponent(username)}/task-controls`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        taskSetCount: minTaskSetCount,
+      }),
+    });
 
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(payload?.error ?? `HTTP ${response.status}`);
+    if (response.status === 429) {
+      if (attempt >= maxRetries) {
+        throw new Error(`Rate limited after ${maxRetries} attempts (HTTP 429)`);
+      }
+      const retryAfterRaw = response.headers.get('Retry-After');
+      const retryAfterSec = Number.isFinite(Number(retryAfterRaw)) ? Math.max(1, Number(retryAfterRaw)) : 62;
+      console.warn(`  [rate-limited] ${username} — waiting ${retryAfterSec}s before retry ${attempt + 1}/${maxRetries}...`);
+      await sleep(retryAfterSec * 1000);
+      continue;
+    }
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error ?? `HTTP ${response.status}`);
+    }
+
+    return payload;
   }
-
-  return payload;
 }
 
 async function main() {
@@ -170,10 +184,9 @@ async function main() {
       });
       updated += 1;
     } catch (error) {
-      failed.push({
-        username,
-        reason: error instanceof Error ? error.message : String(error),
-      });
+      const reason = error instanceof Error ? error.message : String(error);
+      failed.push({ username, reason });
+      console.warn(`  [fail] ${username}: ${reason}`);
     }
 
     if ((index + 1) % 25 === 0 || index + 1 === candidates.length) {
@@ -185,36 +198,45 @@ async function main() {
     }
   }
 
-  const after = await listPlatformUsers({ functionUrl, headers });
-  const stillBelowMinimum = after.users.filter((user) => {
-    const count = Number(user?.taskSetCount ?? 0);
-    return Number.isFinite(count) && count < minTaskSetCount;
-  });
+  let after = null;
+  let revalidationError = null;
+  try {
+    after = await listPlatformUsers({ functionUrl, headers });
+  } catch (err) {
+    revalidationError = err instanceof Error ? err.message : String(err);
+    console.warn(`\n[warn] Re-validation failed: ${revalidationError}. Reporting known counts only.`);
+  }
+
+  const stillBelowMinimum = after
+    ? after.users.filter((user) => {
+        const count = Number(user?.taskSetCount ?? 0);
+        return Number.isFinite(count) && count < minTaskSetCount;
+      })
+    : null;
 
   console.log('\nReconciliation summary');
   console.log(JSON.stringify({
-    totalUsers: after.total,
+    totalUsers: after?.total ?? initial.total,
     attempted: candidates.length,
     updated,
     failed: failed.length,
-    stillBelowMinimum: stillBelowMinimum.length,
+    stillBelowMinimum: stillBelowMinimum?.length ?? 'unknown (re-validation failed)',
     minTaskSetCount,
+    revalidationError: revalidationError ?? null,
   }, null, 2));
 
-  if (failed.length > 0) {
-    console.log('\nFailures (first 20):');
-    failed.slice(0, 20).forEach((entry, index) => {
-      console.log(`${index + 1}. ${entry.username}: ${entry.reason}`);
-    });
-  }
-
-  if (stillBelowMinimum.length > 0) {
+  if (stillBelowMinimum !== null && stillBelowMinimum.length > 0) {
     console.error(`Reconciliation incomplete: ${stillBelowMinimum.length} users still below ${minTaskSetCount}.`);
     process.exit(1);
   }
 
   if (failed.length > 0) {
     console.error(`Reconciliation completed with failures: ${failed.length} failed updates.`);
+    process.exit(1);
+  }
+
+  if (revalidationError) {
+    console.error(`Reconciliation apply completed but re-validation failed. Re-run to verify and apply remaining.`);
     process.exit(1);
   }
 
