@@ -132,8 +132,8 @@ const DEFAULT_PRODUCTION_CORS_ALLOWED_ORIGINS = [
 
 const envCorsAllowedOrigins = (Deno.env.get('CORS_ALLOWED_ORIGINS') ?? '')
   .split(',')
-  .map((value) => value.trim())
-  .filter((value) => value.length > 0);
+  .map((value: string) => value.trim())
+  .filter((value: string) => value.length > 0);
 
 const CORS_ALLOWED_ORIGINS = envCorsAllowedOrigins.length > 0
   ? envCorsAllowedOrigins
@@ -2732,7 +2732,13 @@ function normalizeAccumulatedRewardRecord(record: any, index: number) {
 function normalizeProductSystemConfig(record: any) {
   const source = typeof record === 'object' && record ? record : {};
   const rawAdjustments = Array.isArray(source.vipPremiumAdjustments) ? source.vipPremiumAdjustments : [];
-  const defaultAdjustments = Array.isArray(defaultRewardsConfig.productSystem.vipPremiumAdjustments)
+  const defaultAdjustments: Array<{
+    vipLevel: number;
+    multiplier: number;
+    minValue: number;
+    maxValue: number;
+    upholdAmount?: number;
+  }> = Array.isArray(defaultRewardsConfig.productSystem.vipPremiumAdjustments)
     ? defaultRewardsConfig.productSystem.vipPremiumAdjustments
     : [];
 
@@ -2770,7 +2776,7 @@ function normalizeProductSystemConfig(record: any) {
         upholdAmount,
       };
     })
-    .sort((left, right) => left.vipLevel - right.vipLevel);
+    .sort((left: { vipLevel: number }, right: { vipLevel: number }) => left.vipLevel - right.vipLevel);
 
   const premiumValueModeRaw = typeof source.premiumValueMode === 'string' ? source.premiumValueMode.toLowerCase() : 'multiplier';
   const premiumValueMode = premiumValueModeRaw === 'range' ? 'range' : 'multiplier';
@@ -2793,7 +2799,7 @@ function resolveVipPremiumAdjustment(
   vipLevel: number,
   productSystem: ReturnType<typeof normalizeProductSystemConfig>,
 ) {
-  const direct = productSystem.vipPremiumAdjustments.find((entry) => entry.vipLevel === vipLevel);
+  const direct = productSystem.vipPremiumAdjustments.find((entry: { vipLevel: number }) => entry.vipLevel === vipLevel);
   if (direct) {
     return direct;
   }
@@ -3006,7 +3012,7 @@ async function getRewardsConfigRecord() {
 
     const migrated = applyRewardsConfigMigrations(legacy);
     await kv.set(REWARDS_CONFIG_KEY, migrated);
-    await kv.delete(legacyKey);
+    await kv.del(legacyKey);
     rewardsConfigRuntimeCache = { data: migrated, expiresAt: Date.now() + CONFIG_RUNTIME_CACHE_TTL_MS };
     return migrated;
   }
@@ -3716,7 +3722,7 @@ async function acquireDistributedLock(lockName: string, timeoutMs = 8_000, lease
       await kv.del(lockKey).catch(() => undefined);
     }
 
-    await delay(50);
+    await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
   throw new Error(`Timed out acquiring distributed lock '${lockName}'`);
