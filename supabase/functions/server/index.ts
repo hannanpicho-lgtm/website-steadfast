@@ -8626,7 +8626,7 @@ app.put('/make-server-a1c55d7e/admin/observability/security-alert-config', async
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/observability/audit-log', async (c) => {
+app.get('/make-server-a1c55d7e/admin/observability/audit-log', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -8691,7 +8691,7 @@ app.get('/make-server-a1c55d7e/admin/observability/audit-log', async (c) => {
   }
 });
 
-  app.get('/make-server-a1c55d7e/admin/observability/rate-limit-status', async (c) => {
+  app.get('/make-server-a1c55d7e/admin/observability/rate-limit-status', async (c: any) => {
     try {
       const unauthorized = await requireAdmin(c);
       if (unauthorized) {
@@ -8786,7 +8786,7 @@ app.get('/make-server-a1c55d7e/admin/observability/audit-log', async (c) => {
     }
   });
 
-app.post('/make-server-a1c55d7e/admin/tasks', async (c) => {
+app.post('/make-server-a1c55d7e/admin/tasks', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -8944,7 +8944,7 @@ function generateProductForVipTier(
 }
 
 // POST /admin/tasks/bulk — create multiple tasks from JSON array or CSV data
-app.post('/make-server-a1c55d7e/admin/tasks/bulk', async (c) => {
+app.post('/make-server-a1c55d7e/admin/tasks/bulk', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -9060,7 +9060,7 @@ app.post('/make-server-a1c55d7e/admin/tasks/bulk', async (c) => {
 });
 
 // POST /admin/tasks/generate — intelligently generate VIP-aware products
-app.post('/make-server-a1c55d7e/admin/tasks/generate', async (c) => {
+app.post('/make-server-a1c55d7e/admin/tasks/generate', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -9173,7 +9173,7 @@ app.post('/make-server-a1c55d7e/admin/tasks/generate', async (c) => {
 });
 
 // DELETE /admin/tasks/bulk — delete multiple tasks by ID (must be before /:taskId)
-app.delete('/make-server-a1c55d7e/admin/tasks/bulk', async (c) => {
+app.delete('/make-server-a1c55d7e/admin/tasks/bulk', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -9241,7 +9241,7 @@ app.delete('/make-server-a1c55d7e/admin/tasks/bulk', async (c) => {
 });
 
 // PUT /admin/tasks/bulk — bulk-update status/price/commission (must be before /:taskId)
-app.put('/make-server-a1c55d7e/admin/tasks/bulk', async (c) => {
+app.put('/make-server-a1c55d7e/admin/tasks/bulk', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -9331,7 +9331,7 @@ app.put('/make-server-a1c55d7e/admin/tasks/bulk', async (c) => {
   }
 });
 
-app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
+app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -9406,7 +9406,7 @@ app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
   }
 });
 
-app.put('/make-server-a1c55d7e/admin/vip-config/:level', async (c) => {
+app.put('/make-server-a1c55d7e/admin/vip-config/:level', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -9487,7 +9487,7 @@ app.put('/make-server-a1c55d7e/admin/vip-config/:level', async (c) => {
   }
 });
 
-app.post('/make-server-a1c55d7e/admin/sync-all-users-vip', async (c) => {
+app.post('/make-server-a1c55d7e/admin/sync-all-users-vip', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -9544,7 +9544,7 @@ app.post('/make-server-a1c55d7e/admin/sync-all-users-vip', async (c) => {
   }
 });
 
-app.put('/make-server-a1c55d7e/admin/rewards-config', async (c) => {
+app.put('/make-server-a1c55d7e/admin/rewards-config', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -9595,7 +9595,7 @@ app.put('/make-server-a1c55d7e/admin/rewards-config', async (c) => {
   }
 });
 
-app.delete('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
+app.delete('/make-server-a1c55d7e/admin/tasks/:taskId', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -9636,7 +9636,7 @@ app.delete('/make-server-a1c55d7e/admin/tasks/:taskId', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/withdrawals', async (c) => {
+app.get('/make-server-a1c55d7e/admin/withdrawals', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -9694,7 +9694,7 @@ app.get('/make-server-a1c55d7e/admin/withdrawals', async (c) => {
   }
 });
 
-app.post('/make-server-a1c55d7e/admin/withdrawals/:withdrawalId/review', async (c) => {
+app.post('/make-server-a1c55d7e/admin/withdrawals/:withdrawalId/review', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -9837,7 +9837,7 @@ app.post('/make-server-a1c55d7e/admin/withdrawals/:withdrawalId/review', async (
 })
 
 // Get premium assignments for the session-authenticated user
-app.get('/make-server-a1c55d7e/me/premium', async (c) => {
+app.get('/make-server-a1c55d7e/me/premium', async (c: any) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -9860,7 +9860,7 @@ app.get('/make-server-a1c55d7e/me/premium', async (c) => {
 });
 
 // Get premium assignments across scoped users for admin views
-app.get("/make-server-a1c55d7e/admin/premium-assignments", async (c) => {
+app.get("/make-server-a1c55d7e/admin/premium-assignments", async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -9946,7 +9946,7 @@ function sanitizeSupportLinks(value: unknown) {
 }
 
 // Get support contact links
-app.get("/make-server-a1c55d7e/cs/support-links", async (c) => {
+app.get("/make-server-a1c55d7e/cs/support-links", async (c: any) => {
   try {
     const [saved, csSettingsRaw] = await Promise.all([kv.get(SUPPORT_LINKS_KEY), kv.get(ADMIN_PLATFORM_SETTINGS_KEY)]);
     const csSettings = sanitizeAdminPlatformSettings(csSettingsRaw);
@@ -9961,7 +9961,7 @@ app.get("/make-server-a1c55d7e/cs/support-links", async (c) => {
 });
 
 // Update support contact links
-app.post("/make-server-a1c55d7e/cs/support-links", async (c) => {
+app.post("/make-server-a1c55d7e/cs/support-links", async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -9982,7 +9982,7 @@ app.post("/make-server-a1c55d7e/cs/support-links", async (c) => {
 });
 
 // Create a support ticket
-app.post("/make-server-a1c55d7e/cs/create-ticket", async (c) => {
+app.post("/make-server-a1c55d7e/cs/create-ticket", async (c: any) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:create-ticket');
     if (rateLimited) return rateLimited;
@@ -10031,7 +10031,7 @@ app.post("/make-server-a1c55d7e/cs/create-ticket", async (c) => {
 });
 
 // Get all tickets (admin)
-app.get("/make-server-a1c55d7e/cs/admin/tickets", async (c) => {
+app.get("/make-server-a1c55d7e/cs/admin/tickets", async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -10056,7 +10056,7 @@ app.get("/make-server-a1c55d7e/cs/admin/tickets", async (c) => {
 });
 
 // Add response to ticket
-app.post("/make-server-a1c55d7e/cs/respond", async (c) => {
+app.post("/make-server-a1c55d7e/cs/respond", async (c: any) => {
   try {
     const { ticketId, message, respondedBy: rawRespondedBy, isAdmin } = await c.req.json();
     let respondedBy = '';
@@ -10146,7 +10146,7 @@ app.post("/make-server-a1c55d7e/cs/respond", async (c) => {
 });
 
 // Update ticket status
-app.post("/make-server-a1c55d7e/cs/update-status", async (c) => {
+app.post("/make-server-a1c55d7e/cs/update-status", async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -10342,7 +10342,7 @@ function buildChatThreadSummary(username: string, messages: any[]) {
   };
 }
 
-app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
+app.post("/make-server-a1c55d7e/cs/chat/send", async (c: any) => {
   try {
     const { username: rawChatUsername, message, isAdmin } = await c.req.json();
     let username = '';
@@ -10428,7 +10428,7 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c) => {
 });
 
 // Get chat messages
-app.get("/make-server-a1c55d7e/cs/chat/:username", async (c) => {
+app.get("/make-server-a1c55d7e/cs/chat/:username", async (c: any) => {
   try {
     const requestedUsername = sanitizeUsername(c.req.param('username'));
     if (!requestedUsername) {
@@ -10486,7 +10486,7 @@ app.get("/make-server-a1c55d7e/cs/chat/:username", async (c) => {
 });
 
 // Mark chat messages as read for the current viewer
-app.post("/make-server-a1c55d7e/cs/chat/mark-read", async (c) => {
+app.post("/make-server-a1c55d7e/cs/chat/mark-read", async (c: any) => {
   try {
     const { username: rawMarkReadUsername, viewer } = await c.req.json();
 
@@ -10577,7 +10577,7 @@ app.post("/make-server-a1c55d7e/cs/chat/mark-read", async (c) => {
 });
 
 // Get all active chats (admin)
-app.get("/make-server-a1c55d7e/cs/admin/chats", async (c) => {
+app.get("/make-server-a1c55d7e/cs/admin/chats", async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) {
@@ -10613,7 +10613,7 @@ app.get("/make-server-a1c55d7e/cs/admin/chats", async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/me/chat/summary', async (c) => {
+app.get('/make-server-a1c55d7e/me/chat/summary', async (c: any) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -10633,7 +10633,7 @@ app.get('/make-server-a1c55d7e/me/chat/summary', async (c) => {
 // ==================== PASSWORD RESET ENDPOINTS ====================
 
 // Request password reset
-app.post("/make-server-a1c55d7e/auth/forgot-password", async (c) => {
+app.post("/make-server-a1c55d7e/auth/forgot-password", async (c: any) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:forgot-password', FORGOT_PASSWORD_RATE_LIMIT_MAX);
     if (rateLimited) return rateLimited;
@@ -10678,7 +10678,7 @@ app.post("/make-server-a1c55d7e/auth/forgot-password", async (c) => {
 });
 
 // Verify reset token
-app.get("/make-server-a1c55d7e/auth/verify-reset-token/:token", async (c) => {
+app.get("/make-server-a1c55d7e/auth/verify-reset-token/:token", async (c: any) => {
   try {
     const token = sanitizeResetToken(c.req.param("token"));
     if (!token) {
@@ -10708,7 +10708,7 @@ app.get("/make-server-a1c55d7e/auth/verify-reset-token/:token", async (c) => {
 });
 
 // Reset password with token
-app.post("/make-server-a1c55d7e/auth/reset-password", async (c) => {
+app.post("/make-server-a1c55d7e/auth/reset-password", async (c: any) => {
   try {
     const { token: rawResetToken, newPassword, username: rawResetUsername } = await c.req.json();
     const token = sanitizeResetToken(rawResetToken);
@@ -10767,7 +10767,7 @@ app.post("/make-server-a1c55d7e/auth/reset-password", async (c) => {
 });
 
 // Change password (authenticated user)
-app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
+app.post("/make-server-a1c55d7e/auth/change-password", async (c: any) => {
   try {
     const { currentPassword, newPassword } = await c.req.json();
     const sessionResult = await requireActiveUserSession(c);
@@ -10821,7 +10821,7 @@ app.post("/make-server-a1c55d7e/auth/change-password", async (c) => {
 });
 
 // Change user login/transaction credentials from profile (server-backed session token required)
-app.post('/make-server-a1c55d7e/auth/change-credentials', async (c) => {
+app.post('/make-server-a1c55d7e/auth/change-credentials', async (c: any) => {
   try {
     const rateLimited = await enforceCriticalUserRateLimit(c, 'user:change-credentials', 8);
     if (rateLimited) return rateLimited;
@@ -10907,7 +10907,7 @@ app.post('/make-server-a1c55d7e/auth/change-credentials', async (c) => {
 
 // GET /admin/invitation-codes  – super-admin only
 // Returns all sub-admins paired with their invitation codes.
-app.get('/make-server-a1c55d7e/admin/invitation-codes', async (c) => {
+app.get('/make-server-a1c55d7e/admin/invitation-codes', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -10971,7 +10971,7 @@ app.get('/make-server-a1c55d7e/admin/invitation-codes', async (c) => {
 
 // POST /admin/invitation-codes/generate  – super-admin only
 // Body: { subAdminId: string }  Generates or regenerates a code for one sub-admin.
-app.post('/make-server-a1c55d7e/admin/invitation-codes/generate', async (c) => {
+app.post('/make-server-a1c55d7e/admin/invitation-codes/generate', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -11050,7 +11050,7 @@ app.post('/make-server-a1c55d7e/admin/invitation-codes/generate', async (c) => {
 
 // POST /admin/invitation-codes/assign-missing  – super-admin only
 // Generates invitation codes for all admins that don't have one yet (legacy admins)
-app.post('/make-server-a1c55d7e/admin/invitation-codes/assign-missing', async (c) => {
+app.post('/make-server-a1c55d7e/admin/invitation-codes/assign-missing', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -11151,7 +11151,7 @@ app.post('/make-server-a1c55d7e/admin/invitation-codes/assign-missing', async (c
 // POST /validate-admin-invite-code  – public (no auth required)
 // Body: { code: string }
 // Returns { valid: true, subAdminId, subAdminName } or 404 if invalid.
-app.post('/make-server-a1c55d7e/validate-admin-invite-code', async (c) => {
+app.post('/make-server-a1c55d7e/validate-admin-invite-code', async (c: any) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'public:validate-admin-code', 20);
     if (rateLimited) return rateLimited;
@@ -11174,7 +11174,7 @@ app.post('/make-server-a1c55d7e/validate-admin-invite-code', async (c) => {
 
 // GET /admin/invitation-codes/mine  – any admin
 // Returns the current admin's own invitation code
-app.get('/make-server-a1c55d7e/admin/invitation-codes/mine', async (c) => {
+app.get('/make-server-a1c55d7e/admin/invitation-codes/mine', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -11251,7 +11251,7 @@ app.get('/make-server-a1c55d7e/admin/invitation-codes/mine', async (c) => {
 // POST /referral/link-admin-invite
 // Called at signup to attach referredByAdminId to the new user's record.
 // Body: { username, adminInviteCode }
-app.post('/make-server-a1c55d7e/referral/link-admin-invite', async (c) => {
+app.post('/make-server-a1c55d7e/referral/link-admin-invite', async (c: any) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:link-admin-invite');
     if (rateLimited) return rateLimited;
@@ -11290,7 +11290,7 @@ app.post('/make-server-a1c55d7e/referral/link-admin-invite', async (c) => {
 // GET /admin/platform-users  – admin-gated, scoped by role
 // Super-admin: returns all platform users (KV) with referredByAdminId.
 // Sub-admin: returns only users where referredByAdminId = caller's user ID.
-app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
+app.get('/make-server-a1c55d7e/admin/platform-users', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -11571,7 +11571,7 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c) => {
   }
 });
 
-app.get('/make-server-a1c55d7e/admin/platform-users/:username/audit', async (c) => {
+app.get('/make-server-a1c55d7e/admin/platform-users/:username/audit', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -11604,7 +11604,7 @@ app.get('/make-server-a1c55d7e/admin/platform-users/:username/audit', async (c) 
   }
 });
 
-app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', async (c) => {
+app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -11735,7 +11735,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
   }
 });
 
-app.post('/make-server-a1c55d7e/admin/platform-users/:username/recalculate-financial-state', async (c) => {
+app.post('/make-server-a1c55d7e/admin/platform-users/:username/recalculate-financial-state', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -11850,7 +11850,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/recalculate-finan
   }
 });
 
-app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlements', async (c) => {
+app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlements', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -12131,7 +12131,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
 
 // GET /admin/platform-users/discover-ghost-users – super-admin only
 // Returns list of auth users without corresponding platform KV records
-app.get('/make-server-a1c55d7e/admin/platform-users/discover-ghost-users', async (c) => {
+app.get('/make-server-a1c55d7e/admin/platform-users/discover-ghost-users', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -12221,7 +12221,7 @@ app.get('/make-server-a1c55d7e/admin/platform-users/discover-ghost-users', async
 
 // POST /admin/platform-users/:username/recover-ghost-user – super-admin only
 // Explicitly recovers a ghost user by bootstrapping their platform KV record from auth
-app.post('/make-server-a1c55d7e/admin/platform-users/:username/recover-ghost-user', async (c) => {
+app.post('/make-server-a1c55d7e/admin/platform-users/:username/recover-ghost-user', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -12298,7 +12298,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/recover-ghost-use
 
 // Admin-reset user credentials (login + transaction) without email dependency.
 // Admin provides new values; server stores only hashes and forces next password change.
-app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials', async (c) => {
+app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -12391,7 +12391,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/reset-credentials
   }
 });
 
-app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustment', async (c) => {
+app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustment', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -12515,7 +12515,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
   }
 });
 
-app.post('/make-server-a1c55d7e/admin/platform-users/:username/vip-level', async (c) => {
+app.post('/make-server-a1c55d7e/admin/platform-users/:username/vip-level', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -12621,7 +12621,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/vip-level', async
   }
 });
 
-app.patch('/make-server-a1c55d7e/admin/platform-users/:username/credit-score', async (c) => {
+app.patch('/make-server-a1c55d7e/admin/platform-users/:username/credit-score', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -12683,7 +12683,7 @@ app.patch('/make-server-a1c55d7e/admin/platform-users/:username/credit-score', a
   }
 });
 
-app.delete('/make-server-a1c55d7e/admin/platform-users/:username', async (c) => {
+app.delete('/make-server-a1c55d7e/admin/platform-users/:username', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
     if (unauthorized) return unauthorized;
@@ -12775,7 +12775,7 @@ app.delete('/make-server-a1c55d7e/admin/platform-users/:username', async (c) => 
 // ==================== SESSION-NATIVE /me/support ENDPOINTS ====================
 
 // GET /me/support – fetch tickets for the session-authenticated user (no username in request)
-app.get('/make-server-a1c55d7e/me/support', async (c) => {
+app.get('/make-server-a1c55d7e/me/support', async (c: any) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
@@ -12799,7 +12799,7 @@ app.get('/make-server-a1c55d7e/me/support', async (c) => {
 });
 
 // POST /me/support/create – create a ticket as the session-authenticated user
-app.post('/make-server-a1c55d7e/me/support/create', async (c) => {
+app.post('/make-server-a1c55d7e/me/support/create', async (c: any) => {
   try {
     const rateLimited = enforceUserRateLimit(c, 'user:create-ticket');
     if (rateLimited) return rateLimited;
@@ -12850,7 +12850,7 @@ app.post('/make-server-a1c55d7e/me/support/create', async (c) => {
 });
 
 // POST /me/support/reply – reply to a ticket owned by the session-authenticated user
-app.post('/make-server-a1c55d7e/me/support/reply', async (c) => {
+app.post('/make-server-a1c55d7e/me/support/reply', async (c: any) => {
   try {
     const sessionResult = await requireActiveUserSession(c);
     if ('response' in sessionResult) {
