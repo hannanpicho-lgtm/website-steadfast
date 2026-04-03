@@ -729,7 +729,22 @@ function hasAdminRole(user: any): boolean {
   return roles.has('admin') || roles.has('super_admin');
 }
 
-type AdminScriptTokenScope = 'platform-users:reconcile';
+const ADMIN_SCRIPT_TOKEN_SCOPES = [
+  'platform-users:reconcile',
+  'platform-users:maintain',
+  'platform-users:finance',
+  'platform-users:delete',
+  'tasks:manage',
+  'transactions:read',
+  'referrals:read',
+  'vip-config:manage',
+  'rewards-config:manage',
+  'salary:manage',
+  'platform-settings:manage',
+  'admin:all',
+] as const;
+
+type AdminScriptTokenScope = typeof ADMIN_SCRIPT_TOKEN_SCOPES[number];
 
 type AdminScriptTokenRecord = {
   tokenId: string;
@@ -772,12 +787,13 @@ function sanitizeAdminScriptTokenLabel(value: unknown): string | null {
 function sanitizeAdminScriptTokenScopes(value: unknown): AdminScriptTokenScope[] {
   const requested = Array.isArray(value)
     ? value
-    : (typeof value === 'string' && value.trim() ? [value] : []);
+    : (typeof value === 'string' && value.trim() ? value.split(',').map((entry) => entry.trim()) : []);
+  const allowedScopes = new Set<string>(ADMIN_SCRIPT_TOKEN_SCOPES);
   const scopes = new Set<AdminScriptTokenScope>();
 
   requested.forEach((entry) => {
-    if (entry === 'platform-users:reconcile') {
-      scopes.add('platform-users:reconcile');
+    if (typeof entry === 'string' && allowedScopes.has(entry)) {
+      scopes.add(entry as AdminScriptTokenScope);
     }
   });
 
@@ -800,21 +816,73 @@ function normalizeAdminScriptTokenRequestPath(path: string): string {
 }
 
 function isAdminScriptTokenScopeAllowedForRequest(scope: AdminScriptTokenScope, method: string, path: string): boolean {
-  if (scope !== 'platform-users:reconcile') {
-    return false;
+  if (scope === 'admin:all') {
+    return true;
   }
 
+  const normalizedMethod = typeof method === 'string' ? method.toUpperCase() : '';
   const normalizedPath = normalizeAdminScriptTokenRequestPath(path);
+  const scopeRules: Record<Exclude<AdminScriptTokenScope, 'admin:all'>, Array<{ method: string; path: RegExp }>> = {
+    'platform-users:reconcile': [
+      { method: 'GET', path: /^\/admin\/platform-users$/ },
+      { method: 'POST', path: /^\/admin\/platform-users\/[^/]+\/task-controls$/ },
+    ],
+    'platform-users:maintain': [
+      { method: 'GET', path: /^\/admin\/platform-users$/ },
+      { method: 'GET', path: /^\/admin\/platform-users\/[^/]+\/audit$/ },
+      { method: 'POST', path: /^\/admin\/platform-users\/[^/]+\/recalculate-financial-state$/ },
+      { method: 'POST', path: /^\/admin\/platform-users\/reconcile-premium-settlements$/ },
+      { method: 'GET', path: /^\/admin\/platform-users\/discover-ghost-users$/ },
+      { method: 'POST', path: /^\/admin\/platform-users\/[^/]+\/recover-ghost-user$/ },
+      { method: 'POST', path: /^\/admin\/platform-users\/[^/]+\/reset-credentials$/ },
+    ],
+    'platform-users:finance': [
+      { method: 'GET', path: /^\/admin\/platform-users$/ },
+      { method: 'POST', path: /^\/admin\/platform-users\/[^/]+\/balance-adjustment$/ },
+      { method: 'POST', path: /^\/admin\/platform-users\/[^/]+\/vip-level$/ },
+      { method: 'PATCH', path: /^\/admin\/platform-users\/[^/]+\/credit-score$/ },
+    ],
+    'platform-users:delete': [
+      { method: 'DELETE', path: /^\/admin\/platform-users\/[^/]+$/ },
+    ],
+    'tasks:manage': [
+      { method: 'GET', path: /^\/admin\/tasks$/ },
+      { method: 'POST', path: /^\/admin\/tasks$/ },
+      { method: 'POST', path: /^\/admin\/tasks\/bulk$/ },
+      { method: 'POST', path: /^\/admin\/tasks\/generate$/ },
+      { method: 'PUT', path: /^\/admin\/tasks\/bulk$/ },
+      { method: 'PUT', path: /^\/admin\/tasks\/[^/]+$/ },
+      { method: 'DELETE', path: /^\/admin\/tasks\/bulk$/ },
+      { method: 'DELETE', path: /^\/admin\/tasks\/[^/]+$/ },
+    ],
+    'transactions:read': [
+      { method: 'GET', path: /^\/admin\/transactions$/ },
+    ],
+    'referrals:read': [
+      { method: 'GET', path: /^\/admin\/referrals\/overview$/ },
+    ],
+    'vip-config:manage': [
+      { method: 'GET', path: /^\/admin\/vip-config$/ },
+      { method: 'PUT', path: /^\/admin\/vip-config\/[^/]+$/ },
+    ],
+    'rewards-config:manage': [
+      { method: 'GET', path: /^\/admin\/rewards-config$/ },
+      { method: 'PUT', path: /^\/admin\/rewards-config$/ },
+    ],
+    'salary:manage': [
+      { method: 'GET', path: /^\/admin\/salary\/project$/ },
+      { method: 'PUT', path: /^\/admin\/salary\/project$/ },
+      { method: 'GET', path: /^\/admin\/salary\/audit-log$/ },
+      { method: 'PUT', path: /^\/admin\/salary\/audit-log$/ },
+    ],
+    'platform-settings:manage': [
+      { method: 'GET', path: /^\/admin\/platform-settings$/ },
+      { method: 'PUT', path: /^\/admin\/platform-settings$/ },
+    ],
+  };
 
-  if (method === 'GET' && normalizedPath === '/admin/platform-users') {
-    return true;
-  }
-
-  if (method === 'POST' && /^\/admin\/platform-users\/[^/]+\/task-controls$/.test(normalizedPath)) {
-    return true;
-  }
-
-  return false;
+  const rules = scopeRules[scope as Exclude<AdminScriptTokenScope, 'admin:all'>] ?? [];
+  return rules.some((rule) => rule.method === normalizedMethod && rule.path.test(normalizedPath));
 }
 
 function buildAdminScriptTokenSnapshot(user: any) {
@@ -1439,6 +1507,7 @@ app.post('/make-server-a1c55d7e/admin/script-tokens', async (c) => {
       issuedAt: created.record.issuedAt,
       remainingUses: created.record.remainingUses,
       scopes: created.record.scopes,
+      availableScopes: ADMIN_SCRIPT_TOKEN_SCOPES,
       label: created.record.label,
       authMethod: 'script-token',
       headerName: 'x-admin-script-token',
