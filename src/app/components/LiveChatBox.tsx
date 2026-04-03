@@ -23,10 +23,14 @@ export function LiveChatBox({ isOpen, onClose, message }: LiveChatBoxProps) {
     }
 
     const loadSupportLinks = async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8_000);
       try {
         const response = await fetch(`${serverUrl}/cs/support-links`, {
           headers: { Authorization: `Bearer ${publicAnonKey}` },
+          signal: controller.signal,
         });
+        clearTimeout(timer);
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
           return;
