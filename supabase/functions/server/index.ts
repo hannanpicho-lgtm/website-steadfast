@@ -3472,6 +3472,7 @@ function defaultUserRecord(username: string) {
     balance: 0,
     todayCommission: 0,
     lastCommissionResetDate: getCommissionDateKey(),
+    lastTaskResetDate: getCommissionDateKey(),
     holdAmount: 0,
     luckyBonus: 0,
     tasksCompleted: 0,
@@ -3551,6 +3552,9 @@ function normalizeUserRecord(userData: any, username: string) {
     ? Math.max(0, Math.round(Number(normalized.completedTaskSets)))
     : 0;
   normalized.pendingTaskReset = Boolean(normalized.pendingTaskReset);
+  normalized.lastTaskResetDate = typeof normalized.lastTaskResetDate === 'string' && normalized.lastTaskResetDate
+    ? normalized.lastTaskResetDate
+    : '';
   normalized.isSuspended = Boolean(normalized.isSuspended);
   normalized.referralEarnings = Number.isFinite(Number(normalized.referralEarnings)) ? Number(normalized.referralEarnings) : 0;
   normalized.children = Array.isArray(normalized.children) ? normalized.children : [];
@@ -3635,6 +3639,20 @@ function normalizeUserRecord(userData: any, username: string) {
   if (lastResetDate !== today) {
     normalized.todayCommission = 0;
     normalized.lastCommissionResetDate = today;
+  }
+
+  // Daily task reset: when a new day starts, reset all task progress counters
+  // so the user can begin a fresh work cycle without admin intervention.
+  const lastTaskReset = typeof normalized.lastTaskResetDate === 'string' ? normalized.lastTaskResetDate : '';
+  if (lastTaskReset !== today) {
+    normalized.completedTaskSets = 0;
+    normalized.tasksCompletedInSet = 0;
+    normalized.tasksCompleted = 0;
+    normalized.pendingTaskReset = false;
+    normalized.currentSetCommissionPlan = [];
+    normalized.currentSetCommissionPlanMarker = 0;
+    normalized.currentSetCommissionPlanGeneratedAt = null;
+    normalized.lastTaskResetDate = today;
   }
 
   return normalized;
@@ -12137,6 +12155,87 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
   } catch (err) {
     console.error('admin/platform-users/reconcile-premium-settlements error:', err);
     return c.json({ error: 'Failed to reconcile premium settlements' }, 500);
+  }
+});
+
+// POST /admin/platform-users/reconcile-task-counts – super-admin only
+// Re-normalizes + re-syncs every platform user so that the daily task reset
+// (and any other normalization migration) takes effect immediately without
+// waiting for each user's next organic interaction.
+app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-task-counts', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = await enforceCriticalAdminRateLimit(c, 'admin-platform-users:reconcile-task-counts');
+    if (limited) return limited;
+
+    const callingAdmin = c.get('adminUser');
+    if (!isSuperAdmin(callingAdmin)) {
+      return c.json({ error: 'Only super-admin can reconcile task counts' }, 403);
+    }
+
+    const body = await c.req.json().catch(() => ({} as any));
+    const dryRun = body?.dryRun !== false;
+    const maxUsers = Number.isFinite(Number(body?.maxUsers))
+      ? Math.max(1, Math.min(2000, Math.round(Number(body.maxUsers))))
+      : 2000;
+
+    const allUsers = await kv.getByPrefix('user:');
+    const today = getCommissionDateKey();
+
+    let processed = 0;
+    let resetCount = 0;
+    let syncedCount = 0;
+    let skippedCount = 0;
+    const details: { username: string; action: string }[] = [];
+
+    for (const raw of allUsers) {
+      if (processed >= maxUsers) break;
+      const username = typeof raw?.username === 'string' ? raw.username : null;
+      if (!username) {
+        skippedCount++;
+        continue;
+      }
+
+      processed++;
+      const lastTaskReset = typeof raw.lastTaskResetDate === 'string' ? raw.lastTaskResetDate : '';
+      const needsDailyReset = lastTaskReset !== today;
+      const hasStaleState = raw.pendingTaskReset === true
+        || (Number(raw.completedTaskSets ?? 0) > 0 && needsDailyReset);
+
+      if (!needsDailyReset && !hasStaleState) {
+        skippedCount++;
+        continue;
+      }
+
+      if (!dryRun) {
+        const synced = await syncUserWithVipConfig(raw, username);
+        await kv.set(`user:${username}`, synced);
+      }
+
+      if (needsDailyReset) {
+        resetCount++;
+        details.push({ username, action: 'daily-reset' });
+      } else {
+        syncedCount++;
+        details.push({ username, action: 'sync-only' });
+      }
+    }
+
+    return c.json({
+      dryRun,
+      today,
+      totalUsers: allUsers.length,
+      processed,
+      resetCount,
+      syncedCount,
+      skippedCount,
+      details: details.slice(0, 100),
+    });
+  } catch (err) {
+    console.error('admin/platform-users/reconcile-task-counts error:', err);
+    return c.json({ error: 'Failed to reconcile task counts' }, 500);
   }
 });
 
