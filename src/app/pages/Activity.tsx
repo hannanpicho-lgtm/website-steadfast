@@ -10,7 +10,7 @@ import { publicAnonKey } from '@utils/supabase/info';
 import { fetchBonusFeed, type BonusFeedItem } from '../services/bonusFeed';
 import { fetchJsonWithRetry } from '../services/networkClient';
 import { getCurrentUsername } from '../services/referralSystem';
-import { buildUserScopedCacheKey, reportClientCompatibilityEvent, resolveFeatureEndpoint } from '../services/apiCompatibility';
+import { buildUserScopedCacheKey, reportClientCompatibilityEvent } from '../services/apiCompatibility';
 import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 
 const vipColorByTier: Record<string, string> = {
@@ -130,7 +130,7 @@ export default function Activity() {
           fetchJsonWithRetry<any>({
             url: `${serverUrl}/rewards-config`,
             init: { headers },
-            timeoutMs: 7000,
+            timeoutMs: 4000,
             retries: 1,
             retryDelayMs: 250,
             pageTag: 'activity-fallback',
@@ -138,7 +138,7 @@ export default function Activity() {
           fetchJsonWithRetry<any>({
             url: `${serverUrl}/vip-config`,
             init: { headers },
-            timeoutMs: 7000,
+            timeoutMs: 4000,
             retries: 1,
             retryDelayMs: 250,
             pageTag: 'activity-fallback',
@@ -146,7 +146,7 @@ export default function Activity() {
           fetchJsonWithRetry<any>({
             url: `${serverUrl}/me/financials`,
             init: { credentials: 'include' },
-            timeoutMs: 7000,
+            timeoutMs: 4000,
             retries: 1,
             retryDelayMs: 250,
             pageTag: 'activity-fallback',
@@ -154,7 +154,7 @@ export default function Activity() {
           fetchJsonWithRetry<any[]>({
             url: `${serverUrl}/me/transactions?limit=80`,
             init: { credentials: 'include' },
-            timeoutMs: 7000,
+            timeoutMs: 4000,
             retries: 1,
             retryDelayMs: 250,
             pageTag: 'activity-fallback',
@@ -162,7 +162,7 @@ export default function Activity() {
           fetchJsonWithRetry<any[]>({
             url: `${serverUrl}/me/withdrawals`,
             init: { credentials: 'include' },
-            timeoutMs: 7000,
+            timeoutMs: 4000,
             retries: 1,
             retryDelayMs: 250,
             pageTag: 'activity-fallback',
@@ -217,19 +217,17 @@ export default function Activity() {
       };
 
       try {
-        const snapshotRoute = await resolveFeatureEndpoint('activitySnapshotV2', '/me/financials');
-        if (snapshotRoute.usingFallback) {
-          throw new Error(snapshotRoute.reason ?? 'activity_snapshot_disabled');
-        }
+        // Go directly to V2 snapshot URL — skip the /version waterfall.
+        const v2Url = `${serverUrl}/v2/me/activity-snapshot?includeConfig=true&transactionsLimit=80&withdrawalsLimit=40`;
 
         const snapshot = await fetchJsonWithRetry<ActivitySnapshotResponse>({
-          url: `${snapshotRoute.url}?includeConfig=true&transactionsLimit=80&withdrawalsLimit=40`,
+          url: v2Url,
           init: {
             credentials: 'include',
           },
-          timeoutMs: 7000,
-          retries: 2,
-          retryDelayMs: 250,
+          timeoutMs: 4000,
+          retries: 1,
+          retryDelayMs: 200,
           cacheKey: buildUserScopedCacheKey('activity:snapshot', username, 'v2'),
           cacheTtlMs: ACTIVITY_SNAPSHOT_CACHE_TTL_MS,
           pageTag: 'activity',

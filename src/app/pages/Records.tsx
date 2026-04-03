@@ -10,7 +10,7 @@ import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
 import { type VipConfig } from '../services/vipConfig';
 import { fetchJsonWithRetry } from '../services/networkClient';
-import { reportClientCompatibilityEvent, resolveFeatureEndpoint } from '../services/apiCompatibility';
+import { buildUserScopedCacheKey, reportClientCompatibilityEvent } from '../services/apiCompatibility';
 import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 
 interface UserData {
@@ -106,9 +106,9 @@ type PendingPremiumRecordItem = {
 
 type RecordListItem = CompletedRecordItem | PendingPremiumRecordItem;
 
-const RECORDS_REQUEST_TIMEOUT_MS = 7000;
+const RECORDS_REQUEST_TIMEOUT_MS = 4000;
 const RECORDS_USER_CACHE_TTL_MS = 45 * 1000;
-const RECORDS_SNAPSHOT_CACHE_TTL_MS = 45 * 1000;
+const RECORDS_SNAPSHOT_CACHE_TTL_MS = 5 * 60 * 1000;
 
 type RecordsSnapshotResponse = {
   user: UserData;
@@ -161,19 +161,19 @@ export default function Records() {
   }, [location.pathname, navigate, sessionUsername]);
 
   const fetchRecordsSnapshot = async () => {
-    const snapshotRoute = await resolveFeatureEndpoint('recordsSnapshotV2', '/me/tasks');
-    if (snapshotRoute.usingFallback) {
-      throw new Error(snapshotRoute.reason ?? 'records_snapshot_disabled');
-    }
+    // Go directly to V2 snapshot URL — skip the /version waterfall.
+    const v2Url = `${serverUrl}/v2/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true`;
 
     return fetchJsonWithRetry<RecordsSnapshotResponse>({
-      url: `${snapshotRoute.url}?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true`,
+      url: v2Url,
       init: {
         credentials: 'include',
       },
       timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
-      retries: 2,
-      retryDelayMs: 250,
+      retries: 1,
+      retryDelayMs: 200,
+      cacheKey: buildUserScopedCacheKey('records:snapshot', username ?? '', 'v2'),
+      cacheTtlMs: RECORDS_SNAPSHOT_CACHE_TTL_MS,
       pageTag: 'records',
       featureTag: 'recordsSnapshotV2',
       expectedApiVersion: 'v2',
@@ -258,6 +258,8 @@ export default function Records() {
       return;
     }
 
+    // Stale-while-revalidate: if fetchJsonWithRetry has a cache hit,
+    // the snapshot resolves instantly. We can skip the spinner in that case.
     const shouldBlockRender = !hasRenderableData;
 
     try {
