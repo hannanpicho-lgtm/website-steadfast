@@ -1578,6 +1578,7 @@ const REWARDS_CONFIG_SCHEMA_VERSION = 2;
 const REWARDS_CONFIG_KEY = `rewards-config:v${REWARDS_CONFIG_SCHEMA_VERSION}:primary`;
 const LEGACY_REWARDS_CONFIG_KEYS = ['rewards-config:primary'];
 const AUTO_WORKDAY_REWARDS_ENABLED = false;
+const AUTO_RESET_REWARDS_ENABLED = false;
 const AUTO_ACCUMULATED_REWARDS_ENABLED = false;
 const ADMIN_SALARY_PROJECT_KEY = 'admin-salary:project:primary';
 const ADMIN_SALARY_AUDIT_LOG_KEY = 'admin-salary:audit-log:primary';
@@ -3938,7 +3939,7 @@ async function applyAutomaticRewardsForUser(username: string, userData: any, pre
     }
   }
 
-  const resetRewards = Array.isArray(rewardsConfig.reset)
+  const resetRewards = AUTO_RESET_REWARDS_ENABLED && Array.isArray(rewardsConfig.reset)
     ? rewardsConfig.reset
       .filter((reward: any) => reward?.enabled)
       .sort((left: any, right: any) => Number(left?.deposit ?? 0) - Number(right?.deposit ?? 0))
