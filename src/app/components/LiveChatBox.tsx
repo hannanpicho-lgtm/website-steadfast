@@ -53,7 +53,7 @@ export function LiveChatBox({ isOpen, onClose, message }: LiveChatBoxProps) {
         <>
           <div className="fixed inset-0 z-[60] bg-black/50" onClick={onClose}></div>
 
-          <div className="fixed bottom-24 right-6 z-[60] w-[380px] max-w-[calc(100vw-24px)] overflow-hidden rounded-[28px] border border-cyan-200/20 bg-[linear-gradient(165deg,#0a1f2b_0%,#0d3442_58%,#102b38_100%)] shadow-[0_28px_70px_rgba(2,12,19,0.45)] animate-slideUp">
+          <div className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] left-3 right-3 z-[60] mx-auto w-auto max-w-[380px] sm:left-auto sm:right-6 overflow-hidden rounded-[28px] border border-cyan-200/20 bg-[linear-gradient(165deg,#0a1f2b_0%,#0d3442_58%,#102b38_100%)] shadow-[0_28px_70px_rgba(2,12,19,0.45)] animate-slideUp">
             <div className="flex items-center justify-between bg-[linear-gradient(120deg,rgba(72,223,255,0.95)_0%,rgba(21,180,196,0.88)_100%)] p-5">
               <div className="flex items-center gap-3">
                 <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950/15 text-slate-950">
@@ -79,17 +79,17 @@ export function LiveChatBox({ isOpen, onClose, message }: LiveChatBoxProps) {
               <div className="mb-5 grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                   <ShieldCheck className="mx-auto mb-2 text-cyan-200" size={18} />
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">Secure</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Secure</p>
                   <p className="mt-1 text-xs text-white/80">Session-bound replies</p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                   <Clock3 className="mx-auto mb-2 text-cyan-200" size={18} />
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">Fast</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Fast</p>
                   <p className="mt-1 text-xs text-white/80">Live inbox polling</p>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
                   <Sparkles className="mx-auto mb-2 text-cyan-200" size={18} />
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">Modern</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/55">Modern</p>
                   <p className="mt-1 text-xs text-white/80">Rich attachments</p>
                 </div>
               </div>

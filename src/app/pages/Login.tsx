@@ -225,7 +225,7 @@ export default function Login() {
         <div className="absolute -bottom-32 -left-32 w-80 h-80 rounded-full opacity-[0.05]" style={{ background: '#5dade2', filter: 'blur(70px)' }} />
       </div>
 
-      <main className="relative z-10 flex-1 w-full max-w-6xl mx-auto px-5 sm:px-8 py-8 sm:py-10 flex flex-col items-center">
+      <main className="relative z-10 flex-1 w-full max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-10 flex flex-col items-center">
         <div className="w-full max-w-[560px] text-center">
           {/* Logo + brand */}
           <div className="pt-6 sm:pt-10 flex flex-col items-center">

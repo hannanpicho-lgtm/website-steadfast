@@ -205,12 +205,12 @@ export default function Withdrawal() {
       : '';
 
   return (
-    <div className="size-full overflow-auto bg-[#1a1f2e]">
+    <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
       {/* Header */}
       <Header onContactClick={() => setIsChatOpen(true)} />
 
       {/* Main Content */}
-      <div className="max-w-3xl mx-auto px-6 py-6">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
         {/* Back Button and Title */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div className="flex items-center gap-4">
@@ -288,7 +288,7 @@ export default function Withdrawal() {
               <button
                 type="button"
                 onClick={handleAllClick}
-                className="absolute right-2 top-1/2 -translate-y-1/2 btn-mobile-primary px-3 py-1.5 text-xs"
+                className="absolute right-2 top-1/2 -translate-y-1/2 btn-mobile-primary px-3 py-2 text-xs min-h-[36px]"
               >
                 ALL
               </button>

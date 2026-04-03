@@ -273,8 +273,8 @@
 @layer components {
   .btn-mobile-icon {
     @apply inline-flex items-center justify-center rounded-xl bg-gradient-to-br from-[#00D9FF] to-[#0099cc] text-[#08111f] font-bold shadow-[0_2px_10px_rgba(0,217,255,0.35)] transition-all hover:shadow-[0_4px_16px_rgba(0,217,255,0.55)] hover:scale-105 active:scale-95;
-    width: 2.5rem;
-    height: 2.5rem;
+    width: 2.75rem;
+    height: 2.75rem;
   }
 
   .btn-mobile-primary {
@@ -304,6 +304,7 @@
 
   .btn-mobile-tab {
     @apply rounded-lg px-3 py-3 text-sm font-semibold transition-colors;
+    min-height: 2.75rem;
   }
 
   .btn-mobile-tab-active {

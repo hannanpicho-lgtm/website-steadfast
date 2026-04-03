@@ -39,7 +39,7 @@ export function Header({ onContactClick }: HeaderProps) {
           {onContactClick && (
             <button 
               onClick={onContactClick}
-              className="rounded-lg bg-gradient-to-r from-[#00D9FF] to-[#00b4d8] px-3.5 py-1.5 text-xs font-bold text-[#08111f] shadow-[0_2px_10px_rgba(0,217,255,0.35)] transition-all hover:shadow-[0_4px_16px_rgba(0,217,255,0.55)] hover:scale-105 active:scale-95 sm:px-5 sm:py-2 sm:text-sm"
+              className="rounded-lg bg-gradient-to-r from-[#00D9FF] to-[#00b4d8] px-4 py-2 text-xs font-bold text-[#08111f] shadow-[0_2px_10px_rgba(0,217,255,0.35)] transition-all hover:shadow-[0_4px_16px_rgba(0,217,255,0.55)] hover:scale-105 active:scale-95 sm:px-5 sm:py-2 sm:text-sm min-h-[44px]"
             >
               Contact
             </button>
@@ -48,7 +48,7 @@ export function Header({ onContactClick }: HeaderProps) {
           {/* Profile Icon */}
           <Link 
             to="/profile"
-            className="rounded-full border border-[#3c536f] p-1 text-[#d8e5f4] transition-colors hover:border-[#69c3f2] hover:text-[#69c3f2]"
+            className="flex items-center justify-center rounded-full border border-[#3c536f] p-2 text-[#d8e5f4] transition-colors hover:border-[#69c3f2] hover:text-[#69c3f2] min-h-[44px] min-w-[44px]"
           >
             <UserCircle size={24} />
           </Link>

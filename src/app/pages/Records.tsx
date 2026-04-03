@@ -404,7 +404,7 @@ export default function Records() {
       <Header onContactClick={() => setIsChatOpen(true)} />
 
       {/* Main Content */}
-      <div className="max-w-3xl mx-auto px-6 py-6">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
         {/* Back Button and Title */}
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 mb-6">
           <button 
@@ -430,10 +430,10 @@ export default function Records() {
         )}
 
         {/* Tabs */}
-        <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-4 mb-6">
           <button
             onClick={() => setActiveTab('all')}
-            className={`py-2 sm:py-3 rounded text-sm sm:text-base font-semibold transition-colors ${
+            className={`min-h-[44px] py-2 sm:py-3 rounded text-sm sm:text-base font-semibold transition-colors ${
               activeTab === 'all'
                 ? 'bg-[#0066b3] text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -443,7 +443,7 @@ export default function Records() {
           </button>
           <button
             onClick={() => setActiveTab('pending')}
-            className={`py-2 sm:py-3 rounded text-sm sm:text-base font-semibold transition-colors ${
+            className={`min-h-[44px] py-2 sm:py-3 rounded text-sm sm:text-base font-semibold transition-colors ${
               activeTab === 'pending'
                 ? 'bg-[#0066b3] text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -453,7 +453,7 @@ export default function Records() {
           </button>
           <button
             onClick={() => setActiveTab('completed')}
-            className={`py-2 sm:py-3 rounded text-sm sm:text-base font-semibold transition-colors ${
+            className={`min-h-[44px] py-2 sm:py-3 rounded text-sm sm:text-base font-semibold transition-colors ${
               activeTab === 'completed'
                 ? 'bg-[#0066b3] text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'

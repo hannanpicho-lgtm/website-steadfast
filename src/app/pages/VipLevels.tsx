@@ -185,8 +185,8 @@ export default function VipLevels() {
                   
                   {/* VIP Info */}
                   <div className="min-w-0">
-                    <h3 className="text-[1.05rem] sm:text-[2rem] leading-none font-bold mb-1 sm:mb-2">{vip.title}</h3>
-                    <p className="text-[1.05rem] sm:text-[2rem] leading-none font-bold text-[#0a5e89] break-words">{vip.amount}</p>
+                    <h3 className="text-lg sm:text-[2rem] leading-none font-bold mb-1 sm:mb-2">{vip.title}</h3>
+                    <p className="text-lg sm:text-[2rem] leading-none font-bold text-[#0a5e89] break-words">{vip.amount}</p>
                   </div>
                 </div>
 
@@ -199,7 +199,7 @@ export default function VipLevels() {
               </div>
 
               {/* Benefits */}
-              <div className="space-y-1.5 sm:space-y-2 text-[0.86rem] sm:text-[1.6rem] leading-snug">
+              <div className="space-y-1.5 sm:space-y-2 text-sm sm:text-[1.6rem] leading-snug">
                 <p className="text-[#141414]">· {vip.normalProfit}</p>
                 <p className="text-[#141414]">· {vip.premiumProfit}</p>
                 <p className="text-[#141414]">· {vip.maxOrders}</p>

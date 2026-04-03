@@ -90,7 +90,7 @@ export default function FAQs() {
       <Header onContactClick={() => setIsChatOpen(true)} />
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-6 py-6">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
         {/* Back Button and Title */}
         <div className="flex items-center gap-4 mb-6">
           <button 

@@ -89,7 +89,7 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
   return (
     <Link
       to={item.to}
-      className="group relative overflow-hidden flex h-[78px] flex-col items-center justify-center gap-1.5 rounded-xl border border-[#00b6d6]/60 px-1 transition-all duration-300 hover:scale-[1.06] hover:-translate-y-1.5 sm:h-[88px]"
+      className="group relative overflow-hidden flex h-[82px] flex-col items-center justify-center gap-1.5 rounded-xl border border-[#00b6d6]/60 px-2 transition-all duration-300 hover:scale-[1.06] hover:-translate-y-1.5 sm:h-[88px] sm:px-3"
       style={{
         background: 'linear-gradient(165deg, #00D9FF, #00a8c8)',
         boxShadow: '0 4px 14px rgba(0,173,212,0.22)',
