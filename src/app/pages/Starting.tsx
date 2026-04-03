@@ -668,15 +668,32 @@ export default function Starting() {
       let sessionLoadOk = false;
       let catalogLoadOk = false;
 
-      setLoading(true);
-      setLoadError(null);
+      // Stale-while-revalidate: if we have cached data, show it immediately
+      // and fetch fresh data in the background without showing the spinner.
+      const cachedUser = readFinancialSummaryCache(username);
       const cachedTaskCatalog = readTaskCatalogCache();
-      const usedCachedCatalog = Boolean(cachedTaskCatalog);
-      if (cachedTaskCatalog) {
-        setTaskCatalog(Array.isArray(cachedTaskCatalog.tasks) ? cachedTaskCatalog.tasks : []);
-        setTaskRuleConfig(cachedTaskCatalog.ruleConfig ?? null);
+      const hasCachedData = Boolean(cachedUser && cachedTaskCatalog);
+
+      if (hasCachedData) {
+        // Render cached data instantly — no loading spinner
+        setUserData(cachedUser!);
+        setTaskCatalog(Array.isArray(cachedTaskCatalog!.tasks) ? cachedTaskCatalog!.tasks : []);
+        setTaskRuleConfig(cachedTaskCatalog!.ruleConfig ?? null);
+        setLoading(false);
+        setLoadError(null);
+        sessionLoadOk = true;
         catalogLoadOk = true;
+      } else {
+        setLoading(true);
+        setLoadError(null);
+        if (cachedTaskCatalog) {
+          setTaskCatalog(Array.isArray(cachedTaskCatalog.tasks) ? cachedTaskCatalog.tasks : []);
+          setTaskRuleConfig(cachedTaskCatalog.ruleConfig ?? null);
+          catalogLoadOk = true;
+        }
       }
+
+      const usedCachedCatalog = Boolean(cachedTaskCatalog);
 
       try {
         // Go directly to V2 snapshot URL — skip the /version waterfall.
