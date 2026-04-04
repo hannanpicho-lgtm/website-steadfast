@@ -7,6 +7,9 @@ import Signup from '@/app/pages/Signup';
 const serverSignupMock = vi.fn();
 const serverLoginMock = vi.fn();
 const navigateMock = vi.fn();
+const toastSuccessMock = vi.fn();
+const toastInfoMock = vi.fn();
+const toastErrorMock = vi.fn();
 
 vi.mock('@/app/services/serverAuth', () => ({
   serverSignup: (...args: unknown[]) => serverSignupMock(...args),
@@ -23,9 +26,9 @@ vi.mock('react-router', async () => {
 
 vi.mock('sonner', () => ({
   toast: {
-    success: vi.fn(),
-    info: vi.fn(),
-    error: vi.fn(),
+    success: (...args: unknown[]) => toastSuccessMock(...args),
+    info: (...args: unknown[]) => toastInfoMock(...args),
+    error: (...args: unknown[]) => toastErrorMock(...args),
   },
 }));
 
@@ -34,6 +37,9 @@ describe('Signup page', () => {
     serverSignupMock.mockReset();
     serverLoginMock.mockReset();
     navigateMock.mockReset();
+    toastSuccessMock.mockReset();
+    toastInfoMock.mockReset();
+    toastErrorMock.mockReset();
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({}),
@@ -89,6 +95,43 @@ describe('Signup page', () => {
       expect(serverSignupMock).toHaveBeenCalledTimes(1);
       expect(serverLoginMock).toHaveBeenCalledWith('alice_01', 'secret123');
       expect(navigateMock).toHaveBeenCalledWith('/home', { replace: true });
+      expect(toastSuccessMock).toHaveBeenCalled();
     });
+  });
+
+  it('marks short admin referral code as invalid on blur without network call', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+
+    render(
+      <MemoryRouter>
+        <Signup />
+      </MemoryRouter>,
+    );
+
+    const adminCodeInput = screen.getByPlaceholderText('Admin Referral Code (optional)');
+    fireEvent.change(adminCodeInput, { target: { value: 'AB' } });
+    fireEvent.blur(adminCodeInput);
+
+    expect(await screen.findByText('✗ Invalid')).toBeInTheDocument();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('marks admin referral code as valid when verification succeeds', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+    } as Response);
+
+    render(
+      <MemoryRouter>
+        <Signup />
+      </MemoryRouter>,
+    );
+
+    const adminCodeInput = screen.getByPlaceholderText('Admin Referral Code (optional)');
+    fireEvent.change(adminCodeInput, { target: { value: 'ABCDE' } });
+    fireEvent.blur(adminCodeInput);
+
+    expect(await screen.findByText('✓ Valid')).toBeInTheDocument();
   });
 });

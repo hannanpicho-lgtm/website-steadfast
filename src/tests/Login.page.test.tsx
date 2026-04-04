@@ -6,6 +6,7 @@ import Login from '@/app/pages/Login';
 
 const serverLoginMock = vi.fn();
 const signInAdminMock = vi.fn();
+const navigateMock = vi.fn();
 
 vi.mock('@/app/services/serverAuth', () => ({
   serverLogin: (...args: unknown[]) => serverLoginMock(...args),
@@ -19,10 +20,19 @@ vi.mock('@/app/services/apiCompatibility', () => ({
   warmApiCompatibilityState: vi.fn(),
 }));
 
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual<typeof import('react-router')>('react-router');
+  return {
+    ...actual,
+    useNavigate: () => navigateMock,
+  };
+});
+
 describe('Login page', () => {
   beforeEach(() => {
     serverLoginMock.mockReset();
     signInAdminMock.mockReset();
+    navigateMock.mockReset();
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => ({}),
@@ -59,5 +69,47 @@ describe('Login page', () => {
     await waitFor(() => {
       expect(screen.getByText('Login service is temporarily unavailable. Please try again in a moment.')).toBeInTheDocument();
     });
+  });
+
+  it('shows admin email prompt when login was redirected for admin access', () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: '/login',
+            state: {
+              from: '/admin',
+              adminRequired: true,
+              authReason: 'admin-access-required',
+            },
+          },
+        ]}
+      >
+        <Login />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByPlaceholderText('Admin email address')).toBeInTheDocument();
+    expect(screen.getByText('Admin access now requires a Supabase Auth admin account.')).toBeInTheDocument();
+  });
+
+  it('navigates to home after successful sign in and welcome modal continue', async () => {
+    serverLoginMock.mockResolvedValue({ ok: true, mustChangePassword: false });
+
+    render(
+      <MemoryRouter>
+        <Login />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'SIGN IN' }));
+    fireEvent.change(screen.getByPlaceholderText('Username / Phone'), { target: { value: 'alice_01' } });
+    fireEvent.change(screen.getByPlaceholderText('Password'), { target: { value: 'secret123' } });
+    fireEvent.click(screen.getAllByRole('button', { name: 'SIGN IN' })[1]);
+
+    await screen.findByText("You've successfully signed in to Steadfast Digital");
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(navigateMock).toHaveBeenCalledWith('/home', { replace: true });
   });
 });
