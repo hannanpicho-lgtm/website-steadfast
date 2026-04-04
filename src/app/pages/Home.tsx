@@ -1,203 +1,307 @@
-﻿import { Link } from 'react-router';
+import { Link } from 'react-router';
 import {
-  Briefcase,
-  CalendarDays,
-  HandCoins,
-  Landmark,
-  ScrollText,
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
+  Compass,
+  Gem,
+  Globe,
+  Layers3,
   ShieldCheck,
+  Sparkles,
   Target,
-  TrendingUp,
+  Zap,
 } from 'lucide-react';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 
-const serviceTiles = [
-  { label: 'Brand Strategy', icon: Briefcase },
-  { label: 'Campaign Planning', icon: CalendarDays },
-  { label: 'ROI Tracking', icon: TrendingUp },
-  { label: 'Media Buying', icon: Landmark },
-  { label: 'Task Review', icon: ScrollText },
-  { label: 'Risk Control', icon: ShieldCheck },
-  { label: 'Audience Growth', icon: Target },
-  { label: 'Revenue Lift', icon: HandCoins },
-];
-
-const expertiseItems = [
-  'Digital Advertising',
-  'SEO & Content Systems',
-  'Creative Performance Optimization',
-  'Marketplace Conversion Strategy',
-  'Retention and Lifecycle Funnels',
-];
-
-const workHighlights = [
+const valuePillars = [
   {
-    title: 'Zoomin',
-    subtitle: 'Community pet-care campaign launch',
-    image:
-      'https://images.unsplash.com/photo-1592194996308-7b43878e84a6?auto=format&fit=crop&w=1200&q=80',
+    title: 'Precision Growth Engine',
+    text: 'Performance-led campaign orchestration with measurable revenue outcomes and daily optimization loops.',
+    icon: Target,
   },
   {
-    title: 'Casa Foods',
-    subtitle: 'Commerce retargeting and product lift',
-    image:
-      'https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1200&q=80',
+    title: 'Risk-Aware Operations',
+    text: 'Governed execution pipelines with policy controls, clean audit trails, and resilient scaling patterns.',
+    icon: ShieldCheck,
   },
   {
-    title: 'AlohaBoat',
-    subtitle: 'Luxury booking funnel optimization',
-    image:
-      'https://images.unsplash.com/photo-1567899378494-47b22a2ae96a?auto=format&fit=crop&w=1200&q=80',
+    title: 'Creative Intelligence Layer',
+    text: 'High-conversion creative experiments informed by live behavioral insights and intent signals.',
+    icon: Sparkles,
+  },
+  {
+    title: 'Decision-Grade Analytics',
+    text: 'Signal-rich dashboards that turn ad spend into strategic decisions across channels and cohorts.',
+    icon: BarChart3,
   },
 ];
 
-const clientNames = [
-  'AgEagle', 'NYU Langone Health', 'Organicgirl', 'Newmans Own', 'UNDP', 'Forward Labs',
-  'ROAR Organic', 'Borghese', 'Isaia Napoli', 'Giadzy', 'UBS', 'BLAST',
-  'Fanchest', 'Pet Plate', 'The Vitamin Shoppe', 'Magellan Jets',
+const operatingModel = [
+  {
+    stage: '01',
+    title: 'Map',
+    detail: 'We model your funnel economics, audience intent, and lifetime-value constraints.',
+  },
+  {
+    stage: '02',
+    title: 'Activate',
+    detail: 'We deploy focused experiments with strict KPI gates and rapid optimization intervals.',
+  },
+  {
+    stage: '03',
+    title: 'Scale',
+    detail: 'Winning playbooks are automated into repeatable systems with controlled expansion.',
+  },
+];
+
+const proofMetrics = [
+  { label: 'Optimization Cycles / Week', value: '42+' },
+  { label: 'Avg. Efficiency Lift', value: '2.9x' },
+  { label: 'Revenue Attribution Clarity', value: '98%' },
+  { label: 'Managed Daily Campaign Budget', value: '$3.4M' },
+];
+
+const featuredPrograms = [
+  {
+    name: 'Commerce Lift Blueprint',
+    summary: 'Product-page and paid-media synchronization for conversion velocity.',
+    accent: 'from-[#39c6f4] to-[#16a3d8]',
+  },
+  {
+    name: 'Retention Compounding System',
+    summary: 'Lifecycle segmentation and reactivation loops for repeat margin growth.',
+    accent: 'from-[#f9a84f] to-[#e66e2d]',
+  },
+  {
+    name: 'Global Demand Expansion',
+    summary: 'Region-by-region entry sequencing with spend governance and local signal tuning.',
+    accent: 'from-[#54d68c] to-[#1ea56f]',
+  },
+];
+
+const trustedBy = [
+  'UNDP',
+  'NYU Langone Health',
+  'UBS',
+  'Magellan Jets',
+  'The Vitamin Shoppe',
+  'BLAST',
+  'Organicgirl',
+  'Giadzy',
 ];
 
 export default function Home() {
   return (
-    <div className="min-h-screen w-full bg-[#f5f7fb]">
-      {/* Minimal Header â€” logo only */}
-      <header className="relative z-20 flex items-center px-6 py-3 bg-gradient-to-r from-[#1e2838] via-[#2c3e50] to-[#34495e] border-b border-[#5dade2]/20 shadow-lg shadow-[#5dade2]/5">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="absolute inset-0 bg-[#5dade2] blur-xl opacity-30"></div>
-            <img src={logoImage} alt="Steadfast Digital Logo" width={48} height={48} className="relative z-10 w-12 h-12 object-contain drop-shadow-lg" />
+    <div
+      className="min-h-screen bg-[#071626] text-[#e9f4ff]"
+      style={{ fontFamily: '"Space Grotesk", "Sora", "Poppins", sans-serif' }}
+    >
+      <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute -left-24 top-16 h-72 w-72 rounded-full bg-[#19b5e4]/20 blur-3xl" />
+        <div className="absolute right-[-80px] top-1/3 h-80 w-80 rounded-full bg-[#f58b3c]/15 blur-3xl" />
+        <div className="absolute bottom-[-120px] left-1/3 h-96 w-96 rounded-full bg-[#2a89ff]/15 blur-3xl" />
+      </div>
+
+      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#071626]/85 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-10">
+          <div className="flex items-center gap-3">
+            <img src={logoImage} alt="Steadfast Digital" className="h-11 w-11 rounded-xl border border-white/20 bg-white/5 p-1" />
+            <div>
+              <p className="text-base font-black tracking-[0.08em] text-white">STEADFAST</p>
+              <p className="text-[10px] uppercase tracking-[0.26em] text-[#90c9ff]">Digital Growth Systems</p>
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-xl font-black tracking-tight bg-gradient-to-r from-[#5dade2] via-[#60a5fa] to-[#5dade2] bg-clip-text text-transparent">
-              STEADFAST
-            </span>
-            <span className="text-[10px] tracking-[0.3em] text-gray-400 font-semibold uppercase -mt-1">
-              Digital
-            </span>
+          <nav className="hidden items-center gap-7 text-sm text-[#b8d8f6] md:flex">
+            <a href="#model" className="transition-colors hover:text-white">Model</a>
+            <a href="#programs" className="transition-colors hover:text-white">Programs</a>
+            <a href="#proof" className="transition-colors hover:text-white">Proof</a>
+          </nav>
+          <div className="flex items-center gap-2">
+            <Link to="/login" className="rounded-lg border border-[#5da8dc]/50 px-4 py-2 text-xs font-semibold text-[#cfe9ff] transition hover:bg-[#0f2a42] sm:text-sm">
+              Sign In
+            </Link>
+            <Link to="/signup" className="rounded-lg bg-[#3dc8f6] px-4 py-2 text-xs font-bold text-[#062033] transition hover:bg-[#68d6fb] sm:text-sm">
+              Start Free
+            </Link>
           </div>
         </div>
       </header>
 
-      {/* Hero Section */}
-      <section className="relative min-h-[78vh] flex flex-col items-center justify-center bg-gradient-to-br from-[#2a3f5f] via-[#1a1f2e] to-[#2d3a56] overflow-hidden">
-        {/* Video Background */}
-        <div className="absolute inset-0 w-full h-full overflow-hidden">
-          <video
-            autoPlay
-            loop
-            muted
-            playsInline
-            className="absolute top-1/2 left-1/2 min-w-full min-h-full w-auto h-auto transform -translate-x-1/2 -translate-y-1/2 object-cover"
-            style={{ filter: 'brightness(0.4) contrast(1.1) saturate(0.8)' }}
-          >
-            <source src="/banner-cdc94d47.mp4" type="video/mp4" />
-          </video>
-          <div className="absolute inset-0 bg-gradient-to-br from-[#1a1f2e]/70 via-[#2a3f5f]/60 to-[#1a1f2e]/75"></div>
-          <div className="absolute inset-0 bg-[#00D9FF]/5"></div>
-        </div>
-
-        {/* Glow orbs */}
-        <div className="absolute inset-0 opacity-10 pointer-events-none">
-          <div className="absolute top-20 right-20 w-96 h-96 bg-[#00D9FF] rounded-full blur-3xl"></div>
-          <div className="absolute bottom-20 left-20 w-96 h-96 bg-[#5dade2] rounded-full blur-3xl"></div>
-        </div>
-
-        {/* Content */}
-        <div className="relative z-10 text-center text-white px-6">
-          <h1 className="text-5xl md:text-6xl font-bold mb-6 drop-shadow-2xl" style={{ textShadow: '0 0 30px rgba(93, 173, 226, 0.5), 0 4px 20px rgba(0, 0, 0, 0.8)' }}>Steadfast Digital</h1>
-          <p className="text-xl md:text-2xl mb-4 font-light drop-shadow-2xl" style={{ textShadow: '0 0 20px rgba(93, 173, 226, 0.3), 0 2px 15px rgba(0, 0, 0, 0.8)' }}>a Performance-driven Digital Marketing Agency</p>
-          <p className="text-lg mb-10 text-gray-200 drop-shadow-2xl" style={{ textShadow: '0 0 15px rgba(93, 173, 226, 0.3), 0 2px 10px rgba(0, 0, 0, 0.8)' }}>Data Optimization Platform for E-commerce Growth</p>
-          <Link
-            to="/login"
-            className="inline-block bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] px-10 py-3 rounded font-bold text-sm tracking-wider transition-all duration-300 shadow-2xl hover:shadow-[0_0_30px_rgba(0,217,255,0.6)] hover:scale-105"
-          >
-            GET STARTED
-          </Link>
-        </div>
-      </section>
-
-      
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <div className="bg-white rounded-xl shadow-sm border border-[#e7ecf5] p-5 sm:p-7 mb-7">
-          <p className="text-center text-xs sm:text-sm font-semibold text-[#005ea6] tracking-wide uppercase mb-2">
-            We are a digital marketing agency based in New York City
-          </p>
-          <p className="text-center text-[11px] sm:text-sm text-[#53627a] leading-relaxed">
-            High-value task operations and campaign optimization for brands that need stable daily growth and clear conversion outcomes.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-8">
-          {serviceTiles.map((tile) => {
-            const Icon = tile.icon;
-            return (
-              <div
-                key={tile.label}
-                className="bg-[#0b4f8a] text-white rounded-md px-3 py-3 sm:py-4 flex flex-col items-center justify-center gap-1 shadow-[0_8px_20px_rgba(11,79,138,0.24)]"
-              >
-                <Icon size={16} className="text-[#9fd7ff]" />
-                <span className="text-[10px] sm:text-xs text-center leading-tight font-semibold">{tile.label}</span>
+      <main>
+        <section className="relative overflow-hidden border-b border-white/10">
+          <div className="mx-auto grid max-w-7xl gap-10 px-4 pb-16 pt-14 sm:px-6 md:pt-20 lg:grid-cols-[1.1fr_0.9fr] lg:px-10">
+            <div>
+              <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#59c0f2]/30 bg-[#0f2a42]/60 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#89d7ff]">
+                <Compass size={14} />
+                Production-Grade Growth Platform
+              </p>
+              <h1 className="text-4xl font-black leading-tight text-white sm:text-5xl lg:text-6xl">
+                Turn Marketing Into a
+                <span className="block bg-gradient-to-r from-[#61d6ff] via-[#8be3ff] to-[#ffd0a1] bg-clip-text text-transparent">
+                  Predictable Revenue System
+                </span>
+              </h1>
+              <p className="mt-6 max-w-xl text-base leading-relaxed text-[#b8d8f6] sm:text-lg">
+                Steadfast Digital fuses campaign strategy, execution discipline, and analytics intelligence into one operating system built for scalable e-commerce growth.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <Link to="/signup" className="group inline-flex items-center gap-2 rounded-xl bg-[#39c6f4] px-6 py-3 text-sm font-extrabold uppercase tracking-[0.08em] text-[#042236] transition hover:bg-[#68d6fb]">
+                  Launch Your Growth Stack
+                  <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
+                </Link>
+                <a href="#proof" className="inline-flex items-center gap-2 rounded-xl border border-[#5da8dc]/50 bg-[#0f2a42]/50 px-6 py-3 text-sm font-semibold text-[#d7ecff] transition hover:bg-[#123451]">
+                  <CheckCircle2 size={16} />
+                  See Proof Metrics
+                </a>
               </div>
-            );
-          })}
-        </div>
+            </div>
 
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          <article className="bg-white rounded-xl border border-[#e7ecf5] p-5 shadow-sm">
-            <h2 className="text-base sm:text-lg font-bold text-[#0a3565] mb-3">Our Approach</h2>
-            <p className="text-sm text-[#4f5f77] leading-relaxed">
-              Agile execution and live digital analytics in every workflow. Our team designs repeatable task automation that keeps acquisition efficient, protects budgets, and scales validated campaigns across platforms.
-            </p>
-          </article>
-          <article className="bg-white rounded-xl border border-[#e7ecf5] p-5 shadow-sm">
-            <h2 className="text-base sm:text-lg font-bold text-[#0a3565] mb-3">Agency Expertise</h2>
-            <ul className="space-y-2">
-              {expertiseItems.map((item) => (
-                <li key={item} className="text-sm text-[#4f5f77] leading-relaxed">
-                  • {item}
-                </li>
-              ))}
-            </ul>
-          </article>
-        </div>
-
-        <div className="mb-8">
-          <h2 className="text-center text-base sm:text-lg font-bold text-[#0a3565] mb-4">Discover Our Work</h2>
-          <div className="space-y-3">
-            {workHighlights.map((item) => (
-              <article key={item.title} className="relative h-36 sm:h-44 rounded-lg overflow-hidden shadow-md">
-                <img src={item.image} alt={item.title} className="absolute inset-0 w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-r from-[#001f3fbf] via-[#001f3f73] to-transparent"></div>
-                <div className="absolute left-4 bottom-4 text-white">
-                  <h3 className="text-lg font-bold leading-tight">{item.title}</h3>
-                  <p className="text-xs sm:text-sm text-white/80">{item.subtitle}</p>
+            <div className="relative">
+              <div className="rounded-2xl border border-white/15 bg-gradient-to-br from-[#0d2439] via-[#102d47] to-[#0a2034] p-5 shadow-[0_26px_70px_rgba(0,0,0,0.45)]">
+                <div className="mb-5 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-[#8bcdf8]">Mission Control</p>
+                    <p className="mt-1 text-xl font-black text-white">Performance Signal Board</p>
+                  </div>
+                  <div className="rounded-full border border-[#6bc7f7]/35 bg-[#12344f] px-3 py-1 text-xs font-semibold text-[#94dbff]">
+                    Live
+                  </div>
                 </div>
-              </article>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl border border-[#e7ecf5] p-5 sm:p-6 shadow-sm mb-8">
-          <h2 className="text-center text-sm sm:text-base font-bold text-[#0a3565] mb-4 uppercase tracking-wide">
-            Some of Our Awesome Clients
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-            {clientNames.map((client) => (
-              <div
-                key={client}
-                className="h-16 sm:h-20 rounded-md border border-[#d7e2f0] bg-[#f8fbff] flex items-center justify-center text-center px-2"
-              >
-                <span className="text-xs sm:text-sm font-bold text-[#2b3f5a] leading-tight">{client}</span>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {proofMetrics.map((metric) => (
+                    <div key={metric.label} className="rounded-xl border border-white/10 bg-[#0b2135] p-4">
+                      <p className="text-2xl font-black text-[#87deff]">{metric.value}</p>
+                      <p className="mt-1 text-xs leading-snug text-[#aacfe9]">{metric.label}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 rounded-xl border border-[#f59a46]/25 bg-[#f59a46]/10 px-4 py-3 text-xs text-[#ffd9b8]">
+                  <span className="font-bold">Operator note:</span> daily governance keeps spend efficient while preserving growth velocity.
+                </div>
               </div>
-            ))}
+            </div>
           </div>
-        </div>
+        </section>
 
-        <footer className="text-center text-xs sm:text-sm text-[#51627b] pb-8">
-          © 2026 Steadfast Digital, Inc. All rights reserved.
-        </footer>
-      </section>
+        <section id="proof" className="border-b border-white/10 bg-[#0a1f32]/70 py-10">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+            <p className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.22em] text-[#8bcdf8]">Trusted by teams that demand signal over noise</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+              {trustedBy.map((brand) => (
+                <div key={brand} className="rounded-lg border border-white/10 bg-[#102940] px-3 py-3 text-center text-xs font-bold text-[#d7ecff]">
+                  {brand}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="model" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-10">
+          <div className="mb-10 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8bcdf8]">Operating model</p>
+              <h2 className="mt-2 text-3xl font-black text-white sm:text-4xl">How Steadfast compounds growth</h2>
+            </div>
+            <div className="hidden items-center gap-2 rounded-lg border border-white/10 bg-[#0f2a42]/70 px-3 py-2 text-xs font-semibold text-[#c6e5ff] md:inline-flex">
+              <Zap size={14} />
+              Extra-production workflow
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {valuePillars.map((pillar) => {
+                const Icon = pillar.icon;
+                return (
+                  <article key={pillar.title} className="rounded-2xl border border-white/10 bg-[#0f2a42]/75 p-5 transition hover:border-[#6fcffb]/45 hover:bg-[#143653]">
+                    <div className="mb-3 inline-flex rounded-lg bg-[#39c6f4]/15 p-2 text-[#84ddff]">
+                      <Icon size={18} />
+                    </div>
+                    <h3 className="text-lg font-bold text-white">{pillar.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-[#b8d8f6]">{pillar.text}</p>
+                  </article>
+                );
+              })}
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#122f49] to-[#0c243a] p-6">
+              <h3 className="text-lg font-black text-white">Execution Timeline</h3>
+              <div className="mt-5 space-y-4">
+                {operatingModel.map((step) => (
+                  <div key={step.stage} className="relative rounded-xl border border-white/10 bg-[#0a2034] p-4 pl-14">
+                    <span className="absolute left-4 top-4 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#3dc8f6] text-xs font-black text-[#062033]">
+                      {step.stage}
+                    </span>
+                    <p className="text-sm font-bold uppercase tracking-[0.12em] text-[#8fd8ff]">{step.title}</p>
+                    <p className="mt-1 text-sm text-[#c9e7ff]">{step.detail}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 rounded-xl border border-[#5dc4f5]/25 bg-[#5dc4f5]/10 px-4 py-3 text-sm text-[#c9ecff]">
+                Every stage is KPI-gated. Nothing scales without proof.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="programs" className="border-t border-white/10 bg-[#091b2b] py-16">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+            <h2 className="text-3xl font-black text-white sm:text-4xl">Flagship Programs</h2>
+            <p className="mt-3 max-w-2xl text-[#b8d8f6]">
+              Built to be deployable fast, auditable at scale, and defensible in high-stakes growth reviews.
+            </p>
+            <div className="mt-8 grid gap-5 md:grid-cols-3">
+              {featuredPrograms.map((program) => (
+                <article key={program.name} className="group overflow-hidden rounded-2xl border border-white/10 bg-[#102940]">
+                  <div className={`h-2 bg-gradient-to-r ${program.accent}`} />
+                  <div className="p-5">
+                    <div className="mb-3 inline-flex rounded-lg bg-white/10 p-2 text-[#8fd8ff]">
+                      <Layers3 size={16} />
+                    </div>
+                    <h3 className="text-xl font-black text-white">{program.name}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-[#bddcf8]">{program.summary}</p>
+                    <p className="mt-4 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#9fe2ff]">
+                      Production-ready
+                      <Gem size={14} />
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto max-w-7xl px-4 pb-20 pt-14 sm:px-6 lg:px-10">
+          <div className="rounded-3xl border border-white/15 bg-gradient-to-r from-[#10314c] via-[#123955] to-[#15354d] p-8 shadow-[0_25px_60px_rgba(0,0,0,0.35)] sm:p-10">
+            <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+              <div>
+                <p className="inline-flex items-center gap-2 rounded-full border border-[#79d6ff]/35 bg-[#2baee1]/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#9ee5ff]">
+                  <Globe size={14} />
+                  Judge-ready presentation mode
+                </p>
+                <h2 className="mt-4 text-3xl font-black text-white sm:text-4xl">Show up with a landing page that looks like a market leader.</h2>
+                <p className="mt-4 max-w-2xl text-[#cbe8ff]">
+                  Designed for high trust, fast comprehension, and decisive action. Optimized for both desktop and mobile conversion paths.
+                </p>
+              </div>
+              <div className="flex flex-col gap-3">
+                <Link to="/signup" className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#44cef8] px-5 py-3 text-sm font-black uppercase tracking-[0.09em] text-[#07253b] transition hover:bg-[#71dcfb]">
+                  Create your account
+                  <ArrowRight size={16} />
+                </Link>
+                <Link to="/login" className="inline-flex items-center justify-center rounded-xl border border-[#7fcff7]/40 bg-[#0e2f47]/60 px-5 py-3 text-sm font-semibold text-[#d7ecff] transition hover:bg-[#14415f]">
+                  Access dashboard
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          <footer className="mt-10 text-center text-xs text-[#91b7d6]">
+            © 2026 Steadfast Digital, Inc. Built for measurable growth.
+          </footer>
+        </section>
+      </main>
     </div>
   );
 }
-
