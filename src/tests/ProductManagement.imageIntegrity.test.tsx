@@ -42,7 +42,7 @@ describe('ProductManagement image integrity', () => {
     );
 
     const image = screen.getByAltText('Keyboard') as HTMLImageElement;
-    expect(image.src).toContain('https://via.placeholder.com/400x300?text=Image+Unavailable');
+    expect(image.src).toContain('data:image/svg+xml');
   });
 
   it('switches to neutral placeholder when image fails to load', () => {
@@ -56,6 +56,6 @@ describe('ProductManagement image integrity', () => {
     const image = screen.getByAltText('Monitor') as HTMLImageElement;
     fireEvent.error(image);
 
-    expect(image.src).toContain('https://via.placeholder.com/400x300?text=Image+Unavailable');
+    expect(image.src).toContain('data:image/svg+xml');
   });
 });

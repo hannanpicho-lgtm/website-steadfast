@@ -40,7 +40,12 @@ const VIP_TIER_COLORS: Record<number, { bg: string; text: string; border: string
   5: { bg: 'bg-purple-500/20', text: 'text-purple-300', border: 'border-purple-500/40' },
 };
 
-const PRODUCT_IMAGE_PLACEHOLDER = 'https://via.placeholder.com/400x300?text=Image+Unavailable';
+const PRODUCT_IMAGE_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='100%25' height='100%25' fill='%231a2234'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-family='Arial' font-size='18'%3EImage unavailable%3C/text%3E%3C/svg%3E";
+
+function resolveProductImageSrc(product: any): string {
+  const raw = normalizeText(product?.image || product?.imageUrl, '').trim();
+  return raw || PRODUCT_IMAGE_PLACEHOLDER;
+}
 
 export default function ProductManagement({
   products,
@@ -443,11 +448,13 @@ export default function ProductManagement({
 
                 <div className="relative">
                   <img
-                    src={normalizeText(product?.image || product?.imageUrl, PRODUCT_IMAGE_PLACEHOLDER)}
+                    src={resolveProductImageSrc(product)}
                     alt={productName}
                     className="w-full h-44 object-cover"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = PRODUCT_IMAGE_PLACEHOLDER;
+                      const target = e.currentTarget;
+                      target.onerror = null;
+                      target.src = PRODUCT_IMAGE_PLACEHOLDER;
                     }}
                   />
                   <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">

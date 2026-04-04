@@ -42,7 +42,7 @@ import type {
   WithdrawalRequestRecord,
 } from './adminTypes';
 
-const PRODUCT_IMAGE_PLACEHOLDER = 'https://via.placeholder.com/400x300?text=Image+Unavailable';
+const PRODUCT_IMAGE_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='100%25' height='100%25' fill='%231a2234'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-family='Arial' font-size='18'%3EImage unavailable%3C/text%3E%3C/svg%3E";
 
 const hasLikelyHttpPrefix = (value: string): boolean => /^https?:\/\/\S+/i.test(value.trim());
 
@@ -1037,7 +1037,9 @@ export default function AdminModals(props: AdminModalsProps) {
                       }
                     }}
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = PRODUCT_IMAGE_PLACEHOLDER;
+                      const target = e.currentTarget;
+                      target.onerror = null;
+                      target.src = PRODUCT_IMAGE_PLACEHOLDER;
                       if (manualImageDraft.trim()) {
                         setManualImageStatus('error');
                       }
@@ -1378,7 +1380,16 @@ export default function AdminModals(props: AdminModalsProps) {
           </div>
           <div className="space-y-4">
             <div className="bg-[#1a1f2e] p-4 rounded-lg">
-              <img src={selectedItem.image || selectedItem.imageUrl || PRODUCT_IMAGE_PLACEHOLDER} alt={selectedItem.product || selectedItem.name || 'Product'} className="w-full h-64 object-cover rounded-lg mb-4" onError={(e) => { (e.target as HTMLImageElement).src = PRODUCT_IMAGE_PLACEHOLDER; }} />
+              <img
+                src={String(selectedItem.image || selectedItem.imageUrl || '').trim() || PRODUCT_IMAGE_PLACEHOLDER}
+                alt={selectedItem.product || selectedItem.name || 'Product'}
+                className="w-full h-64 object-cover rounded-lg mb-4"
+                onError={(e) => {
+                  const target = e.currentTarget;
+                  target.onerror = null;
+                  target.src = PRODUCT_IMAGE_PLACEHOLDER;
+                }}
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-[#1a1f2e] p-4 rounded-lg col-span-2">
@@ -1506,7 +1517,9 @@ export default function AdminModals(props: AdminModalsProps) {
                         }
                       }}
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = PRODUCT_IMAGE_PLACEHOLDER;
+                        const target = e.currentTarget;
+                        target.onerror = null;
+                        target.src = PRODUCT_IMAGE_PLACEHOLDER;
                         if (editImageDraft.trim()) {
                           setEditImageStatus('error');
                         }
