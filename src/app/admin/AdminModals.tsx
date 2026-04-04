@@ -1,4 +1,4 @@
-const PRODUCT_IMAGE_PLACEHOLDER = 'https://via.placeholder.com/400x300?text=Image+Unavailable';
+import { useEffect, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import {
   X,
@@ -25,6 +25,7 @@ import {
 import type { RewardsConfig } from '../services/rewardsConfig';
 import type { VipConfig } from '../services/vipConfig';
 import type { SalaryPayment } from '../services/adminSalaryBackup';
+import { normalizeHttpUrl } from '../utils/urlValidation';
 import { formatRelativeTime } from './adminTypes';
 import type {
   AdminRole,
@@ -40,6 +41,8 @@ import type {
   VipDraftState,
   WithdrawalRequestRecord,
 } from './adminTypes';
+
+const PRODUCT_IMAGE_PLACEHOLDER = 'https://via.placeholder.com/400x300?text=Image+Unavailable';
 
 export interface AdminModalsProps {
   // Modal state
@@ -210,6 +213,34 @@ export default function AdminModals(props: AdminModalsProps) {
     processWithdrawalReview,
     buildRolePermissionsFromForm,
   } = props;
+
+  const [manualImageDraft, setManualImageDraft] = useState('');
+  const [manualImageStatus, setManualImageStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [editImageDraft, setEditImageDraft] = useState('');
+  const [editImageStatus, setEditImageStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+
+  useEffect(() => {
+    if (modalType === 'add-product-manual') {
+      setManualImageDraft('');
+      setManualImageStatus('idle');
+      return;
+    }
+
+    if (modalType === 'edit-product' && selectedItem) {
+      const initialImage = String(selectedItem.image || selectedItem.imageUrl || '').trim();
+      setEditImageDraft(initialImage);
+      if (!initialImage) {
+        setEditImageStatus('idle');
+      } else {
+        setEditImageStatus(normalizeHttpUrl(initialImage) ? 'loading' : 'error');
+      }
+    }
+  }, [modalType, selectedItem]);
+
+  const normalizedManualImageUrl = normalizeHttpUrl(manualImageDraft);
+  const normalizedEditImageUrl = normalizeHttpUrl(editImageDraft);
+  const manualCanSubmit = normalizedManualImageUrl.length > 0 && manualImageStatus === 'ok';
+  const editCanSubmit = normalizedEditImageUrl.length > 0 && editImageStatus === 'ok';
 
   if (!modalType) return null;
 
@@ -956,7 +987,48 @@ export default function AdminModals(props: AdminModalsProps) {
               </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-300 mb-2">Image URL</label>
-                <input type="url" name="image" required className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://image.example/product.jpg" />
+                <input
+                  type="url"
+                  name="image"
+                  required
+                  className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+                  placeholder="https://image.example/product.jpg"
+                  value={manualImageDraft}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setManualImageDraft(next);
+                    if (!next.trim()) {
+                      setManualImageStatus('idle');
+                    } else {
+                      setManualImageStatus(normalizeHttpUrl(next) ? 'loading' : 'error');
+                    }
+                  }}
+                />
+                <div className="mt-3 rounded-lg border border-gray-700 bg-[#1a1f2e] p-3">
+                  <div className="mb-2 flex items-center justify-between text-xs">
+                    <span className="text-gray-400">Image Health Check</span>
+                    {manualImageStatus === 'ok' && <span className="text-green-400">Reachable</span>}
+                    {manualImageStatus === 'loading' && <span className="text-yellow-300">Checking...</span>}
+                    {manualImageStatus === 'error' && <span className="text-red-400">Invalid or unreachable</span>}
+                    {manualImageStatus === 'idle' && <span className="text-gray-500">Paste image URL</span>}
+                  </div>
+                  <img
+                    src={normalizedManualImageUrl || PRODUCT_IMAGE_PLACEHOLDER}
+                    alt="Manual product preview"
+                    className="h-36 w-full rounded border border-gray-700 object-cover"
+                    onLoad={() => {
+                      if (normalizedManualImageUrl) {
+                        setManualImageStatus('ok');
+                      }
+                    }}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = PRODUCT_IMAGE_PLACEHOLDER;
+                      if (manualImageDraft.trim()) {
+                        setManualImageStatus('error');
+                      }
+                    }}
+                  />
+                </div>
               </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-300 mb-2">Product Page URL (Optional)</label>
@@ -971,7 +1043,7 @@ export default function AdminModals(props: AdminModalsProps) {
               </div>
             </div>
             <div className="flex gap-3 mt-6">
-              <button type="submit" className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
+              <button type="submit" disabled={!manualCanSubmit} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] disabled:opacity-60 disabled:cursor-not-allowed text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
                 Create Product
               </button>
               <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
@@ -1366,7 +1438,48 @@ export default function AdminModals(props: AdminModalsProps) {
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-300 mb-2">Image URL</label>
-                  <input type="url" name="image" required defaultValue={selectedItem.image || selectedItem.imageUrl || ''} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://image.example/product.jpg" />
+                  <input
+                    type="url"
+                    name="image"
+                    required
+                    value={editImageDraft}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setEditImageDraft(next);
+                      if (!next.trim()) {
+                        setEditImageStatus('idle');
+                      } else {
+                        setEditImageStatus(normalizeHttpUrl(next) ? 'loading' : 'error');
+                      }
+                    }}
+                    className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+                    placeholder="https://image.example/product.jpg"
+                  />
+                  <div className="mt-3 rounded-lg border border-gray-700 bg-[#1a1f2e] p-3">
+                    <div className="mb-2 flex items-center justify-between text-xs">
+                      <span className="text-gray-400">Image Health Check</span>
+                      {editImageStatus === 'ok' && <span className="text-green-400">Reachable</span>}
+                      {editImageStatus === 'loading' && <span className="text-yellow-300">Checking...</span>}
+                      {editImageStatus === 'error' && <span className="text-red-400">Invalid or unreachable</span>}
+                      {editImageStatus === 'idle' && <span className="text-gray-500">Paste image URL</span>}
+                    </div>
+                    <img
+                      src={normalizedEditImageUrl || PRODUCT_IMAGE_PLACEHOLDER}
+                      alt="Edit product preview"
+                      className="h-36 w-full rounded border border-gray-700 object-cover"
+                      onLoad={() => {
+                        if (normalizedEditImageUrl) {
+                          setEditImageStatus('ok');
+                        }
+                      }}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = PRODUCT_IMAGE_PLACEHOLDER;
+                        if (editImageDraft.trim()) {
+                          setEditImageStatus('error');
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-300 mb-2">Product Page URL (Optional)</label>
@@ -1381,7 +1494,7 @@ export default function AdminModals(props: AdminModalsProps) {
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
-                <button type="submit" className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
+                <button type="submit" disabled={!editCanSubmit} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] disabled:opacity-60 disabled:cursor-not-allowed text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
                   Save Changes
                 </button>
                 <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
