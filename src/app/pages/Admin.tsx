@@ -42,6 +42,7 @@ import {
 import { fetchAdminVipConfig, type VipConfig, updateAdminVipConfig } from '../services/vipConfig';
 import { getRuntimeEnvironmentDebugSnapshot, RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 import { useAdminSalaryBackup } from '../hooks/useAdminSalaryBackup';
+import { normalizeHttpUrl } from '../utils/urlValidation';
 
 const PremiumBundles = lazy(() => import('../components/admin/PremiumBundles'));
 const CustomerSupport = lazy(() => import('../components/admin/CustomerSupport'));
@@ -66,23 +67,6 @@ function AdminPanelFallback({ label }: { label: string }) {
       {label}
     </div>
   );
-}
-
-function normalizeHttpUrl(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return '';
-  }
-
-  try {
-    const parsed = new URL(trimmed);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      return '';
-    }
-    return parsed.toString();
-  } catch {
-    return '';
-  }
 }
 
 export default function Admin() {
