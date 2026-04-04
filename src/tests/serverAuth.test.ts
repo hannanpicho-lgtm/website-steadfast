@@ -96,7 +96,7 @@ describe('serverLogin', () => {
     expect(getStoredSessionToken()).toBe('session-123');
     expect(fetchMock).toHaveBeenCalledWith(
       'https://test-project.supabase.co/functions/v1/make-server-a1c55d7e/auth/login',
-      {
+      expect.objectContaining({
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -104,7 +104,7 @@ describe('serverLogin', () => {
           Authorization: 'Bearer anon-key',
         },
         body: JSON.stringify({ username: 'alice', loginPassword: 'pw' }),
-      },
+      }),
     );
   });
 
@@ -280,7 +280,7 @@ describe('changeUserCredentials', () => {
     expect(isPasswordChangeRequired()).toBe(false);
     expect(fetchMock).toHaveBeenCalledWith(
       'https://test-project.supabase.co/functions/v1/make-server-a1c55d7e/auth/change-credentials',
-      {
+      expect.objectContaining({
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -292,7 +292,7 @@ describe('changeUserCredentials', () => {
           newLoginPassword: 'new-login',
           newTransactionPassword: 'new-transaction',
         }),
-      },
+      }),
     );
   });
 

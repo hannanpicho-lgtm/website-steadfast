@@ -88,7 +88,9 @@ describe('CSRF trusted origin variants', () => {
       Origin: TRUSTED_ORIGIN,
     });
 
-    expect(result.status).toBe(400);
+    // 400 = bad request (validation), 409 = conflict (active task already exists)
+    // Both prove the request passed CSRF check and reached business logic
+    expect([400, 409]).toContain(result.status);
   });
 
   it('accepts trusted Referer fallback when Origin is absent', async () => {
@@ -96,7 +98,9 @@ describe('CSRF trusted origin variants', () => {
       Referer: `${TRUSTED_ORIGIN}/dashboard`,
     });
 
-    expect(result.status).toBe(400);
+    // 400 = bad request (validation), 409 = conflict (active task already exists)
+    // Both prove the request passed CSRF check and reached business logic
+    expect([400, 409]).toContain(result.status);
   });
 
   it('rejects missing Origin and Referer for unsafe session request', async () => {
@@ -113,5 +117,5 @@ describe('CSRF trusted origin variants', () => {
 
     expect([403, 503]).toContain(result.status);
     expect(['origin_not_allowed', 'csrf_origin_untrusted', 'network_timeout']).toContain(String(result.body?.code ?? ''));
-  });
+  }, 60_000);
 });

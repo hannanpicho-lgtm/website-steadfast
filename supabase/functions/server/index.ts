@@ -9514,6 +9514,9 @@ app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c: any) => {
 });
 
 app.get('/make-server-a1c55d7e/admin/tasks/image-proxy', async (c: any) => {
+  const authError = await requireAdmin(c);
+  if (authError) return authError;
+
   try {
     const targetUrlRaw = typeof c.req.query('url') === 'string' ? c.req.query('url') : '';
     const targetUrl = sanitizeTaskUrl(targetUrlRaw);
