@@ -44,6 +44,8 @@ import type {
 
 const PRODUCT_IMAGE_PLACEHOLDER = 'https://via.placeholder.com/400x300?text=Image+Unavailable';
 
+const hasLikelyHttpPrefix = (value: string): boolean => /^https?:\/\/\S+/i.test(value.trim());
+
 export interface AdminModalsProps {
   // Modal state
   modalType: ModalType;
@@ -245,8 +247,8 @@ export default function AdminModals(props: AdminModalsProps) {
   const normalizedEditImageUrl = normalizeHttpUrl(editImageDraft);
   const manualHasValidImageUrl = normalizedManualImageUrl.length > 0;
   const editHasValidImageUrl = normalizedEditImageUrl.length > 0;
-  const manualCanUseWarningOverride = manualHasValidImageUrl && manualImageStatus === 'error';
-  const editCanUseWarningOverride = editHasValidImageUrl && editImageStatus === 'error';
+  const manualCanUseWarningOverride = manualImageStatus === 'error' && (manualHasValidImageUrl || hasLikelyHttpPrefix(manualImageDraft));
+  const editCanUseWarningOverride = editImageStatus === 'error' && (editHasValidImageUrl || hasLikelyHttpPrefix(editImageDraft));
   const manualCanSubmit = manualHasValidImageUrl && (manualImageStatus === 'ok' || (manualCanUseWarningOverride && manualAllowUnreachable));
   const editCanSubmit = editHasValidImageUrl && (editImageStatus === 'ok' || (editCanUseWarningOverride && editAllowUnreachable));
 
