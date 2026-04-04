@@ -11,6 +11,7 @@ import {
   Image,
   Sparkles,
   Upload,
+  Edit,
   Tag,
   Link as LinkIcon,
   Gift,
