@@ -6,7 +6,8 @@ export default defineConfig({
     // Default to node; individual files can override with @vitest-environment jsdom
     environment: 'node',
     globals: true,
-    include: ['src/tests/**/*.test.ts'],
+    include: ['src/tests/**/*.test.{ts,tsx}'],
+    setupFiles: ['src/tests/setup.ts'],
     testTimeout: 20_000, // API integration tests need more time
     coverage: {
       provider: 'v8',
