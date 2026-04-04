@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { Check, X, Download, Search, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import React, { useState } from 'react';
+import { Check, X, Download, Search } from 'lucide-react';
+import { useTableSort } from '../hooks/useTableSort';
+import { SortIcon } from './SortIcon';
 
 interface WithdrawalsProps {
   withdrawalRequests: any[];
@@ -12,17 +14,7 @@ interface WithdrawalsProps {
   formatDateTime: (date: string) => string;
 }
 
-type SortDir = 'asc' | 'desc';
-type SortCol = 'requestedDate' | 'amount' | 'username' | '';
-
-const WD_PER_PAGE = 15;
-
-function SortIcon({ col, sortCol, sortDir }: { col: string; sortCol: SortCol; sortDir: SortDir }) {
-  if (sortCol !== col) return <ChevronsUpDown size={14} className="ml-1 inline opacity-40" />;
-  return sortDir === 'asc'
-    ? <ChevronUp size={14} className="ml-1 inline text-[#00D9FF]" />
-    : <ChevronDown size={14} className="ml-1 inline text-[#00D9FF]" />;
-}
+const SEARCH_FIELDS = ['id', 'username', 'walletAddress'] as const;
 
 export default function Withdrawals({
   withdrawalRequests,
@@ -36,9 +28,6 @@ export default function Withdrawals({
 }: WithdrawalsProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [wdPage, setWdPage] = useState(1);
-  const [sortCol, setSortCol] = useState<SortCol>('requestedDate');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const defaultFormatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount);
@@ -47,48 +36,18 @@ export default function Withdrawals({
   const fmt = formatCurrency || defaultFormatCurrency;
   const fmtDt = formatDateTime || defaultFormatDateTime;
 
-  const handleSort = (col: SortCol) => {
-    if (sortCol === col) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortCol(col);
-      setSortDir(col === 'requestedDate' ? 'desc' : 'asc');
-    }
-    setWdPage(1);
-  };
+  const { sortCol, sortDir, page, setPage, handleSort, paginated, totalPages, sorted, startIdx } = useTableSort({
+    items: withdrawalRequests,
+    defaultDateCol: 'requestedDate',
+    searchFields: SEARCH_FIELDS as unknown as (keyof any)[],
+    searchTerm,
+    filterStatus,
+  });
 
-  const filtered = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    return withdrawalRequests.filter((wd) => {
-      const matchSearch = !q ||
-        String(wd.id ?? '').toLowerCase().includes(q) ||
-        String(wd.username ?? '').toLowerCase().includes(q) ||
-        String(wd.walletAddress ?? '').toLowerCase().includes(q);
-      const matchStatus = filterStatus === 'all' || (wd.status ?? '').toLowerCase() === filterStatus.toLowerCase();
-      return matchSearch && matchStatus;
-    });
-  }, [withdrawalRequests, searchTerm, filterStatus]);
+  const safePage = page;
 
-  const sorted = useMemo(() => {
-    if (!sortCol) return filtered;
-    return [...filtered].sort((a, b) => {
-      let aVal: any, bVal: any;
-      if (sortCol === 'requestedDate') { aVal = new Date(a.requestedDate).getTime(); bVal = new Date(b.requestedDate).getTime(); }
-      else if (sortCol === 'amount') { aVal = a.amount ?? 0; bVal = b.amount ?? 0; }
-      else { aVal = (a.username ?? '').toLowerCase(); bVal = (b.username ?? '').toLowerCase(); }
-      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [filtered, sortCol, sortDir]);
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / WD_PER_PAGE));
-  const safePage = Math.min(wdPage, totalPages);
-  const startIdx = (safePage - 1) * WD_PER_PAGE;
-  const paginated = sorted.slice(startIdx, startIdx + WD_PER_PAGE);
-
-  const handleSearch = (val: string) => { setSearchTerm(val); setWdPage(1); };
-  const handleFilterStatus = (val: string) => { setFilterStatus(val); setWdPage(1); };
+  const handleSearch = (val: string) => { setSearchTerm(val); setPage(1); };
+  const handleFilterStatus = (val: string) => { setFilterStatus(val); setPage(1); };
 
   return (
     <div className="space-y-6">
@@ -236,7 +195,7 @@ export default function Withdrawals({
         </p>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setWdPage((p) => Math.max(1, p - 1))}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={safePage <= 1}
             className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
@@ -246,7 +205,7 @@ export default function Withdrawals({
             {safePage} / {totalPages}
           </button>
           <button
-            onClick={() => setWdPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={safePage >= totalPages}
             className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >

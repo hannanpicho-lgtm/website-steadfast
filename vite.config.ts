@@ -27,6 +27,12 @@ export default defineConfig({
         },
       },
     },
+    minify: 'esbuild',
+  },
+
+  esbuild: {
+    drop: ['debugger'],
+    pure: ['console.log', 'console.info', 'console.warn'],
   },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.

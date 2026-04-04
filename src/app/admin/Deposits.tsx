@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { Download, Search, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import React, { useState } from 'react';
+import { Download, Search } from 'lucide-react';
+import { useTableSort } from '../hooks/useTableSort';
+import { SortIcon } from './SortIcon';
 
 interface DepositsProps {
   deposits: any[];
@@ -9,17 +11,7 @@ interface DepositsProps {
   formatDateTime: (date: string) => string;
 }
 
-type SortDir = 'asc' | 'desc';
-type SortCol = 'date' | 'amount' | 'username' | '';
-
-const DEP_PER_PAGE = 15;
-
-function SortIcon({ col, sortCol, sortDir }: { col: string; sortCol: SortCol; sortDir: SortDir }) {
-  if (sortCol !== col) return <ChevronsUpDown size={14} className="ml-1 inline opacity-40" />;
-  return sortDir === 'asc'
-    ? <ChevronUp size={14} className="ml-1 inline text-[#00D9FF]" />
-    : <ChevronDown size={14} className="ml-1 inline text-[#00D9FF]" />;
-}
+const SEARCH_FIELDS = ['id', 'username', 'txHash'] as const;
 
 export default function Deposits({
   deposits,
@@ -30,9 +22,6 @@ export default function Deposits({
 }: DepositsProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [depPage, setDepPage] = useState(1);
-  const [sortCol, setSortCol] = useState<SortCol>('date');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const defaultFormatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount);
@@ -41,48 +30,18 @@ export default function Deposits({
   const fmt = formatCurrency || defaultFormatCurrency;
   const fmtDt = formatDateTime || defaultFormatDateTime;
 
-  const handleSort = (col: SortCol) => {
-    if (sortCol === col) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortCol(col);
-      setSortDir(col === 'date' ? 'desc' : 'asc');
-    }
-    setDepPage(1);
-  };
+  const { sortCol, sortDir, page, setPage, handleSort, paginated, totalPages, sorted, startIdx } = useTableSort({
+    items: deposits,
+    defaultDateCol: 'date',
+    searchFields: SEARCH_FIELDS as unknown as (keyof any)[],
+    searchTerm,
+    filterStatus,
+  });
 
-  const filtered = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    return deposits.filter((dep) => {
-      const matchSearch = !q ||
-        String(dep.id ?? '').toLowerCase().includes(q) ||
-        String(dep.username ?? '').toLowerCase().includes(q) ||
-        String(dep.txHash ?? '').toLowerCase().includes(q);
-      const matchStatus = filterStatus === 'all' || (dep.status ?? '').toLowerCase() === filterStatus.toLowerCase();
-      return matchSearch && matchStatus;
-    });
-  }, [deposits, searchTerm, filterStatus]);
+  const safePage = page;
 
-  const sorted = useMemo(() => {
-    if (!sortCol) return filtered;
-    return [...filtered].sort((a, b) => {
-      let aVal: any, bVal: any;
-      if (sortCol === 'date') { aVal = new Date(a.date).getTime(); bVal = new Date(b.date).getTime(); }
-      else if (sortCol === 'amount') { aVal = a.amount ?? 0; bVal = b.amount ?? 0; }
-      else { aVal = (a.username ?? '').toLowerCase(); bVal = (b.username ?? '').toLowerCase(); }
-      if (aVal < bVal) return sortDir === 'asc' ? -1 : 1;
-      if (aVal > bVal) return sortDir === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [filtered, sortCol, sortDir]);
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / DEP_PER_PAGE));
-  const safePage = Math.min(depPage, totalPages);
-  const startIdx = (safePage - 1) * DEP_PER_PAGE;
-  const paginated = sorted.slice(startIdx, startIdx + DEP_PER_PAGE);
-
-  const handleSearch = (val: string) => { setSearchTerm(val); setDepPage(1); };
-  const handleFilterStatus = (val: string) => { setFilterStatus(val); setDepPage(1); };
+  const handleSearch = (val: string) => { setSearchTerm(val); setPage(1); };
+  const handleFilterStatus = (val: string) => { setFilterStatus(val); setPage(1); };
 
   return (
     <div className="space-y-6">
@@ -193,7 +152,7 @@ export default function Deposits({
         </p>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setDepPage((p) => Math.max(1, p - 1))}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={safePage <= 1}
             className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
@@ -203,7 +162,7 @@ export default function Deposits({
             {safePage} / {totalPages}
           </button>
           <button
-            onClick={() => setDepPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={safePage >= totalPages}
             className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
