@@ -551,16 +551,18 @@ export default function ProductManagement({
         </p>
         <div className="flex items-center gap-2">
           <button
+            aria-label="Previous page"
             onClick={() => setProductPage((current) => Math.max(1, current - 1))}
             disabled={safeProductPage <= 1}
             className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm"
           >
             Previous
           </button>
-          <button className="px-3 py-1 bg-[#00D9FF] text-[#1a1f2e] font-semibold rounded text-sm">
+          <button aria-label={`Page ${safeProductPage} of ${totalProductPages}`} className="px-3 py-1 bg-[#00D9FF] text-[#1a1f2e] font-semibold rounded text-sm">
             {safeProductPage} / {totalProductPages}
           </button>
           <button
+            aria-label="Next page"
             onClick={() => setProductPage((current) => Math.min(totalProductPages, current + 1))}
             disabled={safeProductPage >= totalProductPages}
             className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-sm"

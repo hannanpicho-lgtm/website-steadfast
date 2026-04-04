@@ -7,6 +7,11 @@
 
   installServerAuthFetchBridge();
 
+  // Catch async errors outside the React tree
+  window.addEventListener("unhandledrejection", (event) => {
+    console.error("[Unhandled Promise]", event.reason);
+  });
+
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <App />

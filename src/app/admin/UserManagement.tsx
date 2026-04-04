@@ -396,16 +396,18 @@ export default function UserManagement({
         </p>
         <div className="flex items-center gap-2">
           <button
+            aria-label="Previous page"
             onClick={() => setUserPage((current) => Math.max(1, current - 1))}
             disabled={safeUserPage <= 1}
             className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Previous
           </button>
-          <button className="px-3 py-1 bg-[#00D9FF] text-[#1a1f2e] font-semibold rounded">
+          <button aria-label={`Page ${safeUserPage} of ${totalUserPages}`} className="px-3 py-1 bg-[#00D9FF] text-[#1a1f2e] font-semibold rounded">
             {safeUserPage} / {totalUserPages}
           </button>
           <button
+            aria-label="Next page"
             onClick={() => setUserPage((current) => Math.min(totalUserPages, current + 1))}
             disabled={safeUserPage >= totalUserPages}
             className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"

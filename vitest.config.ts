@@ -10,7 +10,7 @@ export default defineConfig({
     testTimeout: 20_000, // API integration tests need more time
     coverage: {
       provider: 'v8',
-      include: ['src/app/services/**'],
+      include: ['src/app/services/**', 'src/app/hooks/**', 'src/app/components/**'],
     },
   },
   resolve: {
