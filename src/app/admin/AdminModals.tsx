@@ -1032,6 +1032,7 @@ export default function AdminModals(props: AdminModalsProps) {
                     src={normalizedManualImageUrl || PRODUCT_IMAGE_PLACEHOLDER}
                     alt="Manual product preview"
                     className="h-36 w-full rounded border border-gray-700 object-cover"
+                    referrerPolicy="no-referrer"
                     onLoad={() => {
                       if (normalizedManualImageUrl) {
                         setManualImageStatus('ok');
@@ -1385,6 +1386,7 @@ export default function AdminModals(props: AdminModalsProps) {
                 src={String(selectedItem.image || selectedItem.imageUrl || '').trim() || PRODUCT_IMAGE_PLACEHOLDER}
                 alt={selectedItem.product || selectedItem.name || 'Product'}
                 className="w-full h-64 object-cover rounded-lg mb-4"
+                referrerPolicy="no-referrer"
                 onError={(e) => {
                   const target = e.currentTarget;
                   target.onerror = null;
@@ -1512,6 +1514,7 @@ export default function AdminModals(props: AdminModalsProps) {
                       src={normalizedEditImageUrl || PRODUCT_IMAGE_PLACEHOLDER}
                       alt="Edit product preview"
                       className="h-36 w-full rounded border border-gray-700 object-cover"
+                      referrerPolicy="no-referrer"
                       onLoad={() => {
                         if (normalizedEditImageUrl) {
                           setEditImageStatus('ok');

@@ -451,6 +451,7 @@ export default function ProductManagement({
                     src={resolveProductImageSrc(product)}
                     alt={productName}
                     className="w-full h-44 object-cover"
+                    referrerPolicy="no-referrer"
                     onError={(e) => {
                       const target = e.currentTarget;
                       target.onerror = null;
