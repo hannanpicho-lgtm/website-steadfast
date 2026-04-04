@@ -12,7 +12,7 @@ import {
   Target,
   Zap,
 } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, type CSSProperties } from 'react';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 
 const valuePillars = [
@@ -98,7 +98,75 @@ const storyBeats = [
   { label: 'Scale Protocol', detail: 'Winning loops scaled safely.' },
 ];
 
+type MotionIntensity = 'subtle' | 'balanced' | 'dramatic';
+
+const MOTION_INTENSITY: MotionIntensity = 'balanced';
+
+const MOTION_PRESETS: Record<MotionIntensity, {
+  revealDurationMs: number;
+  heroFadeMs: number;
+  orbDurationSec: number;
+  orbDurationAltSec: number;
+  orbDriftPx: number;
+  marqueeSec: number;
+  pulseLineSec: number;
+  ctaPopSec: number;
+  cardFloatSec: number;
+  sweepSec: number;
+}> = {
+  subtle: {
+    revealDurationMs: 540,
+    heroFadeMs: 620,
+    orbDurationSec: 13,
+    orbDurationAltSec: 15,
+    orbDriftPx: 12,
+    marqueeSec: 24,
+    pulseLineSec: 3.1,
+    ctaPopSec: 3.2,
+    cardFloatSec: 8,
+    sweepSec: 5.4,
+  },
+  balanced: {
+    revealDurationMs: 700,
+    heroFadeMs: 850,
+    orbDurationSec: 9,
+    orbDurationAltSec: 11,
+    orbDriftPx: 22,
+    marqueeSec: 18,
+    pulseLineSec: 2.4,
+    ctaPopSec: 2.2,
+    cardFloatSec: 5.5,
+    sweepSec: 3.8,
+  },
+  dramatic: {
+    revealDurationMs: 920,
+    heroFadeMs: 1050,
+    orbDurationSec: 7,
+    orbDurationAltSec: 8.6,
+    orbDriftPx: 30,
+    marqueeSec: 14,
+    pulseLineSec: 1.8,
+    ctaPopSec: 1.6,
+    cardFloatSec: 4.2,
+    sweepSec: 2.9,
+  },
+};
+
 export default function Home() {
+  const motion = MOTION_PRESETS[MOTION_INTENSITY];
+  const motionVars = {
+    '--reveal-duration': `${motion.revealDurationMs}ms`,
+    '--hero-fade-duration': `${motion.heroFadeMs}ms`,
+    '--orb-duration': `${motion.orbDurationSec}s`,
+    '--orb-duration-alt': `${motion.orbDurationAltSec}s`,
+    '--orb-drift-y': `${motion.orbDriftPx}px`,
+    '--marquee-duration': `${motion.marqueeSec}s`,
+    '--pulse-line-duration': `${motion.pulseLineSec}s`,
+    '--cta-pop-duration': `${motion.ctaPopSec}s`,
+    '--card-float-duration': `${motion.cardFloatSec}s`,
+    '--sweep-duration': `${motion.sweepSec}s`,
+  } as CSSProperties;
+
   useEffect(() => {
     const targets = Array.from(document.querySelectorAll<HTMLElement>('[data-home-reveal]'));
     if (targets.length === 0) {
@@ -124,13 +192,13 @@ export default function Home() {
   return (
     <div
       className="min-h-screen bg-[#071626] text-[#e9f4ff]"
-      style={{ fontFamily: '"Space Grotesk", "Sora", "Poppins", sans-serif' }}
+      style={{ fontFamily: '"Space Grotesk", "Sora", "Poppins", sans-serif', ...motionVars }}
     >
       <style>{`
         .home-reveal {
           opacity: 0;
           transform: translateY(24px) scale(0.985);
-          transition: opacity 700ms ease, transform 700ms ease;
+          transition: opacity var(--reveal-duration, 700ms) ease, transform var(--reveal-duration, 700ms) ease;
           transition-delay: var(--reveal-delay, 0ms);
         }
 
@@ -142,21 +210,21 @@ export default function Home() {
         .hero-fade-in {
           opacity: 0;
           transform: translateY(18px);
-          animation: heroFadeIn 850ms ease forwards;
+          animation: heroFadeIn var(--hero-fade-duration, 850ms) ease forwards;
           animation-delay: var(--hero-delay, 0ms);
         }
 
         .drift-orb {
-          animation: orbDrift 9s ease-in-out infinite;
+          animation: orbDrift var(--orb-duration, 9s) ease-in-out infinite;
         }
 
         .drift-orb.alt {
-          animation-duration: 11s;
+          animation-duration: var(--orb-duration-alt, 11s);
           animation-delay: 1.3s;
         }
 
         .ticker-track {
-          animation: marquee 18s linear infinite;
+          animation: marquee var(--marquee-duration, 18s) linear infinite;
         }
 
         .grid-aurora {
@@ -168,11 +236,11 @@ export default function Home() {
         }
 
         .cta-pop {
-          animation: ctaPop 2.2s ease-in-out infinite;
+          animation: ctaPop var(--cta-pop-duration, 2.2s) ease-in-out infinite;
         }
 
         .soft-float {
-          animation: cardFloat 5.5s ease-in-out infinite;
+          animation: cardFloat var(--card-float-duration, 5.5s) ease-in-out infinite;
         }
 
         .shine-sweep {
@@ -186,12 +254,12 @@ export default function Home() {
           inset: 0;
           background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,0.35) 48%, transparent 72%);
           transform: translateX(-120%);
-          animation: sweep 3.8s ease-in-out infinite;
+          animation: sweep var(--sweep-duration, 3.8s) ease-in-out infinite;
           pointer-events: none;
         }
 
         .pulse-line {
-          animation: pulseLine 2.4s ease-in-out infinite;
+          animation: pulseLine var(--pulse-line-duration, 2.4s) ease-in-out infinite;
         }
 
         @keyframes heroFadeIn {
@@ -204,7 +272,7 @@ export default function Home() {
         @keyframes orbDrift {
           0%,
           100% { transform: translate3d(0, 0, 0); }
-          50% { transform: translate3d(0, -22px, 0); }
+          50% { transform: translate3d(0, calc(var(--orb-drift-y, 22px) * -1), 0); }
         }
 
         @keyframes marquee {
