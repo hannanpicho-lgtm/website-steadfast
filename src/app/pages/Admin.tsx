@@ -1285,7 +1285,7 @@ export default function Admin() {
         userScopeFallbackNoticeShownRef.current = true;
       }
     } catch (error) {
-      handleAdminRequestError(error, 'Failed to load platform users', { suppressToast: true });
+      handleAdminRequestError(error, 'Failed to load platform users', { suppressToast: false });
       setPlatformUsers([]);
     } finally {
       setPlatformUsersLoaded(true);
