@@ -1196,9 +1196,12 @@ export default function Admin() {
   useEffect(() => {
     const resolveSuperAdmin = async () => {
       try {
-        const { data: userData } = await supabase.auth.getUser();
+        // Use getSession() instead of getUser() — avoids an extra network call
+        // to Supabase Auth that races with the SDK's background token refresh
+        // on new/cold sessions, causing AbortError on page load.
+        const { data: sessionData } = await supabase.auth.getSession();
 
-        const user = userData?.user;
+        const user = sessionData?.session?.user;
         if (!user) {
           setIsSuperAdmin(false);
           return;

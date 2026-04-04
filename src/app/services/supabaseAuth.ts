@@ -80,12 +80,11 @@ export async function signOutAdminSession(): Promise<void> {
 }
 
 export async function isSupabaseAdminAuthenticated(): Promise<boolean> {
-  const { data, error } = await supabase.auth.getUser();
-  if (error) {
-    return false;
-  }
-
-  return userHasAdminRole(data.user);
+  // Use getSession() instead of getUser() — getSession() reads from in-memory
+  // storage without a network call, avoiding concurrent request races that
+  // cause "Signal is aborted without a reason" AbortErrors on new devices.
+  const { data } = await supabase.auth.getSession();
+  return userHasAdminRole(data.session?.user ?? null);
 }
 
 export async function requireAdminAccessToken(): Promise<string> {

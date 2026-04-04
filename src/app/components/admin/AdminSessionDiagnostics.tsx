@@ -76,23 +76,25 @@ export default function AdminSessionDiagnostics() {
       return;
     }
 
-    const { data: userData, error: userError } = await supabase.auth.getUser(accessToken);
-    if (userError || !userData.user) {
+    // Use the session user directly — avoids an extra getUser() network call
+    // that races with background token refresh on new devices.
+    const sessionUser = sessionData.session?.user;
+    if (!sessionUser) {
       setDiagnostics({
         status: 'error',
         email: 'Unknown',
         roleClaim: 'unknown',
         userId: '-',
-        message: userError?.message ?? 'Unable to fetch admin profile.',
+        message: 'Unable to fetch admin profile from session.',
       });
       return;
     }
 
     setDiagnostics({
       status: 'active',
-      email: userData.user.email ?? 'No email on account',
-      roleClaim: extractRoleClaim((userData.user.app_metadata ?? null) as Record<string, unknown> | null),
-      userId: userData.user.id,
+      email: sessionUser.email ?? 'No email on account',
+      roleClaim: extractRoleClaim((sessionUser.app_metadata ?? null) as Record<string, unknown> | null),
+      userId: sessionUser.id,
       message: null,
     });
   }, []);
