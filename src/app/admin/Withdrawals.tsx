@@ -16,7 +16,7 @@ interface WithdrawalsProps {
 
 const SEARCH_FIELDS = ['id', 'username', 'walletAddress'] as const;
 
-export default function Withdrawals({
+function Withdrawals({
   withdrawalRequests,
   pendingWithdrawalCount,
   financeLoading,
@@ -218,3 +218,5 @@ export default function Withdrawals({
     </div>
   );
 }
+
+export default React.memo(Withdrawals);

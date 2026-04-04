@@ -13,7 +13,7 @@ interface DepositsProps {
 
 const SEARCH_FIELDS = ['id', 'username', 'txHash'] as const;
 
-export default function Deposits({
+function Deposits({
   deposits,
   financeLoading,
   handleExport,
@@ -175,3 +175,5 @@ export default function Deposits({
     </div>
   );
 }
+
+export default React.memo(Deposits);

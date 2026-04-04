@@ -13,7 +13,7 @@ interface TransactionsProps {
 
 const SEARCH_FIELDS = ['id', 'username', 'txHash'] as const;
 
-export default function Transactions({
+function Transactions({
   transactions,
   financeLoading,
   handleExport,
@@ -199,3 +199,5 @@ export default function Transactions({
     </div>
   );
 }
+
+export default React.memo(Transactions);
