@@ -89,8 +89,20 @@ export async function isSupabaseAdminAuthenticated(): Promise<boolean> {
 }
 
 export async function requireAdminAccessToken(): Promise<string> {
+  // Use refreshSession to ensure we have a valid, non-expired token.
+  // getSession() can return a stale token that Supabase's background refresh
+  // is in the middle of replacing, causing AbortError race conditions.
+  let accessToken: string | undefined;
+
   const { data: sessionData } = await supabase.auth.getSession();
-  const accessToken = sessionData.session?.access_token;
+  accessToken = sessionData.session?.access_token;
+
+  if (!accessToken) {
+    // Try an explicit refresh before giving up
+    const { data: refreshData } = await supabase.auth.refreshSession();
+    accessToken = refreshData.session?.access_token;
+  }
+
   if (!accessToken) {
     throw new Error('Admin session expired. Please sign in again.');
   }

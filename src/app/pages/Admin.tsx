@@ -1271,7 +1271,7 @@ export default function Admin() {
     return () => window.clearTimeout(timeoutId);
   }, [activeAdminTab, activeMenu, isSuperAdmin, showAdminVisibilityNotice]);
 
-  const loadPlatformUsers = async () => {
+  const loadPlatformUsers = async (retryCount = 0) => {
     setPlatformUsersLoaded(false);
     setPlatformUsersLoading(true);
     try {
@@ -1285,6 +1285,16 @@ export default function Admin() {
         userScopeFallbackNoticeShownRef.current = true;
       }
     } catch (error) {
+      // Supabase auth token refresh race condition: abort signal fires when two
+      // concurrent requests both try to refresh the session. Retry once after a
+      // short delay to let the refresh complete.
+      const isAbortError = error instanceof DOMException && error.name === 'AbortError';
+      if (isAbortError && retryCount === 0) {
+        setPlatformUsersLoaded(false);
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        void loadPlatformUsers(1);
+        return;
+      }
       handleAdminRequestError(error, 'Failed to load platform users', { suppressToast: false });
       setPlatformUsers([]);
     } finally {
