@@ -18,22 +18,22 @@ import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png
 const valuePillars = [
   {
     title: 'Precision Growth Engine',
-    text: 'Performance-led campaign orchestration with measurable revenue outcomes and daily optimization loops.',
+    text: 'Campaign orchestration built for measurable daily growth.',
     icon: Target,
   },
   {
     title: 'Risk-Aware Operations',
-    text: 'Governed execution pipelines with policy controls, clean audit trails, and resilient scaling patterns.',
+    text: 'Governed execution with controls, audit trails, and resilience.',
     icon: ShieldCheck,
   },
   {
     title: 'Creative Intelligence Layer',
-    text: 'High-conversion creative experiments informed by live behavioral insights and intent signals.',
+    text: 'Fast creative experiments driven by live intent signals.',
     icon: Sparkles,
   },
   {
     title: 'Decision-Grade Analytics',
-    text: 'Signal-rich dashboards that turn ad spend into strategic decisions across channels and cohorts.',
+    text: 'Dashboards that turn spend data into confident decisions.',
     icon: BarChart3,
   },
 ];
@@ -93,9 +93,9 @@ const trustedBy = [
 ];
 
 const storyBeats = [
-  { label: 'Signal Mapping', detail: 'Audience, margin, and intent baselines are established.' },
-  { label: 'Offer Engineering', detail: 'Creative and landing system are tuned for conversion quality.' },
-  { label: 'Scale Protocol', detail: 'Winning loops are scaled with governance and pacing controls.' },
+  { label: 'Signal Mapping', detail: 'Audience and margin baselines.' },
+  { label: 'Offer Engineering', detail: 'Creative tuned for conversion.' },
+  { label: 'Scale Protocol', detail: 'Winning loops scaled safely.' },
 ];
 
 export default function Home() {
@@ -159,6 +159,37 @@ export default function Home() {
           animation: marquee 18s linear infinite;
         }
 
+        .grid-aurora {
+          background-image:
+            linear-gradient(to right, rgba(145, 201, 255, 0.08) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(145, 201, 255, 0.08) 1px, transparent 1px);
+          background-size: 38px 38px;
+          mask-image: radial-gradient(circle at 40% 20%, black 35%, transparent 80%);
+        }
+
+        .cta-pop {
+          animation: ctaPop 2.2s ease-in-out infinite;
+        }
+
+        .soft-float {
+          animation: cardFloat 5.5s ease-in-out infinite;
+        }
+
+        .shine-sweep {
+          position: relative;
+          overflow: hidden;
+        }
+
+        .shine-sweep::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(110deg, transparent 25%, rgba(255,255,255,0.35) 48%, transparent 72%);
+          transform: translateX(-120%);
+          animation: sweep 3.8s ease-in-out infinite;
+          pointer-events: none;
+        }
+
         .pulse-line {
           animation: pulseLine 2.4s ease-in-out infinite;
         }
@@ -186,9 +217,43 @@ export default function Home() {
           100% { opacity: 0.35; }
           50% { opacity: 1; }
         }
+
+        @keyframes ctaPop {
+          0%, 100% { transform: translateY(0); box-shadow: 0 12px 26px rgba(56, 196, 245, 0.25); }
+          50% { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(56, 196, 245, 0.45); }
+        }
+
+        @keyframes cardFloat {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-6px); }
+        }
+
+        @keyframes sweep {
+          0%, 35% { transform: translateX(-120%); }
+          70%, 100% { transform: translateX(120%); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .hero-fade-in,
+          .drift-orb,
+          .ticker-track,
+          .pulse-line,
+          .cta-pop,
+          .soft-float,
+          .shine-sweep::after {
+            animation: none !important;
+          }
+
+          .home-reveal {
+            opacity: 1;
+            transform: none;
+            transition: none;
+          }
+        }
       `}</style>
 
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div className="grid-aurora absolute inset-0 opacity-60" />
         <div className="drift-orb absolute -left-24 top-16 h-72 w-72 rounded-full bg-[#19b5e4]/20 blur-3xl" />
         <div className="drift-orb alt absolute right-[-80px] top-1/3 h-80 w-80 rounded-full bg-[#f58b3c]/15 blur-3xl" />
         <div className="absolute bottom-[-120px] left-1/3 h-96 w-96 rounded-full bg-[#2a89ff]/15 blur-3xl" />
@@ -235,10 +300,10 @@ export default function Home() {
                 </span>
               </h1>
               <p className="hero-fade-in mt-6 max-w-xl text-base leading-relaxed text-[#b8d8f6] sm:text-lg" style={{ ['--hero-delay' as string]: '260ms' }}>
-                Steadfast Digital fuses campaign strategy, execution discipline, and analytics intelligence into one operating system built for scalable e-commerce growth.
+                One operating system for scalable e-commerce growth.
               </p>
               <div className="hero-fade-in mt-8 flex flex-wrap items-center gap-3" style={{ ['--hero-delay' as string]: '340ms' }}>
-                <Link to="/signup" className="group inline-flex items-center gap-2 rounded-xl bg-[#39c6f4] px-6 py-3 text-sm font-extrabold uppercase tracking-[0.08em] text-[#042236] transition hover:bg-[#68d6fb]">
+                <Link to="/signup" className="shine-sweep cta-pop group inline-flex items-center gap-2 rounded-xl bg-[#39c6f4] px-6 py-3 text-sm font-extrabold uppercase tracking-[0.08em] text-[#042236] transition hover:bg-[#68d6fb]">
                   Launch Your Growth Stack
                   <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
                 </Link>
@@ -259,7 +324,7 @@ export default function Home() {
             </div>
 
             <div className="relative hero-fade-in" style={{ ['--hero-delay' as string]: '200ms' }}>
-              <div className="rounded-2xl border border-white/15 bg-gradient-to-br from-[#0d2439] via-[#102d47] to-[#0a2034] p-5 shadow-[0_26px_70px_rgba(0,0,0,0.45)]">
+              <div className="soft-float rounded-2xl border border-white/15 bg-gradient-to-br from-[#0d2439] via-[#102d47] to-[#0a2034] p-5 shadow-[0_26px_70px_rgba(0,0,0,0.45)]">
                 <div className="mb-5 flex items-center justify-between">
                   <div>
                     <p className="text-xs uppercase tracking-[0.2em] text-[#8bcdf8]">Mission Control</p>
@@ -293,7 +358,7 @@ export default function Home() {
             <div className="home-reveal overflow-hidden rounded-xl border border-white/10 bg-[#0f2a42]" data-home-reveal style={{ ['--reveal-delay' as string]: '70ms' }}>
               <div className="ticker-track flex w-[200%] gap-3 px-3 py-3">
                 {[...trustedBy, ...trustedBy].map((brand, idx) => (
-                  <div key={`${brand}-${idx}`} className="min-w-[140px] rounded-lg border border-white/10 bg-[#102940] px-3 py-3 text-center text-xs font-bold text-[#d7ecff]">
+                  <div key={`${brand}-${idx}`} className="min-w-[140px] rounded-lg border border-white/10 bg-[#102940] px-3 py-3 text-center text-xs font-bold text-[#d7ecff] transition hover:-translate-y-0.5 hover:border-[#7fdcff]/50">
                     {brand}
                   </div>
                 ))}
@@ -319,7 +384,7 @@ export default function Home() {
               {valuePillars.map((pillar, index) => {
                 const Icon = pillar.icon;
                 return (
-                  <article key={pillar.title} className="home-reveal rounded-2xl border border-white/10 bg-[#0f2a42]/75 p-5 transition hover:border-[#6fcffb]/45 hover:bg-[#143653]" data-home-reveal style={{ ['--reveal-delay' as string]: `${index * 80}ms` }}>
+                  <article key={pillar.title} className="home-reveal rounded-2xl border border-white/10 bg-[#0f2a42]/75 p-5 transition hover:-translate-y-1 hover:border-[#6fcffb]/45 hover:bg-[#143653]" data-home-reveal style={{ ['--reveal-delay' as string]: `${index * 80}ms` }}>
                     <div className="mb-3 inline-flex rounded-lg bg-[#39c6f4]/15 p-2 text-[#84ddff]">
                       <Icon size={18} />
                     </div>
@@ -354,7 +419,7 @@ export default function Home() {
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
             <h2 className="home-reveal text-3xl font-black text-white sm:text-4xl" data-home-reveal>Flagship Programs</h2>
             <p className="home-reveal mt-3 max-w-2xl text-[#b8d8f6]" data-home-reveal style={{ ['--reveal-delay' as string]: '70ms' }}>
-              Built to be deployable fast, auditable at scale, and defensible in high-stakes growth reviews.
+              Fast to deploy. Safe to scale. Built to win scrutiny.
             </p>
             <div className="mt-8 grid gap-5 md:grid-cols-3">
               {featuredPrograms.map((program, index) => (
