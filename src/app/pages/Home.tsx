@@ -12,6 +12,7 @@ import {
   Target,
   Zap,
 } from 'lucide-react';
+import { useEffect } from 'react';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 
 const valuePillars = [
@@ -91,15 +92,105 @@ const trustedBy = [
   'Giadzy',
 ];
 
+const storyBeats = [
+  { label: 'Signal Mapping', detail: 'Audience, margin, and intent baselines are established.' },
+  { label: 'Offer Engineering', detail: 'Creative and landing system are tuned for conversion quality.' },
+  { label: 'Scale Protocol', detail: 'Winning loops are scaled with governance and pacing controls.' },
+];
+
 export default function Home() {
+  useEffect(() => {
+    const targets = Array.from(document.querySelectorAll<HTMLElement>('[data-home-reveal]'));
+    if (targets.length === 0) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.15, rootMargin: '0px 0px -10% 0px' },
+    );
+
+    targets.forEach((target) => observer.observe(target));
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <div
       className="min-h-screen bg-[#071626] text-[#e9f4ff]"
       style={{ fontFamily: '"Space Grotesk", "Sora", "Poppins", sans-serif' }}
     >
+      <style>{`
+        .home-reveal {
+          opacity: 0;
+          transform: translateY(24px) scale(0.985);
+          transition: opacity 700ms ease, transform 700ms ease;
+          transition-delay: var(--reveal-delay, 0ms);
+        }
+
+        .home-reveal.is-visible {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+
+        .hero-fade-in {
+          opacity: 0;
+          transform: translateY(18px);
+          animation: heroFadeIn 850ms ease forwards;
+          animation-delay: var(--hero-delay, 0ms);
+        }
+
+        .drift-orb {
+          animation: orbDrift 9s ease-in-out infinite;
+        }
+
+        .drift-orb.alt {
+          animation-duration: 11s;
+          animation-delay: 1.3s;
+        }
+
+        .ticker-track {
+          animation: marquee 18s linear infinite;
+        }
+
+        .pulse-line {
+          animation: pulseLine 2.4s ease-in-out infinite;
+        }
+
+        @keyframes heroFadeIn {
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        @keyframes orbDrift {
+          0%,
+          100% { transform: translate3d(0, 0, 0); }
+          50% { transform: translate3d(0, -22px, 0); }
+        }
+
+        @keyframes marquee {
+          0% { transform: translateX(0%); }
+          100% { transform: translateX(-50%); }
+        }
+
+        @keyframes pulseLine {
+          0%,
+          100% { opacity: 0.35; }
+          50% { opacity: 1; }
+        }
+      `}</style>
+
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-        <div className="absolute -left-24 top-16 h-72 w-72 rounded-full bg-[#19b5e4]/20 blur-3xl" />
-        <div className="absolute right-[-80px] top-1/3 h-80 w-80 rounded-full bg-[#f58b3c]/15 blur-3xl" />
+        <div className="drift-orb absolute -left-24 top-16 h-72 w-72 rounded-full bg-[#19b5e4]/20 blur-3xl" />
+        <div className="drift-orb alt absolute right-[-80px] top-1/3 h-80 w-80 rounded-full bg-[#f58b3c]/15 blur-3xl" />
         <div className="absolute bottom-[-120px] left-1/3 h-96 w-96 rounded-full bg-[#2a89ff]/15 blur-3xl" />
       </div>
 
@@ -131,21 +222,22 @@ export default function Home() {
       <main>
         <section className="relative overflow-hidden border-b border-white/10">
           <div className="mx-auto grid max-w-7xl gap-10 px-4 pb-16 pt-14 sm:px-6 md:pt-20 lg:grid-cols-[1.1fr_0.9fr] lg:px-10">
-            <div>
-              <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-[#59c0f2]/30 bg-[#0f2a42]/60 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#89d7ff]">
+            <div className="relative">
+              <div className="hero-fade-in absolute -left-3 top-1 hidden w-1 rounded-full bg-gradient-to-b from-[#7fdcff] to-[#f6a96f] lg:block pulse-line" style={{ height: '84%', ['--hero-delay' as string]: '120ms' }} />
+              <p className="hero-fade-in mb-4 inline-flex items-center gap-2 rounded-full border border-[#59c0f2]/30 bg-[#0f2a42]/60 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#89d7ff]" style={{ ['--hero-delay' as string]: '70ms' }}>
                 <Compass size={14} />
                 Production-Grade Growth Platform
               </p>
-              <h1 className="text-4xl font-black leading-tight text-white sm:text-5xl lg:text-6xl">
+              <h1 className="hero-fade-in text-4xl font-black leading-tight text-white sm:text-5xl lg:text-6xl" style={{ ['--hero-delay' as string]: '170ms' }}>
                 Turn Marketing Into a
                 <span className="block bg-gradient-to-r from-[#61d6ff] via-[#8be3ff] to-[#ffd0a1] bg-clip-text text-transparent">
                   Predictable Revenue System
                 </span>
               </h1>
-              <p className="mt-6 max-w-xl text-base leading-relaxed text-[#b8d8f6] sm:text-lg">
+              <p className="hero-fade-in mt-6 max-w-xl text-base leading-relaxed text-[#b8d8f6] sm:text-lg" style={{ ['--hero-delay' as string]: '260ms' }}>
                 Steadfast Digital fuses campaign strategy, execution discipline, and analytics intelligence into one operating system built for scalable e-commerce growth.
               </p>
-              <div className="mt-8 flex flex-wrap items-center gap-3">
+              <div className="hero-fade-in mt-8 flex flex-wrap items-center gap-3" style={{ ['--hero-delay' as string]: '340ms' }}>
                 <Link to="/signup" className="group inline-flex items-center gap-2 rounded-xl bg-[#39c6f4] px-6 py-3 text-sm font-extrabold uppercase tracking-[0.08em] text-[#042236] transition hover:bg-[#68d6fb]">
                   Launch Your Growth Stack
                   <ArrowRight size={16} className="transition-transform group-hover:translate-x-1" />
@@ -155,9 +247,18 @@ export default function Home() {
                   See Proof Metrics
                 </a>
               </div>
+
+              <div className="hero-fade-in mt-8 grid max-w-xl gap-2 sm:grid-cols-3" style={{ ['--hero-delay' as string]: '430ms' }}>
+                {storyBeats.map((beat) => (
+                  <div key={beat.label} className="rounded-lg border border-white/10 bg-[#0d2840]/65 p-3">
+                    <p className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-[#8edcff]">{beat.label}</p>
+                    <p className="mt-1 text-xs text-[#bddcf8]">{beat.detail}</p>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            <div className="relative">
+            <div className="relative hero-fade-in" style={{ ['--hero-delay' as string]: '200ms' }}>
               <div className="rounded-2xl border border-white/15 bg-gradient-to-br from-[#0d2439] via-[#102d47] to-[#0a2034] p-5 shadow-[0_26px_70px_rgba(0,0,0,0.45)]">
                 <div className="mb-5 flex items-center justify-between">
                   <div>
@@ -186,19 +287,23 @@ export default function Home() {
 
         <section id="proof" className="border-b border-white/10 bg-[#0a1f32]/70 py-10">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
-            <p className="mb-4 text-center text-xs font-semibold uppercase tracking-[0.22em] text-[#8bcdf8]">Trusted by teams that demand signal over noise</p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
-              {trustedBy.map((brand) => (
-                <div key={brand} className="rounded-lg border border-white/10 bg-[#102940] px-3 py-3 text-center text-xs font-bold text-[#d7ecff]">
-                  {brand}
-                </div>
-              ))}
+            <p className="home-reveal mb-4 text-center text-xs font-semibold uppercase tracking-[0.22em] text-[#8bcdf8]" data-home-reveal>
+              Trusted by teams that demand signal over noise
+            </p>
+            <div className="home-reveal overflow-hidden rounded-xl border border-white/10 bg-[#0f2a42]" data-home-reveal style={{ ['--reveal-delay' as string]: '70ms' }}>
+              <div className="ticker-track flex w-[200%] gap-3 px-3 py-3">
+                {[...trustedBy, ...trustedBy].map((brand, idx) => (
+                  <div key={`${brand}-${idx}`} className="min-w-[140px] rounded-lg border border-white/10 bg-[#102940] px-3 py-3 text-center text-xs font-bold text-[#d7ecff]">
+                    {brand}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
         <section id="model" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-10">
-          <div className="mb-10 flex items-end justify-between gap-4">
+          <div className="home-reveal mb-10 flex items-end justify-between gap-4" data-home-reveal>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8bcdf8]">Operating model</p>
               <h2 className="mt-2 text-3xl font-black text-white sm:text-4xl">How Steadfast compounds growth</h2>
@@ -211,10 +316,10 @@ export default function Home() {
 
           <div className="grid gap-6 lg:grid-cols-2">
             <div className="grid gap-4 sm:grid-cols-2">
-              {valuePillars.map((pillar) => {
+              {valuePillars.map((pillar, index) => {
                 const Icon = pillar.icon;
                 return (
-                  <article key={pillar.title} className="rounded-2xl border border-white/10 bg-[#0f2a42]/75 p-5 transition hover:border-[#6fcffb]/45 hover:bg-[#143653]">
+                  <article key={pillar.title} className="home-reveal rounded-2xl border border-white/10 bg-[#0f2a42]/75 p-5 transition hover:border-[#6fcffb]/45 hover:bg-[#143653]" data-home-reveal style={{ ['--reveal-delay' as string]: `${index * 80}ms` }}>
                     <div className="mb-3 inline-flex rounded-lg bg-[#39c6f4]/15 p-2 text-[#84ddff]">
                       <Icon size={18} />
                     </div>
@@ -225,7 +330,7 @@ export default function Home() {
               })}
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-[#122f49] to-[#0c243a] p-6">
+            <div className="home-reveal rounded-2xl border border-white/10 bg-gradient-to-b from-[#122f49] to-[#0c243a] p-6" data-home-reveal style={{ ['--reveal-delay' as string]: '220ms' }}>
               <h3 className="text-lg font-black text-white">Execution Timeline</h3>
               <div className="mt-5 space-y-4">
                 {operatingModel.map((step) => (
@@ -247,13 +352,13 @@ export default function Home() {
 
         <section id="programs" className="border-t border-white/10 bg-[#091b2b] py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
-            <h2 className="text-3xl font-black text-white sm:text-4xl">Flagship Programs</h2>
-            <p className="mt-3 max-w-2xl text-[#b8d8f6]">
+            <h2 className="home-reveal text-3xl font-black text-white sm:text-4xl" data-home-reveal>Flagship Programs</h2>
+            <p className="home-reveal mt-3 max-w-2xl text-[#b8d8f6]" data-home-reveal style={{ ['--reveal-delay' as string]: '70ms' }}>
               Built to be deployable fast, auditable at scale, and defensible in high-stakes growth reviews.
             </p>
             <div className="mt-8 grid gap-5 md:grid-cols-3">
-              {featuredPrograms.map((program) => (
-                <article key={program.name} className="group overflow-hidden rounded-2xl border border-white/10 bg-[#102940]">
+              {featuredPrograms.map((program, index) => (
+                <article key={program.name} className="home-reveal group overflow-hidden rounded-2xl border border-white/10 bg-[#102940]" data-home-reveal style={{ ['--reveal-delay' as string]: `${120 + index * 90}ms` }}>
                   <div className={`h-2 bg-gradient-to-r ${program.accent}`} />
                   <div className="p-5">
                     <div className="mb-3 inline-flex rounded-lg bg-white/10 p-2 text-[#8fd8ff]">
@@ -273,7 +378,7 @@ export default function Home() {
         </section>
 
         <section className="mx-auto max-w-7xl px-4 pb-20 pt-14 sm:px-6 lg:px-10">
-          <div className="rounded-3xl border border-white/15 bg-gradient-to-r from-[#10314c] via-[#123955] to-[#15354d] p-8 shadow-[0_25px_60px_rgba(0,0,0,0.35)] sm:p-10">
+          <div className="home-reveal rounded-3xl border border-white/15 bg-gradient-to-r from-[#10314c] via-[#123955] to-[#15354d] p-8 shadow-[0_25px_60px_rgba(0,0,0,0.35)] sm:p-10" data-home-reveal>
             <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
               <div>
                 <p className="inline-flex items-center gap-2 rounded-full border border-[#79d6ff]/35 bg-[#2baee1]/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-[#9ee5ff]">
