@@ -1,4 +1,4 @@
-import { AlertTriangle, Eye, EyeOff, Lock, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, Lock, Loader2, ShieldAlert } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router';
 import { useState, useEffect } from 'react';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
@@ -142,6 +142,7 @@ export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errorText, setErrorText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginTarget, setLoginTarget] = useState('/home');
   const [telegramUrl, setTelegramUrl] = useState('https://t.me/steadfastdigital');
 
@@ -175,6 +176,7 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorText('');
+    setIsSubmitting(true);
 
     const from = loginState?.from;
     const normalizedIdentifier = username.trim().toLowerCase();
@@ -185,6 +187,7 @@ export default function Login() {
       const adminResult = await signInAdmin(username, password);
       if (!adminResult.ok) {
         setErrorText(adminResult.error);
+        setIsSubmitting(false);
         return;
       }
 
@@ -205,11 +208,13 @@ export default function Login() {
 
     if (serverResult.serverDown) {
       setErrorText('Login service is temporarily unavailable. Please try again in a moment.');
+      setIsSubmitting(false);
       return;
     }
 
     // Server responded with an explicit auth error
     setErrorText(serverResult.error ?? 'Login failed.');
+    setIsSubmitting(false);
   };
 
   const handleWelcomeClose = () => {
@@ -228,7 +233,7 @@ export default function Login() {
       <main className="relative z-10 flex-1 w-full max-w-6xl mx-auto px-4 sm:px-8 py-8 sm:py-10 flex flex-col items-center">
         <div className="w-full max-w-[560px] text-center">
           {/* Logo + brand */}
-          <div className="pt-6 sm:pt-10 flex flex-col items-center">
+          <div className="pt-6 sm:pt-10 flex flex-col items-center sf-stagger-1">
             <div className="relative mb-4">
               <div className="absolute inset-0 rounded-full blur-2xl opacity-30" style={{ background: '#00D9FF' }} />
               <img
@@ -247,11 +252,11 @@ export default function Login() {
           </div>
 
           {/* Action buttons */}
-          <div className="mt-12 sm:mt-14 space-y-3">
+          <div className="mt-12 sm:mt-14 space-y-3 sf-stagger-2">
             <Link
               to="/signup"
-              className="block w-full rounded-2xl font-bold text-xl sm:text-2xl py-4 transition-all duration-200 hover:brightness-110 hover:scale-[1.01]"
-              style={{ background: 'linear-gradient(135deg, #00D9FF, #0099cc)', color: '#060e1c', boxShadow: '0 4px 24px rgba(0,217,255,0.3)' }}
+              className="block w-full rounded-2xl font-bold text-xl sm:text-2xl py-4 transition-all duration-200 hover:brightness-110 hover:scale-[1.01] sf-pulse-glow"
+              style={{ background: 'linear-gradient(135deg, #00D9FF, #0099cc)', color: '#060e1c' }}
             >
               CREATE AN ACCOUNT
             </Link>
@@ -357,10 +362,11 @@ export default function Login() {
           {/* Sign In Button */}
           <button
             type="submit"
-            className="w-full font-bold py-3 px-4 rounded-xl transition-all duration-200 uppercase tracking-wider hover:brightness-110"
+            disabled={isSubmitting}
+            className="w-full font-bold py-3 px-4 rounded-xl transition-all duration-200 uppercase tracking-wider hover:brightness-110 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             style={{ background: 'linear-gradient(135deg, #00D9FF, #0099cc)', color: '#060e1c', boxShadow: '0 4px 20px rgba(0,217,255,0.25)' }}
           >
-            SIGN IN
+            {isSubmitting ? <><Loader2 size={18} className="animate-spin" /> Signing in...</> : 'SIGN IN'}
           </button>
 
           {errorNotice ? (
@@ -407,10 +413,10 @@ export default function Login() {
 
       {/* Welcome Modal */}
       {showWelcome && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(6,14,28,0.88)', backdropFilter: 'blur(8px)' }}>
-          <div className="rounded-2xl p-8 max-w-md w-full text-center" style={{ background: 'linear-gradient(145deg, #0d1b2e, #111d30)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 40px rgba(0,217,255,0.1)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(6,14,28,0.88)', backdropFilter: 'blur(12px)' }}>
+          <div className="rounded-2xl p-8 max-w-md w-full text-center sf-stagger-1" style={{ background: 'linear-gradient(145deg, #0d1b2e, #111d30)', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 60px rgba(0,217,255,0.08)' }}>
             <div className="mb-6">
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-4" style={{ background: 'linear-gradient(135deg, #00D9FF22, #00D9FF11)', border: '1px solid rgba(0,217,255,0.3)', boxShadow: '0 0 30px rgba(0,217,255,0.2)' }}>
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-4 sf-pulse-glow" style={{ background: 'linear-gradient(135deg, #00D9FF22, #00D9FF11)', border: '1px solid rgba(0,217,255,0.3)' }}>
                 <svg className="w-10 h-10" fill="none" stroke="#00D9FF" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>

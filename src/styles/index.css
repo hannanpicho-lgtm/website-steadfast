@@ -9,15 +9,52 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Text selection — platform accent */
+::selection {
+  background: rgba(0, 217, 255, 0.25);
+  color: inherit;
+}
+
 /* Subtle page-entrance animation driven by route lazy-loading */
 @keyframes sf-fade-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 /* Applied to every top-level route container */
 .sf-page-enter {
-  animation: sf-fade-in 0.28s ease both;
+  animation: sf-fade-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Staggered entrance for child elements */
+@keyframes sf-stagger-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.sf-stagger-1 { animation: sf-stagger-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.04s both; }
+.sf-stagger-2 { animation: sf-stagger-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both; }
+.sf-stagger-3 { animation: sf-stagger-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both; }
+.sf-stagger-4 { animation: sf-stagger-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both; }
+.sf-stagger-5 { animation: sf-stagger-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.20s both; }
+
+/* Shimmer loading skeleton effect */
+@keyframes sf-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.sf-shimmer {
+  background: linear-gradient(90deg, transparent 25%, rgba(0, 217, 255, 0.06) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: sf-shimmer 1.8s ease-in-out infinite;
+}
+
+/* Pulse glow for CTAs */
+@keyframes sf-pulse-glow {
+  0%, 100% { box-shadow: 0 4px 20px rgba(0, 217, 255, 0.25); }
+  50%      { box-shadow: 0 4px 28px rgba(0, 217, 255, 0.45); }
+}
+.sf-pulse-glow {
+  animation: sf-pulse-glow 2.4s ease-in-out infinite;
 }
 
 /* Focus-visible ring using platform accent */

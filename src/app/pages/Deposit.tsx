@@ -125,7 +125,7 @@ export default function Deposit() {
         ) : (
           <>
             {/* Available Balance Card */}
-            <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mb-6 backdrop-blur-sm">
+            <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mb-6 backdrop-blur-sm sf-stagger-1">
               <div className="flex items-start justify-between mb-4">
                 <div>
                   <h2 className="text-lg font-semibold text-[#00D9FF] mb-2">Available Balance</h2>
@@ -143,7 +143,7 @@ export default function Deposit() {
             </div>
 
             {/* Total Balance Card */}
-            <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mb-6 backdrop-blur-sm">
+            <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mb-6 backdrop-blur-sm sf-stagger-2">
               <h2 className="text-lg font-semibold text-[#00D9FF] mb-2">Total Balance</h2>
               <div className="flex items-baseline gap-2">
                 <span className="text-4xl font-bold text-white">

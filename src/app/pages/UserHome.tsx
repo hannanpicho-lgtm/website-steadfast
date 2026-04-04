@@ -183,7 +183,7 @@ export default function UserHome() {
 
       <main className="mx-auto max-w-6xl px-3 sm:px-6 pt-3 sm:pt-5">
         {/* Welcome Section */}
-        <section className="mt-4 rounded-2xl border border-[#d3dde8] bg-white px-4 py-4 shadow-sm sm:mt-6 sm:px-5 sm:py-5">
+        <section className="mt-4 rounded-2xl border border-[#d3dde8] bg-white px-4 py-4 shadow-sm sm:mt-6 sm:px-5 sm:py-5 sf-stagger-1">
           <div className="relative w-full overflow-hidden rounded-xl border border-[#9ac2de] shadow-sm">
             <div className="relative h-[220px] sm:h-[300px] md:h-[360px]">
               <video
@@ -211,7 +211,7 @@ export default function UserHome() {
         </section>
 
         {/* Quick Access */}
-        <section className="mt-4 rounded-2xl border border-[#cfd8e3] bg-gradient-to-br from-white via-[#f8fafb] to-[#f1f3f5] p-4 sm:p-5 shadow-sm">
+        <section className="mt-4 rounded-2xl border border-[#cfd8e3] bg-gradient-to-br from-white via-[#f8fafb] to-[#f1f3f5] p-4 sm:p-5 shadow-sm sf-stagger-2">
           <p className="text-center text-[0.65rem] sm:text-xs font-bold tracking-[0.22em] text-[#0b5f94] uppercase mb-1">Quick Access</p>
           <h2 className="text-center text-[1.1rem] sm:text-[1.25rem] font-extrabold text-[#0f172a] mb-4">One-Tap Features</h2>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
@@ -222,7 +222,7 @@ export default function UserHome() {
         </section>
 
         {/* Areas of Focus Section */}
-        <section className="mt-5 rounded-2xl border border-[#d3dde8] bg-gradient-to-br from-[#f8fafc] via-white to-[#f1f5f9] py-8 shadow-sm sm:py-10 overflow-hidden relative">
+        <section className="mt-5 rounded-2xl border border-[#d3dde8] bg-gradient-to-br from-[#f8fafc] via-white to-[#f1f5f9] py-8 shadow-sm sm:py-10 overflow-hidden relative sf-stagger-3">
           {/* Background pattern overlay */}
           <div className="absolute inset-0 opacity-[0.025] pointer-events-none" style={FOCUS_BG_STYLE} />
           
@@ -280,7 +280,7 @@ export default function UserHome() {
         </section>
 
         {/* Our Clients Section */}
-        <section className="mt-5 rounded-2xl border border-[#d3dde8] bg-white py-6 shadow-sm sm:py-8 overflow-hidden">
+        <section className="mt-5 rounded-2xl border border-[#d3dde8] bg-white py-6 shadow-sm sm:py-8 overflow-hidden sf-stagger-4">
           <div className="px-4 sm:px-5">
             <p className="text-center text-[0.65rem] sm:text-xs font-bold tracking-[0.22em] text-[#0093cc] uppercase mb-1">TRUSTED BY LEADING BRANDS</p>
             <h2 className="mb-5 text-center text-[1.4rem] font-extrabold text-[#0b5f94] sm:mb-7 sm:text-3xl">Our Clients</h2>
@@ -346,7 +346,7 @@ export default function UserHome() {
           </div>
         </section>
 
-        <section className="mt-5 mb-3 rounded-2xl border border-[#d3dde8] bg-white px-4 py-5 text-center shadow-sm sm:px-6 sm:py-6">
+        <section className="mt-5 mb-3 rounded-2xl border border-[#d3dde8] bg-white px-4 py-5 text-center shadow-sm sm:px-6 sm:py-6 sf-stagger-5">
           <h3 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-[#0b5f94]">Our Approach</h3>
           <p className="mt-2 text-sm sm:text-base text-[#475569]">Data-led execution, transparent reporting, and sustainable acquisition strategy.</p>
         </section>

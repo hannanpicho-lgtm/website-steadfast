@@ -1,4 +1,4 @@
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Link } from 'react-router';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -24,6 +24,7 @@ export default function Signup() {
   const [adminCode, setAdminCode] = useState('');
   const [adminCodeStatus, setAdminCodeStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const [errorText, setErrorText] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isValidUsername = (value: string) => /^[a-zA-Z0-9_.\-]{1,64}$/.test(value);
 
@@ -53,33 +54,39 @@ export default function Signup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorText('');
+    setIsSubmitting(true);
     let adminCodeValidated = false;
     let effectiveAdminCode = adminCode.trim().toUpperCase();
     let registrationInviteCode = inviteCode.trim().toUpperCase();
 
     if (!acceptTerms) {
       setErrorText('Please accept Terms and Conditions to continue.');
+      setIsSubmitting(false);
       return;
     }
 
     if (loginPassword.length < 6 || transactionPassword.length < 6) {
       setErrorText('Login and transaction passwords must be at least 6 characters.');
+      setIsSubmitting(false);
       return;
     }
 
     if (loginPassword !== confirmPassword) {
       setErrorText('Login password confirmation does not match.');
+      setIsSubmitting(false);
       return;
     }
 
     const normalizedUsername = username.trim();
     if (!normalizedUsername) {
       setErrorText('Username is required.');
+      setIsSubmitting(false);
       return;
     }
 
     if (!isValidUsername(normalizedUsername)) {
       setErrorText('Username can only use letters, numbers, underscore (_), hyphen (-), and dot (.) with no spaces.');
+      setIsSubmitting(false);
       return;
     }
 
@@ -87,6 +94,7 @@ export default function Signup() {
     if (effectiveAdminCode) {
       if (!/^[A-Z0-9]{5}$/.test(effectiveAdminCode)) {
         setErrorText('Admin invitation code must be exactly 5 letters/numbers.');
+        setIsSubmitting(false);
         return;
       }
       setAdminCodeStatus('checking');
@@ -99,6 +107,7 @@ export default function Signup() {
         if (!verifyRes.ok) {
           setAdminCodeStatus('invalid');
           setErrorText('Admin invitation code is not valid. Please check and try again.');
+          setIsSubmitting(false);
           return;
         }
         setAdminCodeStatus('valid');
@@ -106,6 +115,7 @@ export default function Signup() {
       } catch {
         setAdminCodeStatus('invalid');
         setErrorText('Unable to validate admin invitation code right now. Please try again.');
+        setIsSubmitting(false);
         return;
       }
     }
@@ -122,6 +132,7 @@ export default function Signup() {
 
     if (!signupResult.ok) {
       setErrorText(signupResult.error ?? 'Signup failed. Please try again.');
+      setIsSubmitting(false);
       return;
     }
 
@@ -167,7 +178,7 @@ export default function Signup() {
 
       {/* Form Section */}
       <div className="relative z-10 max-w-2xl mx-auto w-full px-5 py-8">
-        <div className="text-center mb-7">
+        <div className="text-center mb-7 sf-stagger-1">
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Create Account</h1>
           <p className="mt-1.5 text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>Join Steadfast Digital and start earning</p>
         </div>
@@ -357,10 +368,11 @@ export default function Signup() {
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full font-bold py-3.5 px-4 rounded-xl transition-all duration-200 hover:brightness-110 mt-1"
+            disabled={isSubmitting}
+            className="w-full font-bold py-3.5 px-4 rounded-xl transition-all duration-200 hover:brightness-110 mt-1 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             style={{ background: 'linear-gradient(135deg, #00D9FF, #0099cc)', color: '#060e1c', boxShadow: '0 4px 24px rgba(0,217,255,0.28)' }}
           >
-            Create Account
+            {isSubmitting ? <><Loader2 size={18} className="animate-spin" /> Creating account...</> : 'Create Account'}
           </button>
 
           <p className="text-center text-sm pt-1" style={{ color: 'rgba(255,255,255,0.35)' }}>

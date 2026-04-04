@@ -229,7 +229,7 @@ export default function Withdrawal() {
         </div>
 
         {/* Total Balance Card */}
-        <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mb-6 backdrop-blur-sm">
+        <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mb-6 backdrop-blur-sm sf-stagger-1">
           <h2 className="text-lg font-semibold text-[#00D9FF] mb-3">Total Balance</h2>
           <div className="flex items-baseline gap-2 mb-2">
             <span className="text-4xl font-bold text-white">{loading ? '...' : walletData?.balance.toFixed(2) ?? '0.00'}</span>
@@ -239,7 +239,7 @@ export default function Withdrawal() {
         </div>
 
         {/* Balance Details */}
-        <div className="space-y-0 mb-6 bg-[#252d42]/80 border border-white/10 rounded-xl px-4 backdrop-blur-sm">
+        <div className="space-y-0 mb-6 bg-[#252d42]/80 border border-white/10 rounded-xl px-4 backdrop-blur-sm sf-stagger-2">
           <div className="flex items-center justify-between py-4 border-b border-white/10">
             <span className="text-[#00D9FF] font-semibold">Available Amount</span>
             <span className="font-bold text-white">{loading ? '...' : `${availableAmount.toFixed(2)} USD`}</span>
@@ -320,9 +320,9 @@ export default function Withdrawal() {
           <button
             type="submit"
             disabled={loading || submitting}
-            className="btn-mobile-primary-block disabled:opacity-60"
+            className="btn-mobile-primary-block disabled:opacity-60 flex items-center justify-center gap-2"
           >
-            {submitting ? 'Submitting...' : 'Submit'}
+            {submitting ? <><Loader2 size={18} className="animate-spin" /> Submitting...</> : 'Submit'}
           </button>
         </form>
 

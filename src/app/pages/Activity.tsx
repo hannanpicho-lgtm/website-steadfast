@@ -344,11 +344,10 @@ export default function Activity() {
           <div className="w-9" aria-hidden="true"></div>
         </div>
 
-        <div className="bg-[#0f172a] rounded-xl p-5 mb-8 border border-[#1f2937]">
+        <div className="bg-[#0f172a] rounded-xl p-5 mb-8 border border-[#1f2937] sf-stagger-1 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
           <h2 className="text-white text-lg font-semibold mb-4">Live Account Snapshot</h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-            <div className="bg-[#111827] rounded-lg p-3">
-              <p className="text-gray-400 text-xs uppercase tracking-wide">Balance</p>
+            <div className="bg-[#111827] rounded-lg p-3 transition-all duration-200 hover:bg-[#1a2332]">
               <p className="text-white text-xl font-bold">${(financialSnapshot?.balance ?? 0).toFixed(2)}</p>
             </div>
             <div className="bg-[#111827] rounded-lg p-3">

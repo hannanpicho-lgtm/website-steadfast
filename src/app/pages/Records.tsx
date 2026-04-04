@@ -430,33 +430,33 @@ export default function Records() {
         )}
 
         {/* Tabs */}
-        <div className="grid grid-cols-3 gap-1.5 sm:gap-4 mb-6">
+        <div className="grid grid-cols-3 gap-1.5 sm:gap-4 mb-6 sf-stagger-1">
           <button
             onClick={() => setActiveTab('all')}
-            className={`min-h-[44px] py-2 sm:py-3 rounded text-sm sm:text-base font-semibold transition-colors ${
+            className={`min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
               activeTab === 'all'
-                ? 'bg-[#0066b3] text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-[#0066b3] text-white shadow-[0_4px_12px_rgba(0,102,179,0.3)]'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
             All
           </button>
           <button
             onClick={() => setActiveTab('pending')}
-            className={`min-h-[44px] py-2 sm:py-3 rounded text-sm sm:text-base font-semibold transition-colors ${
+            className={`min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
               activeTab === 'pending'
-                ? 'bg-[#0066b3] text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-[#0066b3] text-white shadow-[0_4px_12px_rgba(0,102,179,0.3)]'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
             Pending
           </button>
           <button
             onClick={() => setActiveTab('completed')}
-            className={`min-h-[44px] py-2 sm:py-3 rounded text-sm sm:text-base font-semibold transition-colors ${
+            className={`min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
               activeTab === 'completed'
-                ? 'bg-[#0066b3] text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                ? 'bg-[#0066b3] text-white shadow-[0_4px_12px_rgba(0,102,179,0.3)]'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >
             Completed
@@ -556,7 +556,7 @@ export default function Records() {
               return (
                 <div 
                   key={`${product.id}-${index}`} 
-                  className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+                  className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
                 >
                   <div className="flex gap-4">
                     {/* Product Image */}

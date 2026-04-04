@@ -204,20 +204,20 @@ export default function Profile() {
   return (
     <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
       {/* Header */}
-      <header className="bg-[#1a2637]/95 text-white py-4 px-6 flex items-center justify-between shadow-sm sticky top-0 z-10 border-b border-[#2c3f58] backdrop-blur-sm">
+      <header className="bg-[#1a2637]/95 text-white py-4 px-6 flex items-center justify-between shadow-sm sticky top-0 z-10 border-b border-[#2c3f58] backdrop-blur-md">
         <Link to="/home">
-          <ArrowLeft size={24} className="cursor-pointer hover:text-[#00D9FF] transition-colors" />
+          <ArrowLeft size={24} className="cursor-pointer hover:text-[#00D9FF] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" />
         </Link>
-        <h1 className="text-xl font-bold text-white">My Profile</h1>
+        <h1 className="text-xl font-bold text-white tracking-tight">My Profile</h1>
         <div className="w-6"></div>
       </header>
 
       {/* Main Content */}
       <div className="max-w-2xl mx-auto px-4 py-6">
         {/* Profile Image Section */}
-        <div className="flex flex-col items-center mb-6">
+        <div className="flex flex-col items-center mb-6 sf-stagger-1">
           <div className="relative mb-3">
-            <Avatar className="h-24 w-24 border-2 border-[#d9b48c] shadow-sm">
+            <Avatar className="h-24 w-24 border-2 border-[#d9b48c] shadow-lg ring-2 ring-[#00D9FF]/20 ring-offset-2 ring-offset-[#1a1f2e]">
               {profileImageSrc ? (
                 <AvatarImage src={profileImageSrc} alt="Profile" className="object-cover" />
               ) : null}
@@ -248,7 +248,7 @@ export default function Profile() {
         </div>
 
         {/* Profile Card */}
-        <div className="rounded-2xl bg-[linear-gradient(135deg,#0b5f94_0%,#0f6ea9_52%,#157fbc_100%)] p-6 text-white mb-6 shadow-[0_18px_40px_rgba(10,79,126,0.22)]">
+        <div className="rounded-2xl bg-[linear-gradient(135deg,#0b5f94_0%,#0f6ea9_52%,#157fbc_100%)] p-6 text-white mb-6 shadow-[0_18px_40px_rgba(10,79,126,0.22)] sf-stagger-2">
           <div className="flex items-start justify-between mb-5">
             <div>
               <p className="text-sm font-medium text-white/80">Hello,</p>
@@ -288,7 +288,7 @@ export default function Profile() {
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm font-semibold whitespace-nowrap">Credit Score:</span>
             <div className="flex-1 bg-[#092d46] rounded-full h-2.5 overflow-hidden">
-              <div className="bg-white h-full rounded-full" style={{ width: `${creditScore}%` }}></div>
+              <div className="bg-gradient-to-r from-[#00D9FF] to-[#38bdf8] h-full rounded-full transition-all duration-700 ease-out" style={{ width: `${creditScore}%` }}></div>
             </div>
             <span className="text-sm font-bold flex items-center gap-1 whitespace-nowrap">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" className="text-orange-400">
@@ -301,7 +301,7 @@ export default function Profile() {
 
         {/* My Profile Section */}
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-[#00D9FF] mb-3">My Profile</h3>
+          <h3 className="text-lg font-bold text-[#00D9FF] mb-3 tracking-tight flex items-center gap-2">My Profile</h3>
 
           {mustChangePassword ? (
             <div className="mb-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-amber-200">
@@ -364,7 +364,7 @@ export default function Profile() {
 
         {/* My Financial Section */}
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-[#00D9FF] mb-3">My Financial</h3>
+          <h3 className="text-lg font-bold text-[#00D9FF] mb-3 tracking-tight">My Financial</h3>
           
           {/* Deposit */}
           <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
@@ -404,7 +404,7 @@ export default function Profile() {
 
         {/* Other Section */}
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-[#00D9FF] mb-3">Other</h3>
+          <h3 className="text-lg font-bold text-[#00D9FF] mb-3 tracking-tight">Other</h3>
           
           {/* Notifications */}
           <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
