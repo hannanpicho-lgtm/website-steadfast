@@ -40,7 +40,7 @@ export async function fetchBonusFeed(options?: { unseenOnly?: boolean; limit?: n
     return [];
   }
 
-  return payload.map((item: any) => ({
+  return payload.map((item: Record<string, unknown>) => ({
     id: String(item?.id ?? ''),
     amount: Number(item?.amount ?? 0),
     assignmentMode: (String(item?.assignmentMode ?? 'automatic').toLowerCase() as BonusFeedItem['assignmentMode']),

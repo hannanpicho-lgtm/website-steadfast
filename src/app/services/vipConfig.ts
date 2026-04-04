@@ -18,8 +18,9 @@ export type VipConfig = {
 
 const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
-function parseVipPayload(payload: any) {
-  return Array.isArray(payload?.tiers) ? payload.tiers as VipConfig[] : [];
+function parseVipPayload(payload: Record<string, unknown>) {
+  const tiers = (payload as Record<string, unknown>)?.tiers;
+  return Array.isArray(tiers) ? tiers as VipConfig[] : [];
 }
 
 async function parseVipResponse(response: Response) {
@@ -31,7 +32,7 @@ async function parseVipResponse(response: Response) {
 }
 
 export async function fetchPublicVipConfig() {
-  const payload = await fetchJsonWithRetry<any>({
+  const payload = await fetchJsonWithRetry<Record<string, unknown>>({
     url: `${serverUrl}/vip-config`,
     init: {
       headers: {

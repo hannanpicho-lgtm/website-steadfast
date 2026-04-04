@@ -126,9 +126,9 @@ function normalizeVipPremiumAdjustments(rawAdjustments: unknown): ProductSystemC
     const maxRaw = Number.isFinite(Number(candidate.maxValue))
       ? Number(candidate.maxValue)
       : fallbackForLevel.maxValue;
-    const upholdAmount = Number.isFinite(Number((candidate as any).upholdAmount))
-      ? Math.max(0, Number((candidate as any).upholdAmount))
-      : (fallbackForLevel as any).upholdAmount ?? 0;
+    const upholdAmount = Number.isFinite(Number((candidate as Record<string, unknown>).upholdAmount))
+      ? Math.max(0, Number((candidate as Record<string, unknown>).upholdAmount))
+      : (fallbackForLevel as Record<string, unknown>).upholdAmount as number ?? 0;
 
     byLevel.set(vipLevel, {
       vipLevel,
@@ -181,7 +181,7 @@ async function parseRewardsResponse(response: Response): Promise<RewardsConfig> 
   return parseRewardsPayload(payload);
 }
 
-function parseRewardsPayload(payload: any): RewardsConfig {
+function parseRewardsPayload(payload: Record<string, unknown>): RewardsConfig {
 
   const config = payload?.config as RewardsConfig | undefined;
   if (!config || !Array.isArray(config.workday) || !Array.isArray(config.reset) || !Array.isArray(config.accumulated) || !config.productSystem) {

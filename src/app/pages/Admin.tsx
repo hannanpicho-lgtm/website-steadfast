@@ -5,6 +5,7 @@ import { defaultVipConfigurations, initialProductCatalog, initialAdminRoles } fr
 import { formatRelativeTime } from '../admin/adminTypes';
 import type { AdminUserRecord, AdminRole, ModalType, PlatformUser, PlatformUserAudit, ReferralOverviewRow, ReferralOverviewEvent, ReferralOverviewSummary, TaskConfig, TaskDraftState, TransactionRecord, UserBalanceAdjustmentDraft, UserTaskControlDraft, UserVipLevelDraft, VipDraftState, VipLevelConfig, WithdrawalRequestRecord, MenuItem } from '../admin/adminTypes';
 import AdminModals from '../admin/AdminModals';
+import { ResetCredentialsModal, CreditScoreModal } from '../admin/AdminPromptModals';
 import { 
   Home, 
   Users, 
@@ -147,6 +148,10 @@ export default function Admin() {
 
   // CSV/JSON import file ref
   const productImportInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Prompt-replacement modal state
+  const [credentialResetTarget, setCredentialResetTarget] = useState<PlatformUser | null>(null);
+  const [creditScoreTarget, setCreditScoreTarget] = useState<PlatformUser | null>(null);
 
   useEffect(() => {
     try {
@@ -419,36 +424,24 @@ export default function Admin() {
   };
 
   const handleResetUserCredentials = async (user: PlatformUser) => {
+    setCredentialResetTarget(user);
+  };
+
+  const handleConfirmResetCredentials = async (loginPassword: string, transactionPassword: string) => {
+    const user = credentialResetTarget;
+    if (!user) return;
+    setCredentialResetTarget(null);
     try {
-      const nextLoginPassword = window.prompt(`Set NEW login password for ${user.username} (min 6 chars):`, '');
-      if (!nextLoginPassword) {
-        return;
-      }
-
-      const nextTransactionPassword = window.prompt(`Set NEW transaction password for ${user.username} (min 6 chars):`, '');
-      if (!nextTransactionPassword) {
-        return;
-      }
-
-      if (nextLoginPassword.length < 6 || nextTransactionPassword.length < 6) {
-        toast.error('Both passwords must be at least 6 characters.');
-        return;
-      }
-
       const headers = await buildAdminAuthHeaders();
       const response = await fetch(`${serverUrl}/admin/platform-users/${encodeURIComponent(user.username)}/reset-credentials`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({
-          loginPassword: nextLoginPassword,
-          transactionPassword: nextTransactionPassword,
-        }),
+        body: JSON.stringify({ loginPassword, transactionPassword }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(payload?.error ?? `Failed to reset credentials (${response.status})`);
       }
-
       toast.success(`Credentials set by admin for ${user.username}. User must change password at next login.`);
     } catch (error) {
       handleAdminRequestError(error, `Failed to reset credentials for ${user.username}`);
@@ -456,28 +449,25 @@ export default function Admin() {
   };
 
   const handleSetCreditScore = async (user: PlatformUser) => {
-    const rawInput = window.prompt(
-      `Set credit score for ${user.username} (0–100, current: ${typeof (user as any).creditScore === 'number' ? (user as any).creditScore : 100}):`,
-      String(typeof (user as any).creditScore === 'number' ? (user as any).creditScore : 100),
-    );
-    if (rawInput === null) return;
-    const newScore = Number(rawInput);
-    if (!Number.isFinite(newScore) || newScore < 0 || newScore > 100) {
-      toast.error('Credit score must be a number between 0 and 100.');
-      return;
-    }
+    setCreditScoreTarget(user);
+  };
+
+  const handleConfirmCreditScore = async (newScore: number) => {
+    const user = creditScoreTarget;
+    if (!user) return;
+    setCreditScoreTarget(null);
     try {
       const headers = await buildAdminAuthHeaders();
       const response = await fetch(`${serverUrl}/admin/platform-users/${encodeURIComponent(user.username)}/credit-score`, {
         method: 'PATCH',
         headers,
-        body: JSON.stringify({ creditScore: Math.round(newScore) }),
+        body: JSON.stringify({ creditScore: newScore }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(payload?.error ?? `Failed to set credit score (${response.status})`);
       }
-      toast.success(`Credit score set to ${Math.round(newScore)} for ${user.username}.`);
+      toast.success(`Credit score set to ${newScore} for ${user.username}.`);
       if (payload?.user) {
         mergePlatformUser(payload.user as PlatformUser);
       } else {
@@ -2582,6 +2572,23 @@ export default function Admin() {
         processWithdrawalReview={processWithdrawalReview}
         buildRolePermissionsFromForm={buildRolePermissionsFromForm}
       />
+
+      {/* Prompt-replacement modals */}
+      {credentialResetTarget && (
+        <ResetCredentialsModal
+          username={credentialResetTarget.username}
+          onConfirm={handleConfirmResetCredentials}
+          onClose={() => setCredentialResetTarget(null)}
+        />
+      )}
+      {creditScoreTarget && (
+        <CreditScoreModal
+          username={creditScoreTarget.username}
+          currentScore={typeof (creditScoreTarget as any).creditScore === 'number' ? (creditScoreTarget as any).creditScore : 100}
+          onConfirm={handleConfirmCreditScore}
+          onClose={() => setCreditScoreTarget(null)}
+        />
+      )}
 
       {/* Restore Preview Modal */}
       {pendingRestorePoint && (
