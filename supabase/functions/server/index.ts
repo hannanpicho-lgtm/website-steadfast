@@ -2572,8 +2572,14 @@ function sanitizeTaskUrl(value: unknown): string {
   if (!trimmed) {
     return '';
   }
+  if (trimmed.length > 2048) {
+    return '';
+  }
   try {
     const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return '';
+    }
     return parsed.toString();
   } catch {
     return '';
@@ -3154,7 +3160,7 @@ function normalizeTaskCatalogRecord(record: any) {
       : 'manual',
     commission: Number.isFinite(Number(record?.commission)) ? Number(record.commission) : 0.01,
     status: sanitizeTaskStatus(record?.status),
-    image: sanitizeTaskText(record?.image),
+    image: sanitizeTaskUrl(record?.image),
     rating: Number.isFinite(Number(record?.rating)) ? Number(record.rating) : 4,
     productUrl: sanitizeTaskUrl(record?.productUrl),
     category: typeof record?.category === 'string' ? record.category : '',
@@ -8830,7 +8836,8 @@ app.post('/make-server-a1c55d7e/admin/tasks', async (c: any) => {
     const body = await c.req.json();
     const product = sanitizeTaskText(body?.product);
     const productUrl = sanitizeTaskUrl(body?.productUrl);
-    const image = inferTaskImageUrl(body?.image, productUrl);
+    const imageInput = typeof body?.image === 'string' ? body.image.trim() : '';
+    const image = inferTaskImageUrl(imageInput, productUrl);
     const merchant = sanitizeTaskText(body?.merchant, inferMerchantFromTaskUrls(productUrl, image) || 'General');
     const hasExplicitPrice = Number.isFinite(Number(body?.price)) && Number(body?.price) > 0;
     const autoPrice = resolveAutomaticTaskPrice({
@@ -8848,6 +8855,9 @@ app.post('/make-server-a1c55d7e/admin/tasks', async (c: any) => {
 
     if (!product) {
       return c.json({ error: 'product is required' }, 400);
+    }
+    if (!imageInput || !image) {
+      return c.json({ error: 'A valid image URL (http/https) is required' }, 400);
     }
     if (!Number.isFinite(price) || price <= 0) {
       return c.json({ error: 'price must be greater than 0' }, 400);
@@ -9030,8 +9040,14 @@ app.post('/make-server-a1c55d7e/admin/tasks/bulk', async (c: any) => {
       const commissionRaw = Number(raw?.commission);
       const commission = Number.isFinite(commissionRaw) && commissionRaw > 0 ? commissionRaw : baseCommission;
       const productUrl = sanitizeTaskUrl(raw?.productUrl);
-      const imageRaw = sanitizeTaskText(raw?.image || raw?.imageUrl);
-      const image = inferTaskImageUrl(imageRaw, productUrl);
+      const imageInput = typeof raw?.image === 'string'
+        ? raw.image.trim()
+        : (typeof raw?.imageUrl === 'string' ? raw.imageUrl.trim() : '');
+      const image = inferTaskImageUrl(imageInput, productUrl);
+      if (!imageInput || !image) {
+        errors.push({ index: i, error: `valid image URL is required for "${product}"` });
+        continue;
+      }
       const merchant = sanitizeTaskText(
         raw?.merchant,
         inferMerchantFromTaskUrls(productUrl, image) || 'Marketplace',
@@ -9384,7 +9400,12 @@ app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c: any) => {
 
     const body = await c.req.json();
     const productUrl = sanitizeTaskUrl(body?.productUrl) || existingTask.productUrl;
-    const image = inferTaskImageUrl(body?.image, productUrl || existingTask.image);
+    const imageInput = typeof body?.image === 'string' ? body.image.trim() : '';
+    const hasImageInput = imageInput.length > 0;
+    const resolvedImage = hasImageInput
+      ? inferTaskImageUrl(imageInput, productUrl || existingTask.image)
+      : existingTask.image;
+    const image = sanitizeTaskUrl(resolvedImage) || inferTaskImageUrl('', productUrl);
     const merchant = sanitizeTaskText(
       body?.merchant,
       existingTask.merchant || inferMerchantFromTaskUrls(productUrl, image) || 'General',
@@ -9395,6 +9416,9 @@ app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c: any) => {
 
     if (!product) {
       return c.json({ error: 'product is required' }, 400);
+    }
+    if (hasImageInput && !image) {
+      return c.json({ error: 'Invalid image URL. Please use an absolute http/https URL.' }, 400);
     }
     if (!Number.isFinite(price) || price <= 0) {
       return c.json({ error: 'price must be greater than 0' }, 400);

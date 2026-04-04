@@ -40,6 +40,8 @@ const VIP_TIER_COLORS: Record<number, { bg: string; text: string; border: string
   5: { bg: 'bg-purple-500/20', text: 'text-purple-300', border: 'border-purple-500/40' },
 };
 
+const PRODUCT_IMAGE_PLACEHOLDER = 'https://via.placeholder.com/400x300?text=Image+Unavailable';
+
 export default function ProductManagement({
   products,
   vipConfigurations = [],
@@ -441,11 +443,11 @@ export default function ProductManagement({
 
                 <div className="relative">
                   <img
-                    src={normalizeText(product?.image || product?.imageUrl, 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=300&fit=crop')}
+                    src={normalizeText(product?.image || product?.imageUrl, PRODUCT_IMAGE_PLACEHOLDER)}
                     alt={productName}
                     className="w-full h-44 object-cover"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=300&fit=crop';
+                      (e.target as HTMLImageElement).src = PRODUCT_IMAGE_PLACEHOLDER;
                     }}
                   />
                   <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">

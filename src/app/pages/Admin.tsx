@@ -68,6 +68,23 @@ function AdminPanelFallback({ label }: { label: string }) {
   );
 }
 
+function normalizeHttpUrl(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return '';
+    }
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
 export default function Admin() {
   const navigate = useNavigate();
   const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
@@ -1025,9 +1042,23 @@ export default function Admin() {
     const price = Number(taskDraft.price);
     const commissionPercent = Number(taskDraft.commissionPercent);
     const rating = Number(taskDraft.rating);
+    const imageInput = taskDraft.image.trim();
+    const imageUrl = normalizeHttpUrl(imageInput);
+    const productUrlInput = taskDraft.productUrl.trim();
+    const productUrl = productUrlInput ? normalizeHttpUrl(productUrlInput) : '';
 
     if (!product || !merchant) {
       toast.error('Product and merchant are required.');
+      return;
+    }
+
+    if (!imageUrl) {
+      toast.error('A valid image URL is required (http/https).');
+      return;
+    }
+
+    if (productUrlInput && !productUrl) {
+      toast.error('Product URL must be a valid absolute http/https URL.');
       return;
     }
 
@@ -1052,9 +1083,9 @@ export default function Admin() {
           price,
           commission: commissionPercent / 100,
           status: taskDraft.status,
-          image: taskDraft.image.trim(),
+          image: imageUrl,
           rating: Number.isFinite(rating) && rating > 0 ? rating : 4,
-          productUrl: taskDraft.productUrl.trim(),
+          productUrl,
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -1618,7 +1649,10 @@ export default function Admin() {
     const formElement = event.currentTarget;
     const formData = new FormData(formElement);
     const product = String(formData.get('product') ?? '').trim();
-    const imageUrl = String(formData.get('image') ?? '').trim();
+    const imageInput = String(formData.get('image') ?? '').trim();
+    const imageUrl = normalizeHttpUrl(imageInput);
+    const productUrlInput = String(formData.get('productUrl') ?? '').trim();
+    const productUrl = productUrlInput ? normalizeHttpUrl(productUrlInput) : '';
     const priceRaw = String(formData.get('price') ?? '').trim();
     const price = Number(priceRaw);
     const status = String(formData.get('status') ?? 'Active').trim();
@@ -1628,7 +1662,11 @@ export default function Admin() {
       return;
     }
     if (!imageUrl) {
-      toast.error('Image URL is required.');
+      toast.error('A valid image URL is required (http/https).');
+      return;
+    }
+    if (productUrlInput && !productUrl) {
+      toast.error('Product URL must be a valid absolute http/https URL.');
       return;
     }
     if (!Number.isFinite(price) || price <= 0) {
@@ -1646,6 +1684,7 @@ export default function Admin() {
         body: JSON.stringify({
           product,
           image: imageUrl,
+          productUrl,
           price,
           status,
         }),
@@ -1794,7 +1833,10 @@ export default function Admin() {
 
     const formData = new FormData(event.currentTarget);
     const product = String(formData.get('product') ?? '').trim();
-    const imageUrl = String(formData.get('image') ?? '').trim();
+    const imageInput = String(formData.get('image') ?? '').trim();
+    const imageUrl = normalizeHttpUrl(imageInput);
+    const productUrlInput = String(formData.get('productUrl') ?? '').trim();
+    const productUrl = productUrlInput ? normalizeHttpUrl(productUrlInput) : '';
     const priceRaw = String(formData.get('price') ?? '').trim();
     const price = Number(priceRaw);
     const status = String(formData.get('status') ?? 'Active').trim();
@@ -1804,7 +1846,11 @@ export default function Admin() {
       return;
     }
     if (!imageUrl) {
-      toast.error('Image URL is required.');
+      toast.error('A valid image URL is required (http/https).');
+      return;
+    }
+    if (productUrlInput && !productUrl) {
+      toast.error('Product URL must be a valid absolute http/https URL.');
       return;
     }
     if (!Number.isFinite(price) || price <= 0) {
@@ -1824,6 +1870,7 @@ export default function Admin() {
         body: JSON.stringify({
           product,
           image: imageUrl,
+          productUrl,
           price,
           status,
         }),

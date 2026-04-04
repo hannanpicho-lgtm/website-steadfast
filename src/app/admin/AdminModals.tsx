@@ -1,3 +1,4 @@
+const PRODUCT_IMAGE_PLACEHOLDER = 'https://via.placeholder.com/400x300?text=Image+Unavailable';
 import type { Dispatch, SetStateAction } from 'react';
 import {
   X,
@@ -957,12 +958,16 @@ export default function AdminModals(props: AdminModalsProps) {
                 <label className="block text-sm font-medium text-gray-300 mb-2">Image URL</label>
                 <input type="url" name="image" required className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://image.example/product.jpg" />
               </div>
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-300 mb-2">Product Page URL (Optional)</label>
+                <input type="url" name="productUrl" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://merchant.example/product-page" />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Product Value (USD)</label>
                 <input type="number" name="price" required min="0.01" step="0.01" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product value" />
               </div>
               <div className="col-span-2 rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs text-cyan-200">
-                Merchant and catalog commission can be auto-detected from the image/product URL. Product value is now set manually so each added product can keep its own price.
+                Use absolute http/https URLs. Merchant and commission can be inferred from URLs when available.
               </div>
             </div>
             <div className="flex gap-3 mt-6">
@@ -1273,7 +1278,7 @@ export default function AdminModals(props: AdminModalsProps) {
           </div>
           <div className="space-y-4">
             <div className="bg-[#1a1f2e] p-4 rounded-lg">
-              <img src={selectedItem.image || selectedItem.imageUrl || 'https://via.placeholder.com/400x300?text=Product'} alt={selectedItem.product || selectedItem.name || 'Product'} className="w-full h-64 object-cover rounded-lg mb-4" />
+              <img src={selectedItem.image || selectedItem.imageUrl || PRODUCT_IMAGE_PLACEHOLDER} alt={selectedItem.product || selectedItem.name || 'Product'} className="w-full h-64 object-cover rounded-lg mb-4" onError={(e) => { (e.target as HTMLImageElement).src = PRODUCT_IMAGE_PLACEHOLDER; }} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-[#1a1f2e] p-4 rounded-lg col-span-2">
@@ -1363,12 +1368,16 @@ export default function AdminModals(props: AdminModalsProps) {
                   <label className="block text-sm font-medium text-gray-300 mb-2">Image URL</label>
                   <input type="url" name="image" required defaultValue={selectedItem.image || selectedItem.imageUrl || ''} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://image.example/product.jpg" />
                 </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Product Page URL (Optional)</label>
+                  <input type="url" name="productUrl" defaultValue={selectedItem.productUrl || ''} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="https://merchant.example/product-page" />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Product Value (USD)</label>
                   <input type="number" name="price" required min="0.01" step="0.01" defaultValue={selectedItem.price ?? ''} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter product value" />
                 </div>
                 <div className="col-span-2 rounded-lg border border-cyan-500/20 bg-cyan-500/10 px-4 py-3 text-xs text-cyan-200">
-                  Product value is editable. Merchant and commission can still be inferred by system logic when needed.
+                  Keep image URLs stable and absolute (http/https) to avoid broken thumbnails across admin and user dashboards.
                 </div>
               </div>
               <div className="flex gap-3 mt-6">
