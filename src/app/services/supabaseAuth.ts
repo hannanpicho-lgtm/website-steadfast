@@ -89,30 +89,29 @@ export async function isSupabaseAdminAuthenticated(): Promise<boolean> {
 }
 
 export async function requireAdminAccessToken(): Promise<string> {
-  // Use refreshSession to ensure we have a valid, non-expired token.
-  // getSession() can return a stale token that Supabase's background refresh
-  // is in the middle of replacing, causing AbortError race conditions.
-  let accessToken: string | undefined;
-
+  // Use the session object directly — it already contains the user and their
+  // role claims. Calling getUser() separately makes an extra network request
+  // to Supabase Auth on every admin API call, which races with the SDK's own
+  // background token refresh on new devices and causes AbortError failures.
   const { data: sessionData } = await supabase.auth.getSession();
-  accessToken = sessionData.session?.access_token;
+  let session = sessionData.session;
 
-  if (!accessToken) {
-    // Try an explicit refresh before giving up
+  // No session at all — try an explicit refresh before giving up
+  if (!session?.access_token) {
     const { data: refreshData } = await supabase.auth.refreshSession();
-    accessToken = refreshData.session?.access_token;
+    session = refreshData.session;
   }
 
-  if (!accessToken) {
+  if (!session?.access_token) {
     throw new Error('Admin session expired. Please sign in again.');
   }
 
-  const { data, error } = await supabase.auth.getUser(accessToken);
-  if (error || !userHasAdminRole(data.user)) {
+  // The session user already has app_metadata/user_metadata with role claims
+  if (!userHasAdminRole(session.user)) {
     throw new Error('Admin access denied. Please sign in with an authorized admin account.');
   }
 
-  return accessToken;
+  return session.access_token;
 }
 
 export async function buildAdminAuthHeaders(contentType = true): Promise<Record<string, string>> {
