@@ -12,7 +12,7 @@ import {
   Target,
   Zap,
 } from 'lucide-react';
-import { useEffect, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 
 const valuePillars = [
@@ -152,6 +152,16 @@ const MOTION_PRESETS: Record<MotionIntensity, {
   },
 };
 
+const NARRATOR_STEPS = [
+  { key: 'hero',     label: 'Platform Overview',  hint: 'The growth OS for scalable e-commerce.' },
+  { key: 'proof',    label: 'Trusted Partners',    hint: 'Enterprise teams that demand signal, not noise.' },
+  { key: 'model',    label: 'Operating Model',     hint: 'Map → Activate → Scale — KPI-gated every step.' },
+  { key: 'programs', label: 'Flagship Programs',   hint: 'Precision playbooks ready to deploy today.' },
+  { key: 'cta',      label: 'Ready to Launch',     hint: 'Your growth stack is one click away.' },
+];
+
+const DEMO_STEP_DURATION_MS = 4000;
+
 export default function Home() {
   const motion = MOTION_PRESETS[MOTION_INTENSITY];
   const motionVars = {
@@ -188,6 +198,73 @@ export default function Home() {
     targets.forEach((target) => observer.observe(target));
     return () => observer.disconnect();
   }, []);
+
+  const [demoMode, setDemoMode] = useState(false);
+  const [demoStep, setDemoStep] = useState(0);
+  const demoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Keyboard controls
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === 'd' || e.key === 'D') {
+        setDemoMode((v) => {
+          if (!v) setDemoStep(0);
+          return !v;
+        });
+      }
+      if (e.key === 'Escape') {
+        setDemoMode(false);
+        setDemoStep(0);
+      }
+      if ((e.key === 'ArrowRight' || e.key === ' ') && demoMode) {
+        e.preventDefault();
+        setDemoStep((s) => {
+          const next = s + 1;
+          if (next >= NARRATOR_STEPS.length) {
+            setDemoMode(false);
+            return 0;
+          }
+          return next;
+        });
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [demoMode]);
+
+  // Auto-scroll + spotlight + auto-advance
+  useEffect(() => {
+    document.querySelectorAll('[data-demo-section]').forEach((el) => {
+      el.classList.remove('demo-spotlight-active');
+    });
+    if (!demoMode) return;
+
+    const step = NARRATOR_STEPS[demoStep];
+    const el = document.querySelector<HTMLElement>(`[data-demo-section="${step.key}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el.classList.add('demo-spotlight-active');
+    }
+
+    demoTimerRef.current = setTimeout(() => {
+      setDemoStep((s) => {
+        const next = s + 1;
+        if (next >= NARRATOR_STEPS.length) {
+          setDemoMode(false);
+          return 0;
+        }
+        return next;
+      });
+    }, DEMO_STEP_DURATION_MS);
+
+    return () => {
+      if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
+      document.querySelectorAll('[data-demo-section]').forEach((el) => {
+        el.classList.remove('demo-spotlight-active');
+      });
+    };
+  }, [demoMode, demoStep]);
 
   return (
     <div
@@ -301,6 +378,16 @@ export default function Home() {
           70%, 100% { transform: translateX(120%); }
         }
 
+        @keyframes demoProgress {
+          from { width: 0%; }
+          to { width: 100%; }
+        }
+
+        .demo-spotlight-active {
+          box-shadow: inset 0 0 0 2px rgba(57, 198, 244, 0.65), inset 0 0 80px rgba(57, 198, 244, 0.08);
+          transition: box-shadow 0.4s ease;
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .hero-fade-in,
           .drift-orb,
@@ -353,7 +440,7 @@ export default function Home() {
       </header>
 
       <main>
-        <section className="relative overflow-hidden border-b border-white/10">
+        <section data-demo-section="hero" className="relative overflow-hidden border-b border-white/10">
           <div className="mx-auto grid max-w-7xl gap-10 px-4 pb-16 pt-14 sm:px-6 md:pt-20 lg:grid-cols-[1.1fr_0.9fr] lg:px-10">
             <div className="relative">
               <div className="hero-fade-in absolute -left-3 top-1 hidden w-1 rounded-full bg-gradient-to-b from-[#7fdcff] to-[#f6a96f] lg:block pulse-line" style={{ height: '84%', ['--hero-delay' as string]: '120ms' }} />
@@ -418,7 +505,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="proof" className="border-b border-white/10 bg-[#0a1f32]/70 py-10">
+        <section id="proof" data-demo-section="proof" className="border-b border-white/10 bg-[#0a1f32]/70 py-10">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
             <p className="home-reveal mb-4 text-center text-xs font-semibold uppercase tracking-[0.22em] text-[#8bcdf8]" data-home-reveal>
               Trusted by teams that demand signal over noise
@@ -435,7 +522,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="model" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-10">
+        <section id="model" data-demo-section="model" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-10">
           <div className="home-reveal mb-10 flex items-end justify-between gap-4" data-home-reveal>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#8bcdf8]">Operating model</p>
@@ -483,7 +570,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="programs" className="border-t border-white/10 bg-[#091b2b] py-16">
+        <section id="programs" data-demo-section="programs" className="border-t border-white/10 bg-[#091b2b] py-16">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
             <h2 className="home-reveal text-3xl font-black text-white sm:text-4xl" data-home-reveal>Flagship Programs</h2>
             <p className="home-reveal mt-3 max-w-2xl text-[#b8d8f6]" data-home-reveal style={{ ['--reveal-delay' as string]: '70ms' }}>
@@ -510,7 +597,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-7xl px-4 pb-20 pt-14 sm:px-6 lg:px-10">
+        <section data-demo-section="cta" className="mx-auto max-w-7xl px-4 pb-20 pt-14 sm:px-6 lg:px-10">
           <div className="home-reveal rounded-3xl border border-white/15 bg-gradient-to-r from-[#10314c] via-[#123955] to-[#15354d] p-8 shadow-[0_25px_60px_rgba(0,0,0,0.35)] sm:p-10" data-home-reveal>
             <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
               <div>
@@ -540,6 +627,68 @@ export default function Home() {
           </footer>
         </section>
       </main>
+
+      {/* Demo Tour trigger button */}
+      {!demoMode && (
+        <button
+          onClick={() => { setDemoMode(true); setDemoStep(0); }}
+          className="fixed bottom-5 right-5 z-50 flex items-center gap-2 rounded-full border border-[#3dc8f6]/35 bg-[#071626]/90 px-4 py-2.5 text-xs font-semibold text-[#8ed8ff] shadow-lg backdrop-blur-xl transition hover:border-[#3dc8f6]/70 hover:text-white"
+          title="Launch demo tour (press D)"
+        >
+          <span className="h-2 w-2 animate-pulse rounded-full bg-[#3dc8f6]/70" />
+          Demo Tour
+          <kbd className="ml-0.5 rounded bg-white/10 px-1.5 py-0.5 font-mono text-[9px] text-[#6baec8]">D</kbd>
+        </button>
+      )}
+
+      {/* Demo Narrator HUD */}
+      {demoMode && (
+        <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2">
+          <div className="flex flex-col items-center gap-3 rounded-2xl border border-[#3dc8f6]/40 bg-[#071626]/95 px-6 py-4 shadow-[0_0_48px_rgba(57,198,244,0.22)] backdrop-blur-2xl">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5 rounded-full bg-[#3dc8f6]/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-[#7fe4ff]">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#3dc8f6]" />
+                Demo Mode
+              </span>
+              <p className="text-sm font-bold text-white">{NARRATOR_STEPS[demoStep].label}</p>
+              <span className="text-xs text-[#8bcdf8]">{NARRATOR_STEPS[demoStep].hint}</span>
+            </div>
+            <div className="h-[3px] w-full overflow-hidden rounded-full bg-white/10">
+              <div
+                key={`dp-${demoStep}`}
+                className="h-full rounded-full bg-gradient-to-r from-[#3dc8f6] to-[#8be5ff]"
+                style={{ animation: `demoProgress ${DEMO_STEP_DURATION_MS}ms linear forwards` }}
+              />
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex gap-1.5">
+                {NARRATOR_STEPS.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setDemoStep(idx)}
+                    className={`h-2 rounded-full transition-all ${idx === demoStep ? 'w-5 bg-[#3dc8f6]' : 'w-2 bg-white/25 hover:bg-white/50'}`}
+                    aria-label={`Go to step ${idx + 1}`}
+                  />
+                ))}
+              </div>
+              <div className="ml-2 flex items-center gap-1.5 text-[10px] text-[#6ba8cc]">
+                <kbd className="rounded border border-white/15 bg-white/5 px-1.5 py-0.5">→</kbd>
+                <span>next</span>
+                <span className="opacity-40">·</span>
+                <kbd className="rounded border border-white/15 bg-white/5 px-1.5 py-0.5">Esc</kbd>
+                <span>exit</span>
+              </div>
+              <button
+                onClick={() => { setDemoMode(false); setDemoStep(0); }}
+                className="ml-1 text-sm text-[#5a86a4] transition hover:text-white"
+                aria-label="Exit demo mode"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
