@@ -218,17 +218,21 @@ export default function AdminModals(props: AdminModalsProps) {
   const [manualImageStatus, setManualImageStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [editImageDraft, setEditImageDraft] = useState('');
   const [editImageStatus, setEditImageStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  const [manualAllowUnreachable, setManualAllowUnreachable] = useState(false);
+  const [editAllowUnreachable, setEditAllowUnreachable] = useState(false);
 
   useEffect(() => {
     if (modalType === 'add-product-manual') {
       setManualImageDraft('');
       setManualImageStatus('idle');
+      setManualAllowUnreachable(false);
       return;
     }
 
     if (modalType === 'edit-product' && selectedItem) {
       const initialImage = String(selectedItem.image || selectedItem.imageUrl || '').trim();
       setEditImageDraft(initialImage);
+      setEditAllowUnreachable(false);
       if (!initialImage) {
         setEditImageStatus('idle');
       } else {
@@ -239,8 +243,12 @@ export default function AdminModals(props: AdminModalsProps) {
 
   const normalizedManualImageUrl = normalizeHttpUrl(manualImageDraft);
   const normalizedEditImageUrl = normalizeHttpUrl(editImageDraft);
-  const manualCanSubmit = normalizedManualImageUrl.length > 0 && manualImageStatus === 'ok';
-  const editCanSubmit = normalizedEditImageUrl.length > 0 && editImageStatus === 'ok';
+  const manualHasValidImageUrl = normalizedManualImageUrl.length > 0;
+  const editHasValidImageUrl = normalizedEditImageUrl.length > 0;
+  const manualCanUseWarningOverride = manualHasValidImageUrl && manualImageStatus === 'error';
+  const editCanUseWarningOverride = editHasValidImageUrl && editImageStatus === 'error';
+  const manualCanSubmit = manualHasValidImageUrl && (manualImageStatus === 'ok' || (manualCanUseWarningOverride && manualAllowUnreachable));
+  const editCanSubmit = editHasValidImageUrl && (editImageStatus === 'ok' || (editCanUseWarningOverride && editAllowUnreachable));
 
   if (!modalType) return null;
 
@@ -997,6 +1005,7 @@ export default function AdminModals(props: AdminModalsProps) {
                   onChange={(e) => {
                     const next = e.target.value;
                     setManualImageDraft(next);
+                    setManualAllowUnreachable(false);
                     if (!next.trim()) {
                       setManualImageStatus('idle');
                     } else {
@@ -1009,7 +1018,11 @@ export default function AdminModals(props: AdminModalsProps) {
                     <span className="text-gray-400">Image Health Check</span>
                     {manualImageStatus === 'ok' && <span className="text-green-400">Reachable</span>}
                     {manualImageStatus === 'loading' && <span className="text-yellow-300">Checking...</span>}
-                    {manualImageStatus === 'error' && <span className="text-red-400">Invalid or unreachable</span>}
+                    {manualImageStatus === 'error' && (
+                      <span className="text-red-400">
+                        {manualHasValidImageUrl ? 'Unreachable in preview' : 'Invalid URL format'}
+                      </span>
+                    )}
                     {manualImageStatus === 'idle' && <span className="text-gray-500">Paste image URL</span>}
                   </div>
                   <img
@@ -1029,6 +1042,19 @@ export default function AdminModals(props: AdminModalsProps) {
                     }}
                   />
                 </div>
+                {manualCanUseWarningOverride && (
+                  <label className="mt-2 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                    <input
+                      type="checkbox"
+                      checked={manualAllowUnreachable}
+                      onChange={(e) => setManualAllowUnreachable(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      Save with warning: this URL is valid but preview failed to load. Some CDNs block hotlink previews by referrer.
+                    </span>
+                  </label>
+                )}
               </div>
               <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-300 mb-2">Product Page URL (Optional)</label>
@@ -1044,7 +1070,7 @@ export default function AdminModals(props: AdminModalsProps) {
             </div>
             <div className="flex gap-3 mt-6">
               <button type="submit" disabled={!manualCanSubmit} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] disabled:opacity-60 disabled:cursor-not-allowed text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
-                Create Product
+                {manualCanUseWarningOverride && manualAllowUnreachable ? 'Create Product (Warning Override)' : 'Create Product'}
               </button>
               <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                 Cancel
@@ -1446,6 +1472,7 @@ export default function AdminModals(props: AdminModalsProps) {
                     onChange={(e) => {
                       const next = e.target.value;
                       setEditImageDraft(next);
+                      setEditAllowUnreachable(false);
                       if (!next.trim()) {
                         setEditImageStatus('idle');
                       } else {
@@ -1460,7 +1487,11 @@ export default function AdminModals(props: AdminModalsProps) {
                       <span className="text-gray-400">Image Health Check</span>
                       {editImageStatus === 'ok' && <span className="text-green-400">Reachable</span>}
                       {editImageStatus === 'loading' && <span className="text-yellow-300">Checking...</span>}
-                      {editImageStatus === 'error' && <span className="text-red-400">Invalid or unreachable</span>}
+                      {editImageStatus === 'error' && (
+                        <span className="text-red-400">
+                          {editHasValidImageUrl ? 'Unreachable in preview' : 'Invalid URL format'}
+                        </span>
+                      )}
                       {editImageStatus === 'idle' && <span className="text-gray-500">Paste image URL</span>}
                     </div>
                     <img
@@ -1480,6 +1511,19 @@ export default function AdminModals(props: AdminModalsProps) {
                       }}
                     />
                   </div>
+                  {editCanUseWarningOverride && (
+                    <label className="mt-2 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+                      <input
+                        type="checkbox"
+                        checked={editAllowUnreachable}
+                        onChange={(e) => setEditAllowUnreachable(e.target.checked)}
+                        className="mt-0.5"
+                      />
+                      <span>
+                        Save with warning: this URL is valid but preview failed to load. Some CDNs block hotlink previews by referrer.
+                      </span>
+                    </label>
+                  )}
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-medium text-gray-300 mb-2">Product Page URL (Optional)</label>
@@ -1495,7 +1539,7 @@ export default function AdminModals(props: AdminModalsProps) {
               </div>
               <div className="flex gap-3 mt-6">
                 <button type="submit" disabled={!editCanSubmit} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] disabled:opacity-60 disabled:cursor-not-allowed text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
-                  Save Changes
+                  {editCanUseWarningOverride && editAllowUnreachable ? 'Save Changes (Warning Override)' : 'Save Changes'}
                 </button>
                 <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
                   Cancel
