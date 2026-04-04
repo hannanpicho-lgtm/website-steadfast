@@ -62,11 +62,6 @@ function buildPublicImageFallbackProxyUrl(value: unknown): string {
 }
 
 function resolveProductImageSrc(product: any): string {
-  const proxy = normalizeText(product?.imageProxyUrl, '').trim();
-  if (proxy) {
-    return proxy;
-  }
-
   const raw = normalizeText(product?.image || product?.imageUrl, '').trim();
   return raw || PRODUCT_IMAGE_PLACEHOLDER;
 }

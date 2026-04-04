@@ -33,7 +33,7 @@ describe('ProductManagement image integrity', () => {
     expect(image.src).toContain('https://cdn.example.com/lamp.jpg');
   });
 
-  it('prefers proxy URL when imageProxyUrl is provided', () => {
+  it('uses direct image URL even when imageProxyUrl is provided', () => {
     render(
       <ProductManagement
         {...baseProps}
@@ -50,7 +50,7 @@ describe('ProductManagement image integrity', () => {
     );
 
     const image = screen.getByAltText('Desk Lamp Proxy') as HTMLImageElement;
-    expect(image.src).toContain('/admin/tasks/image-proxy?url=');
+    expect(image.src).toContain('https://blocked.example.com/lamp.jpg');
   });
 
   it('uses neutral placeholder when image is missing', () => {

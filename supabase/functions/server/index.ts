@@ -7814,8 +7814,6 @@ app.get('/make-server-a1c55d7e/admin/tasks', async (c: any) => {
     const taskRecords = await kv.getByPrefix('task:');
     const today = new Date().toISOString().split('T')[0];
 
-    const requestOrigin = new URL(c.req.url).origin;
-
     const decoratedTasks = tasks.map((task) => {
       const matchingRecords = taskRecords.filter((record) => record?.taskId === task.id);
       const assignedUsers = new Set(
@@ -7828,11 +7826,11 @@ app.get('/make-server-a1c55d7e/admin/tasks', async (c: any) => {
         return timestamp.startsWith(today);
       }).length;
 
-      return decorateTaskForClient({
+      return {
         ...task,
         assignedUsers,
         completedToday,
-      }, requestOrigin);
+      };
     });
 
     return c.json({ tasks: decoratedTasks });
@@ -8945,8 +8943,7 @@ app.post('/make-server-a1c55d7e/admin/tasks', async (c: any) => {
       `Created task catalog entry '${task.id}' (${merchant} ${product}, \$${price}, ${commission}% commission)`,
     ).catch((e) => console.error('Failed to record admin-task-catalog-create audit event:', e));
 
-    const requestOrigin = new URL(c.req.url).origin;
-    return c.json({ success: true, task: decorateTaskForClient(task, requestOrigin) }, 201);
+    return c.json({ success: true, task }, 201);
   } catch (error) {
     console.error('Error creating admin task:', error);
     return c.json({ error: 'Failed to create task' }, 500);
@@ -9505,8 +9502,7 @@ app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c: any) => {
       `Updated task catalog entry '${taskId}' (${updatedTask.merchant} ${updatedTask.product}, \$${updatedTask.price}, ${updatedTask.commission}% commission)`,
     ).catch((e) => console.error('Failed to record admin-task-catalog-update audit event:', e));
 
-    const requestOrigin = new URL(c.req.url).origin;
-    return c.json({ success: true, task: decorateTaskForClient(updatedTask, requestOrigin) });
+    return c.json({ success: true, task: updatedTask });
   } catch (error) {
     console.error('Error updating admin task:', error);
     return c.json({ error: 'Failed to update task' }, 500);
