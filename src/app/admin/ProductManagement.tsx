@@ -43,6 +43,11 @@ const VIP_TIER_COLORS: Record<number, { bg: string; text: string; border: string
 const PRODUCT_IMAGE_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='100%25' height='100%25' fill='%231a2234'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-family='Arial' font-size='18'%3EImage unavailable%3C/text%3E%3C/svg%3E";
 
 function resolveProductImageSrc(product: any): string {
+  const proxy = normalizeText(product?.imageProxyUrl, '').trim();
+  if (proxy) {
+    return proxy;
+  }
+
   const raw = normalizeText(product?.image || product?.imageUrl, '').trim();
   return raw || PRODUCT_IMAGE_PLACEHOLDER;
 }

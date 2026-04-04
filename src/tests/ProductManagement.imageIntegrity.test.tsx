@@ -33,6 +33,26 @@ describe('ProductManagement image integrity', () => {
     expect(image.src).toContain('https://cdn.example.com/lamp.jpg');
   });
 
+  it('prefers proxy URL when imageProxyUrl is provided', () => {
+    render(
+      <ProductManagement
+        {...baseProps}
+        products={[{
+          id: 'p1b',
+          product: 'Desk Lamp Proxy',
+          image: 'https://blocked.example.com/lamp.jpg',
+          imageProxyUrl: 'https://api.example.com/make-server-a1c55d7e/admin/tasks/image-proxy?url=https%3A%2F%2Fblocked.example.com%2Flamp.jpg',
+          price: 50,
+          commission: 0.01,
+          status: 'Active',
+        }]}
+      />,
+    );
+
+    const image = screen.getByAltText('Desk Lamp Proxy') as HTMLImageElement;
+    expect(image.src).toContain('/admin/tasks/image-proxy?url=');
+  });
+
   it('uses neutral placeholder when image is missing', () => {
     render(
       <ProductManagement

@@ -2693,6 +2693,56 @@ function inferTaskImageUrl(imageValue: unknown, productUrlValue: unknown): strin
   return '';
 }
 
+function isPrivateImageHost(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  if (normalized === 'localhost' || normalized === '::1' || normalized.endsWith('.local')) {
+    return true;
+  }
+
+  if (/^127\./.test(normalized) || /^10\./.test(normalized) || /^192\.168\./.test(normalized)) {
+    return true;
+  }
+
+  if (/^169\.254\./.test(normalized)) {
+    return true;
+  }
+
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(normalized)) {
+    return true;
+  }
+
+  return false;
+}
+
+function isSafeImageProxyUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return !isPrivateImageHost(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function buildTaskImageProxyUrl(imageUrl: unknown, requestOrigin: string): string {
+  const safeImageUrl = sanitizeTaskUrl(imageUrl);
+  if (!safeImageUrl || !isSafeImageProxyUrl(safeImageUrl)) {
+    return '';
+  }
+
+  return `${requestOrigin}/${FUNCTION_SERVICE_NAME}/admin/tasks/image-proxy?url=${encodeURIComponent(safeImageUrl)}`;
+}
+
+function decorateTaskForClient(task: any, requestOrigin: string) {
+  return {
+    ...task,
+    imageProxyUrl: buildTaskImageProxyUrl(task?.image, requestOrigin),
+  };
+}
+
 function normalizeBoolean(value: unknown, fallback = false): boolean {
   if (typeof value === 'boolean') {
     return value;
@@ -7764,6 +7814,8 @@ app.get('/make-server-a1c55d7e/admin/tasks', async (c: any) => {
     const taskRecords = await kv.getByPrefix('task:');
     const today = new Date().toISOString().split('T')[0];
 
+    const requestOrigin = new URL(c.req.url).origin;
+
     const decoratedTasks = tasks.map((task) => {
       const matchingRecords = taskRecords.filter((record) => record?.taskId === task.id);
       const assignedUsers = new Set(
@@ -7776,11 +7828,11 @@ app.get('/make-server-a1c55d7e/admin/tasks', async (c: any) => {
         return timestamp.startsWith(today);
       }).length;
 
-      return {
+      return decorateTaskForClient({
         ...task,
         assignedUsers,
         completedToday,
-      };
+      }, requestOrigin);
     });
 
     return c.json({ tasks: decoratedTasks });
@@ -8893,7 +8945,8 @@ app.post('/make-server-a1c55d7e/admin/tasks', async (c: any) => {
       `Created task catalog entry '${task.id}' (${merchant} ${product}, \$${price}, ${commission}% commission)`,
     ).catch((e) => console.error('Failed to record admin-task-catalog-create audit event:', e));
 
-    return c.json({ success: true, task }, 201);
+    const requestOrigin = new URL(c.req.url).origin;
+    return c.json({ success: true, task: decorateTaskForClient(task, requestOrigin) }, 201);
   } catch (error) {
     console.error('Error creating admin task:', error);
     return c.json({ error: 'Failed to create task' }, 500);
@@ -9452,10 +9505,57 @@ app.put('/make-server-a1c55d7e/admin/tasks/:taskId', async (c: any) => {
       `Updated task catalog entry '${taskId}' (${updatedTask.merchant} ${updatedTask.product}, \$${updatedTask.price}, ${updatedTask.commission}% commission)`,
     ).catch((e) => console.error('Failed to record admin-task-catalog-update audit event:', e));
 
-    return c.json({ success: true, task: updatedTask });
+    const requestOrigin = new URL(c.req.url).origin;
+    return c.json({ success: true, task: decorateTaskForClient(updatedTask, requestOrigin) });
   } catch (error) {
     console.error('Error updating admin task:', error);
     return c.json({ error: 'Failed to update task' }, 500);
+  }
+});
+
+app.get('/make-server-a1c55d7e/admin/tasks/image-proxy', async (c: any) => {
+  try {
+    const targetUrlRaw = typeof c.req.query('url') === 'string' ? c.req.query('url') : '';
+    const targetUrl = sanitizeTaskUrl(targetUrlRaw);
+    if (!targetUrl) {
+      return c.text('Invalid image URL', 400);
+    }
+
+    if (!isSafeImageProxyUrl(targetUrl)) {
+      return c.text('Image URL host is not allowed', 400);
+    }
+
+    const upstream = await fetch(targetUrl, {
+      method: 'GET',
+      redirect: 'follow',
+      headers: {
+        'accept': 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        'user-agent': 'SteadfastImageProxy/1.0',
+      },
+    });
+
+    if (!upstream.ok) {
+      return c.text('Image unavailable', upstream.status === 404 ? 404 : 502);
+    }
+
+    const contentType = (upstream.headers.get('content-type') ?? '').toLowerCase();
+    if (!contentType.startsWith('image/')) {
+      return c.text('Unsupported content type', 415);
+    }
+
+    const bytes = await upstream.arrayBuffer();
+    const responseHeaders = new Headers();
+    responseHeaders.set('Content-Type', contentType);
+    responseHeaders.set('Cache-Control', 'public, max-age=21600, s-maxage=21600');
+    responseHeaders.set('X-Content-Type-Options', 'nosniff');
+
+    return new Response(bytes, {
+      status: 200,
+      headers: responseHeaders,
+    });
+  } catch (error) {
+    console.error('Error proxying admin task image:', error);
+    return c.text('Image unavailable', 502);
   }
 });
 

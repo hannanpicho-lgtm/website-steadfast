@@ -63,6 +63,7 @@ export type TaskConfig = {
   assignedUsers: number;
   completedToday: number;
   image: string;
+  imageProxyUrl?: string;
   rating: number;
   productUrl: string;
   category?: string;
