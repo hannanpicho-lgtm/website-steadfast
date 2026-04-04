@@ -75,6 +75,9 @@ describe('ProductManagement image integrity', () => {
 
     const image = screen.getByAltText('Monitor') as HTMLImageElement;
     fireEvent.error(image);
+    expect(image.src).toContain('https://images.weserv.nl/');
+
+    fireEvent.error(image);
 
     expect(image.src).toContain('data:image/svg+xml');
   });

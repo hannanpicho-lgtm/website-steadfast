@@ -42,6 +42,25 @@ const VIP_TIER_COLORS: Record<number, { bg: string; text: string; border: string
 
 const PRODUCT_IMAGE_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='300'%3E%3Crect width='100%25' height='100%25' fill='%231a2234'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%2394a3b8' font-family='Arial' font-size='18'%3EImage unavailable%3C/text%3E%3C/svg%3E";
 
+function buildPublicImageFallbackProxyUrl(value: unknown): string {
+  const raw = normalizeText(value, '').trim();
+  if (!raw) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(raw);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return '';
+    }
+
+    const hostAndPath = `${parsed.host}${parsed.pathname}${parsed.search}`;
+    return `https://images.weserv.nl/?url=${encodeURIComponent(hostAndPath)}&w=800&h=600&fit=cover`;
+  } catch {
+    return '';
+  }
+}
+
 function resolveProductImageSrc(product: any): string {
   const proxy = normalizeText(product?.imageProxyUrl, '').trim();
   if (proxy) {
@@ -428,6 +447,7 @@ export default function ProductManagement({
             const tierColors = vipTier >= 1 && vipTier <= 5 ? VIP_TIER_COLORS[vipTier] : null;
             const productName = normalizeText(product?.product || product?.name, 'Unnamed product');
             const productSource = normalizeText(product?.source, 'Manual');
+            const fallbackPublicProxyUrl = buildPublicImageFallbackProxyUrl(product?.image || product?.imageUrl);
 
             return (
               <div
@@ -459,8 +479,24 @@ export default function ProductManagement({
                     referrerPolicy="no-referrer"
                     onError={(e) => {
                       const target = e.currentTarget;
+                      const stage = target.dataset.fallbackStage ?? '';
+
+                      if (stage !== 'public-proxy' && fallbackPublicProxyUrl && target.src !== fallbackPublicProxyUrl) {
+                        target.dataset.fallbackStage = 'public-proxy';
+                        target.src = fallbackPublicProxyUrl;
+                        return;
+                      }
+
+                      if (stage !== 'placeholder') {
+                        target.dataset.fallbackStage = 'placeholder';
+                        target.src = PRODUCT_IMAGE_PLACEHOLDER;
+                        return;
+                      }
+
                       target.onerror = null;
-                      target.src = PRODUCT_IMAGE_PLACEHOLDER;
+                    }}
+                    onLoad={(e) => {
+                      e.currentTarget.dataset.fallbackStage = 'loaded';
                     }}
                   />
                   <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
