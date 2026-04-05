@@ -302,9 +302,6 @@ export default function Signup() {
               style={inputStyle}
               required
             />
-            <p className="mt-1.5 text-xs px-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
-              Required — exactly 5 letters/numbers. System default: <span className="text-[#00D9FF]/70 font-mono">STF01</span>
-            </p>
           </div>
 
           {/* Admin Invitation Code (optional) */}
