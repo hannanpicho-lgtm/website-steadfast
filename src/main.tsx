@@ -12,6 +12,18 @@
     console.error("[Unhandled Promise]", event.reason);
   });
 
+  // Register service worker for PWA / offline shell caching.
+  // Runs after the page has loaded so it never delays the initial render.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker
+        .register('/sw.js', { scope: '/' })
+        .catch(() => {
+          // SW registration is best-effort — failure is silent and harmless.
+        });
+    });
+  }
+
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
       <App />
