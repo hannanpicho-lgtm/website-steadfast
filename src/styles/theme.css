@@ -134,7 +134,13 @@
   }
 
   .animate-marquee {
-    animation: marquee 8s linear infinite;
+    animation: marquee 4s linear infinite;
+  }
+
+  @media (max-width: 640px) {
+    .animate-marquee {
+      animation: marquee 3s linear infinite;
+    }
   }
 
   @keyframes slideUp {
