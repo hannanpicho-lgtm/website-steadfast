@@ -160,7 +160,7 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
               }
               realtimeRefreshTimeoutRef.current = window.setTimeout(() => {
                 void loadConversation(true);
-              }, 120);
+              }, 50);
             },
           });
           if (!cancelled) {
@@ -180,7 +180,7 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
 
     pollRef.current = window.setInterval(() => {
       void loadConversation(true);
-    }, realtimeEnabled ? 15000 : 4000);
+    }, realtimeEnabled ? 8000 : 4000);
 
     return () => {
       cancelled = true;
@@ -250,6 +250,29 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
     try {
       setSending(true);
       const payload = encodeChatMessage(trimmedMessage, selectedAttachment);
+      // Optimistic update — show message immediately while server call is in-flight
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `opt-${Date.now()}`,
+          message: payload,
+          sender: username,
+          isAdmin: false,
+          timestamp: new Date().toISOString(),
+          read: false,
+        },
+      ]);
+      setNewMessage('');
+      setSelectedAttachment(null);
+      setAttachmentError('');
+      setShowEmojiPanel(false);
+      if (draftStorageKey) {
+        try {
+          localStorage.removeItem(draftStorageKey);
+        } catch {
+          // ignore storage write failures
+        }
+      }
       if (realtimeEnabled && username) {
         try {
           await sendRealtimeUserChatMessage(username, username, payload);
@@ -260,19 +283,6 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
       } else {
         await sendUserChatMessage(payload);
       }
-      setNewMessage('');
-      setSelectedAttachment(null);
-      setAttachmentError('');
-      setShowEmojiPanel(false);
-
-      if (draftStorageKey) {
-        try {
-          localStorage.removeItem(draftStorageKey);
-        } catch {
-          // ignore storage write failures
-        }
-      }
-
       await loadConversation(true);
     } catch {
       toast.error('Message could not be delivered. Please retry.');

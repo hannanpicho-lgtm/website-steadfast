@@ -295,7 +295,7 @@ export default function LiveChatAdmin() {
 
   useEffect(() => {
     fetchChats();
-    const interval = setInterval(fetchChats, realtimeEnabled ? 8000 : 5000);
+    const interval = setInterval(fetchChats, 3000);
     return () => clearInterval(interval);
   }, [realtimeEnabled]);
 
@@ -312,7 +312,7 @@ export default function LiveChatAdmin() {
         if (!realtimeEnabled) {
           markMessagesAsRead(selectedChat);
         }
-      }, realtimeEnabled ? 4000 : 5000);
+      }, realtimeEnabled ? 2000 : 3000);
       return () => clearInterval(interval);
     }
   }, [realtimeEnabled, selectedChat]);
@@ -463,6 +463,22 @@ export default function LiveChatAdmin() {
     try {
       setSending(true);
       const encoded = encodeChatMessage(newMessage.trim(), selectedAttachment);
+      // Optimistic update — show message immediately while server call is in-flight
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `opt-${Date.now()}`,
+          message: encoded,
+          sender: 'admin',
+          isAdmin: true,
+          timestamp: new Date().toISOString(),
+          read: false,
+        },
+      ]);
+      setNewMessage('');
+      setSelectedAttachment(null);
+      setAttachmentError(null);
+      scrollToBottom('smooth');
       if (realtimeEnabled) {
         await sendRealtimeAdminChatMessage(selectedChat, encoded);
       } else {
@@ -475,18 +491,12 @@ export default function LiveChatAdmin() {
             isAdmin: true,
           }),
         });
-
         if (!response.ok) {
           throw new Error('Failed to send message');
         }
       }
-
-  setNewMessage('');
-  setSelectedAttachment(null);
-  setAttachmentError(null);
       await fetchMessages(selectedChat);
       await fetchChats();
-      scrollToBottom('smooth');
     } catch (error) {
       handleAdminAuthError({
         errorValue: error,
@@ -603,65 +613,65 @@ export default function LiveChatAdmin() {
 
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-210px)] min-h-[520px]">
       {/* Chat List */}
-      <div className="col-span-1 bg-white rounded-lg border border-gray-200 flex flex-col min-h-0">
-        <div className="p-4 border-b border-gray-200">
-          <h3 className="font-bold text-gray-900 mb-3">Active Chats</h3>
+      <div className="col-span-1 bg-[#071626] rounded-xl border border-white/10 flex flex-col min-h-0">
+        <div className="p-4 border-b border-white/10">
+          <h3 className="font-bold text-white mb-3">Active Chats</h3>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search users..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none text-sm"
+              className="w-full pl-10 pr-4 py-2 border border-white/15 rounded-lg focus:border-cyan-400 focus:outline-none text-sm bg-[#0d2035] text-white placeholder-slate-500"
             />
           </div>
           {realtimeEnabled && realtimeMetrics?.metrics ? (
-            <div className="mt-3 space-y-2 rounded-lg border border-blue-100 bg-blue-50 p-2 text-[11px]">
+            <div className="mt-3 space-y-2 rounded-lg border border-cyan-500/20 bg-[#051523] p-2 text-[11px]">
               <div className="grid grid-cols-3 gap-2">
               <div>
-                <p className="text-blue-700/70">Events</p>
-                <p className="font-semibold text-blue-900">{Number(realtimeMetrics.metrics.total_events ?? 0)}</p>
+                <p className="text-cyan-400/60">Events</p>
+                <p className="font-semibold text-cyan-100">{Number(realtimeMetrics.metrics.total_events ?? 0)}</p>
               </div>
               <div>
-                <p className="text-blue-700/70">Success</p>
-                <p className="font-semibold text-blue-900">{Number(realtimeMetrics.metrics.success_events ?? 0)}</p>
+                <p className="text-cyan-400/60">Success</p>
+                <p className="font-semibold text-cyan-100">{Number(realtimeMetrics.metrics.success_events ?? 0)}</p>
               </div>
               <div>
-                <p className="text-blue-700/70">Avg Latency</p>
-                <p className="font-semibold text-blue-900">{Math.round(Number(realtimeMetrics.metrics.avg_duration_ms ?? 0))}ms</p>
+                <p className="text-cyan-400/60">Avg Latency</p>
+                <p className="font-semibold text-cyan-100">{Math.round(Number(realtimeMetrics.metrics.avg_duration_ms ?? 0))}ms</p>
               </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <p className="text-blue-700/70">Retries</p>
-                  <p className="font-semibold text-blue-900">{Number(realtimeMetrics.metrics.retry_count ?? 0)}</p>
+                  <p className="text-cyan-400/60">Retries</p>
+                  <p className="font-semibold text-cyan-100">{Number(realtimeMetrics.metrics.retry_count ?? 0)}</p>
                 </div>
                 <div>
-                  <p className="text-blue-700/70">Failures</p>
-                  <p className="font-semibold text-blue-900">{Number(realtimeMetrics.metrics.failed_deliveries ?? 0)}</p>
+                  <p className="text-cyan-400/60">Failures</p>
+                  <p className="font-semibold text-rose-300">{Number(realtimeMetrics.metrics.failed_deliveries ?? 0)}</p>
                 </div>
                 <div>
-                  <p className="text-blue-700/70">Delayed</p>
-                  <p className="font-semibold text-blue-900">{Number(realtimeMetrics.metrics.delayed_messages ?? 0)}</p>
+                  <p className="text-cyan-400/60">Delayed</p>
+                  <p className="font-semibold text-amber-300">{Number(realtimeMetrics.metrics.delayed_messages ?? 0)}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <p className="text-blue-700/70">Active Conversations</p>
-                  <p className="font-semibold text-blue-900">{Number(realtimeMetrics.activeConversations ?? 0)}</p>
+                  <p className="text-cyan-400/60">Active Conversations</p>
+                  <p className="font-semibold text-cyan-100">{Number(realtimeMetrics.activeConversations ?? 0)}</p>
                 </div>
                 <div>
-                  <p className="text-blue-700/70">SLA Breaches</p>
-                  <p className="font-semibold text-blue-900">{Number(realtimeMetrics.slaBreaches ?? 0)}</p>
+                  <p className="text-cyan-400/60">SLA Breaches</p>
+                  <p className="font-semibold text-rose-300">{Number(realtimeMetrics.slaBreaches ?? 0)}</p>
                 </div>
               </div>
               {Array.isArray(realtimeMetrics.openLoadByPriority) && realtimeMetrics.openLoadByPriority.length > 0 ? (
-                <div className="rounded border border-blue-200 bg-white/70 p-2">
-                  <p className="mb-1 text-blue-800/80">Open Load by Priority</p>
+                <div className="rounded border border-white/10 bg-white/5 p-2">
+                  <p className="mb-1 text-slate-400">Open Load by Priority</p>
                   <div className="flex flex-wrap gap-1">
                     {realtimeMetrics.openLoadByPriority.map((entry, index) => (
-                      <span key={`${entry.priority || 'unknown'}-${index}`} className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-800">
+                      <span key={`${entry.priority || 'unknown'}-${index}`} className="rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-300">
                         {(entry.priority || 'unknown').toUpperCase()}: {Number(entry.count ?? 0)}
                       </span>
                     ))}
@@ -669,11 +679,11 @@ export default function LiveChatAdmin() {
                 </div>
               ) : null}
               {Array.isArray(realtimeMetrics.recentFailures) && realtimeMetrics.recentFailures.length > 0 ? (
-                <div className="rounded border border-rose-200 bg-rose-50 p-2">
-                  <p className="mb-1 text-rose-800/80">Recent Failures</p>
+                <div className="rounded border border-rose-500/20 bg-rose-500/5 p-2">
+                  <p className="mb-1 text-rose-400/80">Recent Failures</p>
                   <div className="max-h-24 space-y-1 overflow-y-auto">
                     {realtimeMetrics.recentFailures.slice(0, 6).map((failure, index) => (
-                      <p key={`${failure.event_type || 'event'}-${index}`} className="text-[10px] text-rose-800">
+                      <p key={`${failure.event_type || 'event'}-${index}`} className="text-[10px] text-rose-300">
                         {(failure.event_type || 'unknown').replace(/\./g, ' ')} · {failure.actor_role || 'n/a'} · {failure.created_at ? new Date(failure.created_at).toLocaleTimeString() : 'n/a'}
                       </p>
                     ))}
@@ -697,28 +707,28 @@ export default function LiveChatAdmin() {
             </div>
           ) : filteredChats.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full p-4 text-center">
-              <MessageSquare className="text-gray-300 mb-3" size={48} />
-              <p className="text-gray-500 text-sm">No active chats</p>
+              <MessageSquare className="text-slate-600 mb-3" size={48} />
+              <p className="text-slate-400 text-sm">No active chats</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-white/5">
               {filteredChats.map((chat) => (
                 
                 <button
                   key={chat.username}
                   onClick={() => setSelectedChat(chat.username)}
-                  className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
-                    selectedChat === chat.username ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                  className={`w-full p-4 text-left hover:bg-white/5 transition-colors ${
+                    selectedChat === chat.username ? 'bg-cyan-500/10 border-l-4 border-l-cyan-400' : ''
                   }`}
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                      <div className="w-10 h-10 bg-gradient-to-br from-[#0091b3] to-[#00c6ef] rounded-full flex items-center justify-center text-white font-bold">
                         {chat.username.charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1">
-                        <p className="font-semibold text-gray-900">{chat.username}</p>
-                        <p className="text-xs text-gray-500">{chat.totalMessages} messages</p>
+                        <p className="font-semibold text-white">{chat.username}</p>
+                        <p className="text-xs text-slate-400">{chat.totalMessages} messages</p>
                       </div>
                     </div>
                     {chat.unreadCount > 0 && (
@@ -740,8 +750,8 @@ export default function LiveChatAdmin() {
                       Avg {formatChatResponseTime(chat.averageAdminResponseMs)}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 truncate mb-1">{chat.lastMessagePreview || chat.lastMessage}</p>
-                  <p className="text-xs text-gray-400 flex items-center gap-1">
+                  <p className="text-sm text-slate-300 truncate mb-1">{chat.lastMessagePreview || chat.lastMessage}</p>
+                  <p className="text-xs text-slate-500 flex items-center gap-1">
                     <Clock size={12} />
                     {new Date(chat.lastMessageTime).toLocaleString()}
                   </p>
@@ -753,17 +763,17 @@ export default function LiveChatAdmin() {
       </div>
 
       {/* Chat Window */}
-      <div className="col-span-1 lg:col-span-2 bg-white rounded-lg border border-gray-200 flex flex-col min-h-0">
+      <div className="col-span-1 lg:col-span-2 bg-[#071626] rounded-xl border border-white/10 flex flex-col min-h-0">
         {selectedChat ? (
           <>
             {/* Chat Header */}
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-[#071626]">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold">
+                <div className="w-10 h-10 bg-gradient-to-br from-[#0091b3] to-[#00c6ef] rounded-full flex items-center justify-center text-white font-bold">
                   {selectedChat.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900">{selectedChat}</p>
+                  <p className="font-semibold text-white">{selectedChat}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-2">
                     <span className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] ${selectedChatSummary?.responseState === 'awaiting-support' ? 'bg-amber-100 text-amber-700' : selectedChatSummary?.responseState === 'support-replied' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
                       {String(selectedChatSummary?.responseState ?? 'idle').replace('-', ' ')}
@@ -789,28 +799,28 @@ export default function LiveChatAdmin() {
               </div>
               <button
                 onClick={() => setSelectedChat(null)}
-                className="text-gray-400 hover:text-gray-600 p-2"
+                className="text-slate-400 hover:text-white p-2 transition-colors"
               >
                 <X size={20} />
               </button>
             </div>
 
             {realtimeEnabled ? (
-              <div className="grid grid-cols-1 gap-2 border-b border-gray-200 bg-gray-50 p-3 md:grid-cols-5">
+              <div className="grid grid-cols-1 gap-2 border-b border-white/10 bg-[#0a1928] p-3 md:grid-cols-5">
                 <input
                   type="text"
                   value={conversationAgent}
                   onChange={(event) => setConversationAgent(event.target.value)}
                   placeholder="Assigned agent"
-                  className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                  className="rounded-md border border-white/15 px-2 py-1 text-xs bg-[#0d2035] text-white placeholder-slate-500"
                 />
-                <select value={conversationPriority} onChange={(event) => setConversationPriority(event.target.value as ChatSummary['priority'])} className="rounded-md border border-gray-300 px-2 py-1 text-xs">
+                <select value={conversationPriority} onChange={(event) => setConversationPriority(event.target.value as ChatSummary['priority'])} className="rounded-md border border-white/15 px-2 py-1 text-xs bg-[#0d2035] text-white">
                   <option value="low">Low</option>
                   <option value="normal">Normal</option>
                   <option value="high">High</option>
                   <option value="urgent">Urgent</option>
                 </select>
-                <select value={conversationStatus} onChange={(event) => setConversationStatus(event.target.value as ChatSummary['status'])} className="rounded-md border border-gray-300 px-2 py-1 text-xs">
+                <select value={conversationStatus} onChange={(event) => setConversationStatus(event.target.value as ChatSummary['status'])} className="rounded-md border border-white/15 px-2 py-1 text-xs bg-[#0d2035] text-white">
                   <option value="open">Open</option>
                   <option value="pending">Pending</option>
                   <option value="resolved">Resolved</option>
@@ -821,19 +831,19 @@ export default function LiveChatAdmin() {
                   value={conversationTagsInput}
                   onChange={(event) => setConversationTagsInput(event.target.value)}
                   placeholder="Tags: billing, vip"
-                  className="rounded-md border border-gray-300 px-2 py-1 text-xs"
+                  className="rounded-md border border-white/15 px-2 py-1 text-xs bg-[#0d2035] text-white placeholder-slate-500"
                 />
                 <div className="flex gap-2">
                   <input
                     type="datetime-local"
                     value={conversationSlaDueAt}
                     onChange={(event) => setConversationSlaDueAt(event.target.value)}
-                    className="min-w-0 flex-1 rounded-md border border-gray-300 px-2 py-1 text-xs"
+                    className="min-w-0 flex-1 rounded-md border border-white/15 px-2 py-1 text-xs bg-[#0d2035] text-white"
                   />
                   <button
                     type="button"
                     onClick={() => void handleSaveConversationMeta()}
-                    className="rounded-md bg-blue-600 px-3 py-1 text-xs font-semibold text-white"
+                    className="rounded-md bg-[#00c6ef] px-3 py-1 text-xs font-semibold text-slate-950"
                   >
                     Save
                   </button>
@@ -842,11 +852,11 @@ export default function LiveChatAdmin() {
             ) : null}
 
             {/* Messages Area */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 bg-gray-50">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 bg-[#040e16]">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
-                  <MessageSquare className="text-gray-300 mb-3" size={48} />
-                  <p className="text-gray-500">No messages yet</p>
+                  <MessageSquare className="text-slate-600 mb-3" size={48} />
+                  <p className="text-slate-400">No messages yet</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -862,19 +872,19 @@ export default function LiveChatAdmin() {
                       <div className={`max-w-[70%]`}>
                         {!msg.isAdmin && (
                           <div className="flex items-center gap-2 mb-1">
-                            <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                            <div className="w-6 h-6 bg-gradient-to-br from-slate-600 to-slate-700 rounded-full flex items-center justify-center">
                               <span className="text-white text-xs font-bold">
                                 {msg.sender.charAt(0).toUpperCase()}
                               </span>
                             </div>
-                            <span className="text-xs text-gray-500">{msg.sender}</span>
+                            <span className="text-xs text-slate-400">{msg.sender}</span>
                           </div>
                         )}
                         <div
                           className={`rounded-lg px-4 py-2 ${
                             msg.isAdmin
-                              ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
-                              : 'bg-white border border-gray-200 text-gray-900'
+                              ? 'bg-gradient-to-r from-[#0091b3] to-[#00c6ef] text-white'
+                              : 'bg-[#0d2035] border border-white/10 text-white'
                           }`}
                         >
                           {attachment?.type === 'image' ? (
@@ -907,15 +917,15 @@ export default function LiveChatAdmin() {
                             </div>
                           ) : null}
                           {attachment?.type === 'file' ? (
-                            <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                            <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-white/15 bg-black/20 px-3 py-2">
                               <div className="flex min-w-0 items-center gap-2">
-                                <FileText size={16} className="shrink-0 text-blue-600" />
+                                <FileText size={16} className="shrink-0 text-cyan-400" />
                                 <div className="min-w-0">
-                                  <p className="truncate text-xs font-semibold text-gray-900">{attachment.name}</p>
-                                  <p className="text-[10px] text-gray-500">{buildAttachmentLabel(attachment.type)}</p>
+                                  <p className="truncate text-xs font-semibold text-white">{attachment.name}</p>
+                                  <p className="text-[10px] text-slate-400">{buildAttachmentLabel(attachment.type)}</p>
                                 </div>
                               </div>
-                              <button type="button" onClick={() => downloadAttachment(attachment)} className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600">
+                              <button type="button" onClick={() => downloadAttachment(attachment)} className="inline-flex items-center gap-1 text-xs font-semibold text-cyan-400">
                                 <Download size={12} />
                                 Download
                               </button>
@@ -923,7 +933,7 @@ export default function LiveChatAdmin() {
                           ) : null}
                           {decoded.text ? <p className="text-sm break-all whitespace-pre-wrap">{decoded.text}</p> : null}
                           <div className="flex items-center justify-end gap-1 mt-1">
-                            <p className={`text-xs ${msg.isAdmin ? 'text-white/70' : 'text-gray-400'}`}>
+                            <p className={`text-xs ${msg.isAdmin ? 'text-white/60' : 'text-slate-400'}`}>
                               {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </p>
                             {msg.isAdmin && (
@@ -932,7 +942,7 @@ export default function LiveChatAdmin() {
                           </div>
                         </div>
                         {msg.isAdmin && (
-                          <p className="text-xs text-gray-400 text-right mt-1">You</p>
+                          <p className="text-xs text-slate-500 text-right mt-1">You</p>
                         )}
                       </div>
                         );
@@ -945,21 +955,21 @@ export default function LiveChatAdmin() {
             </div>
 
             {/* Input Area */}
-            <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-200 shrink-0">
+            <form onSubmit={handleSendMessage} className="p-4 bg-[#071626] border-t border-white/10 shrink-0">
               {selectedAttachment ? (
-                <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
+                <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/15 bg-[#0d2035] px-3 py-2">
                   <div className="flex min-w-0 items-center gap-2">
-                    {selectedAttachment.type === 'image' ? <ImageIcon size={16} className="text-blue-600" /> : null}
-                    {selectedAttachment.type === 'video' ? <Video size={16} className="text-blue-600" /> : null}
-                    {selectedAttachment.type === 'audio' ? <Music2 size={16} className="text-blue-600" /> : null}
-                    {selectedAttachment.type === 'file' ? <FileText size={16} className="text-blue-600" /> : null}
+                    {selectedAttachment.type === 'image' ? <ImageIcon size={16} className="text-cyan-400" /> : null}
+                    {selectedAttachment.type === 'video' ? <Video size={16} className="text-cyan-400" /> : null}
+                    {selectedAttachment.type === 'audio' ? <Music2 size={16} className="text-cyan-400" /> : null}
+                    {selectedAttachment.type === 'file' ? <FileText size={16} className="text-cyan-400" /> : null}
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-gray-900">{selectedAttachment.name}</p>
-                      <p className="text-[11px] text-gray-500">{buildAttachmentLabel(selectedAttachment.type)}</p>
+                      <p className="truncate text-sm font-medium text-white">{selectedAttachment.name}</p>
+                      <p className="text-[11px] text-slate-400">{buildAttachmentLabel(selectedAttachment.type)}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => setPreviewAttachment(selectedAttachment)} className="text-xs font-semibold text-blue-600">
+                    <button type="button" onClick={() => setPreviewAttachment(selectedAttachment)} className="text-xs font-semibold text-cyan-400">
                       Preview
                     </button>
                     <button type="button" onClick={() => setSelectedAttachment(null)} className="rounded-full bg-gray-200 p-1 text-gray-600" aria-label="Remove selected attachment">
@@ -969,7 +979,7 @@ export default function LiveChatAdmin() {
                 </div>
               ) : null}
 
-              {attachmentError ? <p className="mb-3 text-xs text-amber-600">{attachmentError}</p> : null}
+              {attachmentError ? <p className="mb-3 text-xs text-amber-400">{attachmentError}</p> : null}
 
               <div className="flex gap-2">
                 <input
@@ -982,7 +992,7 @@ export default function LiveChatAdmin() {
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="rounded-lg border border-gray-300 px-3 py-2 text-gray-600 transition-colors hover:border-blue-500 hover:text-blue-600"
+                  className="rounded-lg border border-white/15 px-3 py-2 text-slate-400 transition-colors hover:border-cyan-400 hover:text-cyan-400"
                   aria-label="Attach file"
                 >
                   <Paperclip size={18} />
@@ -993,12 +1003,12 @@ export default function LiveChatAdmin() {
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Type your response..."
                   disabled={sending}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none disabled:bg-gray-100"
+                  className="flex-1 px-4 py-2 border border-white/15 rounded-xl focus:border-cyan-400 focus:outline-none bg-[#0d2035] text-white placeholder-slate-500 disabled:opacity-50"
                 />
                 <button
                   type="submit"
                   disabled={sending || (!newMessage.trim() && !selectedAttachment)}
-                  className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-2 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="bg-[#00c6ef] text-slate-950 px-6 py-2 rounded-xl hover:bg-[#2dd4ee] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-bold"
                 >
                   {sending ? (
                     <Loader2 className="animate-spin" size={20} />
@@ -1014,9 +1024,9 @@ export default function LiveChatAdmin() {
           </>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center p-8">
-            <MessageSquare className="text-gray-300 mb-4" size={64} />
-            <p className="text-gray-600 font-semibold mb-2">No chat selected</p>
-            <p className="text-gray-400 text-sm">Select a chat from the list to start responding</p>
+            <MessageSquare className="text-slate-600 mb-4" size={64} />
+            <p className="text-slate-300 font-semibold mb-2">No chat selected</p>
+            <p className="text-slate-500 text-sm">Select a chat from the list to start responding</p>
           </div>
         )}
       </div>
