@@ -9,6 +9,9 @@ import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 const AUTH_TIMEOUT_MS = 10_000;
+// Bridge timeout is longer than AUTH_TIMEOUT_MS to accommodate Edge Function
+// cold starts (2–5 s) plus KV scan time on mobile networks.
+const BRIDGE_TIMEOUT_MS = 25_000;
 const SESSION_TOKEN_KEY = 'steadfast_user_session_token_v1';
 const MUST_CHANGE_PASSWORD_KEY = 'steadfast_force_password_change_v1';
 const LEGACY_CURRENT_USER_KEY = 'steadfast_current_user_v1';
@@ -81,7 +84,7 @@ export function installServerAuthFetchBridge(): void {
     // unless the caller already supplied their own signal.
     const hasSignal = !!(init?.signal || (input instanceof Request && input.signal));
     const controller = hasSignal ? null : new AbortController();
-    const timeoutId = controller ? setTimeout(() => controller.abort(), AUTH_TIMEOUT_MS) : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), BRIDGE_TIMEOUT_MS) : null;
 
     const mergedInit = {
       ...init,
