@@ -626,6 +626,25 @@ export default function Admin() {
     }
   };
 
+  const handleAssignAdmin = async (username: string, subAdminId: string | null) => {
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/platform-users/${encodeURIComponent(username)}/assign-admin`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ subAdminId: subAdminId ?? null }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Failed to assign admin (${response.status})`);
+      }
+      await loadPlatformUsers();
+      toast.success(subAdminId ? `Sub-admin assigned to ${username}` : `${username} set to Direct (no sub-admin)`);
+    } catch (error) {
+      handleAdminRequestError(error, `Failed to assign sub-admin for ${username}`);
+    }
+  };
+
   const handleSaveUserVipLevel = async () => {
     if (!selectedItem?.username || !userVipLevelDraft) {
       return;
@@ -2587,6 +2606,7 @@ export default function Admin() {
         handleRecalculateFinancialState={handleRecalculateFinancialState}
         handleReconcilePremiumSettlements={handleReconcilePremiumSettlements}
         handleAdjustPlatformUserBalance={handleAdjustPlatformUserBalance}
+        handleAssignAdmin={handleAssignAdmin}
         handleSaveUserVipLevel={handleSaveUserVipLevel}
         handleDeletePlatformUser={handleDeletePlatformUser}
         handleSaveWorkdayReward={handleSaveWorkdayReward}

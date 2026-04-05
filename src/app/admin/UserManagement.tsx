@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, Download, Eye, Edit, Key, Check, X, Trash2, RefreshCw, Shield, DollarSign, Star, WandSparkles, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
+import { Plus, Search, Download, Eye, Edit, Key, Check, X, Trash2, RefreshCw, Shield, DollarSign, Star, WandSparkles, ChevronUp, ChevronDown, ChevronsUpDown, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 type UserSortCol = 'username' | 'vipLevel' | 'balance' | 'status' | 'registered' | '';
@@ -256,7 +256,22 @@ export default function UserManagement({
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-400">{user.registered}</td>
-                  <td className="px-6 py-4 text-sm text-gray-400">{user.referredByAdminName}</td>
+                  <td className="px-6 py-4 text-sm text-gray-400">
+                    <div className="flex items-center gap-2">
+                      <span className={user.referredByAdminName === 'Direct' || user.referredByAdminName === '—' ? 'text-gray-500 italic' : ''}>
+                        {user.referredByAdminName === '—' ? 'Direct' : user.referredByAdminName}
+                      </span>
+                      {isSuperAdmin && (
+                        <button
+                          onClick={() => { setSelectedItem(user); setModalType('assign-admin'); }}
+                          className="p-1 hover:bg-[#1a1f2e] rounded transition-colors"
+                          title="Assign Sub-Admin"
+                        >
+                          <UserCheck size={14} className="text-gray-500 hover:text-[#00D9FF]" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-6 py-4 text-sm text-gray-300">
                     {typeof user.tasksPerSet === 'number' && typeof user.taskSetCount === 'number' ? (
                       <div className="space-y-1">

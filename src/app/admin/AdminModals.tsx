@@ -121,6 +121,7 @@ export interface AdminModalsProps {
   handleRecalculateFinancialState: () => void;
   handleReconcilePremiumSettlements: (username?: string) => void;
   handleAdjustPlatformUserBalance: () => void;
+  handleAssignAdmin: (username: string, subAdminId: string | null) => void;
   handleSaveUserVipLevel: () => void;
   handleDeletePlatformUser: () => void;
   handleSaveWorkdayReward: (e: React.FormEvent) => void;
@@ -197,6 +198,7 @@ export default function AdminModals(props: AdminModalsProps) {
     handleRecalculateFinancialState,
     handleReconcilePremiumSettlements,
     handleAdjustPlatformUserBalance,
+    handleAssignAdmin,
     handleSaveUserVipLevel,
     handleDeletePlatformUser,
     handleSaveWorkdayReward,
@@ -223,8 +225,15 @@ export default function AdminModals(props: AdminModalsProps) {
   const [editImageStatus, setEditImageStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [manualAllowUnreachable, setManualAllowUnreachable] = useState(false);
   const [editAllowUnreachable, setEditAllowUnreachable] = useState(false);
+  const [assignAdminSelectedId, setAssignAdminSelectedId] = useState<string>('');
+  const [assignAdminSaving, setAssignAdminSaving] = useState(false);
 
   useEffect(() => {
+    if (modalType === 'assign-admin') {
+      setAssignAdminSelectedId('');
+      setAssignAdminSaving(false);
+      return;
+    }
     if (modalType === 'add-product-manual') {
       setManualImageDraft('');
       setManualImageStatus('idle');
@@ -565,6 +574,72 @@ export default function AdminModals(props: AdminModalsProps) {
               type="button"
               onClick={() => setModalType(null)}
               disabled={userBalanceAdjustmentSaving}
+              className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {modalType === 'assign-admin' && selectedItem && (
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-2xl font-bold text-white">Assign Sub-Admin Owner</h3>
+            <button onClick={() => setModalType(null)} className="text-gray-400 hover:text-white" aria-label="Close dialog">
+              <X size={24} />
+            </button>
+          </div>
+          <div className="space-y-4">
+            <div className="bg-[#1a1f2e] p-4 rounded-lg">
+              <p className="text-gray-400 text-sm">User</p>
+              <p className="text-white font-semibold mt-1">{selectedItem.username}</p>
+            </div>
+            <div className="bg-[#1a1f2e] p-4 rounded-lg">
+              <p className="text-gray-400 text-sm">Current Owner</p>
+              <p className="text-white font-semibold mt-1">
+                {selectedItem.referredByAdminName && selectedItem.referredByAdminName !== '—'
+                  ? selectedItem.referredByAdminName
+                  : <span className="text-gray-500 italic">Direct (no sub-admin)</span>
+                }
+              </p>
+            </div>
+            <div className="bg-[#1a1f2e] p-4 rounded-lg">
+              <p className="text-gray-400 text-sm mb-2">Assign to Sub-Admin</p>
+              <select
+                value={assignAdminSelectedId}
+                onChange={(e) => setAssignAdminSelectedId(e.target.value)}
+                className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+              >
+                <option value="">— Direct (no sub-admin) —</option>
+                {adminUsers
+                  .filter((a) => a.roleId !== 1)
+                  .map((a) => (
+                    <option key={String(a.id)} value={String(a.id)}>
+                      {a.fullName || a.username} ({a.email})
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-3 mt-6">
+            <button
+              type="button"
+              disabled={assignAdminSaving}
+              onClick={async () => {
+                setAssignAdminSaving(true);
+                await handleAssignAdmin(selectedItem.username, assignAdminSelectedId || null);
+                setAssignAdminSaving(false);
+                setModalType(null);
+              }}
+              className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {assignAdminSaving ? 'Saving...' : 'Save Assignment'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setModalType(null)}
+              disabled={assignAdminSaving}
               className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel

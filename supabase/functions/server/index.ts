@@ -12808,6 +12808,71 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
   }
 });
 
+// POST /admin/platform-users/:username/assign-admin  – super-admin only
+// Assigns a referredByAdminId to a "Direct" (unassigned) user so sub-admins can manage them.
+// Body: { subAdminId: string, reason?: string }
+app.post('/make-server-a1c55d7e/admin/platform-users/:username/assign-admin', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    if (!isSuperAdmin(c.get('adminUser'))) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const limited = await enforceCriticalAdminRateLimit(c, 'admin-platform-users:assign-admin');
+    if (limited) return limited;
+
+    const requestedUsername = sanitizeUsername(c.req.param('username'));
+    if (!requestedUsername) {
+      return c.json({ error: 'Invalid username' }, 400);
+    }
+
+    const body = await c.req.json();
+    const subAdminId: string | null = typeof body?.subAdminId === 'string' && body.subAdminId.length > 0
+      ? body.subAdminId.trim()
+      : null;
+
+    const canonicalUsername = await resolveCanonicalUsername(requestedUsername);
+    if (!canonicalUsername) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    // Validate subAdminId if provided (null = unassign / set to Direct)
+    if (subAdminId !== null) {
+      if (!authClient) return c.json({ error: 'Server auth configuration missing' }, 500);
+      const { data: targetAdmin, error: adminLookupErr } = await authClient.auth.admin.getUserById(subAdminId);
+      if (adminLookupErr || !targetAdmin?.user) {
+        return c.json({ error: 'Sub-admin not found' }, 404);
+      }
+      if (!hasAdminRole(targetAdmin.user)) {
+        return c.json({ error: 'Target user is not an admin' }, 400);
+      }
+      if (isSuperAdmin(targetAdmin.user)) {
+        return c.json({ error: 'Cannot assign a super-admin as a sub-admin owner' }, 400);
+      }
+    }
+
+    const userKey = `user:${canonicalUsername}`;
+    const existingUser = await kv.get(userKey);
+    if (!existingUser) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    const normalizedUser = await normalizeUserRecord(existingUser);
+    const previousAdminId = normalizedUser.referredByAdminId ?? null;
+    normalizedUser.referredByAdminId = subAdminId;
+    await kv.set(userKey, normalizedUser);
+
+    console.log(`[assign-admin] ${canonicalUsername}: referredByAdminId changed from ${previousAdminId ?? 'null'} to ${subAdminId ?? 'null'} by superadmin ${c.get('adminUser')?.id ?? 'unknown'}`);
+
+    return c.json({ success: true, username: canonicalUsername, referredByAdminId: subAdminId });
+  } catch (err) {
+    console.error('admin/platform-users/assign-admin error:', err);
+    return c.json({ error: 'Failed to assign admin' }, 500);
+  }
+});
+
 app.post('/make-server-a1c55d7e/admin/platform-users/:username/vip-level', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
