@@ -7213,9 +7213,26 @@ app.post('/make-server-a1c55d7e/me/withdrawals/request', async (c: any) => {
 
 // Product catalog (highest value products for bundling)
 const productCatalog = [
-  { id: 1, name: 'Premium Wireless Headphones', price: 299.99, rating: 4.5, image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop' },
-  { id: 2, name: 'Smart Watch Pro', price: 399.00, rating: 4.2, image: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=400&h=300&fit=crop' },
-  { id: 3, name: '10-inch Tablet', price: 549.99, rating: 4.1, image: 'https://images.unsplash.com/photo-1585792180666-f7347c490ee2?w=400&h=300&fit=crop' },
+  { id: 1,  name: 'Premium Wireless Headphones', price: 299.99,  rating: 4.5, image: 'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop' },
+  { id: 2,  name: 'Smart Watch Pro',              price: 399.00,  rating: 4.2, image: 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=400&h=300&fit=crop' },
+  { id: 3,  name: '10-inch Tablet',               price: 549.99,  rating: 4.1, image: 'https://images.unsplash.com/photo-1585792180666-f7347c490ee2?w=400&h=300&fit=crop' },
+  { id: 4,  name: '55" 4K Ultra HD Smart TV',     price: 899.99,  rating: 4.6, image: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829e1?w=400&h=300&fit=crop' },
+  { id: 5,  name: 'Portable Bluetooth Speaker',   price: 149.99,  rating: 4.3, image: 'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=400&h=300&fit=crop' },
+  { id: 6,  name: 'Laptop Pro 15"',               price: 1199.99, rating: 4.7, image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&h=300&fit=crop' },
+  { id: 7,  name: 'Wireless Gaming Mouse',        price: 89.99,   rating: 4.4, image: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&h=300&fit=crop' },
+  { id: 8,  name: 'Mechanical Keyboard RGB',      price: 159.99,  rating: 4.3, image: 'https://images.unsplash.com/photo-1541140532154-b024d705b90a?w=400&h=300&fit=crop' },
+  { id: 9,  name: 'Digital Camera 24MP',          price: 649.99,  rating: 4.5, image: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&h=300&fit=crop' },
+  { id: 10, name: 'Drone with 4K Camera',         price: 799.99,  rating: 4.4, image: 'https://images.unsplash.com/photo-1508614589041-895b88991e3e?w=400&h=300&fit=crop' },
+  { id: 11, name: 'Robot Vacuum Cleaner',         price: 449.99,  rating: 4.2, image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=300&fit=crop' },
+  { id: 12, name: 'Air Purifier Smart',           price: 329.99,  rating: 4.3, image: 'https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=400&h=300&fit=crop' },
+  { id: 13, name: 'Smart Security Camera',        price: 199.99,  rating: 4.1, image: 'https://images.unsplash.com/photo-1557597774-9d273605dfa9?w=400&h=300&fit=crop' },
+  { id: 14, name: 'Electric Scooter',             price: 599.99,  rating: 4.4, image: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=400&h=300&fit=crop' },
+  { id: 15, name: 'Fitness Tracker Band',         price: 129.99,  rating: 4.2, image: 'https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?w=400&h=300&fit=crop' },
+  { id: 16, name: 'Noise-Cancelling Earbuds',     price: 249.99,  rating: 4.5, image: 'https://images.unsplash.com/photo-1572569511254-d8f925fe2cbb?w=400&h=300&fit=crop' },
+  { id: 17, name: 'Smart Doorbell Camera',        price: 249.99,  rating: 4.1, image: 'https://images.unsplash.com/photo-1558002038-1055907df827?w=400&h=300&fit=crop' },
+  { id: 18, name: 'Portable Power Bank 20000mAh', price: 79.99,   rating: 4.3, image: 'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=300&fit=crop' },
+  { id: 19, name: 'Smart Coffee Maker',           price: 219.99,  rating: 4.2, image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=300&fit=crop' },
+  { id: 20, name: 'Gaming Headset Pro',           price: 189.99,  rating: 4.4, image: 'https://images.unsplash.com/photo-1599669454699-248893623440?w=400&h=300&fit=crop' },
 ];
 
 // Admin assigns premium bundle to user

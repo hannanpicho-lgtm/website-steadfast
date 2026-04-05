@@ -65,11 +65,35 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
     });
   };
 
+  const [categoryFilter, setCategoryFilter] = useState('All');
+
   const productCatalog = [
-    { id: 1, name: 'Premium Wireless Headphones', price: 299.99 },
-    { id: 2, name: 'Smart Watch Pro', price: 399.00 },
-    { id: 3, name: '10-inch Tablet', price: 549.99 },
+    { id: 1,  name: 'Premium Wireless Headphones', price: 299.99,  category: 'Audio' },
+    { id: 2,  name: 'Smart Watch Pro',              price: 399.00,  category: 'Wearables' },
+    { id: 3,  name: '10-inch Tablet',               price: 549.99,  category: 'Tablets' },
+    { id: 4,  name: '55" 4K Ultra HD Smart TV',     price: 899.99,  category: 'TVs' },
+    { id: 5,  name: 'Portable Bluetooth Speaker',   price: 149.99,  category: 'Audio' },
+    { id: 6,  name: 'Laptop Pro 15"',               price: 1199.99, category: 'Computers' },
+    { id: 7,  name: 'Wireless Gaming Mouse',        price: 89.99,   category: 'Gaming' },
+    { id: 8,  name: 'Mechanical Keyboard RGB',      price: 159.99,  category: 'Gaming' },
+    { id: 9,  name: 'Digital Camera 24MP',          price: 649.99,  category: 'Photography' },
+    { id: 10, name: 'Drone with 4K Camera',         price: 799.99,  category: 'Photography' },
+    { id: 11, name: 'Robot Vacuum Cleaner',         price: 449.99,  category: 'Home' },
+    { id: 12, name: 'Air Purifier Smart',           price: 329.99,  category: 'Home' },
+    { id: 13, name: 'Smart Security Camera',        price: 199.99,  category: 'Home' },
+    { id: 14, name: 'Electric Scooter',             price: 599.99,  category: 'Transport' },
+    { id: 15, name: 'Fitness Tracker Band',         price: 129.99,  category: 'Wearables' },
+    { id: 16, name: 'Noise-Cancelling Earbuds',     price: 249.99,  category: 'Audio' },
+    { id: 17, name: 'Smart Doorbell Camera',        price: 249.99,  category: 'Home' },
+    { id: 18, name: 'Portable Power Bank 20000mAh', price: 79.99,   category: 'Accessories' },
+    { id: 19, name: 'Smart Coffee Maker',           price: 219.99,  category: 'Kitchen' },
+    { id: 20, name: 'Gaming Headset Pro',           price: 189.99,  category: 'Gaming' },
   ];
+
+  const productCategories = ['All', ...Array.from(new Set(productCatalog.map((p) => p.category))).sort()];
+  const visibleProducts = categoryFilter === 'All'
+    ? productCatalog
+    : productCatalog.filter((p) => p.category === categoryFilter);
 
   // Calculate preview
   const selectedUser = useMemo(() => users.find((u) => u.username === selectedUsername), [users, selectedUsername]);
@@ -344,11 +368,22 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
 
             {/* Bundled Product Selection */}
             <div>
-              <label className="block text-gray-300 text-sm font-semibold mb-2">
-                Select Bundled Products <span className="text-red-400">*</span>
-              </label>
-              <div className="space-y-2">
-                {productCatalog.map((product) => {
+              <div className="flex items-center justify-between mb-2 gap-3">
+                <label className="block text-gray-300 text-sm font-semibold">
+                  Select Bundled Products <span className="text-red-400">*</span>
+                </label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="bg-[#1a1f2e] text-white border border-gray-600 rounded px-3 py-1 text-xs focus:outline-none focus:border-[#00D9FF]"
+                >
+                  {productCategories.map((cat) => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {visibleProducts.map((product) => {
                   const isSelected = selectedBundledProductIds.includes(product.id);
                   return (
                     <label
@@ -414,7 +449,7 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
                   );
                 })}
               </div>
-              <p className="text-gray-300 text-xs mt-1">Check a product to include it. Edit the value field to set a custom price.</p>
+              <p className="text-gray-300 text-xs mt-1">Filter by category. Check up to 3 products. Edit the value field to set a custom price.</p>
             </div>
 
             {/* Uphold Amount Override (Deterministic) */}
