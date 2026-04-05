@@ -1,0 +1,28 @@
+{
+  "name": "Steadfast Workbench",
+  "short_name": "Steadfast",
+  "description": "Secure digital task platform with real-time support and transparent operations.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "theme_color": "#08141c",
+  "background_color": "#08141c",
+  "lang": "en",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/steadfast-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/steadfast-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "finance"],
+  "screenshots": []
+}
