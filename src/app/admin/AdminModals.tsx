@@ -57,6 +57,7 @@ export interface AdminModalsProps {
   vipConfigurations: VipConfig[];
   roleDefinitions: AdminRole[];
   adminUsers: AdminUserRecord[];
+  adminUsersLoading: boolean;
   rewardsConfig: RewardsConfig;
   salaryPayments: SalaryPayment[];
   platformUsers: PlatformUser[];
@@ -150,6 +151,7 @@ export default function AdminModals(props: AdminModalsProps) {
     vipConfigurations,
     roleDefinitions,
     adminUsers,
+    adminUsersLoading,
     rewardsConfig,
     salaryPayments,
     platformUsers,
@@ -606,20 +608,29 @@ export default function AdminModals(props: AdminModalsProps) {
             </div>
             <div className="bg-[#1a1f2e] p-4 rounded-lg">
               <p className="text-gray-400 text-sm mb-2">Assign to Sub-Admin</p>
-              <select
-                value={assignAdminSelectedId}
-                onChange={(e) => setAssignAdminSelectedId(e.target.value)}
-                className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
-              >
-                <option value="">— Direct (no sub-admin) —</option>
-                {adminUsers
-                  .filter((a) => a.roleId !== 1)
-                  .map((a) => (
-                    <option key={String(a.id)} value={String(a.id)}>
-                      {a.fullName || a.username} ({a.email})
-                    </option>
-                  ))}
-              </select>
+              {adminUsersLoading ? (
+                <div className="w-full px-4 py-3 bg-[#252b3d] border border-gray-600 rounded-lg text-gray-400 text-sm">
+                  Loading sub-admins...
+                </div>
+              ) : (
+                <select
+                  value={assignAdminSelectedId}
+                  onChange={(e) => setAssignAdminSelectedId(e.target.value)}
+                  className="w-full px-4 py-2 bg-[#252b3d] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+                >
+                  <option value="">— Direct (no sub-admin) —</option>
+                  {adminUsers
+                    .filter((a) => a.roleId !== 1)
+                    .map((a) => (
+                      <option key={String(a.id)} value={String(a.id)}>
+                        {a.fullName || a.username} ({a.email})
+                      </option>
+                    ))}
+                </select>
+              )}
+              {!adminUsersLoading && adminUsers.filter((a) => a.roleId !== 1).length === 0 && (
+                <p className="text-yellow-400 text-xs mt-2">No sub-admin accounts found.</p>
+              )}
             </div>
           </div>
           <div className="flex gap-3 mt-6">

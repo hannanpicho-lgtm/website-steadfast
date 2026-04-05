@@ -296,6 +296,15 @@ export default function Admin() {
     setDeletePlatformUserConfirmation('');
   }, [modalType, selectedItem]);
 
+  // Load admin users when the assign-admin modal opens (they may not be loaded if
+  // the Admin Users tab has never been visited in this session)
+  useEffect(() => {
+    if (modalType !== 'assign-admin') return;
+    if (adminUsers.length === 0 && !adminUsersLoading) {
+      void loadAdminUsers();
+    }
+  }, [modalType]);
+
   useEffect(() => {
     if (modalType !== 'view-user' || !selectedItem?.username) {
       setSelectedUserAudit(null);
@@ -2558,8 +2567,8 @@ export default function Admin() {
         vipConfigurations={vipConfigurations}
         roleDefinitions={roleDefinitions}
         adminUsers={adminUsers}
+        adminUsersLoading={adminUsersLoading}
         rewardsConfig={rewardsConfig}
-        salaryPayments={salaryPayments}
         platformUsers={platformUsers}
         taskConfigurations={taskConfigurations}
         transactions={transactions}
