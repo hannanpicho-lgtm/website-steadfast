@@ -2,11 +2,15 @@ import { Link } from 'react-router';
 import {
   ArrowRight,
   BarChart3,
+  BookOpen,
   CheckCircle2,
+  ChevronRight,
   Compass,
+  FileText,
   Gem,
   Globe,
   Layers3,
+  Network,
   ShieldCheck,
   Sparkles,
   Target,
@@ -82,20 +86,68 @@ const featuredPrograms = [
 ];
 
 const trustedBy = [
-  'UNDP',
-  'NYU Langone Health',
-  'UBS',
-  'Magellan Jets',
-  'The Vitamin Shoppe',
+  'ISAIA NAPOLI',
+  'GIADZY',
+  'OWLET',
+  'ROAR ORGANIC',
+  'BORGHESE',
+  'PET PLATE',
+  'THE VITAMIN SHOPPE',
+  'MAGELLAN JETS',
+  'FANCHEST',
   'BLAST',
-  'Organicgirl',
-  'Giadzy',
+  'UBS',
+  'UNDP',
+  'NYU LANGONE HEALTH',
+  'ORGANICGIRL',
 ];
 
 const storyBeats = [
   { label: 'Signal Mapping', detail: 'Audience and margin baselines.' },
   { label: 'Offer Engineering', detail: 'Creative tuned for conversion.' },
   { label: 'Scale Protocol', detail: 'Winning loops scaled safely.' },
+];
+
+const areasOfFocus = [
+  {
+    title: 'Search Engine Marketing',
+    body: 'Google Ads & Bing Ads: Designed for precision targeting, data-driven tests, and maximizing ROAS.',
+    icon: Target,
+    highlight: true,
+  },
+  {
+    title: 'Paid Social',
+    body: 'Facebook, Instagram, Pinterest, TikTok, and LinkedIn Ads. Reach the right audience at the right time in the right place.',
+    icon: Globe,
+    highlight: false,
+  },
+  {
+    title: 'Paid Content',
+    body: 'Taboola & Outbrain: Amplify your content to drive awareness and attention.',
+    icon: FileText,
+    highlight: false,
+  },
+  {
+    title: 'Affiliate Marketing',
+    body: 'Get featured across sites and platforms your customers care about.',
+    icon: Network,
+    highlight: false,
+  },
+  {
+    title: 'Digital Strategy & Insights',
+    body: 'Data that ties it all together for the optimal performance for your media mix.',
+    icon: BarChart3,
+    highlight: false,
+  },
+];
+
+const blogPosts = [
+  { title: 'What is ad fatigue and how to detect it', accent: 'from-[#1a4a78] to-[#0a2d52]' },
+  { title: 'How To Hack Your Way into Digital Marketing (Spoiler: No Experience Needed)', accent: 'from-[#2d1b4e] to-[#1a0d30]' },
+  { title: 'Conventional (and unconventional) ways to re-activate a disabled Meta Ad Account', accent: 'from-[#0a3a2a] to-[#051f17]' },
+  { title: '6 Ways Digital Marketers Are Embracing AI', accent: 'from-[#3d1f10] to-[#1e0d05]' },
+  { title: "Did Performance Max Save Google's Ad Crown in 2023?", accent: 'from-[#0d2d4a] to-[#071826]' },
+  { title: 'Is Google Ads Worth It For Small Business?', accent: 'from-[#2a2608] to-[#141200]' },
 ];
 
 type MotionIntensity = 'subtle' | 'balanced' | 'dramatic';
@@ -590,6 +642,212 @@ export default function Home() {
                       Production-ready
                       <Gem size={14} />
                     </p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Strategic Insights / Personalized Tactics ── */}
+        <section className="border-t border-white/10 py-20">
+          <div className="mx-auto max-w-7xl space-y-24 px-4 sm:px-6 lg:px-10">
+
+            {/* Strategic Insights — visual left, text right */}
+            <div className="home-reveal grid gap-12 lg:grid-cols-2 lg:items-center" data-home-reveal>
+              {/* Visual panel */}
+              <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#0d2439] via-[#102d47] to-[#0a2034] p-6 shadow-[0_26px_70px_rgba(0,0,0,0.4)]">
+                <div className="mb-5 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-[#8bcdf8]">Channel Attribution</p>
+                    <p className="mt-1 text-lg font-black text-white">Multi-Channel Performance</p>
+                  </div>
+                  <span className="rounded-full border border-[#6bc7f7]/35 bg-[#12344f] px-3 py-1 text-xs font-semibold text-[#94dbff]">Live</span>
+                </div>
+                <div className="space-y-3">
+                  {([
+                    { channel: 'Google Ads', share: 38, color: 'bg-[#4285f4]' },
+                    { channel: 'Meta Ads', share: 31, color: 'bg-[#1877f2]' },
+                    { channel: 'TikTok Ads', share: 24, color: 'bg-[#ff0050]' },
+                    { channel: 'Other Channels', share: 7, color: 'bg-[#8fd8ff]/50' },
+                  ] as const).map((ch) => (
+                    <div key={ch.channel} className="flex items-center gap-3">
+                      <span className="w-28 shrink-0 text-xs text-[#aacfe9]">{ch.channel}</span>
+                      <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
+                        <div className={`h-full rounded-full ${ch.color}`} style={{ width: `${ch.share}%` }} />
+                      </div>
+                      <span className="w-8 text-right text-xs font-bold text-[#d7ecff]">{ch.share}%</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-5 rounded-xl border border-[#39c6f4]/25 bg-[#39c6f4]/10 px-4 py-3 text-xs text-[#c9ecff]">
+                  <span className="font-bold">ROAS +2.4×</span> this week — ecosystem-wide optimisation active.
+                </div>
+              </div>
+              {/* Text panel */}
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#39c6f4]/35 bg-[#39c6f4]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#8be3ff]">
+                  <Compass size={12} />
+                  Channel Mastery
+                </span>
+                <h2 className="mt-4 text-3xl font-black text-white sm:text-4xl">Strategic Insights</h2>
+                <p className="mt-4 text-lg leading-relaxed text-[#b8d8f6]">
+                  In today's dynamic landscape, mastering channels like Google, Meta and TikTok feels like navigating a complex ecosystem. Algorithms evolve, audiences fragment and success demands both channel expertise and a holistic approach. That's where we come in.
+                </p>
+                <Link to="/signup" className="shine-sweep mt-6 inline-flex items-center gap-2 rounded-xl bg-[#39c6f4] px-5 py-3 text-sm font-black uppercase tracking-[0.08em] text-[#042236] transition hover:bg-[#68d6fb]">
+                  Start Building
+                  <ArrowRight size={16} />
+                </Link>
+              </div>
+            </div>
+
+            {/* Personalized Tactics — text left, visual right */}
+            <div className="home-reveal grid gap-12 lg:grid-cols-2 lg:items-center" data-home-reveal style={{ ['--reveal-delay' as string]: '70ms' }}>
+              {/* Text panel */}
+              <div>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f9a84f]/35 bg-[#f9a84f]/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-[#ffd59e]">
+                  <Sparkles size={12} />
+                  Audience-First
+                </span>
+                <h2 className="mt-4 text-3xl font-black text-white sm:text-4xl">Personalized Tactics</h2>
+                <p className="mt-4 text-lg leading-relaxed text-[#b8d8f6]">
+                  Forget one-size-fits-all marketing. We delve into your audience's unique wants and needs, crafting personalized copy, and experiences that resonate deeply — and it's at the heart of our success.
+                </p>
+                <Link to="/signup" className="mt-6 inline-flex items-center gap-2 rounded-xl border border-[#f9a84f]/40 bg-[#f9a84f]/10 px-5 py-3 text-sm font-bold text-[#ffd09e] transition hover:bg-[#f9a84f]/20">
+                  See How We Do It
+                  <ArrowRight size={16} />
+                </Link>
+              </div>
+              {/* Visual panel */}
+              <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-[#1c1228] via-[#170e23] to-[#0d0919] p-6 shadow-[0_26px_70px_rgba(0,0,0,0.4)]">
+                <div className="mb-5 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-[#c9a8ff]">Audience Intelligence</p>
+                    <p className="mt-1 text-lg font-black text-white">Precision Segmentation</p>
+                  </div>
+                  <span className="rounded-full border border-[#c9a8ff]/35 bg-[#2a1a4e] px-3 py-1 text-xs font-semibold text-[#d8bfff]">AI-Driven</span>
+                </div>
+                <div className="space-y-3">
+                  {([
+                    { segment: 'High-Intent Buyers', count: '12.4k', color: 'bg-[#39c6f4]' },
+                    { segment: 'Cart Abandoners', count: '8.1k', color: 'bg-[#f9a84f]' },
+                    { segment: 'Loyalty Tier', count: '5.7k', color: 'bg-[#54d68c]' },
+                    { segment: 'Lookalike Seeds', count: '23.9k', color: 'bg-[#c084fc]' },
+                  ] as const).map((seg) => (
+                    <div key={seg.segment} className="flex items-center gap-3 rounded-lg border border-white/10 bg-[#0d0d1e]/50 px-3 py-2.5">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${seg.color}`} />
+                      <span className="flex-1 text-xs text-[#d7ecff]">{seg.segment}</span>
+                      <span className="text-xs font-bold text-[#c0b8ff]">{seg.count}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-5 rounded-xl border border-[#c084fc]/25 bg-[#c084fc]/10 px-4 py-3 text-xs text-[#e5d0ff]">
+                  <span className="font-bold">94% match quality</span> — audience model tuned weekly.
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Areas of Focus ── */}
+        <section className="border-t border-white/10 bg-[#091b2b] py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+            <div className="home-reveal mb-12 text-center" data-home-reveal>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8bcdf8]">What We Do</p>
+              <h2 className="mt-3 text-3xl font-black text-white sm:text-4xl">Areas of Focus</h2>
+              <p className="mx-auto mt-3 max-w-xl text-[#b8d8f6]">
+                From search to social, content to strategy — every channel, fully owned.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              {areasOfFocus.map((area, index) => {
+                const Icon = area.icon;
+                return (
+                  <article
+                    key={area.title}
+                    className={`home-reveal rounded-2xl p-5 transition hover:-translate-y-1 ${
+                      area.highlight
+                        ? 'bg-[#00c6ef] text-[#021d2e] shadow-[0_8px_32px_rgba(0,198,239,0.3)]'
+                        : 'border border-white/10 bg-[#0f2a42]/75 hover:border-[#6fcffb]/45 hover:bg-[#143653]'
+                    }`}
+                    data-home-reveal
+                    style={{ ['--reveal-delay' as string]: `${index * 70}ms` }}
+                  >
+                    <div className={`mb-3 inline-flex rounded-lg p-2 ${area.highlight ? 'bg-[#021d2e]/20' : 'bg-[#39c6f4]/15'}`}>
+                      <Icon size={18} className={area.highlight ? 'text-[#021d2e]' : 'text-[#84ddff]'} />
+                    </div>
+                    <h3 className={`text-base font-bold ${area.highlight ? 'text-[#021d2e]' : 'text-white'}`}>{area.title}</h3>
+                    <p className={`mt-2 text-sm leading-relaxed ${area.highlight ? 'text-[#033a54]' : 'text-[#b8d8f6]'}`}>{area.body}</p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Our Clients ── */}
+        <section className="border-t border-white/10 bg-[#070e1a] py-16">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+            <div className="home-reveal mb-10 text-center" data-home-reveal>
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8bcdf8]">Our Clients</p>
+              <h2 className="mt-3 text-3xl font-black text-white sm:text-4xl">Trusted by Industry Leaders</h2>
+              <p className="mx-auto mt-3 max-w-xl text-[#b8d8f6]">
+                From heritage fashion to consumer health to enterprise finance — we drive measurable growth for each one.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7">
+              {trustedBy.map((brand, index) => (
+                <div
+                  key={brand}
+                  className="home-reveal rounded-2xl border border-white/10 bg-[#0f2a42]/75 px-3 py-5 text-center text-xs font-black uppercase tracking-[0.1em] text-[#d7ecff] transition hover:-translate-y-1 hover:border-[#7fdcff]/50 hover:bg-[#143653]"
+                  data-home-reveal
+                  style={{ ['--reveal-delay' as string]: `${index * 40}ms` }}
+                >
+                  {brand}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── Blog ── */}
+        <section className="border-t border-white/10 bg-[#071626] py-20">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-10">
+            <div className="home-reveal mb-10 flex items-end justify-between gap-4" data-home-reveal>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8bcdf8]">Knowledge Base</p>
+                <h2 className="mt-3 text-3xl font-black text-white sm:text-4xl">Latest Insights</h2>
+              </div>
+              <a href="#blog" className="hidden items-center gap-2 text-sm font-semibold text-[#8bcdf8] transition hover:text-white md:flex">
+                All Articles
+                <ChevronRight size={16} />
+              </a>
+            </div>
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {blogPosts.map((post, index) => (
+                <article
+                  key={post.title}
+                  className="home-reveal group overflow-hidden rounded-2xl border border-white/10 bg-[#0f2a42] transition hover:-translate-y-1 hover:border-[#6fcffb]/45 hover:shadow-[0_12px_40px_rgba(0,0,0,0.4)]"
+                  data-home-reveal
+                  style={{ ['--reveal-delay' as string]: `${100 + index * 80}ms` }}
+                >
+                  <div className={`flex h-36 items-end bg-gradient-to-br p-4 ${post.accent}`}>
+                    <div className="rounded-lg bg-[#0a1e35]/60 px-2.5 py-1.5 backdrop-blur-sm">
+                      <BookOpen size={14} className="mr-1.5 inline text-[#8fd8ff]" />
+                      <span className="text-xs font-semibold text-[#c9e7ff]">Steadfast Blog</span>
+                    </div>
+                  </div>
+                  <div className="p-5">
+                    <h3 className="text-base font-bold leading-snug text-white transition group-hover:text-[#8be3ff]">
+                      {post.title}
+                    </h3>
+                    <a
+                      href="#blog"
+                      className="mt-3 inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-[0.1em] text-[#39c6f4] transition hover:text-[#9be7ff]"
+                    >
+                      Read More
+                      <ChevronRight size={13} />
+                    </a>
                   </div>
                 </article>
               ))}
