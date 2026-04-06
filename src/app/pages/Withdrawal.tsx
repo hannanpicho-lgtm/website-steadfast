@@ -1,5 +1,6 @@
 import { ChevronLeft, ScrollText, ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
+import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
@@ -40,6 +41,7 @@ type WithdrawalRecord = {
 
 export default function Withdrawal() {
   const navigate = useNavigate();
+  const goBack = useBackNavigate();
   const location = useLocation();
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
@@ -221,7 +223,7 @@ export default function Withdrawal() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => navigate(-1)} aria-label="Go back"
+              onClick={goBack} aria-label="Go back"
               className="btn-mobile-icon"
             >
               <ChevronLeft size={20} />

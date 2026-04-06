@@ -1,5 +1,6 @@
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
+import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
@@ -27,6 +28,7 @@ type Transaction = {
 
 export default function Deposit() {
   const navigate = useNavigate();
+  const goBack = useBackNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<'recent' | 'transaction'>('recent');
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -116,7 +118,7 @@ export default function Deposit() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
         {/* Back Button and Title */}
         <div className="flex items-center gap-4 mb-6">
-          <button onClick={() => navigate(-1)} aria-label="Go back" className="btn-mobile-icon">
+          <button onClick={goBack} aria-label="Go back" className="btn-mobile-icon">
             <ChevronLeft size={20} />
           </button>
           <h1 className="text-2xl font-bold text-[#00D9FF] flex-1 text-center mr-10">Deposit</h1>

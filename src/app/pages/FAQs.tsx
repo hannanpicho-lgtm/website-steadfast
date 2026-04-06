@@ -1,5 +1,6 @@
 import { UserCircle, ChevronLeft, ChevronDown } from 'lucide-react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
+import { useBackNavigate } from '../hooks/useBackNavigate';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { useState, type ReactNode } from 'react';
 import { Header } from '../components/Header';
@@ -7,7 +8,7 @@ import { Header } from '../components/Header';
 const R = ({ children }: { children: ReactNode }) => <span className="text-red-600">{children}</span>;
 
 export default function FAQs() {
-  const navigate = useNavigate();
+  const goBack = useBackNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [openFAQ, setOpenFAQ] = useState<number | null>(null);
 
@@ -96,7 +97,7 @@ export default function FAQs() {
         {/* Back Button and Title */}
         <div className="flex items-center gap-4 mb-6">
           <button 
-            onClick={() => navigate(-1)} aria-label="Go back"
+            onClick={goBack} aria-label="Go back"
             className="btn-mobile-icon"
           >
             <ChevronLeft size={20} />

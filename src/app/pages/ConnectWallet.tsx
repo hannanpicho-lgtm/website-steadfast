@@ -1,5 +1,6 @@
-import { ChevronLeft, Bitcoin, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, Bitcoin, CheckCircle2, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
+import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -21,6 +22,7 @@ type WalletProfile = CryptoWalletProfile;
 
 export default function ConnectWallet() {
   const navigate = useNavigate();
+  const goBack = useBackNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -129,13 +131,15 @@ export default function ConnectWallet() {
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
         {loading ? (
-          <div className="rounded-xl bg-white p-6 text-sm text-gray-600 shadow-sm">Loading wallet details...</div>
+          <div className="flex justify-center items-center min-h-[300px]">
+            <Loader2 size={32} className="animate-spin text-[#0066b3]" />
+          </div>
         ) : null}
 
         {/* Back Button and Title */}
         <div className="flex items-center gap-4 mb-6">
           <button 
-            onClick={() => navigate(-1)} aria-label="Go back"
+            onClick={goBack} aria-label="Go back"
             className="btn-mobile-icon"
           >
             <ChevronLeft size={20} />

@@ -1,5 +1,6 @@
 import { UserCircle, ChevronLeft, Package, Clock, CheckCircle, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
+import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
@@ -138,6 +139,7 @@ export default function Records() {
   const [visibleCompleted, setVisibleCompleted] = useState(8);
   const [visibleTransactions, setVisibleTransactions] = useState(5);
   const navigate = useNavigate();
+  const goBack = useBackNavigate();
   const location = useLocation();
 
   const sessionUsername = getCurrentUsername();
@@ -414,7 +416,7 @@ export default function Records() {
         {/* Back Button and Title */}
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 mb-6">
           <button 
-            onClick={() => navigate(-1)} aria-label="Go back"
+            onClick={goBack} aria-label="Go back"
             className="btn-nav-back justify-self-start"
           >
             <ChevronLeft size={20} />

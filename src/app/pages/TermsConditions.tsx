@@ -1,11 +1,12 @@
 import { UserCircle, ChevronLeft } from 'lucide-react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
+import { useBackNavigate } from '../hooks/useBackNavigate';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { useState } from 'react';
 import { Header } from '../components/Header';
 
 export default function TermsConditions() {
-  const navigate = useNavigate();
+  const goBack = useBackNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   return (
@@ -18,7 +19,7 @@ export default function TermsConditions() {
         {/* Back Button and Title */}
         <div className="flex items-center gap-4 mb-6">
           <button 
-            onClick={() => navigate(-1)} aria-label="Go back"
+            onClick={goBack} aria-label="Go back"
             className="btn-mobile-icon"
           >
             <ChevronLeft size={20} />

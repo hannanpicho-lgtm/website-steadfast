@@ -1,5 +1,6 @@
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router';
+import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -32,6 +33,7 @@ const STATUS_MAP: Record<TabKey, WithdrawalRecord['status']> = {
 
 export default function WithdrawalHistory() {
   const navigate = useNavigate();
+  const goBack = useBackNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<TabKey>('Reviewing');
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([]);
@@ -81,7 +83,7 @@ export default function WithdrawalHistory() {
         {/* Title row */}
         <div className="relative flex items-center justify-center mb-5">
           <button
-            onClick={() => navigate(-1)} aria-label="Go back"
+            onClick={goBack} aria-label="Go back"
             className="absolute left-0 flex items-center justify-center w-9 h-9 rounded border border-gray-300 bg-white hover:bg-gray-50 transition-colors"
           >
             <ChevronLeft size={20} className="text-gray-700" />

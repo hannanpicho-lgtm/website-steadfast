@@ -1,5 +1,6 @@
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
+import { useBackNavigate } from '../hooks/useBackNavigate';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
@@ -23,6 +24,7 @@ interface UserData {
 
 export default function Certificate() {
   const navigate = useNavigate();
+  const goBack = useBackNavigate();
   const location = useLocation();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -103,7 +105,7 @@ export default function Certificate() {
       <div className="max-w-2xl mx-auto px-4 py-6">
         {/* Back + Title */}
         <div className="flex items-center gap-4 mb-6">
-          <button onClick={() => navigate(-1)} aria-label="Go back" className="btn-mobile-icon">
+          <button onClick={goBack} aria-label="Go back" className="btn-mobile-icon">
             <ChevronLeft size={20} />
           </button>
           <h1 className="text-2xl font-bold text-[#0066b3] flex-1 text-center mr-10">My Certificate</h1>
