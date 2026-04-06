@@ -167,6 +167,11 @@
     height: 2.75rem;
   }
 
+  .btn-nav-back {
+    @apply inline-flex items-center justify-center rounded bg-[#0066b3] text-white transition-colors hover:bg-[#0052a3] active:scale-95;
+    padding: 0.5rem;
+  }
+
   .btn-mobile-primary {
     @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#00D9FF] to-[#0099cc] px-5 py-2.5 text-sm font-bold text-[#08111f] shadow-[0_2px_10px_rgba(0,217,255,0.35)] transition-all hover:shadow-[0_4px_16px_rgba(0,217,255,0.55)] hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none;
     min-height: 2.75rem;

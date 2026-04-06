@@ -1,5 +1,5 @@
 import { ChevronLeft } from 'lucide-react';
-import { Link } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -92,6 +92,7 @@ function mapVipConfigToActivity(tiers: VipConfig[]): ActivityVipLevel[] {
 }
 
 export default function Activity() {
+  const navigate = useNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [workdayRewards, setWorkdayRewards] = useState(defaultRewardsConfig.workday);
   const [resetRewards, setResetRewards] = useState(defaultRewardsConfig.reset);
@@ -337,9 +338,9 @@ export default function Activity() {
       <div className="max-w-3xl mx-auto px-3 sm:px-6 py-6">
         {/* Back Button and Title */}
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 mb-6">
-          <Link to="/home" className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors justify-self-start">
+          <button onClick={() => navigate(-1)} aria-label="Go back" className="btn-nav-back justify-self-start">
             <ChevronLeft size={20} />
-          </Link>
+          </button>
           <h1 className="text-xl sm:text-2xl font-bold text-[#0066b3] text-center">Activity</h1>
           <div className="w-9" aria-hidden="true"></div>
         </div>

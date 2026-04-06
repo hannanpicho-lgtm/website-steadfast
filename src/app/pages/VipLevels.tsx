@@ -1,5 +1,5 @@
 import { ChevronLeft } from 'lucide-react';
-import { Link } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -111,6 +111,7 @@ function mapVipConfigToCards(config: VipConfig[]): VipCard[] {
 }
 
 export default function VipLevels() {
+  const navigate = useNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [currentVipLevel, setCurrentVipLevel] = useState<number | null>(null);
   const [vipCards, setVipCards] = useState<VipCard[]>(fallbackVipCards);
@@ -155,9 +156,9 @@ export default function VipLevels() {
       <div className="max-w-2xl mx-auto px-2 sm:px-3 py-4 sm:py-6 overflow-x-hidden">
         {/* Back Button and Title */}
         <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 mb-4 sm:mb-6">
-          <Link to="/home" className="bg-[#0066b3] text-white p-2 rounded hover:bg-[#0052a3] transition-colors justify-self-start">
+          <button onClick={() => navigate(-1)} aria-label="Go back" className="btn-nav-back justify-self-start">
             <ChevronLeft size={20} />
-          </Link>
+          </button>
           <h1 className="text-lg sm:text-2xl font-bold text-[#0066b3] text-center">Vip Levels</h1>
           <div className="w-9" aria-hidden="true"></div>
         </div>

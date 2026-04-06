@@ -204,9 +204,9 @@ export default function Profile() {
     <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
       {/* Header */}
       <header className="bg-[#1a2637]/95 text-white py-4 px-6 flex items-center justify-between shadow-sm sticky top-0 z-10 border-b border-[#2c3f58] backdrop-blur-md">
-        <Link to="/home">
-          <ArrowLeft size={24} className="cursor-pointer hover:text-[#00D9FF] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center" />
-        </Link>
+        <button onClick={() => navigate(-1)} aria-label="Go back" className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:text-[#00D9FF] transition-colors">
+          <ArrowLeft size={24} />
+        </button>
         <h1 className="text-xl font-bold text-white tracking-tight">My Profile</h1>
         <div className="w-6"></div>
       </header>
