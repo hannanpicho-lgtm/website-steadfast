@@ -5,9 +5,10 @@ import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
+import { fetchJsonWithRetry } from '../services/networkClient';
+import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 
 type UserData = {
   balance: number;
@@ -34,7 +35,7 @@ export default function Deposit() {
   const [loading, setLoading] = useState(true);
 
   const username = getCurrentUsername();
-  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
 
   useEffect(() => {
     if (!username) {
@@ -51,27 +52,30 @@ export default function Deposit() {
     const load = async () => {
       setLoading(true);
       try {
-        const headers = { Authorization: `Bearer ${publicAnonKey}` };
+      const [userPayload, txPayload] = await Promise.all([
+        fetchJsonWithRetry<any>({
+          url: `${serverUrl}/me/financials`,
+          init: { credentials: 'include' },
+          timeoutMs: 10000,
+          retries: 2,
+          retryDelayMs: 300,
+          pageTag: 'deposit',
+        }),
+        fetchJsonWithRetry<any>({
+          url: `${serverUrl}/me/transactions`,
+          init: { credentials: 'include' },
+          timeoutMs: 10000,
+          retries: 2,
+          retryDelayMs: 300,
+          pageTag: 'deposit',
+        }),
+      ]);
 
-        const [userRes, txRes] = await Promise.all([
-          fetch(`${serverUrl}/me/financials`, { credentials: 'include', headers }),
-          fetch(`${serverUrl}/me/transactions`, { credentials: 'include', headers }),
-        ]);
-
-        const [userPayload, txPayload] = await Promise.all([
-          userRes.json().catch(() => ({})),
-          txRes.json().catch(() => ([])),
-        ]);
-
-        if (!userRes.ok) {
-          throw new Error(userPayload?.error ?? 'Failed to load account data');
-        }
-
-        setUserData({
-          balance: Number(userPayload.balance ?? 0),
-          holdAmount: Number(userPayload.holdAmount ?? 0),
-        });
-        setTransactions(Array.isArray(txPayload) ? txPayload : []);
+      setUserData({
+        balance: Number(userPayload.balance ?? 0),
+        holdAmount: Number(userPayload.holdAmount ?? 0),
+      });
+      setTransactions(Array.isArray(txPayload) ? txPayload : []);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to load deposit data';
         toast.error(message);

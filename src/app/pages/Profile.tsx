@@ -137,8 +137,7 @@ export default function Profile() {
     try {
       document.execCommand('copy');
       toast.success('Referral code copied to clipboard!');
-    } catch (err) {
-      console.error('Failed to copy:', err);
+    } catch {
       toast.error('Failed to copy referral code');
     }
     

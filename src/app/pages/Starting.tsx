@@ -713,7 +713,6 @@ export default function Starting() {
         const v2SnapshotUrl = `${serverUrl}/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50`;
 
         const snapshotStartedAt = performance.now();
-        console.log('[starting] fetching v2 snapshot (direct)...');
         const snapshot = await fetchJsonWithRetry<any>({
           url: v2SnapshotUrl,
           init: {
@@ -727,7 +726,6 @@ export default function Starting() {
           expectedApiVersion: 'v2',
         });
         sessionFetchMs = roundMoney(performance.now() - snapshotStartedAt);
-        console.log('[starting] v2 snapshot SUCCESS in', sessionFetchMs, 'ms, hasUser=', !!snapshot?.user);
 
         if (snapshot?.user) {
           setUserData(snapshot.user as UserData);

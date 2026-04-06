@@ -5,9 +5,10 @@ import { toast } from 'sonner';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { LiveChatBox } from '../components/LiveChatBox';
-import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
+import { fetchJsonWithRetry } from '../services/networkClient';
+import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 
 type TabKey = 'Reviewing' | 'Success' | 'Reject';
 
@@ -38,7 +39,7 @@ export default function WithdrawalHistory() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   const username = getCurrentUsername();
-  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
 
   useEffect(() => {
     if (!username) {
@@ -53,13 +54,15 @@ export default function WithdrawalHistory() {
     }
 
     setLoading(true);
-    fetch(`${serverUrl}/me/withdrawals`, {
-      credentials: 'include',
-      headers: { Authorization: `Bearer ${publicAnonKey}` },
+    fetchJsonWithRetry<WithdrawalRecord[]>({
+      url: `${serverUrl}/me/withdrawals`,
+      init: { credentials: 'include' },
+      timeoutMs: 10000,
+      retries: 2,
+      retryDelayMs: 300,
+      pageTag: 'withdrawal-history',
     })
-      .then((r) => r.json().then((d) => ({ ok: r.ok, data: d })))
-      .then(({ ok, data }) => {
-        if (!ok) throw new Error(data?.error ?? 'Failed to load withdrawal history');
+      .then((data) => {
         setWithdrawals(Array.isArray(data) ? data : []);
       })
       .catch((err) => {

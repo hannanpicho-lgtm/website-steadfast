@@ -5,8 +5,10 @@ import { toast } from 'sonner';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { getCurrentUsername } from '../services/referralSystem';
-import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { publicAnonKey } from '@utils/supabase/info';
 import { buildLoginRedirectState } from '../services/loginRedirect';
+import { fetchJsonWithRetry } from '../services/networkClient';
+import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 
 type CryptoWalletProfile = {
   type: 'crypto';
@@ -25,7 +27,7 @@ export default function ConnectWallet() {
   const [successBanner, setSuccessBanner] = useState('');
 
   const username = getCurrentUsername();
-  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
 
   // Crypto form state
   const [cryptoForm, setCryptoForm] = useState({
@@ -57,17 +59,16 @@ export default function ConnectWallet() {
     const loadWalletProfile = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`${serverUrl}/me/wallet`, {
-          credentials: 'include',
-          headers: { Authorization: `Bearer ${publicAnonKey}` },
+        const payload = await fetchJsonWithRetry<{ walletProfile?: WalletProfile | null }>({
+          url: `${serverUrl}/me/wallet`,
+          init: { credentials: 'include' },
+          timeoutMs: 10000,
+          retries: 2,
+          retryDelayMs: 300,
+          pageTag: 'connect-wallet',
         });
-
-        if (response.ok) {
-          const payload = await response.json().catch(() => ({} as { walletProfile?: WalletProfile | null }));
-          if (payload.walletProfile) {
-            hydrateFromProfile(payload.walletProfile);
-            return;
-          }
+        if (payload.walletProfile) {
+          hydrateFromProfile(payload.walletProfile);
         }
       } catch {
         toast.error('Failed to load wallet details. Please try again.');

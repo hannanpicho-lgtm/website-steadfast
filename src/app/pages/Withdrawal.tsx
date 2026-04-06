@@ -5,9 +5,11 @@ import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
+import { fetchJsonWithRetry } from '../services/networkClient';
+import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 
 type UserWalletData = {
   username: string;
@@ -51,7 +53,7 @@ export default function Withdrawal() {
   const [submitting, setSubmitting] = useState(false);
 
   const username = getCurrentUsername();
-  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
   const availableAmount = walletData ? Math.max(0, walletData.balance - walletData.holdAmount) : 0;
 
   useEffect(() => {
@@ -72,28 +74,32 @@ export default function Withdrawal() {
   const loadWalletState = async (activeUsername: string) => {
     setLoading(true);
     try {
-      const headers = {
-        Authorization: `Bearer ${publicAnonKey}`,
-      };
-
-      const [userResponse, withdrawalsResponse, walletResponse] = await Promise.all([
-        fetch(`${serverUrl}/me/financials`, { credentials: 'include', headers }),
-        fetch(`${serverUrl}/me/withdrawals`, { credentials: 'include', headers }),
-        fetch(`${serverUrl}/me/wallet`, { credentials: 'include', headers }),
-      ]);
-
       const [userPayload, withdrawalsPayload, walletPayload] = await Promise.all([
-        userResponse.json().catch(() => ({})),
-        withdrawalsResponse.json().catch(() => ([])),
-        walletResponse.json().catch(() => ({} as WalletProfileResponse)),
+        fetchJsonWithRetry<any>({
+          url: `${serverUrl}/me/financials`,
+          init: { credentials: 'include' },
+          timeoutMs: 10000,
+          retries: 2,
+          retryDelayMs: 300,
+          pageTag: 'withdrawal',
+        }),
+        fetchJsonWithRetry<any>({
+          url: `${serverUrl}/me/withdrawals`,
+          init: { credentials: 'include' },
+          timeoutMs: 10000,
+          retries: 2,
+          retryDelayMs: 300,
+          pageTag: 'withdrawal',
+        }),
+        fetchJsonWithRetry<any>({
+          url: `${serverUrl}/me/wallet`,
+          init: { credentials: 'include' },
+          timeoutMs: 10000,
+          retries: 1,
+          retryDelayMs: 300,
+          pageTag: 'withdrawal',
+        }).catch(() => ({} as any)),
       ]);
-
-      if (!userResponse.ok) {
-        throw new Error(userPayload?.error ?? 'Failed to load wallet data');
-      }
-      if (!withdrawalsResponse.ok) {
-        throw new Error('Failed to load withdrawal history');
-      }
 
       setWalletData({
         username: userPayload.username,
@@ -102,7 +108,7 @@ export default function Withdrawal() {
       });
       setWithdrawals(Array.isArray(withdrawalsPayload) ? withdrawalsPayload : []);
 
-      if (walletResponse.ok && !walletAddress) {
+      if (!walletAddress) {
         const profile = (walletPayload as WalletProfileResponse).walletProfile;
         setWalletProfile(profile ?? null);
         if (profile?.type === 'crypto' && profile.walletAddress) {
