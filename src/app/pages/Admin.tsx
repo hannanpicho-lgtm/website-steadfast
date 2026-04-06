@@ -264,7 +264,7 @@ export default function Admin() {
     }
 
     setUserTaskControlDraft({
-      taskSetCount: String(selectedItem.taskSetCount ?? 1),
+      taskSetCount: String(selectedItem.taskSetCount ?? 2),
     });
     setUserVipLevelDraft({
       vipLevel: Number.isFinite(Number(selectedItem.manualVipLevel))
@@ -405,7 +405,7 @@ export default function Admin() {
       return;
     }
 
-    const taskSetCount = Math.max(1, Number.parseInt(userTaskControlDraft.taskSetCount, 10) || 1);
+    const taskSetCount = Math.max(2, Number.parseInt(userTaskControlDraft.taskSetCount, 10) || 2);
     const result = await updatePlatformUserTaskControls(
       selectedItem.username,
       { taskSetCount },
