@@ -153,6 +153,9 @@ export default function Admin() {
   // Prompt-replacement modal state
   const [credentialResetTarget, setCredentialResetTarget] = useState<PlatformUser | null>(null);
   const [creditScoreTarget, setCreditScoreTarget] = useState<PlatformUser | null>(null);
+  // Add platform user state
+  const [addUserDraft, setAddUserDraft] = useState({ username: '', phone: '', password: '', invitationCode: '' });
+  const [addUserSaving, setAddUserSaving] = useState(false);
 
   useEffect(() => {
     try {
@@ -2027,6 +2030,41 @@ export default function Admin() {
     toast.success('Product created successfully.');
   };
 
+  const handleCreatePlatformUser = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const { username, phone, password, invitationCode } = addUserDraft;
+    if (!username.trim() || !phone.trim() || password.length < 6) {
+      toast.error('Username, phone and a password of at least 6 characters are required.');
+      return;
+    }
+    setAddUserSaving(true);
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/platform-users`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          username: username.trim(),
+          phone: phone.trim(),
+          loginPassword: password,
+          invitationCode: invitationCode.trim() || undefined,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Failed to create user (${response.status})`);
+      }
+      toast.success(`User "${username.trim()}" created. Default transaction password: 000000`);
+      setAddUserDraft({ username: '', phone: '', password: '', invitationCode: '' });
+      setModalType(null);
+      await loadPlatformUsers();
+    } catch (err) {
+      handleAdminRequestError(err, 'Failed to create user');
+    } finally {
+      setAddUserSaving(false);
+    }
+  };
+
   const handleCreateAiProduct = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setModalType(null);
@@ -2634,6 +2672,11 @@ export default function Admin() {
         handleDeleteRole={handleDeleteRole}
         processWithdrawalReview={processWithdrawalReview}
         buildRolePermissionsFromForm={buildRolePermissionsFromForm}
+        addUserDraft={addUserDraft}
+        setAddUserDraft={setAddUserDraft}
+        addUserSaving={addUserSaving}
+        handleCreatePlatformUser={handleCreatePlatformUser}
+        currentAdminInvitationCode={currentAdminInvitationCode}
       />
 
       {/* Prompt-replacement modals */}

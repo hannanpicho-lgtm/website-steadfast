@@ -825,6 +825,7 @@ function isAdminScriptTokenScopeAllowedForRequest(scope: AdminScriptTokenScope, 
   const scopeRules: Record<Exclude<AdminScriptTokenScope, 'admin:all'>, Array<{ method: string; path: RegExp }>> = {
     'platform-users:reconcile': [
       { method: 'GET', path: /^\/admin\/platform-users$/ },
+      { method: 'POST', path: /^\/admin\/platform-users$/ },
       { method: 'POST', path: /^\/admin\/platform-users\/[^/]+\/task-controls$/ },
     ],
     'platform-users:maintain': [
@@ -3592,8 +3593,11 @@ function normalizeUserRecord(userData: any, username: string) {
   normalized.tasksPerSetOverride = Number.isFinite(Number(normalized.tasksPerSetOverride))
     ? Math.max(1, Math.round(Number(normalized.tasksPerSetOverride)))
     : null;
+  // Business rule: if no admin override is set, task set count must be at least 2.
+  // Admin per-user overrides (taskSetCountOverride) can still explicitly set 1.
+  const _minTaskSets = normalized.taskSetCountOverride === null ? 2 : 1;
   normalized.taskSetCount = Number.isFinite(Number(normalized.taskSetCount))
-    ? Math.max(1, Math.round(Number(normalized.taskSetCount)))
+    ? Math.max(_minTaskSets, Math.round(Number(normalized.taskSetCount)))
     : 2;
   normalized.manualVipLevel = Number.isFinite(Number(normalized.manualVipLevel))
     ? Math.max(1, Math.min(5, Math.round(Number(normalized.manualVipLevel))))
@@ -6066,9 +6070,8 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c: any) => {
     if (!parentData.children.includes(username)) {
       parentData.children.push(username);
     }
-    const parentReward = roundMoney(100 * REFERRAL_PARENT_RATE);
-    parentData.balance = roundMoney(Number(parentData.balance ?? 0) + parentReward);
-    parentData.referralEarnings = roundMoney(Number(parentData.referralEarnings ?? 0) + parentReward);
+    // No upfront signup referral fee paid to parent.
+    // Parent earns 20% of the child's commissions each time the child completes tasks.
     await kv.set(`user:${parentUsername}`, parentData);
 
     invalidateUserSnapshots(username);
@@ -6079,7 +6082,7 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c: any) => {
         username,
         invitationCode: generatedInviteCode,
       },
-      parentReward,
+      parentReward: 0,
       referralRate: REFERRAL_PARENT_RATE,
     });
   } catch (error) {
@@ -11568,6 +11571,130 @@ app.post('/make-server-a1c55d7e/referral/link-admin-invite', async (c: any) => {
   } catch (err) {
     console.error('link-admin-invite error:', err);
     return c.json({ error: 'Failed to link admin invite' }, 500);
+  }
+});
+
+// POST /admin/platform-users — admin creates a new platform user, optionally linking via invitation code.
+app.post('/make-server-a1c55d7e/admin/platform-users', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = await enforceCriticalAdminRateLimit(c, 'admin-platform-users:create');
+    if (limited) return limited;
+
+    const callingAdmin = c.get('adminUser');
+    const body = await c.req.json().catch(() => ({}));
+    const username = sanitizeUsername(body?.username);
+    const phone = typeof body?.phone === 'string' ? body.phone.trim() : '';
+    const loginPassword = typeof body?.loginPassword === 'string' ? body.loginPassword : '';
+    const rawInviteCode = typeof body?.invitationCode === 'string' ? body.invitationCode.trim().toUpperCase() : '';
+
+    if (!username) return c.json({ error: 'Username is required' }, 400);
+    if (!phone) return c.json({ error: 'Phone number is required' }, 400);
+    if (loginPassword.length < 6) return c.json({ error: 'Password must be at least 6 characters' }, 400);
+
+    await ensureRootReferralUser();
+
+    const existingCanonical = await resolveCanonicalUsername(username);
+    if (existingCanonical) return c.json({ error: 'Username already exists.' }, 409);
+
+    // Resolve parent invite code: prefer provided code, fall back to calling admin's code, then root.
+    let parentInviteCode: string | null = null;
+    let parentUsernameRaw: string | null = null;
+    let resolvedAdminInviteCode: string | null = null;
+
+    if (rawInviteCode) {
+      const asUser = sanitizeInviteCode(rawInviteCode);
+      const asAdmin = sanitizeAdminInviteCode(rawInviteCode);
+
+      if (asAdmin) {
+        const adminCodeRecord = await kv.get(`admin:invite:code:${asAdmin}`);
+        if (adminCodeRecord && typeof adminCodeRecord.subAdminId === 'string' && !adminCodeRecord.superseded) {
+          // Admin invite code — attach to root referral tree, record admin ownership
+          parentInviteCode = ROOT_REFERRAL_INVITE_CODE;
+          resolvedAdminInviteCode = asAdmin;
+        }
+      }
+      if (!parentInviteCode && asUser) {
+        const owner = await kv.get(`referral:invite:${asUser}`);
+        if (owner && typeof owner === 'string') {
+          parentInviteCode = asUser;
+        }
+      }
+    }
+
+    // Fall back to calling admin's own invite code
+    if (!parentInviteCode && typeof callingAdmin?.id === 'string') {
+      const adminOwnCode = await kv.get(`admin:invite:by-admin:${callingAdmin.id}`);
+      const sanitizedAdminCode = sanitizeAdminInviteCode(adminOwnCode);
+      if (sanitizedAdminCode) {
+        parentInviteCode = ROOT_REFERRAL_INVITE_CODE;
+        resolvedAdminInviteCode = sanitizedAdminCode;
+      }
+    }
+
+    // Final fallback: root referral
+    if (!parentInviteCode) {
+      parentInviteCode = ROOT_REFERRAL_INVITE_CODE;
+    }
+
+    const parentLookup = await kv.get(`referral:invite:${parentInviteCode}`);
+    if (!parentLookup || typeof parentLookup !== 'string') {
+      return c.json({ error: 'Could not resolve referral tree root. Please try again.' }, 500);
+    }
+    parentUsernameRaw = parentLookup;
+
+    const generatedInviteCode = await getUniqueReferralInviteCode();
+    const userData = await syncUserWithVipConfig(defaultUserRecord(username), username);
+    userData.phone = phone;
+    userData.invitationCode = generatedInviteCode;
+    userData.invitedByCode = parentInviteCode;
+    userData.password = await hashPassword(loginPassword);
+    userData.transactionPassword = await hashPassword('000000');
+    userData.mustChangePassword = true;
+    userData.passwordUpdatedAt = new Date().toISOString();
+    userData.referredByAdminId = typeof callingAdmin?.id === 'string' ? callingAdmin.id : null;
+
+    if (resolvedAdminInviteCode) {
+      const adminCodeRecord = await kv.get(`admin:invite:code:${resolvedAdminInviteCode}`);
+      if (adminCodeRecord && typeof adminCodeRecord.subAdminId === 'string') {
+        userData.referredByAdminId = adminCodeRecord.subAdminId;
+        adminCodeRecord.usageCount = (typeof adminCodeRecord.usageCount === 'number' ? adminCodeRecord.usageCount : 0) + 1;
+        await kv.set(`admin:invite:code:${resolvedAdminInviteCode}`, adminCodeRecord);
+      }
+    }
+
+    await kv.set(`user:${username}`, userData);
+    await assignUsernameLookup(username);
+    await kv.set(`referral:invite:${generatedInviteCode}`, username);
+
+    // Add child to parent's referral tree (no upfront fee — parent earns from commissions)
+    const parentData = await getOrCreateUserRecord(parentUsernameRaw);
+    if (!Array.isArray(parentData.children)) parentData.children = [];
+    if (!parentData.children.includes(username)) parentData.children.push(username);
+    await kv.set(`user:${parentUsernameRaw}`, parentData);
+
+    invalidateUserSnapshots(username);
+    invalidateUserSnapshots(parentUsernameRaw);
+
+    const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-platform-user-create',
+      actorEmail,
+      `Admin created platform user '${username}' (inviteCode: ${generatedInviteCode}, parentCode: ${parentInviteCode})`,
+    ).catch((e) => console.error('Failed to record admin-platform-user-create audit event:', e));
+
+    return c.json({
+      ok: true,
+      user: { username, invitationCode: generatedInviteCode, taskSetCount: userData.taskSetCount },
+      defaultPassword: '000000',
+    }, 201);
+  } catch (err) {
+    console.error('admin/platform-users create error:', err);
+    return c.json({ error: 'Failed to create user' }, 500);
   }
 });
 

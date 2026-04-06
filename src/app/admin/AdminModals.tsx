@@ -115,6 +115,12 @@ export interface AdminModalsProps {
   handleCreateManualProduct: (e: React.FormEvent) => void;
   handleCreateTask: (e: React.FormEvent) => void;
   handleCreateAdminUser: (e: React.FormEvent) => void;
+  // Add platform user
+  addUserDraft: { username: string; phone: string; password: string; invitationCode: string };
+  setAddUserDraft: React.Dispatch<React.SetStateAction<{ username: string; phone: string; password: string; invitationCode: string }>>;
+  addUserSaving: boolean;
+  handleCreatePlatformUser: (e: React.FormEvent<HTMLFormElement>) => void;
+  currentAdminInvitationCode: string | null;
   handleSaveUserTaskControls: () => void;
   handleResetUserTaskSet: () => void;
   handleRestorePlatformUser: () => void;
@@ -193,6 +199,11 @@ export default function AdminModals(props: AdminModalsProps) {
     handleCreateManualProduct,
     handleCreateTask,
     handleCreateAdminUser,
+    addUserDraft,
+    setAddUserDraft,
+    addUserSaving,
+    handleCreatePlatformUser,
+    currentAdminInvitationCode,
     handleSaveUserTaskControls,
     handleResetUserTaskSet,
     handleRestorePlatformUser,
@@ -278,52 +289,73 @@ export default function AdminModals(props: AdminModalsProps) {
               <X size={24} />
             </button>
           </div>
-          <form className="space-y-4" onSubmit={handleCreateManualProduct}>
+          <form className="space-y-4" onSubmit={handleCreatePlatformUser}>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Username</label>
-                <input type="text" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter username" />
+                <label className="block text-sm font-medium text-gray-300 mb-2">Username <span className="text-red-400">*</span></label>
+                <input
+                  type="text"
+                  value={addUserDraft.username}
+                  onChange={(e) => setAddUserDraft((d) => ({ ...d, username: e.target.value }))}
+                  className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+                  placeholder="Enter username"
+                  required
+                  disabled={addUserSaving}
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
-                <input type="email" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter email" />
+                <label className="block text-sm font-medium text-gray-300 mb-2">Phone <span className="text-red-400">*</span></label>
+                <input
+                  type="tel"
+                  value={addUserDraft.phone}
+                  onChange={(e) => setAddUserDraft((d) => ({ ...d, phone: e.target.value }))}
+                  className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+                  placeholder="Enter phone number"
+                  required
+                  disabled={addUserSaving}
+                />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Phone</label>
-                <input type="tel" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter phone" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">VIP Level</label>
-                <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
-                  <option>VIP 1</option>
-                  <option>VIP 2</option>
-                  <option>VIP 3</option>
-                  <option>VIP 4</option>
-                  <option>VIP 5</option>
-                </select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Login Password <span className="text-red-400">*</span></label>
+              <input
+                type="password"
+                value={addUserDraft.password}
+                onChange={(e) => setAddUserDraft((d) => ({ ...d, password: e.target.value }))}
+                className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none"
+                placeholder="Minimum 6 characters"
+                minLength={6}
+                required
+                disabled={addUserSaving}
+              />
+              <p className="text-xs text-gray-500 mt-1">Transaction password will default to 000000 — user must change on first login.</p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Initial Balance</label>
-                <input type="number" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="0.00" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>
-                <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
-                  <option>Active</option>
-                  <option>Pending</option>
-                  <option>Suspended</option>
-                </select>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Invitation Code
+                <span className="ml-2 text-xs text-gray-500">(optional — links user to a referral tree)</span>
+              </label>
+              <input
+                type="text"
+                value={addUserDraft.invitationCode}
+                onChange={(e) => setAddUserDraft((d) => ({ ...d, invitationCode: e.target.value.toUpperCase() }))}
+                className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none font-mono"
+                placeholder={currentAdminInvitationCode ? `Leave blank to use your code: ${currentAdminInvitationCode}` : 'Enter user or admin invite code'}
+                disabled={addUserSaving}
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                If left blank, the user is linked under your admin invitation code so they appear in your referral commission tree.
+              </p>
             </div>
             <div className="flex gap-3 mt-6">
-              <button type="submit" className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
-                Create User
+              <button
+                type="submit"
+                disabled={addUserSaving}
+                className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {addUserSaving ? 'Creating…' : 'Create User'}
               </button>
-              <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
+              <button type="button" onClick={() => setModalType(null)} disabled={addUserSaving} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors disabled:opacity-50">
                 Cancel
               </button>
             </div>
