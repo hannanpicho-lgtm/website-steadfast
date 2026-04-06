@@ -210,7 +210,7 @@ export default function Profile() {
           <ArrowLeft size={24} />
         </button>
         <h1 className="text-xl font-bold text-white tracking-tight">My Profile</h1>
-        <div className="w-6"></div>
+        <div className="w-11" aria-hidden="true"></div>
       </header>
 
       {/* Main Content */}

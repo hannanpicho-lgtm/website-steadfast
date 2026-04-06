@@ -230,7 +230,10 @@ export default function Withdrawal() {
             </button>
             <h1 className="text-2xl font-bold text-[#00D9FF]">Withdrawal</h1>
           </div>
-          <button onClick={() => navigate('/withdrawal-history')} className="btn-mobile-primary self-start sm:self-auto">
+          <button onClick={() => {
+            if (withdrawAmount.trim() && !window.confirm('Leave this page? Your entered amount will be cleared.')) return;
+            navigate('/withdrawal-history');
+          }} className="btn-mobile-primary self-start sm:self-auto">
             <ScrollText size={20} />
             <span className="font-semibold">History</span>
           </button>

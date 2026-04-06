@@ -670,7 +670,7 @@ export default function Records() {
 
           <div className="space-y-3">
             {loading && transactions.length === 0 ? (
-              <div className="bg-gray-50 rounded-lg p-6 text-center text-gray-500">Loading transaction history...</div>
+              <div className="bg-gray-50 rounded-lg p-6 flex items-center justify-center gap-2 text-gray-500"><Loader2 size={18} className="animate-spin flex-shrink-0" />Loading transaction history...</div>
             ) : transactions.length === 0 ? (
               <div className="bg-gray-50 rounded-lg p-6 text-center text-gray-500">No financial activity recorded yet.</div>
             ) : (
