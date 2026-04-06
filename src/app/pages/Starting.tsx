@@ -913,7 +913,7 @@ export default function Starting() {
       setShowSuccess(true);
 
       if (username) {
-        invalidateSessionCacheByPrefix(`records:${username}:`);
+        invalidateSessionCacheByPrefix(buildUserScopedCacheKey('records:', username, 'v2'));
         void fetchJsonWithRetry({
           url: `${serverUrl}/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true`,
           init: {

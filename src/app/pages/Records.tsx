@@ -1,4 +1,4 @@
-import { UserCircle, ChevronLeft, Package, Clock, CheckCircle, Loader2 } from 'lucide-react';
+import { UserCircle, ChevronLeft, Package, Clock, CheckCircle, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
@@ -108,7 +108,7 @@ type RecordListItem = CompletedRecordItem | PendingPremiumRecordItem;
 
 const RECORDS_REQUEST_TIMEOUT_MS = 10000;
 const RECORDS_USER_CACHE_TTL_MS = 45 * 1000;
-const RECORDS_SNAPSHOT_CACHE_TTL_MS = 5 * 60 * 1000;
+const RECORDS_SNAPSHOT_CACHE_TTL_MS = 60 * 1000;
 
 type RecordsSnapshotResponse = {
   user: UserData;
@@ -135,6 +135,8 @@ export default function Records() {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [visibleCompleted, setVisibleCompleted] = useState(8);
+  const [visibleTransactions, setVisibleTransactions] = useState(5);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -145,6 +147,10 @@ export default function Records() {
     || taskRecords.length > 0
     || transactions.length > 0
     || taskCatalog.length > 0;
+
+  useEffect(() => {
+    setVisibleCompleted(8);
+  }, [activeTab]);
 
   useEffect(() => {
     if (!sessionUsername) {
@@ -312,11 +318,11 @@ export default function Records() {
     return {
       recordType: 'completed',
       id: task.taskId ?? `${task.username}-${index}`,
-      name: task.productName ?? fallbackTask?.product ?? 'Task Product',
+      name: task.productName ?? 'Task Product',
       price: task.productPrice,
-      rating: task.rating ?? fallbackTask?.rating ?? 4,
-      image: task.image ?? fallbackTask?.image ?? '',
-      productUrl: task.productUrl ?? fallbackTask?.productUrl ?? '',
+      rating: task.rating ?? 4,
+      image: task.image ?? '',
+      productUrl: task.productUrl ?? '',
       commission: task.commission,
       isPremium: task.isPremium,
       timestamp: task.timestamp,
@@ -470,7 +476,7 @@ export default function Records() {
         </div>
 
         {/* Records List */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           {loading && filteredProducts.length === 0 ? (
             <div className="bg-gray-50 rounded-lg p-12 text-center">
               <Loader2 className="w-16 h-16 mx-auto mb-4 animate-spin text-[#0066b3]" />
@@ -492,9 +498,10 @@ export default function Records() {
               </p>
             </div>
           ) : (
-            filteredProducts.map((product, index) => {
-              const isCompleted = product.recordType === 'completed';
-              const isPremiumPending = product.recordType === 'pending-premium';
+            <>
+              {filteredProducts.slice(0, visibleCompleted).map((product, index) => {
+                const isCompleted = product.recordType === 'completed';
+                const isPremiumPending = product.recordType === 'pending-premium';
 
               if (isPremiumPending) {
                 return (
@@ -561,82 +568,95 @@ export default function Records() {
               
               return (
                 <div 
-                  key={`${product.id}-${index}`} 
-                  className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+                  key={`${product.id}-${index}`}
+                  className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
                 >
-                  <div className="flex gap-4">
+                  <div className="flex gap-3">
                     {/* Product Image */}
-                    <div className="flex-shrink-0">
-                      <img 
-                        src={product.image} 
-                        alt={product.name.split(',')[0]} 
-                        width={80}
-                        height={80}
-                        className="w-20 h-20 object-contain rounded"
-                      />
+                    <div className="shrink-0 w-16 h-16 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden">
+                      {product.image ? (
+                        <img
+                          src={product.image}
+                          alt={product.name.split(',')[0]}
+                          width={64}
+                          height={64}
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <Package size={22} className="text-gray-300" />
+                      )}
                     </div>
-                    
-                    {/* Product Info */}
+
+                    {/* Product Content */}
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-gray-800 mb-1 line-clamp-2">
-                        {product.name}
-                      </h3>
-                      
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="flex items-center gap-1">
-                          <span className="text-yellow-500 text-sm">⭐</span>
-                          <span className="text-xs text-gray-600">{product.rating}</span>
+                      {/* Name + status */}
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <h3 className="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug flex-1">
+                          {product.name}
+                        </h3>
+                        <div className="shrink-0 bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1">
+                          <CheckCircle size={10} />
+                          Done
                         </div>
-                        <span className="text-xs font-semibold text-gray-800">
-                          ${product.price.toFixed(2)}
-                        </span>
                       </div>
 
-                      {/* Commission Info */}
-                      <div className="space-y-1">
-                        {isCompleted && (
-                          <>
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs text-gray-500">Commission:</span>
-                              <span className="text-sm font-bold text-green-600">
-                                +${product.commission.toFixed(2)}
-                              </span>
-                            </div>
-                            {product.isPremium && (
-                              <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs px-2 py-1 rounded inline-block">
-                                PREMIUM 10X
-                              </div>
-                            )}
-                          </>
+                      {/* Rating + price + premium badge */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <span key={star} className={`text-xs leading-none ${star <= Math.round(product.rating) ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                          ))}
+                        </div>
+                        <span className="text-xs text-gray-500 font-medium">${product.price.toFixed(2)}</span>
+                        {product.isPremium && (
+                          <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">10X</span>
                         )}
                       </div>
-                    </div>
 
-                    {/* Status Badge */}
-                    <div className="flex-shrink-0 flex flex-col items-end justify-between">
-                      {isCompleted ? (
-                        <>
-                          <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
-                            <CheckCircle size={12} />
-                            Completed
-                          </div>
-                          {product.timestamp && (
-                            <span className="text-xs text-gray-400 mt-2">
-                              {new Date(product.timestamp).toLocaleDateString()}
-                            </span>
-                          )}
-                        </>
-                      ) : (
-                        <div className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
-                          <Clock size={12} />
-                          Pending
+                      {/* Commission + datetime */}
+                      <div className="flex items-end justify-between">
+                        <div>
+                          <p className="text-[11px] text-gray-400 mb-0.5">Commission earned</p>
+                          <p className="text-base font-bold text-green-600">+${product.commission.toFixed(2)}</p>
                         </div>
-                      )}
+                        <div className="text-right">
+                          <p className="text-[11px] text-gray-400">
+                            {new Date(product.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                          <p className="text-[11px] text-gray-400">
+                            {new Date(product.timestamp).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
               );
-            })
+            })}
+
+            {/* See More / See Less for product list */}
+            {filteredProducts.length > 8 && (
+              <div className="pt-1 text-center">
+                {visibleCompleted < filteredProducts.length ? (
+                  <button
+                    onClick={() => setVisibleCompleted(filteredProducts.length)}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0066b3] hover:text-[#0052a3] py-2 px-4 rounded-lg hover:bg-[#eef8ff] transition-colors"
+                  >
+                    <ChevronDown size={16} />
+                    See More ({filteredProducts.length - visibleCompleted} more)
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setVisibleCompleted(8)}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <ChevronUp size={16} />
+                    See Less
+                  </button>
+                )}
+              </div>
+            )}
+            </>
           )}
         </div>
 
@@ -651,7 +671,9 @@ export default function Records() {
               <div className="bg-gray-50 rounded-lg p-6 text-center text-gray-500">Loading transaction history...</div>
             ) : transactions.length === 0 ? (
               <div className="bg-gray-50 rounded-lg p-6 text-center text-gray-500">No financial activity recorded yet.</div>
-            ) : transactions.map((transaction) => (
+            ) : (
+              <>
+                {transactions.slice(0, visibleTransactions).map((transaction) => (
               <div key={transaction.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -687,6 +709,31 @@ export default function Records() {
                 </div>
               </div>
             ))}
+
+                {/* See More / See Less for transactions */}
+                {transactions.length > 5 && (
+                  <div className="pt-1 text-center">
+                    {visibleTransactions < transactions.length ? (
+                      <button
+                        onClick={() => setVisibleTransactions(transactions.length)}
+                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0066b3] hover:text-[#0052a3] py-2 px-4 rounded-lg hover:bg-[#eef8ff] transition-colors"
+                      >
+                        <ChevronDown size={16} />
+                        See All ({transactions.length - visibleTransactions} more)
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setVisibleTransactions(5)}
+                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <ChevronUp size={16} />
+                        Collapse
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       </div>
