@@ -4144,7 +4144,7 @@ async function applyAutomaticRewardsForUser(username: string, userData: any, pre
 
 function buildUserTaskProgress(userData: any) {
   return {
-    taskSetCount: Number(userData?.taskSetCount ?? 1),
+    taskSetCount: Number(userData?.taskSetCount ?? 2),
     tasksPerSet: Number(userData?.tasksPerSet ?? 1),
     tasksCompleted: Number(userData?.tasksCompleted ?? 0),
     tasksCompletedInSet: Number(userData?.tasksCompletedInSet ?? 0),
@@ -13352,9 +13352,13 @@ app.delete('/make-server-a1c55d7e/admin/platform-users/:username', async (c: any
       }
     }
 
-    // Delete lookup key and user record last
-    await kv.del(`user:lookup:${canonicalUsername.toLowerCase()}`);
+    // Delete user record first, then the lookup key.
+    // This order ensures that if the lookup remove fails, the user data is already
+    // gone (effectively deleted) rather than leaving an invisible orphaned record.
     await kv.del(userKey);
+    await kv.del(`user:lookup:${canonicalUsername.toLowerCase()}`).catch((e) =>
+      console.error('Non-critical: failed to remove user lookup key after user delete:', e)
+    );
 
     const deleteActorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
       ? callingAdmin.email

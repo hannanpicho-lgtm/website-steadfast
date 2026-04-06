@@ -109,7 +109,10 @@ export interface AdminModalsProps {
   setAiPreviewItems: Dispatch<SetStateAction<any[]>>;
 
   // Bulk salary
+  selectedBulkOption: string;
   setSelectedBulkOption: Dispatch<SetStateAction<string>>;
+  processBulkSalaryPayments: (option: string) => void;
+  processSingleSalaryPayment: (paymentId: number) => void;
 
   // Handlers
   handleCreateManualProduct: (e: React.FormEvent) => void;
@@ -195,7 +198,10 @@ export default function AdminModals(props: AdminModalsProps) {
     setAiGenerateCount,
     setAiGenerateCategories,
     setAiPreviewItems,
+    selectedBulkOption,
     setSelectedBulkOption,
+    processBulkSalaryPayments,
+    processSingleSalaryPayment,
     handleCreateManualProduct,
     handleCreateTask,
     handleCreateAdminUser,

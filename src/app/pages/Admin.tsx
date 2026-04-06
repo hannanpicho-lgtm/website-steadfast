@@ -1735,7 +1735,7 @@ export default function Admin() {
       });
       void loadTaskConfigurations({ suppressToast: true });
     } catch (error) {
-      console.error('[DEBUG] Error creating task:', error);
+      console.error('Error creating task:', error);
       // Don't close the modal on error - let user try again or must close manually
       toast.dismiss(loadingToastId);
       handleAdminRequestError(error, 'Failed to create product', { suppressToast: false });
@@ -1836,7 +1836,7 @@ export default function Admin() {
       setSelectedItem(null);
       toast.success('Product deleted successfully.', { id: loadingToastId });
     } catch (error) {
-      console.error('[DEBUG] Error deleting product:', error);
+      console.error('Error deleting product:', error);
       toast.dismiss(loadingToastId);
       handleAdminRequestError(error, 'Failed to delete product');
     }
@@ -1905,7 +1905,7 @@ export default function Admin() {
       setSelectedItem(null);
       toast.success('Product updated successfully.', { id: loadingToastId });
     } catch (error) {
-      console.error('[DEBUG] Error updating product:', error);
+      console.error('Error updating product:', error);
       toast.dismiss(loadingToastId);
       handleAdminRequestError(error, 'Failed to update product');
     }
@@ -2642,7 +2642,11 @@ export default function Admin() {
         setAiGenerateCount={setAiGenerateCount}
         setAiGenerateCategories={setAiGenerateCategories}
         setAiPreviewItems={setAiPreviewItems}
+        salaryPayments={salaryPayments}
+        selectedBulkOption={selectedBulkOption}
         setSelectedBulkOption={setSelectedBulkOption}
+        processBulkSalaryPayments={processBulkSalaryPayments}
+        processSingleSalaryPayment={processSingleSalaryPayment}
         handleCreateManualProduct={handleCreateManualProduct}
         handleCreateTask={handleCreateTask}
         handleCreateAdminUser={handleCreateAdminUser}
