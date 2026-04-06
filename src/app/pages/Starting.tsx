@@ -719,9 +719,9 @@ export default function Starting() {
           init: {
             credentials: 'include',
           },
-          timeoutMs: 4000,
+          timeoutMs: 10000,
           retries: 1,
-          retryDelayMs: 200,
+          retryDelayMs: 300,
           pageTag: 'starting',
           featureTag: 'startingSnapshotV2',
           expectedApiVersion: 'v2',

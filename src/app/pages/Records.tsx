@@ -106,7 +106,7 @@ type PendingPremiumRecordItem = {
 
 type RecordListItem = CompletedRecordItem | PendingPremiumRecordItem;
 
-const RECORDS_REQUEST_TIMEOUT_MS = 4000;
+const RECORDS_REQUEST_TIMEOUT_MS = 10000;
 const RECORDS_USER_CACHE_TTL_MS = 45 * 1000;
 const RECORDS_SNAPSHOT_CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -170,8 +170,8 @@ export default function Records() {
         credentials: 'include',
       },
       timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
-      retries: 1,
-      retryDelayMs: 200,
+      retries: 2,
+      retryDelayMs: 300,
       cacheKey: buildUserScopedCacheKey('records:snapshot', username ?? '', 'v2'),
       cacheTtlMs: RECORDS_SNAPSHOT_CACHE_TTL_MS,
       pageTag: 'records',
@@ -424,8 +424,14 @@ export default function Records() {
         )}
 
         {loadError && (
-          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-            {loadError}
+          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-800 flex items-center justify-between gap-3">
+            <span>{loadError}</span>
+            <button
+              onClick={() => { void fetchData(); }}
+              className="shrink-0 rounded-md bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-200 transition-colors"
+            >
+              Retry
+            </button>
           </div>
         )}
 
