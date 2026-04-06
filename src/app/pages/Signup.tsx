@@ -355,9 +355,9 @@ export default function Signup() {
             />
             <label htmlFor="accept-terms" className="text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
               I accept the{' '}
-              <Link to="/terms-conditions" className="text-[#00D9FF] underline-offset-2 hover:underline">
+              <a href="/terms-conditions" target="_blank" rel="noopener noreferrer" className="text-[#00D9FF] underline-offset-2 hover:underline">
                 Terms and Conditions
-              </Link>
+              </a>
             </label>
           </div>
 

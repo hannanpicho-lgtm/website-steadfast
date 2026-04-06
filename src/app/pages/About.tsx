@@ -1,4 +1,4 @@
-import { UserCircle, ChevronLeft } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { Link } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 import { LiveChatBox } from '../components/LiveChatBox';
