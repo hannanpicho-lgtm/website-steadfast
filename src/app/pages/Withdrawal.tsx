@@ -281,6 +281,17 @@ export default function Withdrawal() {
             </div>
             {walletBindingLabel ? (
               <p className="mt-2 text-xs text-cyan-300">Bound wallet: {walletBindingLabel}</p>
+            ) : !loading ? (
+              <p className="mt-2 text-xs text-yellow-400">
+                No wallet linked.{' '}
+                <button
+                  type="button"
+                  onClick={() => navigate('/connect-wallet')}
+                  className="underline hover:text-yellow-300 transition-colors"
+                >
+                  Set up your withdrawal account →
+                </button>
+              </p>
             ) : null}
           </div>
 

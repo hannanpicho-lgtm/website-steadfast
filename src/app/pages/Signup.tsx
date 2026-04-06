@@ -136,9 +136,8 @@ export default function Signup() {
       return;
     }
 
-    const referralPct = Math.round((signupResult.referralRate ?? 0.2) * 100);
     toast.success(
-      `Signup successful. Your invitation code is ${signupResult.invitationCode}. Parent reward credited: ${referralPct}% (${signupResult.parentReward.toFixed(2)} USD).`
+      `Welcome to Steadfast! Your invitation code is ${signupResult.invitationCode}.`
     );
 
     const loginResult = await serverLogin(normalizedUsername, loginPassword);
