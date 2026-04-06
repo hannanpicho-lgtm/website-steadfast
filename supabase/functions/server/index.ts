@@ -13053,7 +13053,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/vip-level', async
         : `Set VIP level override to ${normalizedVipLevel} for '${canonicalUsername}' (VIP changed: ${previousVipLevel} → ${syncedUser.vipLevel}; reason: ${reason})`;
 
       // Save to KV
-      await kv.put(`user:${canonicalUsername}`, syncedUser);
+      await kv.set(`user:${canonicalUsername}`, syncedUser);
 
       return {
         user: syncedUser,

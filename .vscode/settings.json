@@ -7,5 +7,36 @@
   "deno.suggest.imports.hosts": {
     "https://deno.land": true,
     "https://jsr.io": true
-  }
+  },
+
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.git": true,
+    "**/commit_snapshots": true,
+    "**/deployment_reports": true
+  },
+
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true,
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/commit_snapshots/**": true,
+    "**/deployment_reports/**": true
+  },
+
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.git": true,
+    "**/commit_snapshots": true,
+    "**/deployment_reports": true
+  },
+
+  "typescript.tsserver.maxTsServerMemory": 2048,
+  "typescript.disableAutomaticTypeAcquisition": true,
+  "typescript.preferences.includePackageJsonAutoImports": "off",
+
+  "editor.formatOnSave": false
 }
