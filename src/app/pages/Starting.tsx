@@ -1171,16 +1171,16 @@ export default function Starting() {
             </button>
           </div>
         ) : showDayCompletionBanner ? (
-          <div className="bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-600 border-2 border-emerald-300 rounded-xl p-6 mb-6 shadow-xl shadow-emerald-900/25">
+          <div className="animate-[dayComplete_0.6s_ease-out_both] bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-600 border-2 border-emerald-300 rounded-xl p-6 mb-6 shadow-xl shadow-emerald-900/25">
             <div className="flex items-center justify-center gap-3 mb-3">
-              <CheckCircle2 className="text-emerald-100" size={32} />
-              <h2 className="text-xl font-bold text-white text-center">TODAY'S WORK COMPLETED</h2>
-              <CheckCircle2 className="text-emerald-100" size={32} />
+              <CheckCircle2 className="text-emerald-100 animate-[dayCompleteCheck_0.5s_ease-out_0.3s_both]" size={32} />
+              <h2 className="text-xl font-bold text-white text-center animate-[dayCompleteCheck_0.5s_ease-out_0.35s_both]">TODAY'S WORK COMPLETED</h2>
+              <CheckCircle2 className="text-emerald-100 animate-[dayCompleteCheck_0.5s_ease-out_0.3s_both]" size={32} />
             </div>
-            <p className="text-emerald-50 font-semibold text-center mb-1">
+            <p className="text-emerald-50 font-semibold text-center mb-1 animate-[dayCompleteCheck_0.5s_ease-out_0.45s_both]">
               Current set complete: {userData?.tasksCompletedInSet ?? 0} / {userData?.tasksPerSet ?? 0} tasks
             </p>
-            <p className="text-white/90 text-sm text-center">
+            <p className="text-white/90 text-sm text-center animate-[dayCompleteCheck_0.5s_ease-out_0.55s_both]">
               You have successfully completed your day's work.
             </p>
           </div>
