@@ -584,9 +584,9 @@ export default function Starting() {
         init: {
           credentials: 'include',
         },
-        timeoutMs: 7000,
+        timeoutMs: 5000,
         retries: 1,
-        retryDelayMs: 250,
+        retryDelayMs: 200,
         pageTag: 'starting-fallback',
       }),
       fetchJsonWithRetry<any>({
@@ -597,9 +597,9 @@ export default function Starting() {
             Authorization: `Bearer ${publicAnonKey}`,
           },
         },
-        timeoutMs: 7000,
+        timeoutMs: 5000,
         retries: 1,
-        retryDelayMs: 250,
+        retryDelayMs: 200,
         pageTag: 'starting-fallback',
       }),
       fetchJsonWithRetry<any>({
@@ -610,9 +610,9 @@ export default function Starting() {
             Authorization: `Bearer ${publicAnonKey}`,
           },
         },
-        timeoutMs: 7000,
+        timeoutMs: 5000,
         retries: 1,
-        retryDelayMs: 250,
+        retryDelayMs: 200,
         pageTag: 'starting-fallback',
       }),
       fetchJsonWithRetry<any>({
@@ -623,9 +623,9 @@ export default function Starting() {
             Authorization: `Bearer ${publicAnonKey}`,
           },
         },
-        timeoutMs: 7000,
+        timeoutMs: 5000,
         retries: 1,
-        retryDelayMs: 250,
+        retryDelayMs: 200,
         pageTag: 'starting-fallback',
       }),
     ]);
@@ -718,9 +718,9 @@ export default function Starting() {
           init: {
             credentials: 'include',
           },
-          timeoutMs: 10000,
+          timeoutMs: 6000,
           retries: 1,
-          retryDelayMs: 300,
+          retryDelayMs: 200,
           pageTag: 'starting',
           featureTag: 'startingSnapshotV2',
           expectedApiVersion: 'v2',
@@ -791,10 +791,13 @@ export default function Starting() {
       console.info('[StartingPerf] load sample', perfSample);
     } catch (error) {
       console.error('Error fetching user data:', error);
-      setLoadError('Connection is unstable. Please retry loading your data.');
-      if (!connectionToastShownRef.current) {
-        toast.error('Connection issue detected. Retrying may help.');
-        connectionToastShownRef.current = true;
+      // Only show connection error if we have NO cached data to fall back on
+      if (!hasCachedData) {
+        setLoadError('Connection is unstable. Please retry loading your data.');
+        if (!connectionToastShownRef.current) {
+          toast.error('Connection issue detected. Retrying may help.');
+          connectionToastShownRef.current = true;
+        }
       }
       setLoading(false);
     }

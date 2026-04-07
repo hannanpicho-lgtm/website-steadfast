@@ -58,9 +58,9 @@ export default function Deposit() {
         const userPayload = await fetchJsonWithRetry<any>({
           url: `${serverUrl}/me/financials`,
           init: { credentials: 'include' },
-          timeoutMs: 8000,
+          timeoutMs: 5000,
           retries: 1,
-          retryDelayMs: 300,
+          retryDelayMs: 200,
           pageTag: 'deposit',
         });
         setUserData({
@@ -81,9 +81,9 @@ export default function Deposit() {
         const txPayload = await fetchJsonWithRetry<any>({
           url: `${serverUrl}/me/transactions`,
           init: { credentials: 'include' },
-          timeoutMs: 10000,
-          retries: 2,
-          retryDelayMs: 300,
+          timeoutMs: 6000,
+          retries: 1,
+          retryDelayMs: 200,
           pageTag: 'deposit',
         });
         setTransactions(Array.isArray(txPayload) ? txPayload : []);
