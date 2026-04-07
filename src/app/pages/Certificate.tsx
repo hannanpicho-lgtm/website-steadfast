@@ -112,9 +112,10 @@ export default function Certificate() {
         </div>
 
         {loading && (
-          <div className="flex flex-col items-center py-20 gap-4">
-            <Loader2 className="animate-spin text-[#0066cc]" size={40} />
-            <p className="text-gray-500 text-sm">Loading your certificate…</p>
+          <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
+            <div className="h-6 w-48 bg-gray-200 rounded shimmer-line mx-auto" />
+            <div className="h-40 w-full bg-gray-100 rounded shimmer-line" />
+            <div className="h-4 w-32 bg-gray-200 rounded shimmer-line mx-auto" />
           </div>
         )}
 

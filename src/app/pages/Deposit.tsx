@@ -134,8 +134,10 @@ export default function Deposit() {
         </div>
 
         {loadingBalance ? (
-          <div className="flex justify-center items-center min-h-[300px]">
-            <Loader2 size={32} className="animate-spin text-[#00D9FF]" />
+          <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mb-6 backdrop-blur-sm">
+            <div className="h-4 w-28 bg-white/10 rounded shimmer-line mb-4" />
+            <div className="h-8 w-40 bg-white/10 rounded shimmer-line mb-3" />
+            <div className="h-4 w-32 bg-white/10 rounded shimmer-line" />
           </div>
         ) : (
           <>
