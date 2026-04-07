@@ -4419,7 +4419,7 @@ async function getUserRecordWithDailyReset(username: string) {
   };
 }
 
-function restoreUserToNaturalState(userData: any) {
+async function restoreUserToNaturalState(userData: any) {
   const restored = { ...userData };
   const currentBalance = roundMoney(Number(restored.balance ?? 0));
   const preFreezeBalance = Number.isFinite(Number(restored?.activePremium?.balanceBeforeAssignment))
@@ -4433,10 +4433,26 @@ function restoreUserToNaturalState(userData: any) {
     ? roundMoney(Math.max(0, Number(restored.activePremium.topUpRequired ?? restored.activePremium.negativeAmount)))
     : 0;
   const settledUpholdAmount = roundMoney(Math.max(outstandingTopUp, configuredUpholdAmount, preservedHoldAmount));
+
+  // Include the residual balance (funds remaining in account after premium deduction)
+  const residualBalance = roundMoney(Math.max(0, currentBalance));
+
+  // Use earned premium commission, or fall back to projected premium profit
   const premiumCommission = Number.isFinite(Number(restored?.activePremium?.commissionEarned))
     ? roundMoney(Math.max(0, Number(restored.activePremium.commissionEarned)))
     : 0;
-  const settledBalanceTarget = roundMoney(preFreezeBalance + settledUpholdAmount + premiumCommission);
+  let premiumProfit = premiumCommission;
+  if (premiumProfit <= 0) {
+    // Compute projected profit from the premium bundle value × VIP commission rate (10x)
+    const bundleValue = roundMoney(Number(restored?.activePremium?.totalBundleValue ?? restored?.activePremium?.premiumProductValue ?? 0));
+    if (bundleValue > 0) {
+      const vipConfig = await getVipConfigForLevel(Number(restored.vipLevel ?? 1));
+      const premiumCommRate = (vipConfig.commission ?? 0.005) * 10;
+      premiumProfit = roundMoney(bundleValue * premiumCommRate);
+    }
+  }
+
+  const settledBalanceTarget = roundMoney(preFreezeBalance + settledUpholdAmount + residualBalance + premiumProfit);
 
   restored.balance = settledBalanceTarget;
   restored.holdAmount = 0;
@@ -12146,7 +12162,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
       }
 
       if (shouldUnfreezeAccount) {
-        const restored = restoreUserToNaturalState(normalizedUser);
+        const restored = await restoreUserToNaturalState(normalizedUser);
         Object.assign(normalizedUser, restored);
         normalizedUser.pendingTaskReset = false;
       }
@@ -12260,7 +12276,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/recalculate-finan
 
       let recalculatedUser = { ...normalizedUser };
       if (shouldAutoUnfreeze) {
-        recalculatedUser = restoreUserToNaturalState(recalculatedUser);
+        recalculatedUser = await restoreUserToNaturalState(recalculatedUser);
         recalculatedUser.pendingTaskReset = false;
       }
 
@@ -12417,7 +12433,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
         if (shouldAutoUnfreeze) {
           userAutoUnfrozen = true;
           changed = true;
-          normalizedUser = restoreUserToNaturalState(normalizedUser);
+          normalizedUser = await restoreUserToNaturalState(normalizedUser);
           normalizedUser.pendingTaskReset = false;
         }
 
