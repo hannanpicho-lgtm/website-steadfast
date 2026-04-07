@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, Component, type ReactNode, type ErrorInfo } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import { defaultVipConfigurations, initialProductCatalog, initialAdminRoles } from '../admin/adminData';
@@ -67,6 +67,42 @@ function AdminPanelFallback({ label }: { label: string }) {
       {label}
     </div>
   );
+}
+
+class AdminSectionBoundary extends Component<
+  { children: ReactNode; sectionName: string; onRetry?: () => void },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(`[Admin] ${this.props.sectionName} crashed:`, error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="bg-[#252b3d] border border-red-400/30 rounded-lg p-8 text-center">
+          <p className="text-red-300 font-semibold mb-2">This section encountered an error</p>
+          <p className="text-gray-400 text-sm mb-4">The {this.props.sectionName} section could not be displayed.</p>
+          <button
+            onClick={() => {
+              this.setState({ hasError: false });
+              this.props.onRetry?.();
+            }}
+            className="px-4 py-2 bg-[#00D9FF] text-[#1a1f2e] rounded-lg font-semibold hover:bg-[#00c5e6] transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export default function Admin() {
@@ -2244,8 +2280,9 @@ export default function Admin() {
 
       case 'rewards-system':
         return (
-          <Suspense fallback={<AdminPanelFallback label="Loading rewards system..." />}>
-            <RewardsSystem
+          <AdminSectionBoundary sectionName="Rewards & Salary" onRetry={() => void loadRewardsConfigurations()}>
+            <Suspense fallback={<AdminPanelFallback label="Loading rewards system..." />}>
+              <RewardsSystem
               activeRewardTab={activeRewardTab}
               setActiveRewardTab={setActiveRewardTab}
               rewardsConfig={rewardsConfig}
@@ -2279,7 +2316,8 @@ export default function Admin() {
               requestRestoreSalaryPoint={requestRestoreSalaryPoint}
               deleteSalaryPointById={deleteSalaryPointById}
             />
-          </Suspense>
+            </Suspense>
+          </AdminSectionBoundary>
         );
 
       case 'product-management':
@@ -2352,8 +2390,9 @@ export default function Admin() {
 
       case 'tasks':
         return (
-          <Suspense fallback={<AdminPanelFallback label="Loading tasks..." />}>
-            <Tasks
+          <AdminSectionBoundary sectionName="Task Management" onRetry={() => void loadTaskConfigurations()}>
+            <Suspense fallback={<AdminPanelFallback label="Loading tasks..." />}>
+              <Tasks
               taskConfigurations={taskConfigurations}
               tasksLoading={tasksLoading}
               editingTaskId={editingTaskId}
@@ -2366,12 +2405,14 @@ export default function Admin() {
               handleSaveTaskInlineEdit={handleSaveTaskInlineEdit}
               handleDeleteTaskInline={handleDeleteTaskInline}
             />
-          </Suspense>
+            </Suspense>
+          </AdminSectionBoundary>
         );
 
       case 'vip-config':
         return (
-          <>
+          <AdminSectionBoundary sectionName="VIP Configuration" onRetry={() => void loadVipConfigurations()}>
+            <>
             <div className="mb-4 flex justify-end">
               <button
                 type="button"
@@ -2396,7 +2437,8 @@ export default function Admin() {
                 handleSaveVipInlineEdit={handleSaveVipInlineEdit}
               />
             </Suspense>
-          </>
+            </>
+          </AdminSectionBoundary>
         );
 
       case 'withdrawals':

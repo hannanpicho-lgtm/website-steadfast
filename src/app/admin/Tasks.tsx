@@ -107,7 +107,7 @@ export default function Tasks({
                         className="w-full bg-[#11182a] border border-gray-600 rounded px-2 py-1 text-white font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
                       />
                     ) : (
-                      <p className="text-white font-bold text-lg">${task.price.toFixed(2)}</p>
+                      <p className="text-white font-bold text-lg">${(Number(task.price) || 0).toFixed(2)}</p>
                     )}
                   </div>
                   <div className="bg-[#1a1f2e] p-3 rounded-lg">
@@ -125,7 +125,7 @@ export default function Tasks({
                         <span className="text-[#00D9FF] font-bold">%</span>
                       </div>
                     ) : (
-                      <p className="text-[#00D9FF] font-bold text-lg">{(task.commission * 100).toFixed(2)}%</p>
+                      <p className="text-[#00D9FF] font-bold text-lg">{((Number(task.commission) || 0) * 100).toFixed(2)}%</p>
                     )}
                   </div>
                   <div className="bg-[#1a1f2e] p-3 rounded-lg">

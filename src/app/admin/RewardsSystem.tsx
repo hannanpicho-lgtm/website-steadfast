@@ -299,7 +299,7 @@ export default function RewardsSystem({
               <p className="text-gray-400 text-sm">Configure daily attendance salary rewards</p>
             </div>
             <div className="space-y-3">
-              {rewardsConfig.workday.map((reward: any) => (
+              {(rewardsConfig?.workday ?? []).map((reward: any) => (
                 <div key={reward.id} className="bg-[#1a1f2e] rounded-lg p-4 flex items-center justify-between hover:ring-2 hover:ring-[#00D9FF] transition-all">
                   <div className="flex items-center gap-4 flex-1">
                     <div className="bg-blue-500/20 p-3 rounded-lg">
@@ -316,7 +316,7 @@ export default function RewardsSystem({
                     </div>
                     <div className="text-right">
                       <p className="text-gray-400 text-xs">Salary Amount</p>
-                      <p className="text-[#00D9FF] font-bold text-2xl">${reward.salary.toLocaleString()}</p>
+                      <p className="text-[#00D9FF] font-bold text-2xl">${(Number(reward.salary) || 0).toLocaleString()}</p>
                     </div>
                   </div>
                   <button 
@@ -341,7 +341,7 @@ export default function RewardsSystem({
               <p className="text-gray-400 text-sm">Configure deposit-based bonus rewards</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {rewardsConfig.reset.map((reward: any) => (
+              {(rewardsConfig?.reset ?? []).map((reward: any) => (
                 <div key={reward.id} className={`${reward.color} rounded-xl p-5 relative overflow-hidden hover:ring-4 hover:ring-[#00D9FF] transition-all`}>
                   <div className={`absolute top-2 right-2 px-2 py-1 ${reward.labelColor} text-white rounded-full text-xs font-bold`}>
                     {reward.label}
@@ -351,11 +351,11 @@ export default function RewardsSystem({
                   </div>
                   <div className="mt-6 mb-3 text-center">
                     <p className="text-black text-xs mb-1">Deposit Amount</p>
-                    <p className="text-black font-bold text-2xl">${reward.deposit.toLocaleString()}</p>
+                    <p className="text-black font-bold text-2xl">${(Number(reward.deposit) || 0).toLocaleString()}</p>
                   </div>
                   <div className="mb-4 text-center">
                     <p className="text-black text-xs mb-1">Extra Reward</p>
-                    <p className="text-black font-bold text-3xl">${reward.reward.toLocaleString()}</p>
+                    <p className="text-black font-bold text-3xl">${(Number(reward.reward) || 0).toLocaleString()}</p>
                   </div>
                   <button 
                     onClick={() => { setSelectedItem(reward); setModalType('edit-reset-reward'); }}
@@ -380,7 +380,7 @@ export default function RewardsSystem({
               <p className="text-gray-400 text-sm">Daily deposit accumulation percentage rewards</p>
             </div>
             <div className="space-y-3">
-              {rewardsConfig.accumulated.map((reward: any) => (
+              {(rewardsConfig?.accumulated ?? []).map((reward: any) => (
                 <div key={reward.id} className="bg-[#1a1f2e] rounded-lg p-5 hover:ring-2 hover:ring-[#00D9FF] transition-all">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4 flex-1">
@@ -390,7 +390,7 @@ export default function RewardsSystem({
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-1">
                           <h4 className="text-white font-bold text-lg">
-                            ${reward.minDeposit.toLocaleString()} {reward.maxDeposit ? `- $${reward.maxDeposit.toLocaleString()}` : '& Above'}
+                            ${(Number(reward.minDeposit) || 0).toLocaleString()} {reward.maxDeposit ? `- $${(Number(reward.maxDeposit) || 0).toLocaleString()}` : '& Above'}
                           </h4>
                           <span className={`px-2 py-1 rounded text-xs font-semibold ${reward.enabled ? 'bg-green-500/20 text-green-300' : 'bg-gray-500/20 text-gray-400'}`}>
                             {reward.enabled ? 'Active' : 'Inactive'}
@@ -402,7 +402,7 @@ export default function RewardsSystem({
                     <div className="flex items-center gap-4">
                       <div className="text-right">
                         <p className="text-gray-400 text-xs mb-1">Reward Rate</p>
-                        <p className="text-[#00D9FF] font-bold text-3xl">{(reward.rate * 100).toFixed(1)}%</p>
+                        <p className="text-[#00D9FF] font-bold text-3xl">{((Number(reward.rate) || 0) * 100).toFixed(1)}%</p>
                       </div>
                       <button 
                         onClick={() => { setSelectedItem(reward); setModalType('edit-accumulated-reward'); }}
@@ -439,7 +439,7 @@ export default function RewardsSystem({
                   <Package className="text-blue-400" size={24} />
                   <h4 className="text-white font-bold">Products Per Set</h4>
                 </div>
-                <p className="text-[#00D9FF] font-bold text-3xl">{rewardsConfig.productSystem.productsPerSet}</p>
+                <p className="text-[#00D9FF] font-bold text-3xl">{rewardsConfig?.productSystem?.productsPerSet ?? 0}</p>
                 <p className="text-gray-400 text-sm mt-1">Number of products in each task set</p>
               </div>
               <div className="bg-[#1a1f2e] rounded-lg p-5 border-l-4 border-green-500">
@@ -447,7 +447,7 @@ export default function RewardsSystem({
                   <Zap className="text-green-400" size={24} />
                   <h4 className="text-white font-bold">Max Sets Per Day</h4>
                 </div>
-                <p className="text-green-400 font-bold text-3xl">{rewardsConfig.productSystem.maxSetsPerDay}</p>
+                <p className="text-green-400 font-bold text-3xl">{rewardsConfig?.productSystem?.maxSetsPerDay ?? 0}</p>
                 <p className="text-gray-400 text-sm mt-1">Maximum task sets users can complete daily</p>
               </div>
               <div className="bg-[#1a1f2e] rounded-lg p-5 border-l-4 border-yellow-500">
@@ -455,7 +455,7 @@ export default function RewardsSystem({
                   <Clock className="text-yellow-400" size={24} />
                   <h4 className="text-white font-bold">Min Time Per Product</h4>
                 </div>
-                <p className="text-yellow-400 font-bold text-3xl">{rewardsConfig.productSystem.minTimePerProduct}s</p>
+                <p className="text-yellow-400 font-bold text-3xl">{rewardsConfig?.productSystem?.minTimePerProduct ?? 0}s</p>
                 <p className="text-gray-400 text-sm mt-1">Minimum time required per product task</p>
               </div>
               <div className="bg-[#1a1f2e] rounded-lg p-5 border-l-4 border-purple-500">
@@ -463,8 +463,8 @@ export default function RewardsSystem({
                   <Check className="text-purple-400" size={24} />
                   <h4 className="text-white font-bold">Auto-Approve Commission</h4>
                 </div>
-                <p className={`font-bold text-3xl ${rewardsConfig.productSystem.autoApproveCommission ? 'text-green-400' : 'text-red-400'}`}>
-                  {rewardsConfig.productSystem.autoApproveCommission ? 'ON' : 'OFF'}
+                <p className={`font-bold text-3xl ${rewardsConfig?.productSystem?.autoApproveCommission ? 'text-green-400' : 'text-red-400'}`}>
+                  {rewardsConfig?.productSystem?.autoApproveCommission ? 'ON' : 'OFF'}
                 </p>
                 <p className="text-gray-400 text-sm mt-1">Automatically approve commission payments</p>
               </div>
@@ -484,7 +484,7 @@ export default function RewardsSystem({
                 <p className="text-gray-400 text-xs">Pending Payments</p>
               </div>
               <p className="text-2xl font-bold text-white">{salaryPayments.filter(p => p.status === 'Pending').length}</p>
-              <p className="text-gray-400 text-xs mt-1">${salaryPayments.filter(p => p.status === 'Pending').reduce((sum: number, p: any) => sum + p.salaryDue, 0).toLocaleString()} total</p>
+              <p className="text-gray-400 text-xs mt-1">${salaryPayments.filter(p => p.status === 'Pending').reduce((sum: number, p: any) => sum + (Number(p.salaryDue) || 0), 0).toLocaleString()} total</p>
             </div>
             <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
@@ -492,7 +492,7 @@ export default function RewardsSystem({
                 <p className="text-gray-400 text-xs">Paid This Month</p>
               </div>
               <p className="text-2xl font-bold text-white">{salaryPayments.filter(p => p.status === 'Paid').length}</p>
-              <p className="text-gray-400 text-xs mt-1">${salaryPayments.filter(p => p.status === 'Paid').reduce((sum: number, p: any) => sum + p.salaryDue, 0).toLocaleString()} total</p>
+              <p className="text-gray-400 text-xs mt-1">${salaryPayments.filter(p => p.status === 'Paid').reduce((sum: number, p: any) => sum + (Number(p.salaryDue) || 0), 0).toLocaleString()} total</p>
             </div>
             <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-4">
               <div className="flex items-center gap-2 mb-2">
@@ -542,7 +542,7 @@ export default function RewardsSystem({
                         <span className="text-white font-bold">{payment.daysWorked} days</span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-[#00D9FF] font-bold text-lg">${payment.salaryDue.toLocaleString()}</span>
+                        <span className="text-[#00D9FF] font-bold text-lg">${(Number(payment.salaryDue) || 0).toLocaleString()}</span>
                       </td>
                       <td className="px-6 py-4">
                         <span className="text-gray-300">{payment.dueDate}</span>

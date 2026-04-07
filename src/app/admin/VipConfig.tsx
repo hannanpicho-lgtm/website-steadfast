@@ -58,16 +58,17 @@ export default function VipConfig({
           {vipConfigurations.map((vip) => {
             const label = tierLabelMap[vip.color] ?? vip.name;
             const colorClass = tierColorMap[vip.color] ?? 'text-white';
-            const commPct = (vip.commission * 100).toFixed(vip.commission * 100 >= 1 ? 1 : 2);
+            const commVal = Number(vip.commission) || 0;
+            const commPct = (commVal * 100).toFixed(commVal * 100 >= 1 ? 1 : 2);
             const priceMin = Number(vip.taskPriceMin ?? 0);
             const priceMax = Number(vip.taskPriceMax ?? 0);
             const hasControlledRange = priceMin > 0 && priceMax > 0 && priceMax >= priceMin;
             const cycleMinCommission = hasControlledRange
-              ? priceMin * vip.commission * vip.dailyTasks
+              ? priceMin * commVal * (Number(vip.dailyTasks) || 0)
               : 0;
             const cycleMaxCommission = hasControlledRange
-              ? priceMax * vip.commission * vip.dailyTasks
-              : vip.dailyTasks * 100 * vip.commission;
+              ? priceMax * commVal * (Number(vip.dailyTasks) || 0)
+              : (Number(vip.dailyTasks) || 0) * 100 * commVal;
             const rangeStr = priceMin > 0 && priceMax > 0
               ? `$${priceMin.toLocaleString()} – $${priceMax.toLocaleString()}`
               : 'Not set';
@@ -134,7 +135,7 @@ export default function VipConfig({
                         className="w-full bg-[#11182a] border border-gray-600 rounded px-3 py-2 text-white font-bold text-lg focus:border-[#00D9FF] focus:outline-none"
                       />
                     ) : (
-                      <p className="text-white font-bold text-xl">${vip.investment.toLocaleString()}</p>
+                      <p className="text-white font-bold text-xl">${(Number(vip.investment) || 0).toLocaleString()}</p>
                     )}
                   </div>
                   <div className="bg-[#1a1f2e] p-4 rounded-lg">
@@ -175,7 +176,7 @@ export default function VipConfig({
                         <span className="text-green-400 font-bold">%</span>
                       </div>
                     ) : (
-                      <p className="text-green-400 font-bold text-xl">{(vip.commission * 100).toFixed(1)}%</p>
+                      <p className="text-green-400 font-bold text-xl">{((Number(vip.commission) || 0) * 100).toFixed(1)}%</p>
                     )}
                   </div>
                   <div className="bg-[#1a1f2e] p-4 rounded-lg">

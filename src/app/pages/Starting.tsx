@@ -385,12 +385,7 @@ export default function Starting() {
   const estimatedCommission = currentProduct ? currentProduct.price * (commissionRate / 100) : 0;
   const premiumTopUpRequired = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
   const premiumSubmissionBlocked = Boolean(userData?.activePremium) && premiumTopUpRequired > 0;
-  const frozenUpholdAmount = Number(
-    userData?.activePremium?.topUpRequired
-    ?? userData?.activePremium?.negativeAmount
-    ?? userData?.holdAmount
-    ?? 0,
-  );
+  const frozenUpholdAmount = roundMoney(Math.max(0, Number(userData?.balance ?? 0)));
   const frozenCurrentBalanceBeforeFreeze = Number(
     userData?.activePremium?.balanceBeforeAssignment
     ?? userData?.balance
@@ -408,9 +403,11 @@ export default function Starting() {
   const todayCommissionDisplay = roundMoney(
     Number(userData?.todayCommission ?? 0) + (userData?.isFrozen ? premiumProfitContributionForDisplay : 0),
   );
-  const totalAccountBalanceDisplay = roundMoney(Math.max(0, Number(userData?.balance ?? 0)));
+  const totalAccountBalanceDisplay = userData?.isFrozen
+    ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze + frozenUpholdAmount + premiumProfitContributionForDisplay))
+    : roundMoney(Math.max(0, Number(userData?.balance ?? 0)));
   const afterSettlementProjection = userData?.isFrozen
-    ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze + frozenUpholdAmount + earnedPremiumProfit))
+    ? roundMoney(Math.max(0, frozenCurrentBalanceBeforeFreeze + frozenUpholdAmount + premiumProfitContributionForDisplay))
     : roundMoney(Math.max(0, Number(userData?.availableAmount ?? ((userData?.balance ?? 0) - (userData?.holdAmount ?? 0)))));
   const requiredFundsForVip = userData
     ? Number(vipConfigurations.find((tier) => tier.level === userData.vipLevel)?.investment ?? 100)
