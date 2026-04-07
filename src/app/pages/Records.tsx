@@ -107,7 +107,8 @@ type PendingPremiumRecordItem = {
 
 type RecordListItem = CompletedRecordItem | PendingPremiumRecordItem;
 
-const RECORDS_REQUEST_TIMEOUT_MS = 10000;
+const RECORDS_REQUEST_TIMEOUT_MS = 5000;
+const RECORDS_V2_TIMEOUT_MS = 6000;
 const RECORDS_USER_CACHE_TTL_MS = 45 * 1000;
 const RECORDS_SNAPSHOT_CACHE_TTL_MS = 60 * 1000;
 
@@ -177,9 +178,9 @@ export default function Records() {
       init: {
         credentials: 'include',
       },
-      timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
-      retries: 2,
-      retryDelayMs: 300,
+      timeoutMs: RECORDS_V2_TIMEOUT_MS,
+      retries: 1,
+      retryDelayMs: 200,
       cacheKey: buildUserScopedCacheKey('records:snapshot', username ?? '', 'v2'),
       cacheTtlMs: RECORDS_SNAPSHOT_CACHE_TTL_MS,
       pageTag: 'records',
@@ -197,7 +198,7 @@ export default function Records() {
         },
         timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
         retries: 1,
-        retryDelayMs: 250,
+        retryDelayMs: 200,
         pageTag: 'records-fallback',
       }),
       fetchJsonWithRetry<TaskRecord[]>({
@@ -207,7 +208,7 @@ export default function Records() {
         },
         timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
         retries: 1,
-        retryDelayMs: 250,
+        retryDelayMs: 200,
         pageTag: 'records-fallback',
       }),
       fetchJsonWithRetry<TransactionRecord[]>({
@@ -217,7 +218,7 @@ export default function Records() {
         },
         timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
         retries: 1,
-        retryDelayMs: 250,
+        retryDelayMs: 200,
         pageTag: 'records-fallback',
       }),
       fetchJsonWithRetry<any>({
@@ -230,7 +231,7 @@ export default function Records() {
         },
         timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
         retries: 1,
-        retryDelayMs: 250,
+        retryDelayMs: 200,
         pageTag: 'records-fallback',
       }),
       fetchJsonWithRetry<any>({
@@ -243,7 +244,7 @@ export default function Records() {
         },
         timeoutMs: RECORDS_REQUEST_TIMEOUT_MS,
         retries: 1,
-        retryDelayMs: 250,
+        retryDelayMs: 200,
         pageTag: 'records-fallback',
       }),
     ]);
@@ -302,8 +303,8 @@ export default function Records() {
       setVipConfigurations(Array.isArray(snapshot?.vipConfig) ? snapshot.vipConfig : []);
     } catch (error) {
       console.error('Error fetching data:', error);
-      setLoadError('Failed to refresh records due to network instability.');
       if (shouldBlockRender) {
+        setLoadError('Failed to refresh records due to network instability.');
         toast.error('Failed to load your records. Please refresh and try again.');
       }
     } finally {

@@ -5672,6 +5672,15 @@ app.post('/make-server-a1c55d7e/referral/link-user', async (c: any) => {
       userData.transactionPassword = await hashPassword(rawTransactionPassword);
     }
 
+    // Inherit admin ownership from the parent's referral chain so this user
+    // appears in the correct admin tree instead of showing as "Direct".
+    if (!userData.referredByAdminId) {
+      const parentData = await getOrCreateUserRecord(parentUsername);
+      if (parentData.referredByAdminId) {
+        userData.referredByAdminId = parentData.referredByAdminId;
+      }
+    }
+
     await kv.set(`user:${canonicalUsername}`, userData);
     await assignUsernameLookup(canonicalUsername);
     await kv.set(`referral:invite:${invitationCode}`, canonicalUsername);
@@ -6053,8 +6062,18 @@ app.post('/make-server-a1c55d7e/auth/signup', async (c: any) => {
       userData.referredByAdminId = effectiveAdminRecord.subAdminId;
       effectiveAdminRecord.usageCount = (typeof effectiveAdminRecord.usageCount === 'number' ? effectiveAdminRecord.usageCount : 0) + 1;
       await kv.set(`admin:invite:code:${effectiveAdminInviteCode}`, effectiveAdminRecord);
+    }
+
+    // Inherit admin ownership from the referral chain: if this user signed up
+    // with another user's invitation code (not an admin code), walk up the
+    // parent chain to inherit referredByAdminId so the user appears in the
+    // correct admin tree instead of showing as "Direct".
+    if (!userData.referredByAdminId && parentUsernameRaw) {
+      const parentData = await getOrCreateUserRecord(parentUsernameRaw);
+      if (parentData.referredByAdminId) {
+        userData.referredByAdminId = parentData.referredByAdminId;
       }
-    
+    }
 
     await kv.set(`user:${username}`, userData);
     await assignUsernameLookup(username);
