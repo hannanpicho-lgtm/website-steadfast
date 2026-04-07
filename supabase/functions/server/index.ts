@@ -684,7 +684,8 @@ app.use(
       "x-client-contract-version",
       "x-client-app-version",
       "x-client-platform",
-      "x-client-supported-api-versions"
+      "x-client-supported-api-versions",
+      "x-client-expected-api-version"
     ],
     allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length", "X-Request-Id"],

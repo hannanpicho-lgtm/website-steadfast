@@ -673,18 +673,17 @@ export default function Starting() {
       return;
     }
 
+    // Declare outside try so it's accessible in catch for stale-while-revalidate
+    const cachedUser = readFinancialSummaryCache(username);
+    const cachedTaskCatalog = readTaskCatalogCache();
+    const hasCachedData = Boolean(cachedUser && cachedTaskCatalog);
+
     try {
       const fetchStart = performance.now();
       let sessionFetchMs: number | null = null;
       let catalogFetchMs: number | null = null;
       let sessionLoadOk = false;
       let catalogLoadOk = false;
-
-      // Stale-while-revalidate: if we have cached data, show it immediately
-      // and fetch fresh data in the background without showing the spinner.
-      const cachedUser = readFinancialSummaryCache(username);
-      const cachedTaskCatalog = readTaskCatalogCache();
-      const hasCachedData = Boolean(cachedUser && cachedTaskCatalog);
 
       if (hasCachedData) {
         // Render cached data instantly — no loading spinner
