@@ -126,20 +126,21 @@
 
   @keyframes marquee {
     0% {
-      transform: translateX(0);
+      transform: translate3d(0, 0, 0);
     }
     100% {
-      transform: translateX(-33.333%);
+      transform: translate3d(-50%, 0, 0);
     }
   }
 
   .animate-marquee {
-    animation: marquee 4s linear infinite;
+    animation: marquee 45s linear infinite;
+    will-change: transform;
   }
 
   @media (max-width: 640px) {
     .animate-marquee {
-      animation: marquee 3s linear infinite;
+      animation: marquee 25s linear infinite;
     }
   }
 

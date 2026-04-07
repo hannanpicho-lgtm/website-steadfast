@@ -90,7 +90,17 @@ export function UserLiveChat({ isOpen, onClose }: UserLiveChatProps) {
         fetchUserChatSummary(),
       ]);
 
-      setMessages(nextMessages);
+      // When refreshing silently (e.g. after sending), merge instead of
+      // replacing to avoid a visual flash.  Only swap the array if the
+      // server returned genuinely new content.
+      setMessages((prev) => {
+        if (!silent) return nextMessages;
+        // Strip optimistic entries (id starts with "opt-") and compare count
+        const realPrev = prev.filter((m) => !m.id.startsWith('opt-'));
+        const serverHasNew = nextMessages.length !== realPrev.length
+          || nextMessages.some((m, i) => realPrev[i]?.id !== m.id);
+        return serverHasNew ? nextMessages : prev;
+      });
       setThreadSummary(nextSummary);
       setConnectionState('live');
 

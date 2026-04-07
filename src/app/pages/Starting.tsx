@@ -995,7 +995,7 @@ export default function Starting() {
         </div>
         {/* Scrolling winners */}
         <div className="pl-28 animate-marquee whitespace-nowrap">
-          {[...liveTickerEntries, ...liveTickerEntries, ...liveTickerEntries].map((entry, idx) => (
+          {[...liveTickerEntries, ...liveTickerEntries].map((entry, idx) => (
             <span key={`${entry.user}-${idx}`}>
               <span className="mx-3 text-sm font-semibold text-[#00D9FF]">
                 {entry.emoji} <span className="text-white">{entry.user}</span> just won <span className="text-[#00D9FF] font-bold">{entry.amount}</span>
