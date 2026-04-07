@@ -2,11 +2,19 @@
 @import './tailwind.css';
 @import './theme.css';
 
+/* ─── Global paint hints ─────────────────────────────────────── */
+/* Force GPU compositing on the root so all transforms are offloaded */
+#root {
+  isolation: isolate;
+}
+
 /* ─── Global polish ──────────────────────────────────────────── */
 html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Prevent layout shift from scrollbar appearing/disappearing */
+  scrollbar-gutter: stable;
 }
 
 /* Text selection — platform accent */
@@ -15,77 +23,138 @@ html {
   color: inherit;
 }
 
-/* Subtle page-entrance animation driven by route lazy-loading */
+/* ─── Page enter — GPU-composited, zero layout work ─────────── */
 @keyframes sf-fade-in {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Applied to every top-level route container */
 .sf-page-enter {
-  animation: sf-fade-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: sf-fade-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity, transform;
 }
 
-/* Staggered entrance for child elements */
+/* ─── Staggered item entrances ───────────────────────────────── */
 @keyframes sf-stagger-in {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-.sf-stagger-1 { animation: sf-stagger-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.04s both; }
-.sf-stagger-2 { animation: sf-stagger-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both; }
-.sf-stagger-3 { animation: sf-stagger-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both; }
-.sf-stagger-4 { animation: sf-stagger-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both; }
-.sf-stagger-5 { animation: sf-stagger-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.20s both; }
+.sf-stagger-1 { animation: sf-stagger-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.03s both; will-change: opacity, transform; }
+.sf-stagger-2 { animation: sf-stagger-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.07s both; will-change: opacity, transform; }
+.sf-stagger-3 { animation: sf-stagger-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.11s both; will-change: opacity, transform; }
+.sf-stagger-4 { animation: sf-stagger-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.15s both; will-change: opacity, transform; }
+.sf-stagger-5 { animation: sf-stagger-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) 0.19s both; will-change: opacity, transform; }
 
-/* Shimmer loading skeleton effect */
+/* ─── Shimmer skeleton (GPU-composited via transform) ────────── */
 @keyframes sf-shimmer {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 .sf-shimmer {
-  background: linear-gradient(90deg, transparent 25%, rgba(0, 217, 255, 0.06) 50%, transparent 75%);
-  background-size: 200% 100%;
-  animation: sf-shimmer 1.8s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+  background: rgba(255,255,255,0.06);
+}
+.sf-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(0,217,255,0.08) 50%, transparent 100%);
+  animation: sf-shimmer 1.5s ease-in-out infinite;
+  will-change: transform;
 }
 
-/* Pulse glow for CTAs */
+/* ─── Pulse glow on CTAs ─────────────────────────────────────── */
 @keyframes sf-pulse-glow {
-  0%, 100% { box-shadow: 0 4px 20px rgba(0, 217, 255, 0.25); }
-  50%      { box-shadow: 0 4px 28px rgba(0, 217, 255, 0.45); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 217, 255, 0); }
+  50%       { box-shadow: 0 0 0 6px rgba(0, 217, 255, 0.18); }
 }
 .sf-pulse-glow {
   animation: sf-pulse-glow 2.4s ease-in-out infinite;
+  will-change: box-shadow;
 }
 
-/* Focus-visible ring using platform accent */
+/* ─── Card hover — translate only (GPU, no layout) ──────────── */
+.sf-card-hover {
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+.sf-card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(0, 217, 255, 0.1);
+}
+.sf-card-hover:active {
+  transform: translateY(0);
+  transition-duration: 80ms;
+}
+
+/* ─── Button press feedback (Linear-style) ───────────────────── */
+.btn-mobile-primary,
+.btn-mobile-icon,
+.btn-mobile-tab {
+  transition: transform 100ms cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 150ms ease,
+              box-shadow 150ms ease,
+              opacity 150ms ease;
+  will-change: transform;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-mobile-primary:active,
+.btn-mobile-icon:active,
+.btn-mobile-tab:active {
+  transform: scale(0.96);
+}
+
+/* ─── Focus-visible ring ─────────────────────────────────────── */
 :focus-visible {
-  outline: 2px solid rgba(0, 217, 255, 0.55);
+  outline: 2px solid rgba(0, 217, 255, 0.6);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
-/* Smooth colour / background transitions on interactive elements */
+/* ─── Smooth colour transitions on interactive elements ──────── */
+/* Only transition compositor-friendly properties */
 button,
 a,
 input,
 select,
 textarea {
-  transition-property: color, background-color, border-color, box-shadow, opacity, filter;
+  transition-property: color, background-color, border-color, opacity, transform, box-shadow;
   transition-duration: 150ms;
-  transition-timing-function: ease;
+  transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Scrollbar (Webkit) — subtle dark style that matches the platform */
+/* ─── Scrollbar (Webkit) ─────────────────────────────────────── */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 217, 255, 0.2);
+  background: rgba(0, 217, 255, 0.18);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 217, 255, 0.35);
+}
+
+/* ─── Reduce motion for accessibility ───────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .sf-page-enter,
+  .sf-stagger-1,
+  .sf-stagger-2,
+  .sf-stagger-3,
+  .sf-stagger-4,
+  .sf-stagger-5 {
+    animation: none;
+  }
+  .sf-shimmer::after {
+    animation: none;
+  }
+  .sf-pulse-glow {
+    animation: none;
+  }
 }

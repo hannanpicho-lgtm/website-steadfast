@@ -36,7 +36,7 @@ export default function Profile() {
   const [todayProfit, setTodayProfit] = useState<number>(0);
   const [totalCommission, setTotalCommission] = useState<number>(0);
   const [profileLoading, setProfileLoading] = useState(true);
-  const [referralCode, setReferralCode] = useState('STF01');
+  const [referralCode, setReferralCode] = useState<string | null>(null);
   const [financialSummary, setFinancialSummary] = useState<FinancialSummaryResponse | null>(null);
   const [bonusPreview, setBonusPreview] = useState<BonusFeedItem[]>([]);
   const [mustChangePassword, setMustChangePassword] = useState(false);
@@ -270,10 +270,16 @@ export default function Profile() {
             <div className="flex flex-col items-center justify-between">
               <p className="text-[11px] font-semibold text-white/85 mb-1 leading-tight">My Referral<br/>Code</p>
               <div className="flex items-center gap-1.5 min-h-[28px]">
-                <p className="text-base font-bold uppercase tracking-[0.12em]">{referralCode || '—'}</p>
-                <button onClick={handleCopyReferral} className="hover:opacity-80 rounded p-0.5 hover:bg-white/10" aria-label="Copy referral code">
-                  <Copy size={14} />
-                </button>
+                {referralCode === null ? (
+                  <span className="inline-block h-4 w-16 rounded sf-shimmer bg-white/10" aria-hidden="true" />
+                ) : (
+                  <>
+                    <p className="text-base font-bold uppercase tracking-[0.12em]">{referralCode}</p>
+                    <button onClick={handleCopyReferral} className="hover:opacity-80 rounded p-0.5 hover:bg-white/10" aria-label="Copy referral code">
+                      <Copy size={14} />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             <div className="flex flex-col items-center justify-between border-l border-r border-white/30">

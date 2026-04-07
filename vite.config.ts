@@ -19,6 +19,9 @@ export default defineConfig({
   },
 
   build: {
+    target: ['es2020', 'chrome80', 'safari13.1', 'firefox78'],
+    reportCompressedSize: false,
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
         manualChunks: {
@@ -30,6 +33,8 @@ export default defineConfig({
       },
     },
     minify: 'esbuild',
+    cssMinify: true,
+    assetsInlineLimit: 4096,
   },
 
   esbuild: {

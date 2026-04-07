@@ -34,7 +34,8 @@ export default function Deposit() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingBalance, setLoadingBalance] = useState(true);
+  const [loadingTransactions, setLoadingTransactions] = useState(true);
 
   const username = getCurrentUsername();
   const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
@@ -51,42 +52,50 @@ export default function Deposit() {
       return;
     }
 
-    const load = async () => {
-      setLoading(true);
+    const loadBalance = async () => {
+      setLoadingBalance(true);
       try {
-      const [userPayload, txPayload] = await Promise.all([
-        fetchJsonWithRetry<any>({
+        const userPayload = await fetchJsonWithRetry<any>({
           url: `${serverUrl}/me/financials`,
           init: { credentials: 'include' },
-          timeoutMs: 10000,
-          retries: 2,
+          timeoutMs: 8000,
+          retries: 1,
           retryDelayMs: 300,
           pageTag: 'deposit',
-        }),
-        fetchJsonWithRetry<any>({
+        });
+        setUserData({
+          balance: Number(userPayload.balance ?? 0),
+          holdAmount: Number(userPayload.holdAmount ?? 0),
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to load balance';
+        toast.error(message);
+      } finally {
+        setLoadingBalance(false);
+      }
+    };
+
+    const loadTransactions = async () => {
+      setLoadingTransactions(true);
+      try {
+        const txPayload = await fetchJsonWithRetry<any>({
           url: `${serverUrl}/me/transactions`,
           init: { credentials: 'include' },
           timeoutMs: 10000,
           retries: 2,
           retryDelayMs: 300,
           pageTag: 'deposit',
-        }),
-      ]);
-
-      setUserData({
-        balance: Number(userPayload.balance ?? 0),
-        holdAmount: Number(userPayload.holdAmount ?? 0),
-      });
-      setTransactions(Array.isArray(txPayload) ? txPayload : []);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to load deposit data';
-        toast.error(message);
+        });
+        setTransactions(Array.isArray(txPayload) ? txPayload : []);
+      } catch {
+        // Non-critical — balance still shows
       } finally {
-        setLoading(false);
+        setLoadingTransactions(false);
       }
     };
 
-    void load();
+    void loadBalance();
+    void loadTransactions();
   }, [location.pathname, navigate, username, serverUrl]);
 
   const handleTopUp = () => {
@@ -124,7 +133,7 @@ export default function Deposit() {
           <h1 className="text-2xl font-bold text-[#00D9FF] flex-1 text-center mr-10">Deposit</h1>
         </div>
 
-        {loading ? (
+        {loadingBalance ? (
           <div className="flex justify-center items-center min-h-[300px]">
             <Loader2 size={32} className="animate-spin text-[#00D9FF]" />
           </div>
@@ -184,7 +193,22 @@ export default function Deposit() {
             </div>
 
             {/* Activity Content */}
-            {visibleTx.length === 0 ? (
+            {loadingTransactions ? (
+              <div className="space-y-3">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="bg-[#252d42]/80 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-24 rounded sf-shimmer bg-white/10" />
+                      <div className="h-3 w-16 rounded sf-shimmer bg-white/10" />
+                    </div>
+                    <div className="flex flex-col items-end gap-2 ml-4">
+                      <div className="h-4 w-20 rounded sf-shimmer bg-white/10" />
+                      <div className="h-3 w-14 rounded sf-shimmer bg-white/10" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : visibleTx.length === 0 ? (
               <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-12 text-center min-h-[200px] flex items-center justify-center">
                 <p className="text-gray-400">No transactions found</p>
               </div>
