@@ -3588,16 +3588,14 @@ function normalizeUserRecord(userData: any, username: string) {
   normalized.tasksCompleted = Number.isFinite(Number(normalized.tasksCompleted)) ? Number(normalized.tasksCompleted) : 0;
   normalized.tasksLimit = Number.isFinite(Number(normalized.tasksLimit)) ? Number(normalized.tasksLimit) : 40;
   normalized.taskSetCountOverride = Number.isFinite(Number(normalized.taskSetCountOverride))
-    ? Math.max(1, Math.round(Number(normalized.taskSetCountOverride)))
+    ? Math.max(2, Math.round(Number(normalized.taskSetCountOverride)))
     : null;
   normalized.tasksPerSetOverride = Number.isFinite(Number(normalized.tasksPerSetOverride))
     ? Math.max(1, Math.round(Number(normalized.tasksPerSetOverride)))
     : null;
-  // Business rule: if no admin override is set, task set count must be at least 2.
-  // Admin per-user overrides (taskSetCountOverride) can still explicitly set 1.
-  const _minTaskSets = normalized.taskSetCountOverride === null ? 2 : 1;
+  // Business rule: task set count must always be at least 2, regardless of source.
   normalized.taskSetCount = Number.isFinite(Number(normalized.taskSetCount))
-    ? Math.max(_minTaskSets, Math.round(Number(normalized.taskSetCount)))
+    ? Math.max(2, Math.round(Number(normalized.taskSetCount)))
     : 2;
   normalized.manualVipLevel = Number.isFinite(Number(normalized.manualVipLevel))
     ? Math.max(1, Math.min(5, Math.round(Number(normalized.manualVipLevel))))
@@ -12093,7 +12091,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
 
       const before = snapshotFinancialState(normalizedUser);
       const nextTaskSetCount = Number.isFinite(Number(body?.taskSetCount))
-        ? Math.max(1, Math.round(Number(body.taskSetCount)))
+        ? Math.max(2, Math.round(Number(body.taskSetCount)))
         : normalizedUser.taskSetCount;
       const vipConfig = await getVipConfigForLevel(Number(normalizedUser.vipLevel ?? 1));
       const nextTasksPerSet = Math.max(1, Math.round(Number(vipConfig.dailyTasks ?? normalizedUser.tasksPerSet ?? 1)));
