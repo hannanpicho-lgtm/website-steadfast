@@ -4458,6 +4458,11 @@ async function restoreUserToNaturalState(userData: any) {
   restored.holdAmount = 0;
   restored.isFrozen = false;
 
+  // Add premium profit to today's commission so it persists after unfreeze
+  if (premiumProfit > 0) {
+    restored.todayCommission = roundMoney(Number(restored.todayCommission ?? 0) + premiumProfit);
+  }
+
   if (restored.activePremium && typeof restored.activePremium === 'object') {
     restored.activePremium = {
       ...restored.activePremium,

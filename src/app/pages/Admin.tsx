@@ -568,16 +568,19 @@ export default function Admin() {
 
     try {
       const headers = await buildAdminAuthHeaders();
+      const reconcileController = new AbortController();
+      const reconcileTimeout = setTimeout(() => reconcileController.abort(), 120_000);
       const response = await fetch(`${serverUrl}/admin/platform-users/reconcile-premium-settlements`, {
         method: 'POST',
         headers,
+        signal: reconcileController.signal,
         body: JSON.stringify({
           username: params?.username,
           dryRun: params?.dryRun ?? false,
           reconcileTodayCommission: false,
           maxUsers: params?.maxUsers,
         }),
-      });
+      }).finally(() => clearTimeout(reconcileTimeout));
 
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
