@@ -154,11 +154,14 @@ function isCorsOriginAllowed(origin: string | undefined): boolean {
 }
 
 function resolveCorsOrigin(origin: string | undefined): string {
+  // When credentials: true is used, browsers reject wildcard '*'.
+  // Always echo the specific origin if it's in the allowlist.
   if (!origin) {
-    return isProductionEnvironment && configuredCorsAllowedOrigins.size === 0 ? '' : '*';
+    return '';
   }
 
   if (configuredCorsAllowedOrigins.size === 0) {
+    // Non-production: echo back the origin so credentials work
     return isProductionEnvironment ? '' : origin;
   }
 
