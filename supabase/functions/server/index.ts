@@ -4431,7 +4431,7 @@ async function getUserRecordWithDailyReset(username: string) {
   };
 }
 
-async function restoreUserToNaturalState(userData: any) {
+async function restoreUserToNaturalState(userData: any): Promise<any & { __premiumProfit?: number }> {
   const restored = { ...userData };
   const currentBalance = roundMoney(Number(restored.balance ?? 0));
   const preFreezeBalance = Number.isFinite(Number(restored?.activePremium?.balanceBeforeAssignment))
@@ -4491,6 +4491,9 @@ async function restoreUserToNaturalState(userData: any) {
   // on the first load after unfreeze.  Task counters are preserved across
   // the freeze period; the next natural daily reset will occur tomorrow.
   restored.lastTaskResetDate = getCommissionDateKey();
+
+  // Expose premium profit so call sites can credit referral commission
+  restored.__premiumProfit = premiumProfit;
 
   return restored;
 }
@@ -12221,8 +12224,15 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/task-controls', a
 
       if (shouldUnfreezeAccount) {
         const restored = await restoreUserToNaturalState(normalizedUser);
+        const premiumProfitForReferral = restored.__premiumProfit ?? 0;
+        delete restored.__premiumProfit;
         Object.assign(normalizedUser, restored);
         normalizedUser.pendingTaskReset = false;
+        // Credit parent referral commission on premium profit (20%)
+        if (premiumProfitForReferral > 0) {
+          creditParentReferralFromChildCommission(username, premiumProfitForReferral, normalizedUser)
+            .catch((e) => console.error(`Failed to credit referral for premium profit (${username}):`, e));
+        }
       }
 
       const persisted = await persistFinancialState({
@@ -12335,7 +12345,13 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/recalculate-finan
       let recalculatedUser = { ...normalizedUser };
       if (shouldAutoUnfreeze) {
         recalculatedUser = await restoreUserToNaturalState(recalculatedUser);
+        const premiumProfitForReferral = recalculatedUser.__premiumProfit ?? 0;
+        delete recalculatedUser.__premiumProfit;
         recalculatedUser.pendingTaskReset = false;
+        if (premiumProfitForReferral > 0) {
+          creditParentReferralFromChildCommission(canonicalUsername, premiumProfitForReferral, recalculatedUser)
+            .catch((e) => console.error(`Failed to credit referral for premium profit (${canonicalUsername}):`, e));
+        }
       }
 
       recalculatedUser.balance = roundMoney(Number(recalculatedUser.balance ?? 0));
@@ -12492,7 +12508,13 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
           userAutoUnfrozen = true;
           changed = true;
           normalizedUser = await restoreUserToNaturalState(normalizedUser);
+          const premiumProfitForReferral = normalizedUser.__premiumProfit ?? 0;
+          delete normalizedUser.__premiumProfit;
           normalizedUser.pendingTaskReset = false;
+          if (premiumProfitForReferral > 0) {
+            creditParentReferralFromChildCommission(username, premiumProfitForReferral, normalizedUser)
+              .catch((e) => console.error(`Failed to credit referral for premium profit (${username}):`, e));
+          }
         }
 
         const premiumPrefix = `premium:${username}:`;
