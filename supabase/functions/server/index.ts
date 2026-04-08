@@ -10163,7 +10163,7 @@ app.post('/make-server-a1c55d7e/admin/withdrawals/:withdrawalId/review', async (
           txHash,
           updatedAt: reviewedAt,
           date: reviewedAt,
-          description: action === 'approve' ? 'Withdrawal approved by admin' : 'Withdrawal rejected by admin',
+          description: action === 'approve' ? 'Withdrawal approved by Customer Service' : 'Withdrawal rejected by Customer Service',
         });
         writes.push({ key: transactionKey, value: updatedTransaction });
       }
@@ -13241,9 +13241,9 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/balance-adjustmen
         type: mode === 'credit' ? 'Deposit' : 'Withdrawal',
         amount,
         status: 'Completed',
-        method: 'Admin Adjustment',
+        method: 'Steadfast Adjustment',
         source: 'admin-adjustment',
-        description: `${mode === 'credit' ? 'Admin top-up' : 'Admin deduction'}: ${reason}`,
+        description: `${mode === 'credit' ? 'Customer Service top-up' : 'Customer Service deduction'}: ${reason}`,
         referenceId: adjustmentReferenceId,
       });
 

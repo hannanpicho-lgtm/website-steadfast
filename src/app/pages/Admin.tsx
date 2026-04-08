@@ -491,7 +491,7 @@ export default function Admin() {
       if (!response.ok) {
         throw new Error(payload?.error ?? `Failed to reset credentials (${response.status})`);
       }
-      toast.success(`Credentials set by admin for ${user.username}. User must change password at next login.`);
+      toast.success(`Credentials set for ${user.username}. User must change password at next login.`);
     } catch (error) {
       handleAdminRequestError(error, `Failed to reset credentials for ${user.username}`);
     }

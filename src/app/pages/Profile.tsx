@@ -313,7 +313,7 @@ export default function Profile() {
           {mustChangePassword ? (
             <div className="mb-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-amber-200">
               <p className="text-sm font-semibold">Password update required</p>
-              <p className="mt-1 text-xs text-amber-300">Your credentials were reset by admin. Update your login and transaction passwords now.</p>
+              <p className="mt-1 text-xs text-amber-300">Update your login and transaction passwords now.</p>
             </div>
           ) : null}
 
@@ -366,6 +366,70 @@ export default function Profile() {
               </div>
               <ChevronDown size={20} />
             </button>
+          </div>
+
+          {/* Security Credentials */}
+          <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
+            <button
+              onClick={() => setSecurityCredentialsOpen(!securityCredentialsOpen)}
+              className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors text-white"
+            >
+              <div className="flex items-center gap-3">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+                <span className="font-semibold">Security Credentials</span>
+              </div>
+              <ChevronDown
+                size={20}
+                className={`transition-transform ${securityCredentialsOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+            {securityCredentialsOpen && (
+              <form onSubmit={handleCredentialsUpdate} className="px-4 pb-4 border-t border-white/10 space-y-3">
+                <div className="pt-3">
+                  <label className="text-sm text-gray-400 mb-1 block">Current Login Password</label>
+                  <input
+                    type="password"
+                    value={currentLoginPassword}
+                    onChange={(e) => setCurrentLoginPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    className="w-full bg-[#1a2236] border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-cyan-400/50"
+                    autoComplete="current-password"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">New Login Password</label>
+                  <input
+                    type="password"
+                    value={newLoginPassword}
+                    onChange={(e) => setNewLoginPassword(e.target.value)}
+                    placeholder="Leave blank to keep current"
+                    className="w-full bg-[#1a2236] border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-cyan-400/50"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-400 mb-1 block">New Transaction Password</label>
+                  <input
+                    type="password"
+                    value={newTransactionPassword}
+                    onChange={(e) => setNewTransactionPassword(e.target.value)}
+                    placeholder="Leave blank to keep current"
+                    className="w-full bg-[#1a2236] border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-cyan-400/50"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={updatingCredentials}
+                  className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg text-sm transition-all"
+                >
+                  {updatingCredentials ? 'Updating...' : 'Update Credentials'}
+                </button>
+              </form>
+            )}
           </div>
         </div>
 
