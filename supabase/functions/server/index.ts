@@ -837,6 +837,7 @@ function isAdminScriptTokenScopeAllowedForRequest(scope: AdminScriptTokenScope, 
       { method: 'GET', path: /^\/admin\/platform-users\/[^/]+\/audit$/ },
       { method: 'POST', path: /^\/admin\/platform-users\/[^/]+\/recalculate-financial-state$/ },
       { method: 'POST', path: /^\/admin\/platform-users\/reconcile-premium-settlements$/ },
+      { method: 'POST', path: /^\/admin\/platform-users\/reconcile-task-progress$/ },
       { method: 'GET', path: /^\/admin\/platform-users\/discover-ghost-users$/ },
       { method: 'POST', path: /^\/admin\/platform-users\/[^/]+\/recover-ghost-user$/ },
       { method: 'POST', path: /^\/admin\/platform-users\/[^/]+\/reset-credentials$/ },
@@ -3705,8 +3706,12 @@ function normalizeUserRecord(userData: any, username: string) {
 
   // Daily task reset: when a new day starts, reset all task progress counters
   // so the user can begin a fresh work cycle without admin intervention.
+  // IMPORTANT: Frozen accounts MUST skip the daily reset — the user's task
+  // progress is preserved across the freeze period.  The reset will fire
+  // naturally on the first new-day load after the account is unfrozen because
+  // restoreUserToNaturalState sets lastTaskResetDate to the unfreeze day.
   const lastTaskReset = typeof normalized.lastTaskResetDate === 'string' ? normalized.lastTaskResetDate : '';
-  if (lastTaskReset !== today) {
+  if (lastTaskReset !== today && !normalized.isFrozen) {
     normalized.completedTaskSets = 0;
     normalized.tasksCompletedInSet = 0;
     normalized.tasksCompleted = 0;
@@ -4473,6 +4478,13 @@ async function restoreUserToNaturalState(userData: any) {
 
   restored.activePremium = null;
   restored.premiumQueue = [];
+
+  // Stamp lastTaskResetDate to today so that the daily-reset guard in
+  // normalizeUserRecord does NOT immediately wipe the user's task progress
+  // on the first load after unfreeze.  Task counters are preserved across
+  // the freeze period; the next natural daily reset will occur tomorrow.
+  restored.lastTaskResetDate = getCommissionDateKey();
+
   return restored;
 }
 
@@ -12656,6 +12668,136 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-premium-settlemen
   } catch (err) {
     console.error('admin/platform-users/reconcile-premium-settlements error:', err);
     return c.json({ error: 'Failed to reconcile premium settlements' }, 500);
+  }
+});
+
+// POST /admin/platform-users/reconcile-task-progress – super-admin only
+// Recovers task progress for users whose counters were incorrectly reset
+// (e.g. by the daily-reset bug that wiped frozen accounts on day boundary).
+// Counts actual task submission records for the current day and restores
+// tasksCompletedInSet / completedTaskSets / tasksCompleted accordingly.
+app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-task-progress', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = await enforceCriticalAdminRateLimit(c, 'admin-platform-users:reconcile-task-progress');
+    if (limited) return limited;
+
+    const callingAdmin = c.get('adminUser');
+    if (!isSuperAdmin(callingAdmin)) {
+      return c.json({ error: 'Only super-admin can reconcile task progress' }, 403);
+    }
+
+    const body = await c.req.json().catch(() => ({} as any));
+    const dryRun = body?.dryRun !== false;
+    const targetUsername = sanitizeUsername(body?.username);
+    const maxUsers = Number.isFinite(Number(body?.maxUsers))
+      ? Math.max(1, Math.min(500, Math.round(Number(body.maxUsers))))
+      : 500;
+
+    const today = getCommissionDateKey();
+    const allUsers = await kv.getByPrefix('user:');
+
+    let processed = 0;
+    let reconciled = 0;
+    let skipped = 0;
+    const report: any[] = [];
+
+    for (const raw of allUsers) {
+      if (processed >= maxUsers) break;
+      const username = typeof raw?.username === 'string' ? raw.username : null;
+      if (!username) { skipped++; continue; }
+      if (targetUsername && username !== targetUsername) { skipped++; continue; }
+
+      processed++;
+
+      // Count actual task submission records for today
+      const taskRecords = await kv.getByPrefix(`task:${username}:`);
+      const todayTasks = taskRecords.filter((t: any) => {
+        const ts = typeof t?.timestamp === 'string' ? t.timestamp : '';
+        return extractIsoDatePrefix(ts) === today;
+      });
+      const todayTaskCount = todayTasks.length;
+
+      // Also count Commission transactions for today as a secondary source
+      const transactions = await listTransactionRecords(username);
+      const todayCommissions = transactions.filter((tx: any) => {
+        if (tx?.type !== 'Commission') return false;
+        const txDate = extractIsoDatePrefix(typeof tx?.date === 'string' ? tx.date : tx?.createdAt);
+        return txDate === today;
+      });
+
+      const synced = await syncUserWithVipConfig(raw, username);
+      const tasksPerSet = Number(synced.tasksPerSet ?? 40);
+      const currentTasksCompleted = Number(synced.tasksCompleted ?? 0);
+      const actualTasksToday = Math.max(todayTaskCount, todayCommissions.length);
+
+      // Skip if counters already match reality (no drift)
+      if (currentTasksCompleted >= actualTasksToday || actualTasksToday === 0) {
+        skipped++;
+        continue;
+      }
+
+      // Derive the correct set-level counters from the actual count
+      const correctCompletedSets = Math.floor(actualTasksToday / tasksPerSet);
+      const correctInSetProgress = actualTasksToday % tasksPerSet;
+      const correctPendingReset = correctCompletedSets > 0 && correctInSetProgress === 0
+        && correctCompletedSets < Number(synced.taskSetCount ?? 2);
+
+      const before = {
+        tasksCompleted: currentTasksCompleted,
+        tasksCompletedInSet: Number(synced.tasksCompletedInSet ?? 0),
+        completedTaskSets: Number(synced.completedTaskSets ?? 0),
+      };
+
+      if (!dryRun) {
+        synced.tasksCompleted = actualTasksToday;
+        synced.completedTaskSets = correctCompletedSets;
+        synced.tasksCompletedInSet = correctInSetProgress;
+        if (correctPendingReset) {
+          synced.pendingTaskReset = true;
+        }
+        synced.lastTaskResetDate = today;
+        await kv.set(`user:${username}`, synced);
+        invalidateUserSnapshots(username);
+      }
+
+      reconciled++;
+      report.push({
+        username,
+        actualTasksToday,
+        todayTaskRecords: todayTaskCount,
+        todayCommissionRecords: todayCommissions.length,
+        before,
+        after: {
+          tasksCompleted: actualTasksToday,
+          tasksCompletedInSet: correctInSetProgress,
+          completedTaskSets: correctCompletedSets,
+        },
+      });
+    }
+
+    const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+    await recordObservabilityAuditEvent(
+      'admin-reconcile-task-progress',
+      actorEmail,
+      `Task progress reconciliation (dryRun: ${dryRun}, processed: ${processed}, reconciled: ${reconciled}${targetUsername ? `, target: ${targetUsername}` : ''})`,
+    ).catch((e) => console.error('Failed to record reconcile-task-progress audit event:', e));
+
+    return c.json({
+      dryRun,
+      today,
+      processed,
+      reconciled,
+      skipped,
+      report: report.slice(0, 100),
+    });
+  } catch (err) {
+    console.error('admin/platform-users/reconcile-task-progress error:', err);
+    return c.json({ error: 'Failed to reconcile task progress' }, 500);
   }
 });
 
