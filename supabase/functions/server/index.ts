@@ -5382,6 +5382,21 @@ async function buildFinancialSummaryResponse(username: string) {
     await kv.set(userKey, hydratedUserData);
   }
 
+  // Consolidate holdAmount for frozen accounts with stale data
+  if (hydratedUserData.isFrozen && hydratedUserData.activePremium) {
+    const expectedHold = roundMoney(Math.max(
+      0,
+      Number(hydratedUserData.activePremium.configuredUpholdAmount) ||
+      Number(hydratedUserData.activePremium.topUpRequired) ||
+      Number(hydratedUserData.activePremium.negativeAmount) ||
+      0,
+    ));
+    if (expectedHold > 0 && roundMoney(Number(hydratedUserData.holdAmount ?? 0)) === 0) {
+      hydratedUserData.holdAmount = expectedHold;
+      await kv.set(userKey, hydratedUserData);
+    }
+  }
+
   const balance = roundMoney(Number(hydratedUserData.balance ?? 0));
   const holdAmount = roundMoney(Number(hydratedUserData.holdAmount ?? 0));
   const availableAmount = roundMoney(balance - holdAmount);
@@ -6829,6 +6844,25 @@ async function handleStartingSnapshot(c: any) {
       vipTiers: Array.isArray(vipTiers) ? vipTiers : undefined,
       platformSettings: platformSettingsRaw,
     });
+
+    // Consolidate holdAmount for frozen accounts: if holdAmount is 0 but the
+    // active premium has a non-zero topUpRequired, sync them so the frontend
+    // always has the correct uphold/top-up value.
+    if (normalizedUserData.isFrozen && normalizedUserData.activePremium) {
+      const expectedHold = roundMoney(Math.max(
+        0,
+        Number(normalizedUserData.activePremium.configuredUpholdAmount) ||
+        Number(normalizedUserData.activePremium.topUpRequired) ||
+        Number(normalizedUserData.activePremium.negativeAmount) ||
+        0,
+      ));
+      if (expectedHold > 0 && roundMoney(Number(normalizedUserData.holdAmount ?? 0)) === 0) {
+        normalizedUserData.holdAmount = expectedHold;
+        // Persist the corrected holdAmount so future reads are consistent
+        await kv.set(`user:${username}`, normalizedUserData);
+      }
+    }
+
     const normalizedRewardsConfig = normalizeProductSystemConfig(rewardsConfig?.productSystem);
     const catalogTasks = Array.isArray(taskCatalog) ? taskCatalog.slice(0, catalogLimit) : [];
     const tBuild = performance.now();

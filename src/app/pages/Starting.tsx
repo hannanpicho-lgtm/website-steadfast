@@ -385,7 +385,14 @@ export default function Starting() {
   const estimatedCommission = currentProduct ? currentProduct.price * (commissionRate / 100) : 0;
   const premiumTopUpRequired = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
   const premiumSubmissionBlocked = Boolean(userData?.activePremium) && premiumTopUpRequired > 0;
-  const frozenUpholdAmount = roundMoney(Math.max(0, Number(userData?.balance ?? 0)));
+  const frozenUpholdAmount = roundMoney(Math.max(
+    0,
+    Number(userData?.holdAmount) ||
+    Number(userData?.activePremium?.configuredUpholdAmount) ||
+    Number(userData?.activePremium?.topUpRequired) ||
+    Number(userData?.activePremium?.negativeAmount) ||
+    0,
+  ));
   const frozenCurrentBalanceBeforeFreeze = Number(
     userData?.activePremium?.balanceBeforeAssignment
     ?? userData?.balance
@@ -1318,7 +1325,7 @@ export default function Starting() {
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Hold Amount</p>
                     <p className={`mt-1 text-xl font-bold ${userData?.isFrozen ? 'text-[#ffe1e1]' : 'text-white'}`}>
-                      {userData?.isFrozen ? '-' : ''}{(userData?.isFrozen ? frozenUpholdAmount : Number(userData?.holdAmount ?? 0)).toFixed(2)} USD
+                      {userData?.isFrozen && frozenUpholdAmount > 0 ? '-' : ''}{(userData?.isFrozen ? frozenUpholdAmount : Number(userData?.holdAmount ?? 0)).toFixed(2)} USD
                     </p>
                   </div>
                 </div>
@@ -1348,7 +1355,7 @@ export default function Starting() {
                   </div>
                   <div className="rounded-lg border border-white/15 bg-white/10 p-2 text-center">
                     <p className="text-[10px] uppercase tracking-[0.16em] text-white/70">Premium Hold</p>
-                    <p className="mt-1 text-sm font-bold text-[#ffe1e1]">-{frozenUpholdAmount.toFixed(2)} USD</p>
+                    <p className="mt-1 text-sm font-bold text-[#ffe1e1]">{frozenUpholdAmount > 0 ? '-' : ''}{frozenUpholdAmount.toFixed(2)} USD</p>
                   </div>
                   <div className="rounded-lg border border-white/15 bg-white/10 p-2 text-center">
                     <p className="text-[10px] uppercase tracking-[0.16em] text-white/70">After Settlement</p>
