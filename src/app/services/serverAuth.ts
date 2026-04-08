@@ -9,7 +9,10 @@ import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 const AUTH_TIMEOUT_MS = 10_000;
-const CREDENTIAL_CHANGE_TIMEOUT_MS = 30_000;
+// Credential changes perform up to 3 PBKDF2-SHA256 (200 k iterations each)
+// plus distributed lock + KV writes + session revocation on the Edge Function.
+// Cold starts push total time well past 30 s, so allow a full 60 s.
+const CREDENTIAL_CHANGE_TIMEOUT_MS = 60_000;
 // Bridge timeout is longer than AUTH_TIMEOUT_MS to accommodate Edge Function
 // cold starts (2–5 s) plus KV scan time on mobile networks.
 const BRIDGE_TIMEOUT_MS = 25_000;
