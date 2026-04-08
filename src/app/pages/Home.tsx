@@ -40,14 +40,14 @@ import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png
  * Glow:           #c8956c at 8-12% opacity
  * ───────────────────────────────────────────────── */
 
-/* ── Image paths — drop your images into public/ with these names ── */
+/* ── Image paths (Pexels royalty-free, saved in public/) ── */
 const IMAGES = {
-  heroOffice:      '/hero-office.webp',          // Wooden desk with plants, warm minimal workspace
-  personWorking1:  '/person-working-1.webp',     // Woman at desk with glasses, black & white setting
-  personWorking2:  '/person-working-2.webp',     // Woman at computer with sticky notes
-  dashboardLight:  '/dashboard-light.webp',      // Apex dashboard — light theme
-  dashboardDark:   '/dashboard-dark.webp',       // Nuxt Charts dashboard — dark theme
-  dashboardGrid:   '/dashboard-grid.webp',       // Top 10+ E-commerce Dashboard Templates collage
+  heroOffice:      '/hero-office.jpg',           // Warm home office with monitor, plants
+  personWorking1:  '/person-working-1.jpg',      // Professional woman working at desk
+  personWorking2:  '/person-working-2.jpg',      // Woman at home office desk
+  dashboardLight:  '/dashboard-light.jpg',       // Laptop showing analytics dashboard
+  dashboardDark:   '/dashboard-dark.jpg',        // Monitor with statistics / dark charts
+  dashboardGrid:   '/dashboard-grid.jpg',        // Workspace with analytical graphs
 } as const;
 
 const focusAreas = [
