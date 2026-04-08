@@ -12717,40 +12717,61 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-task-progress', a
       if (!username) { skipped++; continue; }
       if (targetUsername && username !== targetUsername) { skipped++; continue; }
 
+      // Quick pre-check: if user already has task progress, they weren't
+      // wrongly reset — skip the expensive per-user KV lookups.
+      // Also skip users whose last reset date isn't today — they haven't
+      // loaded the app today so the wrong reset hasn't fired for them yet.
+      const rawTasksCompleted = Number(raw?.tasksCompleted ?? 0);
+      const rawLastReset = typeof raw?.lastTaskResetDate === 'string' ? raw.lastTaskResetDate : '';
+      if (!targetUsername && (rawTasksCompleted > 0 || rawLastReset !== today)) { skipped++; continue; }
+
       processed++;
-
-      // Count actual task submission records for today
-      const taskRecords = await kv.getByPrefix(`task:${username}:`);
-      const todayTasks = taskRecords.filter((t: any) => {
-        const ts = typeof t?.timestamp === 'string' ? t.timestamp : '';
-        return extractIsoDatePrefix(ts) === today;
-      });
-      const todayTaskCount = todayTasks.length;
-
-      // Also count Commission transactions for today as a secondary source
-      const transactions = await listTransactionRecords(username);
-      const todayCommissions = transactions.filter((tx: any) => {
-        if (tx?.type !== 'Commission') return false;
-        const txDate = extractIsoDatePrefix(typeof tx?.date === 'string' ? tx.date : tx?.createdAt);
-        return txDate === today;
-      });
 
       const synced = await syncUserWithVipConfig(raw, username);
       const tasksPerSet = Number(synced.tasksPerSet ?? 40);
+      const taskSetCount = Number(synced.taskSetCount ?? 2);
       const currentTasksCompleted = Number(synced.tasksCompleted ?? 0);
-      const actualTasksToday = Math.max(todayTaskCount, todayCommissions.length);
+
+      // Determine which dates belong to the current cycle.
+      // Under the new rule, tasks only reset when ALL sets are completed.
+      // The old rule reset everyone daily, so the max carryover is 1 day
+      // (yesterday's tasks).  We look at today AND yesterday to catch users
+      // who were wrongly reset this morning by the old daily-reset logic.
+      const yesterday = (() => {
+        const d = new Date(); d.setDate(d.getDate() - 1);
+        return d.toISOString().slice(0, 10);
+      })();
+      const cycleDates = new Set([today, yesterday]);
+
+      // Count actual task submission records across the cycle
+      const taskRecords = await kv.getByPrefix(`task:${username}:`);
+      const cycleTasks = taskRecords.filter((t: any) => {
+        const ts = typeof t?.timestamp === 'string' ? t.timestamp : '';
+        return cycleDates.has(extractIsoDatePrefix(ts));
+      });
+      const cycleTaskCount = cycleTasks.length;
+
+      // Also count Commission transactions across the cycle as secondary source
+      const transactions = await listTransactionRecords(username);
+      const cycleCommissions = transactions.filter((tx: any) => {
+        if (tx?.type !== 'Commission') return false;
+        const txDate = extractIsoDatePrefix(typeof tx?.date === 'string' ? tx.date : tx?.createdAt);
+        return cycleDates.has(txDate);
+      });
+
+      const actualCycleTasks = Math.max(cycleTaskCount, cycleCommissions.length);
 
       // Skip if counters already match reality (no drift)
-      if (currentTasksCompleted >= actualTasksToday || actualTasksToday === 0) {
+      if (currentTasksCompleted >= actualCycleTasks || actualCycleTasks === 0) {
         skipped++;
         continue;
       }
 
       // Derive the correct set-level counters from the actual count
-      const correctCompletedSets = Math.floor(actualTasksToday / tasksPerSet);
-      const correctInSetProgress = actualTasksToday % tasksPerSet;
+      const correctCompletedSets = Math.floor(actualCycleTasks / tasksPerSet);
+      const correctInSetProgress = actualCycleTasks % tasksPerSet;
       const correctPendingReset = correctCompletedSets > 0 && correctInSetProgress === 0
-        && correctCompletedSets < Number(synced.taskSetCount ?? 2);
+        && correctCompletedSets < taskSetCount;
 
       const before = {
         tasksCompleted: currentTasksCompleted,
@@ -12759,7 +12780,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-task-progress', a
       };
 
       if (!dryRun) {
-        synced.tasksCompleted = actualTasksToday;
+        synced.tasksCompleted = actualCycleTasks;
         synced.completedTaskSets = correctCompletedSets;
         synced.tasksCompletedInSet = correctInSetProgress;
         if (correctPendingReset) {
@@ -12773,12 +12794,12 @@ app.post('/make-server-a1c55d7e/admin/platform-users/reconcile-task-progress', a
       reconciled++;
       report.push({
         username,
-        actualTasksToday,
-        todayTaskRecords: todayTaskCount,
-        todayCommissionRecords: todayCommissions.length,
+        actualCycleTasks,
+        cycleTaskRecords: cycleTaskCount,
+        cycleCommissionRecords: cycleCommissions.length,
         before,
         after: {
-          tasksCompleted: actualTasksToday,
+          tasksCompleted: actualCycleTasks,
           tasksCompletedInSet: correctInSetProgress,
           completedTaskSets: correctCompletedSets,
         },
