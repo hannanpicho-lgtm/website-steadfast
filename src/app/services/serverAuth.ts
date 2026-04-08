@@ -9,6 +9,7 @@ import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 const AUTH_TIMEOUT_MS = 10_000;
+const CREDENTIAL_CHANGE_TIMEOUT_MS = 30_000;
 // Bridge timeout is longer than AUTH_TIMEOUT_MS to accommodate Edge Function
 // cold starts (2–5 s) plus KV scan time on mobile networks.
 const BRIDGE_TIMEOUT_MS = 25_000;
@@ -299,7 +300,7 @@ export async function changeUserCredentials(params: {
         newLoginPassword: params.newLoginPassword ?? '',
         newTransactionPassword: params.newTransactionPassword ?? '',
       }),
-    });
+    }, CREDENTIAL_CHANGE_TIMEOUT_MS);
 
     const data = await res.json().catch(() => ({})) as Record<string, unknown>;
     if (!res.ok) {
