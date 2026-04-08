@@ -3704,14 +3704,16 @@ function normalizeUserRecord(userData: any, username: string) {
     normalized.lastCommissionResetDate = today;
   }
 
-  // Daily task reset: when a new day starts, reset all task progress counters
-  // so the user can begin a fresh work cycle without admin intervention.
-  // IMPORTANT: Frozen accounts MUST skip the daily reset — the user's task
-  // progress is preserved across the freeze period.  The reset will fire
-  // naturally on the first new-day load after the account is unfrozen because
-  // restoreUserToNaturalState sets lastTaskResetDate to the unfreeze day.
+  // Daily task reset: when a new day starts, reset task progress counters
+  // ONLY if the user completed their full work cycle (all task sets done).
+  // Users who have NOT finished all sets keep their progress across day
+  // boundaries — they must complete the remaining tasks before a reset.
+  // Frozen accounts ALWAYS skip the reset; progress is preserved across
+  // the freeze period.  restoreUserToNaturalState stamps lastTaskResetDate
+  // on unfreeze so the guard fires correctly on the next new day.
   const lastTaskReset = typeof normalized.lastTaskResetDate === 'string' ? normalized.lastTaskResetDate : '';
-  if (lastTaskReset !== today && !normalized.isFrozen) {
+  const hasCompletedFullCycle = normalized.completedTaskSets >= normalized.taskSetCount;
+  if (lastTaskReset !== today && !normalized.isFrozen && hasCompletedFullCycle) {
     normalized.completedTaskSets = 0;
     normalized.tasksCompletedInSet = 0;
     normalized.tasksCompleted = 0;
@@ -3719,6 +3721,11 @@ function normalizeUserRecord(userData: any, username: string) {
     normalized.currentSetCommissionPlan = [];
     normalized.currentSetCommissionPlanMarker = 0;
     normalized.currentSetCommissionPlanGeneratedAt = null;
+    normalized.lastTaskResetDate = today;
+  }
+  // Commission reset date still advances daily regardless of task cycle
+  // so todayCommission tracks the current calendar day.
+  if (lastTaskReset !== today && !normalized.isFrozen && !hasCompletedFullCycle) {
     normalized.lastTaskResetDate = today;
   }
 
