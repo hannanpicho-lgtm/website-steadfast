@@ -205,7 +205,7 @@ export default function UserHome() {
             </div>
           </div>
           <div className="mt-5 px-1 text-center sm:mt-6">
-            <h3 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-[#0f172a]">We're a digital marketing agency based in New York City</h3>
+            <h3 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-[#0f172a]">We're a digital marketing agency based in Florida</h3>
             <p className="mt-3 text-sm sm:text-base text-[#334155]">Steadfast helps B2B and B2C organizations navigate digital complexity with measurable growth outcomes.</p>
           </div>
         </section>
