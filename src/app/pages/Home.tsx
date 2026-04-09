@@ -247,6 +247,8 @@ export default function Home() {
               src={IMAGES.heroOffice}
               alt="Warm minimal workspace with wooden desk and plants"
               className="img-warm absolute inset-0 h-[120%] w-full object-cover"
+              width={1920}
+              height={1080}
               loading="eager"
               decoding="async"
             />

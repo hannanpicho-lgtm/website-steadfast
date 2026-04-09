@@ -29,4 +29,7 @@
       <App />
     </StrictMode>
   );
+
+  // Report Core Web Vitals (LCP, CLS, INP, FCP, TTFB)
+  import('./app/utils/reportWebVitals').then(({ reportWebVitals }) => reportWebVitals());
   

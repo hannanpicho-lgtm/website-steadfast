@@ -1083,6 +1083,8 @@ export default function Starting() {
                   key={slide.id}
                   src={slide.image}
                   alt={getPrimaryLabel(slide.product)}
+                  width={200}
+                  height={180}
                   loading="lazy"
                   className="max-h-[170px] sm:max-h-[180px] max-w-[180px] sm:max-w-[200px] w-full object-contain"
                 />
