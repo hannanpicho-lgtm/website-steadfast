@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router';
 import { Award, Calendar, Gift, HelpCircle, Info, ScrollText, Wallet, ArrowDownToLine, Search, Share2, Megaphone, Handshake, Brain, Play, Pause } from 'lucide-react';
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -7,20 +7,19 @@ import { LiveChatBox } from '../components/LiveChatBox';
 import { OnboardingFlow, useOnboarding } from '../components/OnboardingFlow';
 
 /*
- * ─── DESIGN SYSTEM: "Golden Hour Atelier" ───
+ * ─── DESIGN SYSTEM: "Dark Atelier" ───
  *
- * Palette inspired by warm interior spaces — travertine stone,
- * walnut wood, brushed brass, and soft linen.
+ * Premium dark aesthetic with the original brand palette.
+ * Rich black base, warm accents that glow like brass
+ * fixtures in a dimly-lit luxury showroom.
  *
- * Primary Warm:   #1a1410  (espresso)
- * Surface:        #faf8f5  (warm linen)
- * Card:           #ffffff with warm shadow
+ * Base Dark:      #0a0a0a  (rich black)
+ * Surface:        rgba(255,255,255,0.03) (dark glass)
  * Accent Gold:    #c8956c  (brushed brass)
  * Accent Deep:    #8b6f4e  (walnut)
- * Text Primary:   #2c2117  (warm charcoal)
- * Text Secondary: #7a6d5e  (driftwood)
- * Highlight:      #e8c9a8  (champagne)
- * Border:         #e8e0d4  (sandstone)
+ * Text Primary:   #f5f0eb  (warm cream)
+ * Text Secondary: #a09080  (warm stone)
+ * Border:         rgba(200,149,108,0.12) (warm edge)
  */
 
 type QuickLinkItem = {
@@ -37,9 +36,9 @@ const focusAreas = [
     desc: 'Google and Bing built for efficient ROAS.',
     icon: Search,
     color: '#c8956c',
-    bgFrom: '#fdf6ef',
-    bgTo: '#f9ede0',
-    accent: '#a07550',
+    bgFrom: 'rgba(200,149,108,0.10)',
+    bgTo: 'rgba(200,149,108,0.05)',
+    accent: '#d4a87a',
     badge: '01',
   },
   {
@@ -47,9 +46,9 @@ const focusAreas = [
     desc: 'Meta, TikTok, and LinkedIn for conversion lift.',
     icon: Share2,
     color: '#9b7fb8',
-    bgFrom: '#f5f0fa',
-    bgTo: '#ede4f5',
-    accent: '#7c5fa0',
+    bgFrom: 'rgba(155,127,184,0.10)',
+    bgTo: 'rgba(155,127,184,0.05)',
+    accent: '#b89dd0',
     badge: '02',
   },
   {
@@ -57,9 +56,9 @@ const focusAreas = [
     desc: 'Native placements that expand qualified reach.',
     icon: Megaphone,
     color: '#d4935a',
-    bgFrom: '#fef3e8',
-    bgTo: '#fce8d2',
-    accent: '#b87a40',
+    bgFrom: 'rgba(212,147,90,0.10)',
+    bgTo: 'rgba(212,147,90,0.05)',
+    accent: '#e0a870',
     badge: '03',
   },
   {
@@ -67,9 +66,9 @@ const focusAreas = [
     desc: 'Partnership channels aligned to core buyers.',
     icon: Handshake,
     color: '#6a9e7e',
-    bgFrom: '#f0f7f2',
-    bgTo: '#dff0e4',
-    accent: '#4d7d5f',
+    bgFrom: 'rgba(106,158,126,0.10)',
+    bgTo: 'rgba(106,158,126,0.05)',
+    accent: '#88c0a0',
     badge: '04',
   },
   {
@@ -77,9 +76,9 @@ const focusAreas = [
     desc: 'Unified data guiding budget and growth pace.',
     icon: Brain,
     color: '#7a8db8',
-    bgFrom: '#f0f3fa',
-    bgTo: '#e2e8f4',
-    accent: '#5a6f96',
+    bgFrom: 'rgba(122,141,184,0.10)',
+    bgTo: 'rgba(122,141,184,0.05)',
+    accent: '#9aadce',
     badge: '05',
   },
 ];
@@ -104,13 +103,13 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
       className="group relative flex h-[82px] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-2 transition-all duration-300 hover:scale-[1.04] hover:-translate-y-1 sm:h-[88px] sm:px-3"
       style={{
         background: item.bg,
-        boxShadow: `0 4px 16px ${item.accent}25, 0 1px 3px rgba(0,0,0,0.06)`,
+        boxShadow: `0 4px 16px ${item.accent}25, 0 1px 3px rgba(0,0,0,0.15)`,
       }}
     >
-      {/* Soft inner light — like morning sun through sheer curtains */}
+      {/* Soft inner light */}
       <div
         className="absolute inset-0 opacity-0 transition-opacity duration-400 group-hover:opacity-100"
-        style={{ background: 'radial-gradient(circle at 50% 25%, rgba(255,255,255,0.35), transparent 65%)' }}
+        style={{ background: 'radial-gradient(circle at 50% 25%, rgba(255,255,255,0.25), transparent 65%)' }}
       />
 
       {/* Icon */}
@@ -133,16 +132,16 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
 }
 
 const clientBrands = [
-  { name: 'ROAR',               sub: 'Organic',              nameColor: '#2c2117', subColor: '#8b6f4e', accent: '#c8956c', bg: '#faf8f5', border: '#e8e0d4' },
-  { name: 'BORGHESE',           sub: '',                     nameColor: '#2c2117', subColor: '',        accent: '#8b6f4e', bg: '#faf8f5', border: '#e8e0d4' },
-  { name: 'ISAIA',              sub: 'NAPOLI',               nameColor: '#993333', subColor: '#993333', accent: '#993333', bg: '#fdf9f7', border: '#e8d4d4' },
-  { name: 'GIADZY',             sub: '',                     nameColor: '#993333', subColor: '',        accent: '#993333', bg: '#fdf9f7', border: '#e8d4d4' },
-  { name: 'UBS',                sub: '',                     nameColor: '#8b2222', subColor: '',        accent: '#8b2222', bg: '#fdf9f7', border: '#e8d4d4' },
-  { name: 'BLAST',              sub: '',                     nameColor: '#2c2117', subColor: '',        accent: '#2c2117', bg: '#f5f3f0', border: '#ddd8d0' },
-  { name: 'FANCHEST',           sub: '',                     nameColor: '#faf8f5', subColor: '',        accent: '#8b6f4e', bg: '#1a1410', border: '#3d3228' },
-  { name: 'PET PLATE',          sub: '',                     nameColor: '#3d5a80', subColor: '',        accent: '#3d5a80', bg: '#f7f9fc', border: '#d4dfe8' },
-  { name: 'THE VITAMIN SHOPPE', sub: '',                     nameColor: '#2a4470', subColor: '',        accent: '#2a4470', bg: '#f7f9fc', border: '#d4dfe8' },
-  { name: 'MAGELLAN JETS',      sub: 'ELEVATE EXPECTATIONS', nameColor: '#8b6f4e', subColor: '#8b6f4e', accent: '#c8956c', bg: '#fdf8f2', border: '#e8d8c4' },
+  { name: 'ROAR',               sub: 'Organic',              nameColor: '#f5f0eb', subColor: '#c8956c', accent: '#c8956c', bg: 'rgba(200,149,108,0.06)', border: 'rgba(200,149,108,0.15)' },
+  { name: 'BORGHESE',           sub: '',                     nameColor: '#f5f0eb', subColor: '',        accent: '#8b6f4e', bg: 'rgba(139,111,78,0.06)',  border: 'rgba(139,111,78,0.15)' },
+  { name: 'ISAIA',              sub: 'NAPOLI',               nameColor: '#e07070', subColor: '#e07070', accent: '#993333', bg: 'rgba(153,51,51,0.08)',   border: 'rgba(153,51,51,0.18)' },
+  { name: 'GIADZY',             sub: '',                     nameColor: '#e07070', subColor: '',        accent: '#993333', bg: 'rgba(153,51,51,0.08)',   border: 'rgba(153,51,51,0.18)' },
+  { name: 'UBS',                sub: '',                     nameColor: '#e07070', subColor: '',        accent: '#8b2222', bg: 'rgba(139,34,34,0.08)',   border: 'rgba(139,34,34,0.18)' },
+  { name: 'BLAST',              sub: '',                     nameColor: '#f5f0eb', subColor: '',        accent: '#8b6f4e', bg: 'rgba(139,111,78,0.06)',  border: 'rgba(139,111,78,0.15)' },
+  { name: 'FANCHEST',           sub: '',                     nameColor: '#f5f0eb', subColor: '',        accent: '#8b6f4e', bg: 'rgba(139,111,78,0.08)',  border: 'rgba(139,111,78,0.18)' },
+  { name: 'PET PLATE',          sub: '',                     nameColor: '#7aadda', subColor: '',        accent: '#3d5a80', bg: 'rgba(61,90,128,0.08)',   border: 'rgba(61,90,128,0.18)' },
+  { name: 'THE VITAMIN SHOPPE', sub: '',                     nameColor: '#7aadda', subColor: '',        accent: '#2a4470', bg: 'rgba(42,68,112,0.08)',   border: 'rgba(42,68,112,0.18)' },
+  { name: 'MAGELLAN JETS',      sub: 'ELEVATE EXPECTATIONS', nameColor: '#d4a87a', subColor: '#c8956c', accent: '#c8956c', bg: 'rgba(200,149,108,0.06)', border: 'rgba(200,149,108,0.15)' },
   { name: '',                   sub: '',                     nameColor: '',        subColor: '',        accent: 'transparent', bg: 'transparent', border: 'transparent' },
   { name: '',                   sub: '',                     nameColor: '',        subColor: '',        accent: 'transparent', bg: 'transparent', border: 'transparent' },
 ];
@@ -150,6 +149,48 @@ const clientBrands = [
 const clientSlides: (typeof clientBrands)[] = [];
 for (let i = 0; i < clientBrands.length; i += 3) {
   clientSlides.push(clientBrands.slice(i, i + 3));
+}
+
+/* ── Scroll-reveal hook (IntersectionObserver) ── */
+function useScrollReveal() {
+  const ref = useRef<HTMLElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) { setIsVisible(true); obs.unobserve(el); } },
+      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, []);
+
+  return { ref, isVisible };
+}
+
+function RevealSection({ children, className, style, delay = 0 }: {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  delay?: number;
+}) {
+  const { ref, isVisible } = useScrollReveal();
+  return (
+    <section
+      ref={ref}
+      className={className}
+      style={{
+        ...style,
+        opacity: isVisible ? 1 : 0,
+        transform: isVisible ? 'translateY(0)' : 'translateY(24px)',
+        transition: `opacity 0.7s ease ${delay}s, transform 0.7s ease ${delay}s`,
+      }}
+    >
+      {children}
+    </section>
+  );
 }
 
 export default function UserHome() {
@@ -166,50 +207,51 @@ export default function UserHome() {
     return () => clearInterval(timer);
   }, []);
 
-  const toggleVideo = () => {
+  const toggleVideo = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) { v.play(); setIsVideoPlaying(true); }
     else { v.pause(); setIsVideoPlaying(false); }
+  }, []);
+
+  /* Dark glass panel style — reused across sections */
+  const glassPanel: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.025)',
+    backdropFilter: 'blur(12px)',
+    border: '1px solid rgba(200,149,108,0.10)',
+    boxShadow: '0 4px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.03)',
   };
 
   return (
-    <div className="min-h-screen pb-[calc(8.5rem+env(safe-area-inset-bottom))] sm:pb-28" style={{ background: 'linear-gradient(180deg, #faf8f5 0%, #f3efe8 100%)' }}>
+    <div className="relative min-h-screen pb-[calc(8.5rem+env(safe-area-inset-bottom))] sm:pb-28" style={{ background: '#0a0a0a' }}>
+
+      {/* ── Ambient glow orbs ── */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden="true">
+        <div className="absolute -left-[20%] top-[10%] h-[500px] w-[500px] rounded-full opacity-[0.04]" style={{ background: 'radial-gradient(circle, #c8956c, transparent 70%)' }} />
+        <div className="absolute -right-[15%] top-[40%] h-[600px] w-[600px] rounded-full opacity-[0.03]" style={{ background: 'radial-gradient(circle, #d4a853, transparent 70%)' }} />
+        <div className="absolute -left-[10%] bottom-[10%] h-[400px] w-[400px] rounded-full opacity-[0.03]" style={{ background: 'radial-gradient(circle, #9b7fb8, transparent 70%)' }} />
+        {/* Noise texture */}
+        <div className="absolute inset-0 opacity-[0.025]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\'/%3E%3C/svg%3E")', backgroundRepeat: 'repeat', backgroundSize: '128px' }} />
+      </div>
+
       <style>{`
-        @keyframes uh-fadeUp {
-          from { opacity: 0; transform: translateY(18px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .uh-reveal {
-          animation: uh-fadeUp 0.7s ease both;
-        }
-        .uh-delay-1 { animation-delay: 0.08s; }
-        .uh-delay-2 { animation-delay: 0.18s; }
-        .uh-delay-3 { animation-delay: 0.28s; }
-        .uh-delay-4 { animation-delay: 0.38s; }
-        .uh-delay-5 { animation-delay: 0.48s; }
         @media (prefers-reduced-motion: reduce) {
-          .uh-reveal { animation: none; opacity: 1; transform: none; }
+          .uh-motion-safe { transition: none !important; opacity: 1 !important; transform: none !important; }
         }
       `}</style>
 
       {showOnboarding && <OnboardingFlow onComplete={completeOnboarding} />}
       <Header onContactClick={() => setIsChatOpen(true)} />
 
-      <main className="mx-auto max-w-6xl px-3 pt-3 sm:px-6 sm:pt-5">
+      <main className="relative z-10 mx-auto max-w-6xl px-3 pt-3 sm:px-6 sm:pt-5">
 
         {/* ═══════════════════════════════════════════
-            HERO — The Gallery Moment
-            Like walking into a perfectly lit atelier:
-            warm stone walls, a single statement piece
-            framed in walnut with brass hardware.
+            HERO — Cinematic Opening
         ═══════════════════════════════════════════ */}
-        <section className="uh-reveal uh-delay-1 mt-4 overflow-hidden rounded-3xl sm:mt-6" style={{
-          background: '#ffffff',
-          boxShadow: '0 8px 40px rgba(44,33,23,0.08), 0 1px 3px rgba(44,33,23,0.04)',
-          border: '1px solid #e8e0d4',
+        <RevealSection className="mt-4 overflow-hidden rounded-3xl sm:mt-6" style={{
+          ...glassPanel,
+          boxShadow: '0 8px 48px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
         }}>
-          {/* Video Container — framed like a gallery piece */}
           <div className="relative">
             <div className="relative h-[240px] overflow-hidden sm:h-[320px] md:h-[400px]">
               <video
@@ -222,43 +264,47 @@ export default function UserHome() {
                 preload="metadata"
                 className="absolute inset-0 h-full w-full object-cover"
                 style={{
-                  filter: 'contrast(1.08) saturate(1.1) brightness(1.02)',
+                  filter: 'contrast(1.08) saturate(1.1) brightness(0.92)',
                   transform: 'translateZ(0)',
                 }}
                 aria-label="Steadfast Digital introduction video"
               />
-              {/* Warm cinematic overlay — like golden hour light filtering through a window */}
+              {/* Cinematic vignette */}
               <div className="absolute inset-0" style={{
-                background: 'linear-gradient(180deg, rgba(26,20,16,0.08) 0%, rgba(26,20,16,0.02) 35%, rgba(26,20,16,0.35) 75%, rgba(26,20,16,0.70) 100%)',
+                background: 'linear-gradient(180deg, rgba(10,10,10,0.30) 0%, rgba(10,10,10,0.05) 35%, rgba(10,10,10,0.40) 75%, rgba(10,10,10,0.80) 100%)',
               }} />
-              {/* Subtle warm color wash */}
-              <div className="absolute inset-0 mix-blend-soft-light opacity-20" style={{
+              {/* Warm color wash */}
+              <div className="absolute inset-0 mix-blend-soft-light opacity-15" style={{
                 background: 'linear-gradient(135deg, #c8956c 0%, transparent 50%)',
               }} />
+              {/* Bottom warm glow bleed */}
+              <div className="absolute inset-x-0 bottom-0 h-20" style={{
+                background: 'linear-gradient(to top, rgba(200,149,108,0.08), transparent)',
+              }} />
 
-              {/* Hero text — positioned like a luxury brand title card */}
+              {/* Hero text */}
               <div className="absolute inset-x-0 bottom-0 px-5 pb-6 sm:px-8 sm:pb-8">
-                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.3em] text-white/60 sm:text-xs">
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.3em] sm:text-xs" style={{ color: '#c8956c' }}>
                   Welcome to
                 </p>
                 <h2 className="text-2xl font-extrabold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl" style={{
-                  textShadow: '0 2px 20px rgba(0,0,0,0.25)',
+                  textShadow: '0 2px 24px rgba(0,0,0,0.5)',
                 }}>
                   Steadfast Digital
                 </h2>
-                <p className="mt-2 max-w-md text-sm leading-relaxed text-white/80 sm:text-base">
+                <p className="mt-2 max-w-md text-sm leading-relaxed sm:text-base" style={{ color: 'rgba(245,240,235,0.75)' }}>
                   Performance-led growth for startups and brands across paid media.
                 </p>
               </div>
 
-              {/* Play/pause control — like a discreet brass button */}
+              {/* Play/pause control */}
               <button
                 onClick={toggleVideo}
                 className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full transition-all duration-300 hover:scale-110 sm:right-6 sm:top-6"
                 style={{
-                  background: 'rgba(255,255,255,0.15)',
+                  background: 'rgba(10,10,10,0.40)',
                   backdropFilter: 'blur(12px)',
-                  border: '1px solid rgba(255,255,255,0.2)',
+                  border: '1px solid rgba(200,149,108,0.25)',
                 }}
                 aria-label={isVideoPlaying ? 'Pause video' : 'Play video'}
               >
@@ -271,34 +317,28 @@ export default function UserHome() {
             </div>
           </div>
 
-          {/* Tagline — warm, centered, generous breathing room */}
+          {/* Tagline */}
           <div className="px-5 py-7 text-center sm:px-10 sm:py-9">
-            <h3 className="text-[1.5rem] font-extrabold leading-snug tracking-tight sm:text-[2.2rem] md:text-[2.6rem]" style={{ color: '#2c2117' }}>
+            <h3 className="text-[1.5rem] font-extrabold leading-snug tracking-tight sm:text-[2.2rem] md:text-[2.6rem]" style={{ color: '#f5f0eb' }}>
               A digital marketing agency{' '}
               <span className="bg-gradient-to-r from-[#c8956c] to-[#a07550] bg-clip-text text-transparent">
                 based in Florida
               </span>
             </h3>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed sm:mt-4 sm:text-base" style={{ color: '#7a6d5e' }}>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed sm:mt-4 sm:text-base" style={{ color: '#a09080' }}>
               Steadfast helps B2B and B2C organizations navigate digital complexity with measurable growth outcomes.
             </p>
           </div>
-        </section>
+        </RevealSection>
 
         {/* ═══════════════════════════════════════════
-            QUICK ACCESS — The Console Table
-            Like a curated entryway console with brass-trimmed
-            objets — each one inviting you to explore further.
+            QUICK ACCESS — Dark Glass Console
         ═══════════════════════════════════════════ */}
-        <section className="uh-reveal uh-delay-2 mt-5 overflow-hidden rounded-3xl px-4 py-6 sm:px-6 sm:py-7" style={{
-          background: '#ffffff',
-          boxShadow: '0 4px 24px rgba(44,33,23,0.06), 0 1px 3px rgba(44,33,23,0.03)',
-          border: '1px solid #e8e0d4',
-        }}>
+        <RevealSection delay={0.08} className="mt-5 overflow-hidden rounded-3xl px-4 py-6 sm:px-6 sm:py-7" style={glassPanel}>
           <p className="mb-1 text-center text-[0.62rem] font-bold uppercase tracking-[0.28em] sm:text-[0.7rem]" style={{ color: '#c8956c' }}>
             Quick Access
           </p>
-          <h2 className="mb-5 text-center text-[1.1rem] font-extrabold sm:text-[1.25rem]" style={{ color: '#2c2117' }}>
+          <h2 className="mb-5 text-center text-[1.1rem] font-extrabold sm:text-[1.25rem]" style={{ color: '#f5f0eb' }}>
             One-Tap Features
           </h2>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
@@ -306,24 +346,17 @@ export default function UserHome() {
               <QuickLinkCard key={item.title} item={item} />
             ))}
           </div>
-        </section>
+        </RevealSection>
 
         {/* ═══════════════════════════════════════════
-            AREAS OF FOCUS — The Gallery Wall
-            Each card is like a framed piece in a curated
-            collection — soft matte backgrounds, warm
-            accent lighting, tactile shadow depth.
+            AREAS OF FOCUS — Dark Gallery Wall
         ═══════════════════════════════════════════ */}
-        <section className="uh-reveal uh-delay-3 mt-5 overflow-hidden rounded-3xl py-8 sm:py-10" style={{
-          background: '#ffffff',
-          boxShadow: '0 4px 24px rgba(44,33,23,0.06), 0 1px 3px rgba(44,33,23,0.03)',
-          border: '1px solid #e8e0d4',
-        }}>
+        <RevealSection delay={0.12} className="mt-5 overflow-hidden rounded-3xl py-8 sm:py-10" style={glassPanel}>
           <div className="relative z-10 px-4 sm:px-6">
             <p className="mb-1 text-center text-[0.62rem] font-bold uppercase tracking-[0.28em] sm:text-[0.7rem]" style={{ color: '#c8956c' }}>
               Core Capabilities
             </p>
-            <h2 className="mb-7 text-center text-[1.4rem] font-extrabold sm:mb-8 sm:text-[1.8rem]" style={{ color: '#2c2117' }}>
+            <h2 className="mb-7 text-center text-[1.4rem] font-extrabold sm:mb-8 sm:text-[1.8rem]" style={{ color: '#f5f0eb' }}>
               Areas of Focus
             </h2>
             <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 sm:gap-4 md:grid-cols-5">
@@ -332,19 +365,22 @@ export default function UserHome() {
                 return (
                   <div
                     key={area.title}
-                    className="group relative min-h-[140px] cursor-default overflow-hidden rounded-2xl p-4 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg sm:min-h-[160px] sm:p-5"
+                    className="group relative min-h-[140px] cursor-default overflow-hidden rounded-2xl p-4 transition-all duration-300 hover:-translate-y-1.5 sm:min-h-[160px] sm:p-5"
                     style={{
                       background: `linear-gradient(145deg, ${area.bgFrom}, ${area.bgTo})`,
-                      border: '1px solid rgba(200,149,108,0.15)',
-                      boxShadow: `0 2px 12px ${area.color}10`,
+                      border: `1px solid ${area.color}20`,
+                      boxShadow: `0 2px 16px ${area.color}08`,
                     }}
                   >
+                    {/* Hover glow */}
+                    <div className="absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ boxShadow: `inset 0 0 30px ${area.color}12, 0 4px 20px ${area.color}15` }} />
+
                     {/* Badge */}
                     <div
                       className="absolute -right-1 -top-1 flex h-10 w-10 items-center justify-center rounded-full text-[10px] font-black text-white"
                       style={{
                         background: `linear-gradient(135deg, ${area.color}, ${area.accent})`,
-                        boxShadow: `0 3px 10px ${area.color}30`,
+                        boxShadow: `0 3px 12px ${area.color}40`,
                       }}
                     >
                       {area.badge}
@@ -352,20 +388,20 @@ export default function UserHome() {
 
                     {/* Icon */}
                     <div
-                      className="mb-3 inline-flex rounded-xl p-2.5 transition-transform duration-300 group-hover:scale-105"
+                      className="relative z-10 mb-3 inline-flex rounded-xl p-2.5 transition-transform duration-300 group-hover:scale-105"
                       style={{
                         background: area.color,
                         color: 'white',
-                        boxShadow: `0 3px 10px ${area.color}25`,
+                        boxShadow: `0 3px 14px ${area.color}35`,
                       }}
                     >
                       <IconComponent size={20} strokeWidth={2.2} />
                     </div>
 
-                    <h3 className="mb-1.5 text-[0.95rem] font-bold leading-tight" style={{ color: area.accent }}>
+                    <h3 className="relative z-10 mb-1.5 text-[0.95rem] font-bold leading-tight" style={{ color: area.accent }}>
                       {area.title}
                     </h3>
-                    <p className="text-xs font-medium leading-relaxed opacity-80 transition-opacity group-hover:opacity-100" style={{ color: '#4a3f33' }}>
+                    <p className="relative z-10 text-xs font-medium leading-relaxed opacity-70 transition-opacity group-hover:opacity-100" style={{ color: '#b8a898' }}>
                       {area.desc}
                     </p>
                   </div>
@@ -373,22 +409,17 @@ export default function UserHome() {
               })}
             </div>
           </div>
-        </section>
+        </RevealSection>
 
         {/* ═══════════════════════════════════════════
-            CLIENTS — The Trust Wall
-            Like framed press logos in a reception foyer.
+            CLIENTS — Dark Trust Wall
         ═══════════════════════════════════════════ */}
-        <section className="uh-reveal uh-delay-4 mt-5 overflow-hidden rounded-3xl py-6 sm:py-8" style={{
-          background: '#ffffff',
-          boxShadow: '0 4px 24px rgba(44,33,23,0.06), 0 1px 3px rgba(44,33,23,0.03)',
-          border: '1px solid #e8e0d4',
-        }}>
+        <RevealSection delay={0.16} className="mt-5 overflow-hidden rounded-3xl py-6 sm:py-8" style={glassPanel}>
           <div className="px-4 sm:px-6">
             <p className="mb-1 text-center text-[0.62rem] font-bold uppercase tracking-[0.28em] sm:text-[0.7rem]" style={{ color: '#c8956c' }}>
               Trusted by Leading Brands
             </p>
-            <h2 className="mb-5 text-center text-[1.4rem] font-extrabold sm:mb-7 sm:text-[1.8rem]" style={{ color: '#2c2117' }}>
+            <h2 className="mb-5 text-center text-[1.4rem] font-extrabold sm:mb-7 sm:text-[1.8rem]" style={{ color: '#f5f0eb' }}>
               Our Clients
             </h2>
             <div className="overflow-hidden rounded-xl">
@@ -402,12 +433,12 @@ export default function UserHome() {
                       brand.name ? (
                         <div
                           key={brand.name}
-                          className="relative flex flex-1 cursor-default select-none flex-col items-center justify-center overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
+                          className="relative flex flex-1 cursor-default select-none flex-col items-center justify-center overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-1"
                           style={{
                             background: brand.bg,
                             border: `1.5px solid ${brand.border}`,
                             minHeight: '96px',
-                            boxShadow: `0 2px 8px ${brand.accent}12`,
+                            boxShadow: `0 2px 12px rgba(0,0,0,0.2)`,
                           }}
                         >
                           <div className="flex w-full flex-col items-center justify-center gap-0.5 px-2 pb-3 pt-4">
@@ -434,7 +465,7 @@ export default function UserHome() {
                   </div>
                 ))}
               </div>
-              {/* Dot navigation — warm brass-inspired pills */}
+              {/* Dot navigation */}
               <div className="mt-5 flex items-center justify-center gap-1.5">
                 {clientSlides.map((_, i) => (
                   <button
@@ -443,7 +474,7 @@ export default function UserHome() {
                     className="h-[5px] rounded-full transition-all duration-300"
                     style={{
                       width: i === clientIndex ? '22px' : '7px',
-                      background: i === clientIndex ? '#c8956c' : '#ddd6cc',
+                      background: i === clientIndex ? '#c8956c' : 'rgba(200,149,108,0.25)',
                     }}
                     aria-label={`Show clients ${i * 3 + 1}–${Math.min(i * 3 + 3, 10)}`}
                   />
@@ -451,16 +482,15 @@ export default function UserHome() {
               </div>
             </div>
           </div>
-        </section>
+        </RevealSection>
 
         {/* ═══════════════════════════════════════════
-            APPROACH — The Closing Statement
-            A warm, grounding sign-off.
+            APPROACH — Warm Closing Statement
         ═══════════════════════════════════════════ */}
-        <section className="uh-reveal uh-delay-5 mb-3 mt-5 overflow-hidden rounded-3xl px-5 py-7 text-center sm:px-8 sm:py-8" style={{
-          background: 'linear-gradient(145deg, #2c2117, #1a1410)',
-          boxShadow: '0 8px 40px rgba(26,20,16,0.18)',
-          border: '1px solid #3d3228',
+        <RevealSection delay={0.2} className="mb-3 mt-5 overflow-hidden rounded-3xl px-5 py-7 text-center sm:px-8 sm:py-8" style={{
+          background: 'linear-gradient(145deg, rgba(200,149,108,0.08), rgba(200,149,108,0.03))',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(200,149,108,0.08)',
+          border: '1px solid rgba(200,149,108,0.15)',
         }}>
           <p className="mb-2 text-[0.62rem] font-bold uppercase tracking-[0.28em] sm:text-[0.7rem]" style={{ color: '#c8956c' }}>
             Our Philosophy
@@ -471,7 +501,7 @@ export default function UserHome() {
           <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed sm:text-base" style={{ color: '#b8a99a' }}>
             Data-led execution, transparent reporting, and sustainable acquisition strategy.
           </p>
-        </section>
+        </RevealSection>
       </main>
 
       <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
