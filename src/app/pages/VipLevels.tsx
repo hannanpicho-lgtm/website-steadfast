@@ -1,11 +1,12 @@
 import { ChevronLeft } from 'lucide-react';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { useEffect, useState } from 'react';
-import { LiveChatBox } from '../components/LiveChatBox';
+import { useEffect, useState, lazy, Suspense } from 'react';
+const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { projectId, publicAnonKey } from '@utils/supabase/info';
+import { projectId } from '@utils/supabase/info';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
+import { fetchJsonWithRetry } from '../services/networkClient';
 
 type VipCard = {
   level: number;
@@ -120,19 +121,13 @@ export default function VipLevels() {
   useEffect(() => {
     const loadCurrentVip = async () => {
       try {
-        const [financialsResponse, publicVipConfig] = await Promise.all([
-          fetch(`${serverUrl}/me/financials`, {
-            credentials: 'include',
-            headers: {
-              Authorization: `Bearer ${publicAnonKey}`,
-            },
-          }),
+        const [financialsPayload, publicVipConfig] = await Promise.all([
+          fetchJsonWithRetry(`${serverUrl}/me/financials`),
           fetchPublicVipConfig(),
         ]);
 
-        const payload = await financialsResponse.json().catch(() => ({}));
-        if (financialsResponse.ok && Number.isFinite(Number(payload?.vipLevel))) {
-          setCurrentVipLevel(Number(payload.vipLevel));
+        if (Number.isFinite(Number(financialsPayload?.vipLevel))) {
+          setCurrentVipLevel(Number(financialsPayload.vipLevel));
         }
 
         if (Array.isArray(publicVipConfig) && publicVipConfig.length > 0) {
@@ -217,7 +212,9 @@ export default function VipLevels() {
       </div>
 
       {/* Live Chat Box */}
-      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <Suspense fallback={null}>
+        <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      </Suspense>
 
       {/* Bottom Navigation */}
       <BottomNavigation />

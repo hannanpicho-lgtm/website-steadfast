@@ -1,9 +1,9 @@
 import { ChevronLeft, ScrollText, ChevronRight, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { toast } from 'sonner';
-import { LiveChatBox } from '../components/LiveChatBox';
+const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { publicAnonKey } from '@utils/supabase/info';
@@ -396,7 +396,9 @@ export default function Withdrawal() {
       </div>
 
       {/* Live Chat Box */}
-      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <Suspense fallback={null}>
+        <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      </Suspense>
 
       {/* Bottom Navigation */}
       <BottomNavigation />

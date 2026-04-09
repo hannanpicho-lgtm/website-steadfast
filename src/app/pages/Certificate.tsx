@@ -1,10 +1,10 @@
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
+const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
@@ -152,7 +152,9 @@ export default function Certificate() {
       </div>
 
       <BottomNavigation />
-      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <Suspense fallback={null}>
+        <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      </Suspense>
     </div>
   );
 }

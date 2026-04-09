@@ -1,11 +1,11 @@
 import { ChevronLeft, Bitcoin, CheckCircle2, Loader2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { toast } from 'sonner';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { LiveChatBox } from '../components/LiveChatBox';
+const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { getCurrentUsername } from '../services/referralSystem';
 import { publicAnonKey } from '@utils/supabase/info';
 import { buildLoginRedirectState } from '../services/loginRedirect';
@@ -144,8 +144,20 @@ export default function ConnectWallet() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center items-center min-h-[300px]">
-            <Loader2 size={32} className="animate-spin text-[#0066b3]" />
+          <div className="animate-pulse space-y-6">
+            <div className="bg-[#141414] rounded-xl border border-white/[0.06] p-8 space-y-5">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="h-10 w-10 bg-[#1f2937] rounded-full" />
+                <div className="h-6 w-48 bg-[#1f2937] rounded" />
+              </div>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-4 w-28 bg-[#1f2937] rounded" />
+                  <div className="h-11 w-full bg-[#1f2937] rounded-lg" />
+                </div>
+              ))}
+              <div className="h-12 w-full bg-[#1f2937] rounded-lg mt-4" />
+            </div>
           </div>
         ) : (
         <>
@@ -263,7 +275,9 @@ export default function ConnectWallet() {
       </div>
 
       {/* Live Chat Box */}
-      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <Suspense fallback={null}>
+        <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      </Suspense>
 
       {/* Bottom Navigation */}
       <BottomNavigation />

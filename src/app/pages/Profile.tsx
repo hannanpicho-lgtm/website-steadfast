@@ -1,9 +1,9 @@
 import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle, PencilLine, Mars, Venus, UserRound } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { toast } from 'sonner';
-import { LiveChatBox } from '../components/LiveChatBox';
+const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar';
 import { getCurrentUsername, logoutCurrentUser } from '../services/referralSystem';
@@ -671,7 +671,9 @@ export default function Profile() {
       </div>
 
       {/* Live Chat Box */}
-      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <Suspense fallback={null}>
+        <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      </Suspense>
 
       {/* Bottom Navigation */}
       <BottomNavigation />

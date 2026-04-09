@@ -1,11 +1,11 @@
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { toast } from 'sonner';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { LiveChatBox } from '../components/LiveChatBox';
+const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
 import { fetchJsonWithRetry } from '../services/networkClient';
@@ -113,8 +113,17 @@ export default function WithdrawalHistory() {
 
         {/* Content */}
         {loading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="animate-spin text-[#0066b3]" size={28} />
+          <div className="animate-pulse space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="bg-[#141414] rounded-lg border border-white/[0.06] px-4 py-4 space-y-3">
+                {Array.from({ length: 4 }).map((_, j) => (
+                  <div key={j} className="flex items-center justify-between">
+                    <div className="h-3.5 w-16 bg-[#1f2937] rounded" />
+                    <div className="h-3.5 w-24 bg-[#1f2937] rounded" />
+                  </div>
+                ))}
+              </div>
+            ))}
           </div>
         ) : filtered.length === 0 ? (
           <p className="text-center text-gray-500 text-sm py-16">No withdrawal records found</p>
@@ -175,7 +184,9 @@ export default function WithdrawalHistory() {
         )}
       </div>
 
-      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <Suspense fallback={null}>
+        <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      </Suspense>
       <BottomNavigation />
     </div>
   );

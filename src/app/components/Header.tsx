@@ -1,5 +1,6 @@
 import { UserCircle } from 'lucide-react';
 import { Link } from 'react-router';
+import { memo } from 'react';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { getCurrentUsername } from '../services/referralSystem';
 
@@ -7,7 +8,7 @@ interface HeaderProps {
   onContactClick?: () => void;
 }
 
-export function Header({ onContactClick }: HeaderProps) {
+export const Header = memo(function Header({ onContactClick }: HeaderProps) {
   const homePath = getCurrentUsername() ? '/home' : '/';
 
   return (
@@ -58,4 +59,4 @@ export function Header({ onContactClick }: HeaderProps) {
       </div>
     </header>
   );
-}
+});

@@ -1,8 +1,8 @@
 import { UserCircle, ChevronLeft } from 'lucide-react';
 import { Link } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { LiveChatBox } from '../components/LiveChatBox';
-import { useState } from 'react';
+const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
+import { useState, lazy, Suspense } from 'react';
 import { Header } from '../components/Header';
 
 export default function TermsConditions() {
@@ -97,7 +97,9 @@ export default function TermsConditions() {
       </div>
 
       {/* Live Chat Box */}
-      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <Suspense fallback={null}>
+        <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      </Suspense>
     </div>
   );
 }

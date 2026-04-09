@@ -1,8 +1,88 @@
 import { Home, FileCheck } from 'lucide-react';
 import { Link, useLocation } from 'react-router';
+import { memo, useMemo } from 'react';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 
-export function BottomNavigation() {
+const NAV_STYLES = `
+  @keyframes platformFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-1.8px); }
+  }
+  @keyframes platformOrbit {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  @keyframes platformUnderlinePulse {
+    0%, 100% { opacity: 0.82; }
+    50% { opacity: 1; }
+  }
+  @keyframes platformSheenSweep {
+    0% { transform: translateX(-130%); }
+    100% { transform: translateX(130%); }
+  }
+  @keyframes platformSideFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-1px); }
+  }
+  @keyframes platformSideUnderlinePulse {
+    0%, 100% { opacity: 0.85; }
+    50% { opacity: 1; }
+  }
+  .platform-icon-float { animation: platformFloat 2.8s ease-in-out infinite; }
+  .platform-glow-aura {
+    background: radial-gradient(circle, rgba(0, 217, 255, 0.18) 0%, rgba(0, 217, 255, 0) 70%);
+    box-shadow: 0 0 0 0 rgba(0, 217, 255, 0.34), 0 0 26px rgba(83, 184, 234, 0.38);
+  }
+  .platform-orbit-ring {
+    border: 1.5px dashed rgba(141, 229, 255, 0.45);
+    animation: platformOrbit 12s linear infinite;
+  }
+  .platform-sheen {
+    background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.42) 50%, transparent 80%);
+    transform: translateX(-130%);
+    animation: platformSheenSweep 2.8s ease-in-out infinite;
+    opacity: 0.6;
+  }
+  .platform-title-glow { text-shadow: 0 0 10px rgba(77, 208, 255, 0.42); }
+  .platform-underline-pulse {
+    animation: platformUnderlinePulse 2.2s ease-in-out infinite;
+    box-shadow: 0 0 9px rgba(0, 217, 255, 0.48);
+  }
+  .platform-side-glow {
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 14px rgba(1,43,72,0.28), 0 0 10px rgba(0,217,255,0.12);
+  }
+  .platform-side-float { animation: platformSideFloat 2.6s ease-in-out infinite; }
+  .platform-side-sheen {
+    background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.28) 50%, transparent 80%);
+    transform: translateX(-130%);
+    animation: platformSheenSweep 3.2s ease-in-out infinite;
+    opacity: 0.45;
+  }
+  .platform-side-hover-sheen {
+    background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.2) 50%, transparent 80%);
+    transform: translateX(-130%);
+    animation: platformSheenSweep 1.8s ease-in-out infinite;
+  }
+  .platform-side-title-glow { text-shadow: 0 0 7px rgba(77, 208, 255, 0.32); }
+  .platform-side-underline-pulse {
+    animation: platformSideUnderlinePulse 2.4s ease-in-out infinite;
+    box-shadow: 0 0 7px rgba(0, 217, 255, 0.42);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .platform-icon-float,
+    .platform-orbit-ring,
+    .platform-sheen,
+    .platform-underline-pulse,
+    .platform-side-float,
+    .platform-side-sheen,
+    .platform-side-hover-sheen,
+    .platform-side-underline-pulse {
+      animation: none !important;
+    }
+  }
+`;
+
+export const BottomNavigation = memo(function BottomNavigation() {
   const location = useLocation();
   const homePath = '/home';
   
@@ -10,6 +90,8 @@ export function BottomNavigation() {
   const isHomeActive = isActive(homePath);
   const isStartingActive = isActive('/starting');
   const isRecordsActive = isActive('/records');
+
+  const styleTag = useMemo(() => <style>{NAV_STYLES}</style>, []);
 
   return (
     <nav aria-label="Main navigation" className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#0f6ea8] bg-gradient-to-b from-[#0d689f] to-[#0b5f94] px-3 pb-[calc(0.9rem+env(safe-area-inset-bottom))] pt-3 text-white shadow-[0_-10px_28px_rgba(4,45,74,0.28)] backdrop-blur-sm">
@@ -58,107 +140,7 @@ export function BottomNavigation() {
           <span className={`h-1 rounded-full bg-[#00D9FF] transition-all duration-300 ${isRecordsActive ? 'w-6 opacity-100 platform-side-underline-pulse' : 'w-0 opacity-0'}`} />
         </Link>
       </div>
-      <style>{`
-        @keyframes platformFloat {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-1.8px); }
-        }
-
-        @keyframes platformAura {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(0, 217, 255, 0.34), 0 0 26px rgba(83, 184, 234, 0.38); }
-          50% { box-shadow: 0 0 0 7px rgba(0, 217, 255, 0.08), 0 0 34px rgba(83, 184, 234, 0.48); }
-        }
-
-        @keyframes platformOrbit {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-
-        @keyframes platformUnderlinePulse {
-          0%, 100% { opacity: 0.82; }
-          50% { opacity: 1; }
-        }
-
-        @keyframes platformSheenSweep {
-          0% { transform: translateX(-130%); }
-          100% { transform: translateX(130%); }
-        }
-
-        @keyframes platformSideGlow {
-          0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 14px rgba(1,43,72,0.28), 0 0 0 rgba(0,217,255,0); }
-          50% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 14px rgba(1,43,72,0.28), 0 0 16px rgba(0,217,255,0.18); }
-        }
-
-        @keyframes platformSideFloat {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-1px); }
-        }
-
-        @keyframes platformSideUnderlinePulse {
-          0%, 100% { opacity: 0.85; }
-          50% { opacity: 1; }
-        }
-
-        .platform-icon-float {
-          animation: platformFloat 2.8s ease-in-out infinite;
-        }
-
-        .platform-glow-aura {
-          animation: platformAura 2.8s ease-in-out infinite;
-          background: radial-gradient(circle, rgba(0, 217, 255, 0.18) 0%, rgba(0, 217, 255, 0) 70%);
-        }
-
-        .platform-orbit-ring {
-          border: 1.5px dashed rgba(141, 229, 255, 0.45);
-          animation: platformOrbit 12s linear infinite;
-        }
-
-        .platform-sheen {
-          background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.42) 50%, transparent 80%);
-          transform: translateX(-130%);
-          animation: platformSheenSweep 2.8s ease-in-out infinite;
-          opacity: 0.6;
-        }
-
-        .platform-title-glow {
-          text-shadow: 0 0 10px rgba(77, 208, 255, 0.42);
-        }
-
-        .platform-underline-pulse {
-          animation: platformUnderlinePulse 2.2s ease-in-out infinite;
-          box-shadow: 0 0 9px rgba(0, 217, 255, 0.48);
-        }
-
-        .platform-side-glow {
-          animation: platformSideGlow 2.6s ease-in-out infinite;
-        }
-
-        .platform-side-float {
-          animation: platformSideFloat 2.6s ease-in-out infinite;
-        }
-
-        .platform-side-sheen {
-          background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.28) 50%, transparent 80%);
-          transform: translateX(-130%);
-          animation: platformSheenSweep 3.2s ease-in-out infinite;
-          opacity: 0.45;
-        }
-
-        .platform-side-hover-sheen {
-          background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.2) 50%, transparent 80%);
-          transform: translateX(-130%);
-          animation: platformSheenSweep 1.8s ease-in-out infinite;
-        }
-
-        .platform-side-title-glow {
-          text-shadow: 0 0 7px rgba(77, 208, 255, 0.32);
-        }
-
-        .platform-side-underline-pulse {
-          animation: platformSideUnderlinePulse 2.4s ease-in-out infinite;
-          box-shadow: 0 0 7px rgba(0, 217, 255, 0.42);
-        }
-      `}</style>
+      {styleTag}
     </nav>
   );
-}
+});

@@ -1,7 +1,7 @@
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { useEffect, useState } from 'react';
-import { LiveChatBox } from '../components/LiveChatBox';
+import { useEffect, useState, lazy, Suspense } from 'react';
+const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { defaultRewardsConfig, type RewardsConfig } from '../services/rewardsConfig';
@@ -353,8 +353,23 @@ export default function Activity() {
         </div>
 
         {loading && (
-          <div className="flex justify-center py-16">
-            <Loader2 className="animate-spin text-[#0066b3]" size={28} />
+          <div className="animate-pulse space-y-6">
+            {/* Account Snapshot skeleton */}
+            <div className="bg-[#0f172a] rounded-xl p-5 border border-[#1f2937]">
+              <div className="h-5 w-48 bg-[#1f2937] rounded mb-4" />
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="bg-[#111827] rounded-lg p-3 space-y-2">
+                    <div className="h-3 w-16 bg-[#1f2937] rounded" />
+                    <div className="h-6 w-20 bg-[#1f2937] rounded" />
+                  </div>
+                ))}
+              </div>
+              <div className="h-4 w-36 bg-[#1f2937] rounded mb-2" />
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-10 bg-[#111827] rounded-lg mb-2" />
+              ))}
+            </div>
           </div>
         )}
 
@@ -682,7 +697,9 @@ export default function Activity() {
       {/* Bottom Navigation */}
       <BottomNavigation />
       {/* Live Chat Box */}
-      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <Suspense fallback={null}>
+        <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      </Suspense>
     </div>
   );
 }

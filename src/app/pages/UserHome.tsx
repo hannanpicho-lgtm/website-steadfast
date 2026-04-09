@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { Link } from 'react-router';
 import { Award, Calendar, Gift, HelpCircle, Info, ScrollText, Wallet, ArrowDownToLine, Search, Share2, Megaphone, Handshake, Brain, Play, Pause } from 'lucide-react';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { LiveChatBox } from '../components/LiveChatBox';
+const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { OnboardingFlow, useOnboarding } from '../components/OnboardingFlow';
 
 /*
@@ -533,7 +533,9 @@ export default function UserHome() {
         </RevealSection>
       </main>
 
-      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <Suspense fallback={null}>
+        <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      </Suspense>
       <BottomNavigation />
     </div>
   );

@@ -1,8 +1,8 @@
 import { ChevronLeft, ChevronDown } from 'lucide-react';
 import { Link } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { LiveChatBox } from '../components/LiveChatBox';
-import { useState, type ReactNode } from 'react';
+const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
+import { useState, type ReactNode, lazy, Suspense } from 'react';
 import { Header } from '../components/Header';
 
 const R = ({ children }: { children: ReactNode }) => <span className="text-red-600">{children}</span>;
@@ -134,7 +134,9 @@ export default function FAQs() {
       </div>
 
       {/* Live Chat Box */}
-      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <Suspense fallback={null}>
+        <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      </Suspense>
     </div>
   );
 }
