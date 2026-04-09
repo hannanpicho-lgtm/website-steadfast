@@ -152,7 +152,7 @@ export interface AdminModalsProps {
   buildRolePermissionsFromForm: (formData: FormData) => Record<string, boolean>;
 
   // Notifications
-  handleSendNotification: (data: { title: string; message: string; priority: string; recipientType: string; recipientFilter: string | null }) => Promise<boolean>;
+  handleSendNotification: (data: { title: string; message: string; priority: string; recipientType: string; recipientFilter: string | null; scheduledFor: string | null }) => Promise<boolean>;
   notificationSending: boolean;
 }
 
@@ -220,7 +220,7 @@ function ModalFocusTrap({ onClose, children }: { onClose: () => void; children: 
 }
 
 function NotificationSendForm({ onSend, sending, onClose }: {
-  onSend: (data: { title: string; message: string; priority: string; recipientType: string; recipientFilter: string | null }) => Promise<boolean>;
+  onSend: (data: { title: string; message: string; priority: string; recipientType: string; recipientFilter: string | null; scheduledFor: string | null }) => Promise<boolean>;
   sending: boolean;
   onClose: () => void;
 }) {
@@ -229,6 +229,7 @@ function NotificationSendForm({ onSend, sending, onClose }: {
   const [priority, setPriority] = useState('normal');
   const [recipientType, setRecipientType] = useState('all');
   const [recipientFilter, setRecipientFilter] = useState('');
+  const [scheduledFor, setScheduledFor] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -238,6 +239,7 @@ function NotificationSendForm({ onSend, sending, onClose }: {
       priority,
       recipientType,
       recipientFilter: (recipientType === 'vip' || recipientType === 'specific') ? recipientFilter || null : null,
+      scheduledFor: scheduledFor ? new Date(scheduledFor).toISOString() : null,
     });
     if (success) onClose();
   };
@@ -287,6 +289,11 @@ function NotificationSendForm({ onSend, sending, onClose }: {
             <option value="high">High</option>
             <option value="urgent">Urgent</option>
           </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Schedule (Optional)</label>
+          <input type="datetime-local" value={scheduledFor} onChange={e => setScheduledFor(e.target.value)} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" />
+          <p className="text-gray-500 text-xs mt-1">{scheduledFor ? 'Notification will be delivered at the scheduled time.' : 'Leave empty to send immediately.'}</p>
         </div>
         <div className="flex gap-3 mt-6">
           <button type="submit" disabled={sending} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors disabled:opacity-50">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, Clock, Trash2, AlertTriangle, Info } from 'lucide-react';
+import { Bell, Clock, Trash2, AlertTriangle, Info, CalendarClock } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildAdminAuthHeaders } from '../services/supabaseAuth';
 import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
@@ -13,6 +13,7 @@ interface NotificationRecord {
   recipientFilter: string | null;
   sentBy: string;
   sentAt: string;
+  scheduledFor: string | null;
 }
 
 interface NotificationsProps {
@@ -127,6 +128,12 @@ export default function Notifications({
                     <span>Sent to: {getRecipientLabel(n)}</span>
                     <span className={`px-2 py-1 rounded ${ps.bg} ${ps.text}`}>{ps.label}</span>
                     <span>By: Customer Support</span>
+                    {n.scheduledFor && (
+                      <span className={`flex items-center gap-1 px-2 py-1 rounded ${Date.parse(n.scheduledFor) > Date.now() ? 'bg-yellow-500/20 text-yellow-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                        <CalendarClock size={12} />
+                        {Date.parse(n.scheduledFor) > Date.now() ? `Scheduled: ${new Date(n.scheduledFor).toLocaleString()}` : 'Delivered'}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button

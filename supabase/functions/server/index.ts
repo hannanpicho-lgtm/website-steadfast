@@ -13925,6 +13925,7 @@ type NotificationRecord = {
   recipientFilter: string | null; // VIP level or specific username
   sentBy: string;
   sentAt: string;
+  scheduledFor: string | null; // ISO date string for scheduled delivery, null = immediate
 };
 
 const NOTIFICATION_INDEX_KEY = 'notifications:index';
@@ -13970,6 +13971,14 @@ app.post('/make-server-a1c55d7e/admin/notifications', async (c: any) => {
     const recipientType = ['all', 'vip', 'active', 'specific'].includes(body?.recipientType) ? body.recipientType : 'all';
     const recipientFilter = typeof body?.recipientFilter === 'string' ? body.recipientFilter.trim().slice(0, 100) : null;
 
+    // Scheduled delivery: validate ISO date if provided
+    let scheduledFor: string | null = null;
+    if (typeof body?.scheduledFor === 'string' && body.scheduledFor.trim()) {
+      const parsed = Date.parse(body.scheduledFor.trim());
+      if (isNaN(parsed)) return c.json({ error: 'Invalid scheduledFor date' }, 400);
+      scheduledFor = new Date(parsed).toISOString();
+    }
+
     if (!title) return c.json({ error: 'Title is required' }, 400);
     if (!message) return c.json({ error: 'Message is required' }, 400);
 
@@ -13985,6 +13994,7 @@ app.post('/make-server-a1c55d7e/admin/notifications', async (c: any) => {
       recipientFilter,
       sentBy,
       sentAt: new Date().toISOString(),
+      scheduledFor,
     };
 
     // Store notification
@@ -14082,8 +14092,11 @@ app.get('/make-server-a1c55d7e/me/notifications', async (c: any) => {
     const records = await kv.mget(keys);
 
     // Filter to notifications this user should see
+    const now = Date.now();
     const visible = records.filter((n: any) => {
       if (!n) return false;
+      // Hide scheduled notifications that haven't reached their delivery time
+      if (n.scheduledFor && Date.parse(n.scheduledFor) > now) return false;
       if (n.recipientType === 'all') return true;
       if (n.recipientType === 'active') return true;
       if (n.recipientType === 'vip') {

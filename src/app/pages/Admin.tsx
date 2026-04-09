@@ -2107,7 +2107,7 @@ export default function Admin() {
     toast.success('Product created successfully.');
   };
 
-  const handleSendNotification = async (data: { title: string; message: string; priority: string; recipientType: string; recipientFilter: string | null }): Promise<boolean> => {
+  const handleSendNotification = async (data: { title: string; message: string; priority: string; recipientType: string; recipientFilter: string | null; scheduledFor: string | null }): Promise<boolean> => {
     setNotificationSending(true);
     try {
       const headers = await buildAdminAuthHeaders();
@@ -2118,7 +2118,7 @@ export default function Admin() {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error ?? 'Failed to send notification');
-      toast.success('Notification sent successfully.');
+      toast.success(data.scheduledFor ? 'Notification scheduled successfully.' : 'Notification sent successfully.');
       return true;
     } catch (error) {
       handleAdminRequestError(error, 'Failed to send notification');

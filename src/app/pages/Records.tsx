@@ -1,4 +1,4 @@
-import { UserCircle, ChevronLeft, Package, Clock, CheckCircle, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { UserCircle, ChevronLeft, Package, Clock, CheckCircle, Loader2, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useState, useEffect, useTransition } from 'react';
@@ -440,6 +440,29 @@ export default function Records() {
 
   const filteredProducts = getFilteredProducts();
 
+  const exportCsv = () => {
+    const escape = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    // Task records CSV
+    const taskHeader = 'Product,Merchant,Price,Commission,Premium,Rating,Date';
+    const taskRows = taskRecords.map(t =>
+      [escape(t.productName ?? t.merchant), escape(t.merchant), t.productPrice, t.commission, t.isPremium ? 'Yes' : 'No', t.rating ?? '', t.timestamp ? new Date(t.timestamp).toLocaleString() : ''].join(',')
+    );
+    // Transaction records CSV
+    const txHeader = 'Type,Amount,Status,Method,Description,Date';
+    const txRows = transactions.map(t =>
+      [t.type, t.amount.toFixed(2), t.status, escape(t.method ?? ''), escape(t.description ?? ''), t.date ? new Date(t.date).toLocaleString() : ''].join(',')
+    );
+    const csv = `Task Records\n${taskHeader}\n${taskRows.join('\n')}\n\nFinancial Activity\n${txHeader}\n${txRows.join('\n')}`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `steadfast-records-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Records exported successfully');
+  };
+
   return (
     <div className="size-full overflow-auto pb-20 bg-white">
       {/* Header */}
@@ -456,7 +479,14 @@ export default function Records() {
             <ChevronLeft size={20} />
           </button>
           <h1 className="text-xl sm:text-2xl font-bold text-[#0066b3] text-center">Records</h1>
-          <div className="w-9" aria-hidden="true"></div>
+          <button
+            onClick={exportCsv}
+            disabled={loading || (taskRecords.length === 0 && transactions.length === 0)}
+            aria-label="Export records as CSV"
+            className="w-9 h-9 flex items-center justify-center rounded-lg text-[#0066b3] hover:bg-[#eef8ff] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <Download size={18} />
+          </button>
         </div>
 
         {isRefreshing && (

@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Users, DollarSign, Activity, Bell, RefreshCw } from 'lucide-react';
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { buildAdminAuthHeaders } from '../services/supabaseAuth';
+
+import { BarChart3 } from 'lucide-react';
 
 interface AdminHomeProps {
   platformUsersLoaded: boolean;
@@ -292,6 +294,11 @@ export default function AdminHome({
         </div>
       </div>
 
+      {/* Analytics Charts */}
+      {!financeLoading && transactions.length > 0 && (
+        <TransactionCharts transactions={transactions} formatCurrency={formatCurrency} />
+      )}
+
       {/* Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-[#252b3d] rounded-lg p-6">
@@ -355,6 +362,109 @@ export default function AdminHome({
                 </div>
               ))}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Analytics Charts ─────────────────────────────────────────────────────────
+
+function TransactionCharts({ transactions, formatCurrency }: { transactions: any[]; formatCurrency: (n: number) => string }) {
+  const { dailyData, typeData } = useMemo(() => {
+    const now = Date.now();
+    const days = 7;
+    const dayMs = 86400000;
+    const labels: string[] = [];
+    const volumes: number[] = [];
+    const counts: number[] = [];
+
+    for (let i = days - 1; i >= 0; i--) {
+      const dayStart = new Date(now - i * dayMs);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart.getTime() + dayMs);
+      const label = dayStart.toLocaleDateString('en-US', { weekday: 'short' });
+      labels.push(label);
+
+      const dayTxs = transactions.filter((t: any) => {
+        const d = new Date(t.date).getTime();
+        return d >= dayStart.getTime() && d < dayEnd.getTime();
+      });
+      volumes.push(dayTxs.reduce((s: number, t: any) => s + (t.amount ?? 0), 0));
+      counts.push(dayTxs.length);
+    }
+
+    const deposits = transactions.filter((t: any) => t.type === 'Deposit');
+    const withdrawals = transactions.filter((t: any) => t.type === 'Withdrawal');
+    const commissions = transactions.filter((t: any) => t.type === 'Commission');
+    const total = transactions.length || 1;
+
+    return {
+      dailyData: { labels, volumes, counts },
+      typeData: [
+        { label: 'Deposits', count: deposits.length, pct: Math.round((deposits.length / total) * 100), color: '#3b82f6', amount: deposits.reduce((s: number, t: any) => s + t.amount, 0) },
+        { label: 'Withdrawals', count: withdrawals.length, pct: Math.round((withdrawals.length / total) * 100), color: '#f97316', amount: withdrawals.reduce((s: number, t: any) => s + t.amount, 0) },
+        { label: 'Commissions', count: commissions.length, pct: Math.round((commissions.length / total) * 100), color: '#22c55e', amount: commissions.reduce((s: number, t: any) => s + t.amount, 0) },
+      ],
+    };
+  }, [transactions]);
+
+  const maxVol = Math.max(...dailyData.volumes, 1);
+  const barH = 120;
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* 7-Day Volume Bar Chart */}
+      <div className="bg-[#252b3d] rounded-lg p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <BarChart3 size={18} className="text-[#00D9FF]" />
+          <h3 className="text-white font-semibold text-lg">7-Day Volume</h3>
+        </div>
+        <div className="flex items-end justify-between gap-2" style={{ height: barH + 30 }}>
+          {dailyData.labels.map((label, i) => {
+            const h = Math.max(4, (dailyData.volumes[i] / maxVol) * barH);
+            return (
+              <div key={label} className="flex-1 flex flex-col items-center gap-1">
+                <span className="text-[10px] text-gray-400">{dailyData.counts[i]}</span>
+                <div
+                  className="w-full bg-[#00D9FF] rounded-t transition-all duration-300"
+                  style={{ height: h }}
+                  title={`${formatCurrency(dailyData.volumes[i])} (${dailyData.counts[i]} txs)`}
+                />
+                <span className="text-[10px] text-gray-500 mt-1">{label}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Transaction Type Distribution */}
+      <div className="bg-[#252b3d] rounded-lg p-6">
+        <h3 className="text-white font-semibold text-lg mb-4">Transaction Distribution</h3>
+        {/* Horizontal stacked bar */}
+        <div className="flex h-6 rounded-full overflow-hidden mb-4">
+          {typeData.map((t) => (
+            <div
+              key={t.label}
+              className="transition-all duration-300"
+              style={{ width: `${t.pct}%`, backgroundColor: t.color, minWidth: t.count > 0 ? 8 : 0 }}
+              title={`${t.label}: ${t.pct}%`}
+            />
+          ))}
+        </div>
+        <div className="space-y-3">
+          {typeData.map((t) => (
+            <div key={t.label} className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: t.color }} />
+                <span className="text-gray-300 text-sm">{t.label}</span>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-gray-400 text-xs">{t.count} ({t.pct}%)</span>
+                <span className="text-white text-sm font-semibold">{formatCurrency(t.amount)}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
