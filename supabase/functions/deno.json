@@ -17,11 +17,5 @@
         "no-inferrable-types"
       ]
     }
-  },
-  "imports": {
-    "hono": "npm:hono@4",
-    "hono/cors": "npm:hono@4/cors",
-    "hono/logger": "npm:hono@4/logger",
-    "@supabase/supabase-js": "jsr:@supabase/supabase-js@2.49.8"
   }
 }
