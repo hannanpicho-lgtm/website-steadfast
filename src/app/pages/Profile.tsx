@@ -349,11 +349,11 @@ export default function Profile() {
             </div>
             <div className="flex flex-col items-center justify-between border-l border-r border-white/30">
               <p className="text-[11px] font-semibold text-white/85 mb-1 leading-tight">Today's Profit<br/>(USD)</p>
-              <p className="text-base font-bold min-h-[28px] flex items-center">{profileLoading ? '...' : todayProfit.toFixed(2)}</p>
+              <p className="text-base font-bold min-h-[28px] flex items-center">{profileLoading ? <span className="inline-block h-4 w-14 rounded bg-white/10 animate-pulse" /> : todayProfit.toFixed(2)}</p>
             </div>
             <div className="flex flex-col items-center justify-between">
               <p className="text-[11px] font-semibold text-white/85 mb-1 leading-tight">Total Commission<br/>(USD)</p>
-              <p className="text-base font-bold min-h-[28px] flex items-center">{profileLoading ? '...' : totalCommission.toFixed(2)}</p>
+              <p className="text-base font-bold min-h-[28px] flex items-center">{profileLoading ? <span className="inline-block h-4 w-14 rounded bg-white/10 animate-pulse" /> : totalCommission.toFixed(2)}</p>
             </div>
           </div>
 
