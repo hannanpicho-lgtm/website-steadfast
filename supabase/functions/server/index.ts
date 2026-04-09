@@ -297,17 +297,30 @@ function buildVersionResponsePayload(requestedVersion: string | null = null) {
   };
 }
 
-function getClientRequestMetadata(c: any) {
-  const clientIp = requestSource(c);
-  const country = (c.req.header('cf-ipcountry') ?? '').trim();
-  const region = (c.req.header('cf-region') ?? '').trim();
-  const city = (c.req.header('cf-ipcity') ?? '').trim();
-  const location = [city, region, country].filter(Boolean).join(', ');
+const _geoCache = new Map<string, { ts: number; location: string }>();
+const _GEO_CACHE_TTL = 600_000; // 10 min
 
-  return {
-    clientIp,
-    location: location || 'Unknown location',
-  };
+async function _geoLookup(ip: string): Promise<string> {
+  if (!ip || ip === '127.0.0.1' || ip === '::1') return 'Unknown location';
+  const cached = _geoCache.get(ip);
+  if (cached && Date.now() - cached.ts < _GEO_CACHE_TTL) return cached.location;
+  try {
+    const res = await fetch(`http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,city,regionName,country`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.status === 'success') {
+        const loc = [data.city, data.regionName, data.country].filter(Boolean).join(', ');
+        if (loc) { _geoCache.set(ip, { ts: Date.now(), location: loc }); return loc; }
+      }
+    }
+  } catch (_) { /* fallback below */ }
+  return 'Unknown location';
+}
+
+async function getClientRequestMetadata(c: any) {
+  const clientIp = requestSource(c);
+  const location = await _geoLookup(clientIp);
+  return { clientIp, location };
 }
 
 function baseRequestContext(c: any): Record<string, unknown> {
@@ -5734,7 +5747,7 @@ app.put('/make-server-a1c55d7e/me/wallet', async (c: any) => {
     const canonicalUsername = sessionResult.session.username;
     const userData = await getOrCreateUserRecord(canonicalUsername);
     const normalizedUserData = await syncUserWithVipConfig(userData, canonicalUsername);
-    const clientMeta = getClientRequestMetadata(c);
+    const clientMeta = await getClientRequestMetadata(c);
     normalizedUserData.walletProfile = parsed.walletProfile;
     normalizedUserData.lastActivityAt = new Date().toISOString();
     normalizedUserData.lastActivityIp = clientMeta.clientIp;
@@ -6277,7 +6290,7 @@ app.post('/make-server-a1c55d7e/auth/login', async (c: any) => {
     }
 
     const mustChangePassword = Boolean((userData as any).mustChangePassword);
-    const clientMeta = getClientRequestMetadata(c);
+    const clientMeta = await getClientRequestMetadata(c);
     const normalizedUserData = normalizeUserRecord(userData, canonicalUsername);
     normalizedUserData.lastLoginAt = new Date().toISOString();
     normalizedUserData.lastLoginIp = clientMeta.clientIp;
