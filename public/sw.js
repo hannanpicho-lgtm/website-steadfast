@@ -9,7 +9,7 @@
  *  • Old caches are deleted on activate whenever CACHE_VERSION is bumped
  */
 
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const CACHE_NAME = `steadfast-shell-${CACHE_VERSION}`;
 
 const PRECACHE_ASSETS = [
@@ -34,13 +34,13 @@ self.addEventListener('install', (event) => {
   );
 });
 
-// ── Activate: delete stale caches from previous versions ─────────────────────
+// ── Activate: delete ALL old caches ──────────────────────────────────────────
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
         keys
-          .filter((k) => k.startsWith('steadfast-shell-') && k !== CACHE_NAME)
+          .filter((k) => k !== CACHE_NAME)
           .map((k) => caches.delete(k)),
       ))
       .then(() => self.clients.claim()),

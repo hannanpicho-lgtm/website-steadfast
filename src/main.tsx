@@ -18,7 +18,11 @@
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker
-        .register('/sw.js', { scope: '/' })
+        .register('/sw.js', { scope: '/', updateViaCache: 'none' })
+        .then((reg) => {
+          // Force immediate check for updated SW on every page load
+          reg.update().catch(() => {});
+        })
         .catch(() => {
           // SW registration is best-effort — failure is silent and harmless.
         });
