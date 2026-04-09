@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Plus, Search, Download, Eye, Edit, Key, Check, X, Trash2, RefreshCw, Shield, DollarSign, Star, WandSparkles, ChevronUp, ChevronDown, ChevronsUpDown, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -129,10 +130,20 @@ export default function UserManagement({
         return 0;
       })
     : filteredUsers;
-  const totalUserPages = Math.max(1, Math.ceil(sortedUsers.length / usersPerPage));
-  const safeUserPage = Math.min(userPage, totalUserPages);
-  const userStartIndex = (safeUserPage - 1) * usersPerPage;
-  const paginatedUsers = sortedUsers.slice(userStartIndex, userStartIndex + usersPerPage);
+
+  const tableRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: sortedUsers.length,
+    getScrollElement: () => tableRef.current,
+    estimateSize: () => 72,
+    overscan: 15,
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom = virtualItems.length > 0
+    ? totalSize - virtualItems[virtualItems.length - 1].end
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -205,9 +216,9 @@ export default function UserManagement({
 
       {/* Users Table */}
       <div className="bg-[#252b3d] rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
+        <div ref={tableRef} className="overflow-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
           <table className="w-full">
-            <thead className="sticky top-0 z-10 bg-[#1a1f2e] border-b border-gray-700">
+            <thead className="sticky top-0 z-30 bg-[#1a1f2e] border-b border-gray-700">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">ID</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white" onClick={() => handleSort('username')}>
@@ -234,7 +245,10 @@ export default function UserManagement({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {paginatedUsers.map((user) => (
+              {paddingTop > 0 && <tr><td style={{ height: paddingTop }} /></tr>}
+              {virtualItems.map((virtualRow) => {
+                const user = sortedUsers[virtualRow.index];
+                return (
                 <tr key={user.id} className="hover:bg-[#2c3e50] transition-colors">
                   <td className="px-6 py-4 text-sm text-gray-300">{user.id}</td>
                   <td className="px-6 py-4 text-sm font-medium text-white">{user.username}</td>
@@ -405,39 +419,19 @@ export default function UserManagement({
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
+              {paddingBottom > 0 && <tr><td style={{ height: paddingBottom }} /></tr>}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Pagination */}
+      {/* Result count */}
       <div className="flex items-center justify-between bg-[#252b3d] px-6 py-4 rounded-lg">
         <p className="text-sm text-gray-400">
-          Showing {sortedUsers.length === 0 ? 0 : userStartIndex + 1}
-          –{Math.min(userStartIndex + paginatedUsers.length, sortedUsers.length)} of {sortedUsers.length} results
+          {sortedUsers.length} user{sortedUsers.length !== 1 ? 's' : ''}{filteredUsers.length !== normalizedUsers.length ? ` (filtered from ${normalizedUsers.length})` : ''}
         </p>
-        <div className="flex items-center gap-2">
-          <button
-            aria-label="Previous page"
-            onClick={() => setUserPage((current) => Math.max(1, current - 1))}
-            disabled={safeUserPage <= 1}
-            className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Previous
-          </button>
-          <button aria-label={`Page ${safeUserPage} of ${totalUserPages}`} className="px-3 py-1 bg-[#00D9FF] text-[#1a1f2e] font-semibold rounded">
-            {safeUserPage} / {totalUserPages}
-          </button>
-          <button
-            aria-label="Next page"
-            onClick={() => setUserPage((current) => Math.min(totalUserPages, current + 1))}
-            disabled={safeUserPage >= totalUserPages}
-            className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Next
-          </button>
-        </div>
       </div>
     </div>
   );

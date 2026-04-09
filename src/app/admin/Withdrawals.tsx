@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Check, X, Download, Search } from 'lucide-react';
 import { useTableSort } from '../hooks/useTableSort';
 import { SortIcon } from './SortIcon';
@@ -36,7 +37,7 @@ function Withdrawals({
   const fmt = formatCurrency || defaultFormatCurrency;
   const fmtDt = formatDateTime || defaultFormatDateTime;
 
-  const { sortCol, sortDir, page, setPage, handleSort, paginated, totalPages, sorted, startIdx } = useTableSort({
+  const { sortCol, sortDir, handleSort, sorted } = useTableSort({
     items: withdrawalRequests,
     defaultDateCol: 'requestedDate',
     searchFields: SEARCH_FIELDS as unknown as (keyof any)[],
@@ -44,10 +45,20 @@ function Withdrawals({
     filterStatus,
   });
 
-  const safePage = page;
+  const handleSearch = (val: string) => { setSearchTerm(val); };
+  const handleFilterStatus = (val: string) => { setFilterStatus(val); };
 
-  const handleSearch = (val: string) => { setSearchTerm(val); setPage(1); };
-  const handleFilterStatus = (val: string) => { setFilterStatus(val); setPage(1); };
+  const tableRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: sorted.length,
+    getScrollElement: () => tableRef.current,
+    estimateSize: () => 56,
+    overscan: 20,
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom = virtualItems.length > 0 ? totalSize - virtualItems[virtualItems.length - 1].end : 0;
 
   return (
     <div className="space-y-6">
@@ -93,9 +104,9 @@ function Withdrawals({
 
       {/* Withdrawals Table */}
       <div className="bg-[#252b3d] rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
+        <div ref={tableRef} className="overflow-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
           <table className="w-full">
-            <thead className="sticky top-0 z-10 bg-[#1a1f2e] border-b border-gray-700">
+            <thead className="sticky top-0 z-30 bg-[#1a1f2e] border-b border-gray-700">
               <tr>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">ID</th>
                 <th
@@ -127,13 +138,17 @@ function Withdrawals({
                 <tr>
                   <td colSpan={8} className="px-6 py-10 text-center text-gray-400">Loading withdrawal requests…</td>
                 </tr>
-              ) : paginated.length === 0 ? (
+              ) : sorted.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-10 text-center text-gray-400">
                     {withdrawalRequests.length === 0 ? 'No withdrawal requests submitted yet.' : 'No withdrawals match your filters.'}
                   </td>
                 </tr>
-              ) : paginated.map((withdrawal) => (
+              ) : (<>
+              {paddingTop > 0 && <tr><td style={{ height: paddingTop }} /></tr>}
+              {virtualItems.map((virtualRow) => {
+                const withdrawal = sorted[virtualRow.index];
+                return (
                 <tr key={withdrawal.id} className="hover:bg-[#2c3e50] transition-colors">
                   <td className="px-6 py-4 text-sm text-gray-300">{withdrawal.id}</td>
                   <td className="px-6 py-4 text-sm font-medium text-white">{withdrawal.username}</td>
@@ -182,38 +197,20 @@ function Withdrawals({
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
+              {paddingBottom > 0 && <tr><td style={{ height: paddingBottom }} /></tr>}
+              </>)}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between bg-[#252b3d] px-6 py-4 rounded-lg">
+      {/* Result count */}
+      <div className="bg-[#252b3d] px-6 py-4 rounded-lg">
         <p className="text-sm text-gray-400">
-          {sorted.length === 0 ? '0 results' : `Showing ${startIdx + 1}–${Math.min(startIdx + paginated.length, sorted.length)} of ${sorted.length} requests`}
+          {sorted.length} request{sorted.length !== 1 ? 's' : ''}{sorted.length !== withdrawalRequests.length ? ` (filtered from ${withdrawalRequests.length})` : ''}
         </p>
-        <div className="flex items-center gap-2">
-          <button
-            aria-label="Previous page"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={safePage <= 1}
-            className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Previous
-          </button>
-          <button aria-label={`Page ${safePage} of ${totalPages}`} className="px-3 py-1 bg-[#00D9FF] text-[#1a1f2e] font-semibold rounded">
-            {safePage} / {totalPages}
-          </button>
-          <button
-            aria-label="Next page"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={safePage >= totalPages}
-            className="px-3 py-1 bg-[#1a1f2e] border border-gray-600 text-gray-400 rounded hover:bg-[#2c3e50] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Next
-          </button>
-        </div>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Search, RefreshCw, MapPin, Globe, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { projectId } from '@utils/supabase/info';
@@ -107,50 +108,77 @@ export default function LoginHistory() {
         ) : displayed.length === 0 ? (
           <div className="p-8 text-center text-gray-500">No login events found.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-[#1a1f2e] border-b border-gray-700">
-                <tr>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">User</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Date & Time</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">IP Address</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Location</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-700">
-                {displayed.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-[#2c3e50] transition-colors">
-                    <td className="px-5 py-3 text-sm font-medium text-white">{entry.username}</td>
-                    <td className="px-5 py-3 text-sm text-gray-300">
-                      <div className="flex items-center gap-1.5">
-                        <Clock size={13} className="text-gray-500" />
-                        {entry.at ? new Date(entry.at).toLocaleString() : '—'}
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-sm text-gray-300">
-                      <div className="flex items-center gap-1.5">
-                        <Globe size={13} className="text-gray-500" />
-                        <code className="text-xs bg-[#1a1f2e] px-2 py-0.5 rounded">{entry.ip || '—'}</code>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-sm text-gray-300">
-                      <div className="flex items-center gap-1.5">
-                        <MapPin size={13} className="text-gray-500" />
-                        {entry.location || '—'}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        {!loading && displayed.length > 0 && (
-          <div className="px-5 py-3 border-t border-gray-700 text-xs text-gray-500">
-            Showing {displayed.length} login event{displayed.length !== 1 ? 's' : ''}
-          </div>
+          <LoginHistoryTable displayed={displayed} />
         )}
       </div>
+
+      {/* Result count */}
+      {!loading && displayed.length > 0 && (
+        <div className="bg-[#252b3d] px-6 py-4 rounded-lg">
+          <p className="text-sm text-gray-400">
+            {displayed.length} login event{displayed.length !== 1 ? 's' : ''}{displayed.length !== entries.length ? ` (filtered from ${entries.length})` : ''}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LoginHistoryTable({ displayed }: { displayed: LoginEntry[] }) {
+  const tableRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: displayed.length,
+    getScrollElement: () => tableRef.current,
+    estimateSize: () => 48,
+    overscan: 20,
+  });
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom = virtualItems.length > 0 ? totalSize - virtualItems[virtualItems.length - 1].end : 0;
+
+  return (
+    <div ref={tableRef} className="overflow-auto" style={{ maxHeight: 'calc(100vh - 340px)' }}>
+      <table className="w-full">
+        <thead className="sticky top-0 z-30 bg-[#1a1f2e] border-b border-gray-700">
+          <tr>
+            <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">User</th>
+            <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Date & Time</th>
+            <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">IP Address</th>
+            <th className="px-5 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Location</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-700">
+          {paddingTop > 0 && <tr><td style={{ height: paddingTop }} /></tr>}
+          {virtualItems.map((virtualRow) => {
+            const entry = displayed[virtualRow.index];
+            return (
+              <tr key={entry.id} className="hover:bg-[#2c3e50] transition-colors">
+                <td className="px-5 py-3 text-sm font-medium text-white">{entry.username}</td>
+                <td className="px-5 py-3 text-sm text-gray-300">
+                  <div className="flex items-center gap-1.5">
+                    <Clock size={13} className="text-gray-500" />
+                    {entry.at ? new Date(entry.at).toLocaleString() : '—'}
+                  </div>
+                </td>
+                <td className="px-5 py-3 text-sm text-gray-300">
+                  <div className="flex items-center gap-1.5">
+                    <Globe size={13} className="text-gray-500" />
+                    <code className="text-xs bg-[#1a1f2e] px-2 py-0.5 rounded">{entry.ip || '—'}</code>
+                  </div>
+                </td>
+                <td className="px-5 py-3 text-sm text-gray-300">
+                  <div className="flex items-center gap-1.5">
+                    <MapPin size={13} className="text-gray-500" />
+                    {entry.location || '—'}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+          {paddingBottom > 0 && <tr><td style={{ height: paddingBottom }} /></tr>}
+        </tbody>
+      </table>
     </div>
   );
 }

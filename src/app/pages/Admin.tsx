@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, Component, type ReactNode, type ErrorInfo } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, Component, type ReactNode, type ErrorInfo } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import { defaultVipConfigurations, initialProductCatalog, initialAdminRoles } from '../admin/adminData';
@@ -6,6 +6,7 @@ import { formatRelativeTime } from '../admin/adminTypes';
 import type { AdminUserRecord, AdminRole, ModalType, PlatformUser, PlatformUserAudit, ReferralOverviewRow, ReferralOverviewEvent, ReferralOverviewSummary, TaskConfig, TaskDraftState, TransactionRecord, UserBalanceAdjustmentDraft, UserTaskControlDraft, UserVipLevelDraft, VipDraftState, VipLevelConfig, WithdrawalRequestRecord, MenuItem } from '../admin/adminTypes';
 import AdminModals from '../admin/AdminModals';
 import { ResetCredentialsModal, CreditScoreModal } from '../admin/AdminPromptModals';
+import ScrollToTop from '../admin/ScrollToTop';
 import { 
   Home, 
   Users, 
@@ -177,6 +178,7 @@ export default function Admin() {
   const adminAuthRedirectedRef = useRef(false);
   const userScopeFallbackNoticeShownRef = useRef(false);
   const platformUsersFetchedAtRef = useRef(0);
+  const mainScrollRef = useRef<HTMLElement>(null);
   const PLATFORM_USERS_STALE_MS = 60_000;
   const importBackupInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -2653,10 +2655,11 @@ export default function Admin() {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-auto">
+      <main ref={mainScrollRef} className="flex-1 overflow-auto admin-scroll">
         <div className="p-8">
           {renderContent()}
         </div>
+        <ScrollToTop scrollRef={mainScrollRef} />
       </main>
 
       {/* Modals */}
