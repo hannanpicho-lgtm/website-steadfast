@@ -3,6 +3,7 @@
   import { createRoot } from "react-dom/client";
   import App from "./app/App.tsx";
   import { installServerAuthFetchBridge } from "./app/services/serverAuth";
+  import "./app/i18n";
   import "./styles/index.css";
 
   installServerAuthFetchBridge();

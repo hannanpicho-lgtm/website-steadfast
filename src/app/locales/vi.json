@@ -1,0 +1,63 @@
+{
+  "common": {
+    "loading": "Đang tải...",
+    "error": "Đã xảy ra lỗi",
+    "retry": "Thử lại",
+    "cancel": "Hủy",
+    "save": "Lưu",
+    "confirm": "Xác nhận",
+    "back": "Quay lại",
+    "submit": "Gửi",
+    "logout": "Đăng xuất",
+    "noData": "Chưa có bản ghi nào",
+    "copyright": "© 2026 Steadfast Digital, Inc. Mọi quyền được bảo lưu"
+  },
+  "profile": {
+    "title": "Hồ sơ của tôi",
+    "accountInfo": "Thông tin tài khoản",
+    "bindWallet": "Liên kết ví",
+    "securityCredentials": "Thông tin bảo mật",
+    "myFinancial": "Tài chính của tôi",
+    "deposit": "Nạp tiền",
+    "withdraw": "Rút tiền",
+    "other": "Khác",
+    "notifications": "Thông báo",
+    "customerSupport": "Hỗ trợ khách hàng",
+    "helpFaqs": "Trợ giúp & FAQ",
+    "changeLanguage": "Đổi ngôn ngữ",
+    "todayProfit": "Lợi nhuận hôm nay",
+    "totalCommission": "Tổng hoa hồng",
+    "creditScore": "Điểm tín dụng",
+    "referralCode": "Mã giới thiệu",
+    "noNotifications": "Không có thông báo",
+    "currentPassword": "Mật khẩu hiện tại",
+    "newPassword": "Mật khẩu mới",
+    "transactionPassword": "Mật khẩu giao dịch",
+    "passwordChangeRequired": "Cần thay đổi mật khẩu"
+  },
+  "nav": {
+    "home": "Trang chủ",
+    "tasks": "Nhiệm vụ",
+    "deposit": "Nạp tiền",
+    "profile": "Hồ sơ",
+    "records": "Lịch sử"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "pt": "Português",
+    "it": "Italiano",
+    "de": "Deutsch",
+    "zh": "中文",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "ja": "日本語",
+    "ko": "한국어",
+    "ru": "Русский",
+    "id": "Bahasa Indonesia",
+    "tr": "Türkçe",
+    "vi": "Tiếng Việt",
+    "th": "ภาษาไทย"
+  }
+}

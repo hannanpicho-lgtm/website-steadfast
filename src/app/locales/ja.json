@@ -1,0 +1,63 @@
+{
+  "common": {
+    "loading": "読み込み中...",
+    "error": "エラーが発生しました",
+    "retry": "再試行",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "confirm": "確認",
+    "back": "戻る",
+    "submit": "送信",
+    "logout": "ログアウト",
+    "noData": "まだ記録がありません",
+    "copyright": "© 2026 Steadfast Digital, Inc. 全著作権所有"
+  },
+  "profile": {
+    "title": "マイプロフィール",
+    "accountInfo": "アカウント情報",
+    "bindWallet": "ウォレットを紐付け",
+    "securityCredentials": "セキュリティ認証情報",
+    "myFinancial": "マイファイナンス",
+    "deposit": "入金",
+    "withdraw": "出金",
+    "other": "その他",
+    "notifications": "通知",
+    "customerSupport": "カスタマーサポート",
+    "helpFaqs": "ヘルプとFAQ",
+    "changeLanguage": "言語を変更",
+    "todayProfit": "本日の利益",
+    "totalCommission": "総コミッション",
+    "creditScore": "クレジットスコア",
+    "referralCode": "紹介コード",
+    "noNotifications": "通知はありません",
+    "currentPassword": "現在のパスワード",
+    "newPassword": "新しいパスワード",
+    "transactionPassword": "取引パスワード",
+    "passwordChangeRequired": "パスワードの変更が必要です"
+  },
+  "nav": {
+    "home": "ホーム",
+    "tasks": "タスク",
+    "deposit": "入金",
+    "profile": "プロフィール",
+    "records": "履歴"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "pt": "Português",
+    "it": "Italiano",
+    "de": "Deutsch",
+    "zh": "中文",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "ja": "日本語",
+    "ko": "한국어",
+    "ru": "Русский",
+    "id": "Bahasa Indonesia",
+    "tr": "Türkçe",
+    "vi": "Tiếng Việt",
+    "th": "ภาษาไทย"
+  }
+}

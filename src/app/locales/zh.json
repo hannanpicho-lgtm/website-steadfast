@@ -1,0 +1,63 @@
+{
+  "common": {
+    "loading": "加载中...",
+    "error": "出了点问题",
+    "retry": "重试",
+    "cancel": "取消",
+    "save": "保存",
+    "confirm": "确认",
+    "back": "返回",
+    "submit": "提交",
+    "logout": "退出登录",
+    "noData": "暂无记录",
+    "copyright": "© 2026 Steadfast Digital, Inc. 保留所有权利"
+  },
+  "profile": {
+    "title": "我的资料",
+    "accountInfo": "账户信息",
+    "bindWallet": "绑定钱包",
+    "securityCredentials": "安全凭证",
+    "myFinancial": "我的财务",
+    "deposit": "充值",
+    "withdraw": "提现",
+    "other": "其他",
+    "notifications": "通知",
+    "customerSupport": "客服支持",
+    "helpFaqs": "帮助与常见问题",
+    "changeLanguage": "更改语言",
+    "todayProfit": "今日收益",
+    "totalCommission": "总佣金",
+    "creditScore": "信用评分",
+    "referralCode": "推荐码",
+    "noNotifications": "暂无通知",
+    "currentPassword": "当前密码",
+    "newPassword": "新密码",
+    "transactionPassword": "交易密码",
+    "passwordChangeRequired": "需要更改密码"
+  },
+  "nav": {
+    "home": "首页",
+    "tasks": "任务",
+    "deposit": "充值",
+    "profile": "我的",
+    "records": "记录"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "pt": "Português",
+    "it": "Italiano",
+    "de": "Deutsch",
+    "zh": "中文",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "ja": "日本語",
+    "ko": "한국어",
+    "ru": "Русский",
+    "id": "Bahasa Indonesia",
+    "tr": "Türkçe",
+    "vi": "Tiếng Việt",
+    "th": "ภาษาไทย"
+  }
+}

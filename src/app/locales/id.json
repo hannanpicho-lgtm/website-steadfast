@@ -1,0 +1,63 @@
+{
+  "common": {
+    "loading": "Memuat...",
+    "error": "Terjadi kesalahan",
+    "retry": "Coba lagi",
+    "cancel": "Batal",
+    "save": "Simpan",
+    "confirm": "Konfirmasi",
+    "back": "Kembali",
+    "submit": "Kirim",
+    "logout": "Keluar",
+    "noData": "Belum ada catatan",
+    "copyright": "© 2026 Steadfast Digital, Inc. Semua hak dilindungi"
+  },
+  "profile": {
+    "title": "Profil Saya",
+    "accountInfo": "Informasi akun",
+    "bindWallet": "Hubungkan dompet",
+    "securityCredentials": "Kredensial keamanan",
+    "myFinancial": "Keuangan saya",
+    "deposit": "Deposit",
+    "withdraw": "Penarikan",
+    "other": "Lainnya",
+    "notifications": "Notifikasi",
+    "customerSupport": "Dukungan pelanggan",
+    "helpFaqs": "Bantuan & FAQ",
+    "changeLanguage": "Ubah bahasa",
+    "todayProfit": "Keuntungan hari ini",
+    "totalCommission": "Total komisi",
+    "creditScore": "Skor kredit",
+    "referralCode": "Kode referral",
+    "noNotifications": "Tidak ada notifikasi",
+    "currentPassword": "Kata sandi saat ini",
+    "newPassword": "Kata sandi baru",
+    "transactionPassword": "Kata sandi transaksi",
+    "passwordChangeRequired": "Perubahan kata sandi diperlukan"
+  },
+  "nav": {
+    "home": "Beranda",
+    "tasks": "Tugas",
+    "deposit": "Deposit",
+    "profile": "Profil",
+    "records": "Riwayat"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "pt": "Português",
+    "it": "Italiano",
+    "de": "Deutsch",
+    "zh": "中文",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "ja": "日本語",
+    "ko": "한국어",
+    "ru": "Русский",
+    "id": "Bahasa Indonesia",
+    "tr": "Türkçe",
+    "vi": "Tiếng Việt",
+    "th": "ภาษาไทย"
+  }
+}

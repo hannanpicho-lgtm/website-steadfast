@@ -1,0 +1,63 @@
+{
+  "common": {
+    "loading": "Загрузка...",
+    "error": "Что-то пошло не так",
+    "retry": "Повторить",
+    "cancel": "Отмена",
+    "save": "Сохранить",
+    "confirm": "Подтвердить",
+    "back": "Назад",
+    "submit": "Отправить",
+    "logout": "Выйти",
+    "noData": "Записей пока нет",
+    "copyright": "© 2026 Steadfast Digital, Inc. Все права защищены"
+  },
+  "profile": {
+    "title": "Мой профиль",
+    "accountInfo": "Информация об аккаунте",
+    "bindWallet": "Привязать кошелёк",
+    "securityCredentials": "Учётные данные безопасности",
+    "myFinancial": "Мои финансы",
+    "deposit": "Депозит",
+    "withdraw": "Вывод",
+    "other": "Другое",
+    "notifications": "Уведомления",
+    "customerSupport": "Поддержка клиентов",
+    "helpFaqs": "Помощь и FAQ",
+    "changeLanguage": "Изменить язык",
+    "todayProfit": "Прибыль за сегодня",
+    "totalCommission": "Общая комиссия",
+    "creditScore": "Кредитный рейтинг",
+    "referralCode": "Реферальный код",
+    "noNotifications": "Уведомлений нет",
+    "currentPassword": "Текущий пароль",
+    "newPassword": "Новый пароль",
+    "transactionPassword": "Пароль транзакции",
+    "passwordChangeRequired": "Необходимо сменить пароль"
+  },
+  "nav": {
+    "home": "Главная",
+    "tasks": "Задачи",
+    "deposit": "Депозит",
+    "profile": "Профиль",
+    "records": "История"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "pt": "Português",
+    "it": "Italiano",
+    "de": "Deutsch",
+    "zh": "中文",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "ja": "日本語",
+    "ko": "한국어",
+    "ru": "Русский",
+    "id": "Bahasa Indonesia",
+    "tr": "Türkçe",
+    "vi": "Tiếng Việt",
+    "th": "ภาษาไทย"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "error": "Algo salió mal",
+    "retry": "Reintentar",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "confirm": "Confirmar",
+    "back": "Volver",
+    "submit": "Enviar",
+    "logout": "Cerrar sesión",
+    "noData": "No hay registros aún",
+    "copyright": "© 2026 Steadfast Digital, Inc. Todos los derechos reservados"
+  },
+  "profile": {
+    "title": "Mi Perfil",
+    "accountInfo": "Información de cuenta",
+    "bindWallet": "Vincular billetera",
+    "securityCredentials": "Credenciales de seguridad",
+    "myFinancial": "Mis finanzas",
+    "deposit": "Depositar",
+    "withdraw": "Retirar",
+    "other": "Otros",
+    "notifications": "Notificaciones",
+    "customerSupport": "Soporte al cliente",
+    "helpFaqs": "Ayuda y preguntas frecuentes",
+    "changeLanguage": "Cambiar idioma",
+    "todayProfit": "Ganancia de hoy",
+    "totalCommission": "Comisión total",
+    "creditScore": "Puntaje de crédito",
+    "referralCode": "Código de referencia",
+    "noNotifications": "Sin notificaciones",
+    "currentPassword": "Contraseña actual",
+    "newPassword": "Nueva contraseña",
+    "transactionPassword": "Contraseña de transacción",
+    "passwordChangeRequired": "Se requiere cambio de contraseña"
+  },
+  "nav": {
+    "home": "Inicio",
+    "tasks": "Tareas",
+    "deposit": "Depositar",
+    "profile": "Perfil",
+    "records": "Registros"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "pt": "Português",
+    "it": "Italiano",
+    "de": "Deutsch",
+    "zh": "中文",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "ja": "日本語",
+    "ko": "한국어",
+    "ru": "Русский",
+    "id": "Bahasa Indonesia",
+    "tr": "Türkçe",
+    "vi": "Tiếng Việt",
+    "th": "ภาษาไทย"
+  }
+}

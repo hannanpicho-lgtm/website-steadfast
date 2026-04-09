@@ -1,7 +1,9 @@
-import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle, PencilLine, Mars, Venus, UserRound } from 'lucide-react';
+import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle, PencilLine, Mars, Venus, UserRound, Check } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
+import { supportedLanguages, rtlLanguages } from '../i18n';
 import { toast } from 'sonner';
 const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -29,6 +31,7 @@ function getStoredProfileImage(username: string | null): string | null {
 export default function Profile() {
   const navigate = useNavigate();
   const goBack = useBackNavigate();
+  const { t, i18n } = useTranslation();
   const username = getCurrentUsername();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [accountInfoOpen, setAccountInfoOpen] = useState(false);
@@ -271,7 +274,7 @@ export default function Profile() {
         <button onClick={goBack} aria-label="Go back" className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:text-[#00D9FF] transition-colors">
           <ArrowLeft size={24} />
         </button>
-        <h1 className="text-xl font-bold text-white tracking-tight">My Profile</h1>
+        <h1 className="text-xl font-bold text-white tracking-tight">{t('profile.title')}</h1>
         <div className="w-11" aria-hidden="true"></div>
       </header>
 
@@ -370,7 +373,7 @@ export default function Profile() {
 
         {/* My Profile Section */}
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-[#00D9FF] mb-3 tracking-tight flex items-center gap-2">My Profile</h3>
+          <h3 className="text-lg font-bold text-[#00D9FF] mb-3 tracking-tight flex items-center gap-2">{t('profile.title')}</h3>
 
           {mustChangePassword ? (
             <div className="mb-3 rounded-lg border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-amber-200">
@@ -387,7 +390,7 @@ export default function Profile() {
             >
               <div className="flex items-center gap-3">
                 <User size={20} />
-                <span className="font-semibold">Account Info</span>
+                <span className="font-semibold">{t('profile.accountInfo')}</span>
               </div>
               <ChevronDown 
                 size={20} 
@@ -424,7 +427,7 @@ export default function Profile() {
             >
               <div className="flex items-center gap-3">
                 <LinkIcon size={20} />
-                <span className="font-semibold">Bind Wallet</span>
+                <span className="font-semibold">{t('profile.bindWallet')}</span>
               </div>
               <ChevronDown size={20} />
             </button>
@@ -441,7 +444,7 @@ export default function Profile() {
                   <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                   <path d="M7 11V7a5 5 0 0110 0v4"/>
                 </svg>
-                <span className="font-semibold">Security Credentials</span>
+                <span className="font-semibold">{t('profile.securityCredentials')}</span>
               </div>
               <ChevronDown
                 size={20}
@@ -451,7 +454,7 @@ export default function Profile() {
             {securityCredentialsOpen && (
               <form onSubmit={handleCredentialsUpdate} className="px-4 pb-4 border-t border-white/10 space-y-3">
                 <div className="pt-3">
-                  <label className="text-sm text-gray-400 mb-1 block">Current Login Password</label>
+                  <label className="text-sm text-gray-400 mb-1 block">{t('profile.currentPassword')}</label>
                   <input
                     type="password"
                     value={currentLoginPassword}
@@ -462,7 +465,7 @@ export default function Profile() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 mb-1 block">New Login Password</label>
+                  <label className="text-sm text-gray-400 mb-1 block">{t('profile.newPassword')}</label>
                   <input
                     type="password"
                     value={newLoginPassword}
@@ -473,7 +476,7 @@ export default function Profile() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-gray-400 mb-1 block">New Transaction Password</label>
+                  <label className="text-sm text-gray-400 mb-1 block">{t('profile.transactionPassword')}</label>
                   <input
                     type="password"
                     value={newTransactionPassword}
@@ -497,7 +500,7 @@ export default function Profile() {
 
         {/* My Financial Section */}
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-[#00D9FF] mb-3 tracking-tight">My Financial</h3>
+          <h3 className="text-lg font-bold text-[#00D9FF] mb-3 tracking-tight">{t('profile.myFinancial')}</h3>
           
           {/* Deposit */}
           <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
@@ -510,7 +513,7 @@ export default function Profile() {
                   <rect x="2" y="5" width="20" height="14" rx="2"/>
                   <line x1="2" y1="10" x2="22" y2="10"/>
                 </svg>
-                <span className="font-semibold">Deposit</span>
+                <span className="font-semibold">{t('profile.deposit')}</span>
               </div>
               <ChevronDown size={20} />
             </button>
@@ -528,7 +531,7 @@ export default function Profile() {
                   <polyline points="7 10 12 15 17 10"/>
                   <line x1="12" y1="15" x2="12" y2="3"/>
                 </svg>
-                <span className="font-semibold">Withdraw</span>
+                <span className="font-semibold">{t('profile.withdraw')}</span>
               </div>
               <ChevronDown size={20} />
             </button>
@@ -537,7 +540,7 @@ export default function Profile() {
 
         {/* Other Section */}
         <div className="mb-6">
-          <h3 className="text-lg font-bold text-[#00D9FF] mb-3 tracking-tight">Other</h3>
+          <h3 className="text-lg font-bold text-[#00D9FF] mb-3 tracking-tight">{t('profile.other')}</h3>
           
           {/* Notifications */}
           <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
@@ -554,7 +557,7 @@ export default function Profile() {
                     </span>
                   )}
                 </div>
-                <span className="font-semibold">Notifications</span>
+                <span className="font-semibold">{t('profile.notifications')}</span>
               </div>
               <ChevronDown 
                 size={20} 
@@ -563,9 +566,9 @@ export default function Profile() {
             </button>
             {notificationsOpen && (
               <div className="px-4 pb-4 border-t border-white/10 space-y-3">
-                {notificationsLoading && <p className="text-sm text-gray-400 py-2">Loading...</p>}
+                {notificationsLoading && <p className="text-sm text-gray-400 py-2">{t('common.loading')}</p>}
                 {!notificationsLoading && userNotifications.length === 0 && (
-                  <p className="text-sm text-gray-400 py-2">No notifications</p>
+                  <p className="text-sm text-gray-400 py-2">{t('profile.noNotifications')}</p>
                 )}
                 {userNotifications.map(n => (
                   <div key={n.id} className={`p-3 rounded-lg ${n.read ? 'bg-white/5' : 'bg-[#00D9FF]/10 border border-[#00D9FF]/20'}`}>
@@ -590,7 +593,7 @@ export default function Profile() {
             >
               <div className="flex items-center gap-3">
                 <MessageSquare size={20} className="text-blue-500" />
-                <span className="font-semibold">Customer Support</span>
+                <span className="font-semibold">{t('profile.customerSupport')}</span>
               </div>
               <ChevronDown size={20} className="rotate-[-90deg]" />
             </Link>
@@ -604,7 +607,7 @@ export default function Profile() {
             >
               <div className="flex items-center gap-3">
                 <HelpCircle size={20} />
-                <span className="font-semibold">Help & FAQs</span>
+                <span className="font-semibold">{t('profile.helpFaqs')}</span>
               </div>
               <ChevronDown size={20} className="rotate-[-90deg]" />
             </Link>
@@ -618,7 +621,8 @@ export default function Profile() {
             >
               <div className="flex items-center gap-3">
                 <Globe size={20} />
-                <span className="font-semibold">Change Language</span>
+                <span className="font-semibold">{t('profile.changeLanguage')}</span>
+                <span className="text-xs text-gray-400">{t(`language.${i18n.language.split('-')[0]}`)}</span>
               </div>
               <ChevronDown 
                 size={20} 
@@ -628,21 +632,25 @@ export default function Profile() {
             {languageOpen && (
               <div className="px-4 pb-4 border-t border-white/10">
                 <div className="space-y-1">
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 font-semibold text-[#00D9FF]">English</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Español</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">中文</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Français</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Deutsch</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Português</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">العربية</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">हिन्दी</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Bahasa Indonesia</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">日本語</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">한국어</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Русский</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Türkçe</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">Tiếng Việt</button>
-                  <button className="block w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 text-gray-300">ภาษาไทย</button>
+                  {supportedLanguages.map((lng) => {
+                    const isActive = i18n.language === lng || i18n.language.startsWith(lng + '-');
+                    return (
+                      <button
+                        key={lng}
+                        onClick={() => {
+                          i18n.changeLanguage(lng);
+                          document.documentElement.lang = lng;
+                          document.documentElement.dir = rtlLanguages.has(lng) ? 'rtl' : 'ltr';
+                        }}
+                        className={`flex items-center justify-between w-full text-left py-2 px-3 rounded-lg hover:bg-white/5 ${
+                          isActive ? 'font-semibold text-[#00D9FF]' : 'text-gray-300'
+                        }`}
+                      >
+                        <span>{t(`language.${lng}`)}</span>
+                        {isActive && <Check size={16} className="text-[#00D9FF]" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -657,7 +665,7 @@ export default function Profile() {
             >
               <div className="flex items-center gap-3">
                 <LogOut size={20} />
-                <span className="font-semibold">Logout</span>
+                <span className="font-semibold">{t('common.logout')}</span>
               </div>
               <ChevronDown size={20} />
             </Link>
@@ -666,7 +674,7 @@ export default function Profile() {
 
         {/* Footer */}
         <div className="text-center text-xs text-gray-500 mt-8 mb-4">
-          <p>© 2026 Steadfast Digital, Inc. All rights reserved</p>
+          <p>{t('common.copyright')}</p>
         </div>
       </div>
 

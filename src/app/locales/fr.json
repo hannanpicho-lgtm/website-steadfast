@@ -1,0 +1,63 @@
+{
+  "common": {
+    "loading": "Chargement...",
+    "error": "Une erreur est survenue",
+    "retry": "Réessayer",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "submit": "Soumettre",
+    "logout": "Déconnexion",
+    "noData": "Aucun enregistrement pour le moment",
+    "copyright": "© 2026 Steadfast Digital, Inc. Tous droits réservés"
+  },
+  "profile": {
+    "title": "Mon Profil",
+    "accountInfo": "Informations du compte",
+    "bindWallet": "Lier le portefeuille",
+    "securityCredentials": "Identifiants de sécurité",
+    "myFinancial": "Mes finances",
+    "deposit": "Dépôt",
+    "withdraw": "Retrait",
+    "other": "Autre",
+    "notifications": "Notifications",
+    "customerSupport": "Support client",
+    "helpFaqs": "Aide et FAQ",
+    "changeLanguage": "Changer la langue",
+    "todayProfit": "Bénéfice du jour",
+    "totalCommission": "Commission totale",
+    "creditScore": "Score de crédit",
+    "referralCode": "Code de parrainage",
+    "noNotifications": "Aucune notification",
+    "currentPassword": "Mot de passe actuel",
+    "newPassword": "Nouveau mot de passe",
+    "transactionPassword": "Mot de passe de transaction",
+    "passwordChangeRequired": "Changement de mot de passe requis"
+  },
+  "nav": {
+    "home": "Accueil",
+    "tasks": "Tâches",
+    "deposit": "Dépôt",
+    "profile": "Profil",
+    "records": "Historique"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "pt": "Português",
+    "it": "Italiano",
+    "de": "Deutsch",
+    "zh": "中文",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "ja": "日本語",
+    "ko": "한국어",
+    "ru": "Русский",
+    "id": "Bahasa Indonesia",
+    "tr": "Türkçe",
+    "vi": "Tiếng Việt",
+    "th": "ภาษาไทย"
+  }
+}

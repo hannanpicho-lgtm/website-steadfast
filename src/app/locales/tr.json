@@ -1,0 +1,63 @@
+{
+  "common": {
+    "loading": "Yükleniyor...",
+    "error": "Bir şeyler yanlış gitti",
+    "retry": "Tekrar dene",
+    "cancel": "İptal",
+    "save": "Kaydet",
+    "confirm": "Onayla",
+    "back": "Geri",
+    "submit": "Gönder",
+    "logout": "Çıkış yap",
+    "noData": "Henüz kayıt yok",
+    "copyright": "© 2026 Steadfast Digital, Inc. Tüm hakları saklıdır"
+  },
+  "profile": {
+    "title": "Profilim",
+    "accountInfo": "Hesap bilgileri",
+    "bindWallet": "Cüzdan bağla",
+    "securityCredentials": "Güvenlik kimlik bilgileri",
+    "myFinancial": "Finanslarım",
+    "deposit": "Yatırım",
+    "withdraw": "Çekim",
+    "other": "Diğer",
+    "notifications": "Bildirimler",
+    "customerSupport": "Müşteri desteği",
+    "helpFaqs": "Yardım ve SSS",
+    "changeLanguage": "Dili değiştir",
+    "todayProfit": "Bugünkü kâr",
+    "totalCommission": "Toplam komisyon",
+    "creditScore": "Kredi puanı",
+    "referralCode": "Referans kodu",
+    "noNotifications": "Bildirim yok",
+    "currentPassword": "Mevcut şifre",
+    "newPassword": "Yeni şifre",
+    "transactionPassword": "İşlem şifresi",
+    "passwordChangeRequired": "Şifre değişikliği gerekli"
+  },
+  "nav": {
+    "home": "Ana sayfa",
+    "tasks": "Görevler",
+    "deposit": "Yatırım",
+    "profile": "Profil",
+    "records": "Kayıtlar"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "pt": "Português",
+    "it": "Italiano",
+    "de": "Deutsch",
+    "zh": "中文",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "ja": "日本語",
+    "ko": "한국어",
+    "ru": "Русский",
+    "id": "Bahasa Indonesia",
+    "tr": "Türkçe",
+    "vi": "Tiếng Việt",
+    "th": "ภาษาไทย"
+  }
+}

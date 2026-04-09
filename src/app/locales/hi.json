@@ -1,0 +1,63 @@
+{
+  "common": {
+    "loading": "लोड हो रहा है...",
+    "error": "कुछ गलत हो गया",
+    "retry": "पुनः प्रयास करें",
+    "cancel": "रद्द करें",
+    "save": "सहेजें",
+    "confirm": "पुष्टि करें",
+    "back": "वापस",
+    "submit": "जमा करें",
+    "logout": "लॉग आउट",
+    "noData": "अभी कोई रिकॉर्ड नहीं",
+    "copyright": "© 2026 Steadfast Digital, Inc. सर्वाधिकार सुरक्षित"
+  },
+  "profile": {
+    "title": "मेरी प्रोफ़ाइल",
+    "accountInfo": "खाता जानकारी",
+    "bindWallet": "वॉलेट जोड़ें",
+    "securityCredentials": "सुरक्षा प्रमाणपत्र",
+    "myFinancial": "मेरा वित्तीय",
+    "deposit": "जमा",
+    "withdraw": "निकासी",
+    "other": "अन्य",
+    "notifications": "सूचनाएं",
+    "customerSupport": "ग्राहक सहायता",
+    "helpFaqs": "सहायता और FAQ",
+    "changeLanguage": "भाषा बदलें",
+    "todayProfit": "आज का लाभ",
+    "totalCommission": "कुल कमीशन",
+    "creditScore": "क्रेडिट स्कोर",
+    "referralCode": "रेफ़रल कोड",
+    "noNotifications": "कोई सूचना नहीं",
+    "currentPassword": "वर्तमान पासवर्ड",
+    "newPassword": "नया पासवर्ड",
+    "transactionPassword": "लेनदेन पासवर्ड",
+    "passwordChangeRequired": "पासवर्ड बदलना आवश्यक है"
+  },
+  "nav": {
+    "home": "होम",
+    "tasks": "कार्य",
+    "deposit": "जमा",
+    "profile": "प्रोफ़ाइल",
+    "records": "रिकॉर्ड"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "pt": "Português",
+    "it": "Italiano",
+    "de": "Deutsch",
+    "zh": "中文",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "ja": "日本語",
+    "ko": "한국어",
+    "ru": "Русский",
+    "id": "Bahasa Indonesia",
+    "tr": "Türkçe",
+    "vi": "Tiếng Việt",
+    "th": "ภาษาไทย"
+  }
+}

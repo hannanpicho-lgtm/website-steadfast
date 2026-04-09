@@ -1,0 +1,63 @@
+{
+  "common": {
+    "loading": "جار التحميل...",
+    "error": "حدث خطأ ما",
+    "retry": "إعادة المحاولة",
+    "cancel": "إلغاء",
+    "save": "حفظ",
+    "confirm": "تأكيد",
+    "back": "رجوع",
+    "submit": "إرسال",
+    "logout": "تسجيل الخروج",
+    "noData": "لا توجد سجلات بعد",
+    "copyright": "© 2026 Steadfast Digital, Inc. جميع الحقوق محفوظة"
+  },
+  "profile": {
+    "title": "ملفي الشخصي",
+    "accountInfo": "معلومات الحساب",
+    "bindWallet": "ربط المحفظة",
+    "securityCredentials": "بيانات الأمان",
+    "myFinancial": "ماليتي",
+    "deposit": "إيداع",
+    "withdraw": "سحب",
+    "other": "أخرى",
+    "notifications": "الإشعارات",
+    "customerSupport": "دعم العملاء",
+    "helpFaqs": "المساعدة والأسئلة الشائعة",
+    "changeLanguage": "تغيير اللغة",
+    "todayProfit": "ربح اليوم",
+    "totalCommission": "إجمالي العمولة",
+    "creditScore": "درجة الائتمان",
+    "referralCode": "رمز الإحالة",
+    "noNotifications": "لا توجد إشعارات",
+    "currentPassword": "كلمة المرور الحالية",
+    "newPassword": "كلمة المرور الجديدة",
+    "transactionPassword": "كلمة مرور المعاملة",
+    "passwordChangeRequired": "يجب تغيير كلمة المرور"
+  },
+  "nav": {
+    "home": "الرئيسية",
+    "tasks": "المهام",
+    "deposit": "إيداع",
+    "profile": "الملف الشخصي",
+    "records": "السجلات"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "pt": "Português",
+    "it": "Italiano",
+    "de": "Deutsch",
+    "zh": "中文",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "ja": "日本語",
+    "ko": "한국어",
+    "ru": "Русский",
+    "id": "Bahasa Indonesia",
+    "tr": "Türkçe",
+    "vi": "Tiếng Việt",
+    "th": "ภาษาไทย"
+  }
+}

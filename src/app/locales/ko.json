@@ -1,0 +1,63 @@
+{
+  "common": {
+    "loading": "로딩 중...",
+    "error": "문제가 발생했습니다",
+    "retry": "재시도",
+    "cancel": "취소",
+    "save": "저장",
+    "confirm": "확인",
+    "back": "뒤로",
+    "submit": "제출",
+    "logout": "로그아웃",
+    "noData": "아직 기록이 없습니다",
+    "copyright": "© 2026 Steadfast Digital, Inc. 모든 권리 보유"
+  },
+  "profile": {
+    "title": "내 프로필",
+    "accountInfo": "계정 정보",
+    "bindWallet": "지갑 연결",
+    "securityCredentials": "보안 자격 증명",
+    "myFinancial": "내 재정",
+    "deposit": "입금",
+    "withdraw": "출금",
+    "other": "기타",
+    "notifications": "알림",
+    "customerSupport": "고객 지원",
+    "helpFaqs": "도움말 및 FAQ",
+    "changeLanguage": "언어 변경",
+    "todayProfit": "오늘의 수익",
+    "totalCommission": "총 수수료",
+    "creditScore": "신용 점수",
+    "referralCode": "추천 코드",
+    "noNotifications": "알림 없음",
+    "currentPassword": "현재 비밀번호",
+    "newPassword": "새 비밀번호",
+    "transactionPassword": "거래 비밀번호",
+    "passwordChangeRequired": "비밀번호 변경 필요"
+  },
+  "nav": {
+    "home": "홈",
+    "tasks": "작업",
+    "deposit": "입금",
+    "profile": "프로필",
+    "records": "기록"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "pt": "Português",
+    "it": "Italiano",
+    "de": "Deutsch",
+    "zh": "中文",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "ja": "日本語",
+    "ko": "한국어",
+    "ru": "Русский",
+    "id": "Bahasa Indonesia",
+    "tr": "Türkçe",
+    "vi": "Tiếng Việt",
+    "th": "ภาษาไทย"
+  }
+}

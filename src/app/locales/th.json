@@ -1,0 +1,63 @@
+{
+  "common": {
+    "loading": "กำลังโหลด...",
+    "error": "เกิดข้อผิดพลาด",
+    "retry": "ลองอีกครั้ง",
+    "cancel": "ยกเลิก",
+    "save": "บันทึก",
+    "confirm": "ยืนยัน",
+    "back": "กลับ",
+    "submit": "ส่ง",
+    "logout": "ออกจากระบบ",
+    "noData": "ยังไม่มีบันทึก",
+    "copyright": "© 2026 Steadfast Digital, Inc. สงวนลิขสิทธิ์"
+  },
+  "profile": {
+    "title": "โปรไฟล์ของฉัน",
+    "accountInfo": "ข้อมูลบัญชี",
+    "bindWallet": "ผูกกระเป๋าเงิน",
+    "securityCredentials": "ข้อมูลรับรองความปลอดภัย",
+    "myFinancial": "การเงินของฉัน",
+    "deposit": "ฝากเงิน",
+    "withdraw": "ถอนเงิน",
+    "other": "อื่นๆ",
+    "notifications": "การแจ้งเตือน",
+    "customerSupport": "ฝ่ายบริการลูกค้า",
+    "helpFaqs": "ช่วยเหลือและคำถามที่พบบ่อย",
+    "changeLanguage": "เปลี่ยนภาษา",
+    "todayProfit": "กำไรวันนี้",
+    "totalCommission": "ค่าคอมมิชชั่นทั้งหมด",
+    "creditScore": "คะแนนเครดิต",
+    "referralCode": "รหัสแนะนำ",
+    "noNotifications": "ไม่มีการแจ้งเตือน",
+    "currentPassword": "รหัสผ่านปัจจุบัน",
+    "newPassword": "รหัสผ่านใหม่",
+    "transactionPassword": "รหัสผ่านการทำธุรกรรม",
+    "passwordChangeRequired": "จำเป็นต้องเปลี่ยนรหัสผ่าน"
+  },
+  "nav": {
+    "home": "หน้าหลัก",
+    "tasks": "งาน",
+    "deposit": "ฝากเงิน",
+    "profile": "โปรไฟล์",
+    "records": "ประวัติ"
+  },
+  "language": {
+    "en": "English",
+    "es": "Español",
+    "fr": "Français",
+    "pt": "Português",
+    "it": "Italiano",
+    "de": "Deutsch",
+    "zh": "中文",
+    "ar": "العربية",
+    "hi": "हिन्दी",
+    "ja": "日本語",
+    "ko": "한국어",
+    "ru": "Русский",
+    "id": "Bahasa Indonesia",
+    "tr": "Türkçe",
+    "vi": "Tiếng Việt",
+    "th": "ภาษาไทย"
+  }
+}
