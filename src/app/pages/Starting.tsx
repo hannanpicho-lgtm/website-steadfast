@@ -12,7 +12,7 @@ import { type VipConfig } from '../services/vipConfig';
 import { type RewardsConfig, defaultRewardsConfig } from '../services/rewardsConfig';
 import { acknowledgeBonusFeedItems, fetchBonusFeed } from '../services/bonusFeed';
 import { fetchWinnersTicker, type WinnersTickerEntry } from '../services/winnersTicker';
-import { fetchJsonWithRetry, invalidateSessionCacheByPrefix } from '../services/networkClient';
+import { fetchJsonWithRetry, invalidateSessionCacheByPrefix, isAuthError } from '../services/networkClient';
 import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 import {
   buildPublicCacheKey,
@@ -794,6 +794,16 @@ export default function Starting() {
       console.info('[StartingPerf] load sample', perfSample);
     } catch (error) {
       console.error('Error fetching user data:', error);
+      if (isAuthError(error)) {
+        navigate('/login', {
+          replace: true,
+          state: buildLoginRedirectState(location.pathname, {
+            authReason: 'session-expired',
+            authMessage: 'Your session ended. Please sign in again to continue.',
+          }),
+        });
+        return;
+      }
       // Only show connection error if we have NO cached data to fall back on
       if (!hasCachedData) {
         setLoadError('Connection is unstable. Please retry loading your data.');

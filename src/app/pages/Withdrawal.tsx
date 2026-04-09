@@ -9,7 +9,7 @@ import { Header } from '../components/Header';
 import { publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
-import { fetchJsonWithRetry } from '../services/networkClient';
+import { fetchJsonWithRetry, isAuthError } from '../services/networkClient';
 import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 
 type UserWalletData = {
@@ -120,8 +120,11 @@ export default function Withdrawal() {
         }
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load withdrawal data';
-      toast.error(message);
+      if (isAuthError(error)) {
+        navigate('/login', { replace: true, state: buildLoginRedirectState(location.pathname, { authReason: 'session-expired', authMessage: 'Your session ended. Please sign in again to manage withdrawals.' }) });
+        return;
+      }
+      toast.error(error instanceof Error ? error.message : 'Failed to load withdrawal data');
     } finally {
       setLoading(false);
     }

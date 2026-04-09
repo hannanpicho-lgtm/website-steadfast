@@ -266,6 +266,11 @@ export async function fetchJsonWithRetry<T>(params: FetchJsonWithRetryParams): P
   throw lastError;
 }
 
+/** Returns true when an error from fetchJsonWithRetry indicates the session has expired (HTTP 401). */
+export function isAuthError(error: unknown): boolean {
+  return error instanceof HttpRequestError && error.status === 401;
+}
+
 export function readApiMetrics(): ApiMetricSample[] {
   try {
     const raw = localStorage.getItem(API_METRICS_STORAGE_KEY);

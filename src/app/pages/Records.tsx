@@ -10,7 +10,7 @@ import { publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
 import { type VipConfig } from '../services/vipConfig';
-import { fetchJsonWithRetry } from '../services/networkClient';
+import { fetchJsonWithRetry, isAuthError } from '../services/networkClient';
 import { buildUserScopedCacheKey, reportClientCompatibilityEvent } from '../services/apiCompatibility';
 import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 
@@ -330,6 +330,10 @@ export default function Records() {
       setVipConfigurations(Array.isArray(snapshot?.vipConfig) ? snapshot.vipConfig : []);
     } catch (error) {
       console.error('Error fetching data:', error);
+      if (isAuthError(error)) {
+        navigate('/login', { replace: true, state: buildLoginRedirectState(location.pathname, { authReason: 'session-expired', authMessage: 'Your session ended. Please sign in again to view your records.' }) });
+        return;
+      }
       if (shouldBlockRender) {
         setLoadError('Failed to refresh records due to network instability.');
         toast.error('Failed to load your records. Please refresh and try again.');

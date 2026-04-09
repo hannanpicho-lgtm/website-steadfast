@@ -8,7 +8,7 @@ import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
-import { fetchJsonWithRetry } from '../services/networkClient';
+import { fetchJsonWithRetry, isAuthError } from '../services/networkClient';
 import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 
 type UserData = {
@@ -68,8 +68,11 @@ export default function Deposit() {
           holdAmount: Number(userPayload.holdAmount ?? 0),
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to load balance';
-        toast.error(message);
+        if (isAuthError(error)) {
+          navigate('/login', { replace: true, state: buildLoginRedirectState(location.pathname, { authReason: 'session-expired', authMessage: 'Your session ended. Please sign in again.' }) });
+          return;
+        }
+        toast.error(error instanceof Error ? error.message : 'Failed to load balance');
       } finally {
         setLoadingBalance(false);
       }
