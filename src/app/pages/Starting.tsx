@@ -1,10 +1,13 @@
-import { UserCircle, Rocket, CreditCard, Snowflake, Loader2, Lock, AlertTriangle, AlertCircle, DollarSign, ChevronLeft, ChevronRight, CheckCircle2, MessageCircle } from 'lucide-react';
+import { Loader2, Lock, AlertCircle, CheckCircle2, MessageCircle } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { useState, useEffect, useRef, useMemo, lazy, Suspense, type MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { toast } from 'sonner';
 const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
+import { LiveTickerBanner } from '../components/starting/LiveTickerBanner';
+import { ProductCarousel } from '../components/starting/ProductCarousel';
+import { FinancialSummaryPanel } from '../components/starting/FinancialSummaryPanel';
 import { publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
@@ -241,76 +244,6 @@ function getNavigationTimingSnapshot() {
   };
 }
 
-function getPrimaryLabel(value: string | null | undefined, fallback = 'Product'): string {
-  if (typeof value !== 'string') {
-    return fallback;
-  }
-
-  const normalized = value.trim();
-  if (!normalized) {
-    return fallback;
-  }
-
-  return normalized.split(',')[0];
-}
-
-/* ─── Reusable financial-card wrapper with tilt + sheen FX ─── */
-const FB_BASE = 'relative overflow-hidden rounded-xl border border-white/20 bg-white/12 p-3 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform';
-const FB_HOVER = 'hover:border-white/50 hover:shadow-[0_14px_28px_rgba(5,42,107,0.35)]';
-const FB_GLOSS = 'before:pointer-events-none before:absolute before:inset-0 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.20)_0%,rgba(255,255,255,0.04)_45%,rgba(4,34,93,0.06)_100%)]';
-const FB_RING = 'after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[11px] after:border after:border-white/15 after:transition-all after:duration-300 hover:after:border-white/40';
-const FB_SHEEN = 'pointer-events-none absolute inset-y-0 -left-[55%] w-[45%] bg-[linear-gradient(110deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.45)_48%,rgba(255,255,255,0)_100%)] opacity-0';
-
-function fbMouseMove(event: ReactMouseEvent<HTMLDivElement>) {
-  if (typeof window === 'undefined' || !window.matchMedia('(pointer: fine)').matches) return;
-  const block = event.currentTarget;
-  const rect = block.getBoundingClientRect();
-  const tiltMultiplier = Number(block.dataset.tiltMult ?? 1);
-  const offsetX = event.clientX - rect.left;
-  const offsetY = event.clientY - rect.top;
-  const rotateY = ((offsetX / rect.width) - 0.5) * (6 * tiltMultiplier);
-  const rotateX = (0.5 - (offsetY / rect.height)) * (6 * tiltMultiplier);
-  block.style.transform = `perspective(960px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg) translateZ(0)`;
-}
-
-function fbMouseLeave(event: ReactMouseEvent<HTMLDivElement>) {
-  event.currentTarget.style.transform = 'perspective(960px) rotateX(0deg) rotateY(0deg) translateZ(0)';
-}
-
-function fbMouseEnter(event: ReactMouseEvent<HTMLDivElement>) {
-  const block = event.currentTarget;
-  if (block.dataset.sheenPlayed === 'true') return;
-  block.dataset.sheenPlayed = 'true';
-  const sheen = block.querySelector<HTMLElement>('[data-financial-sheen]');
-  if (!sheen) return;
-  sheen.style.transition = 'none';
-  sheen.style.transform = 'translateX(-135%)';
-  sheen.style.opacity = '0';
-  requestAnimationFrame(() => {
-    window.setTimeout(() => {
-      sheen.style.transition = 'transform 620ms cubic-bezier(0.22, 1, 0.36, 1), opacity 160ms ease';
-      sheen.style.opacity = '1';
-      sheen.style.transform = 'translateX(235%)';
-      window.setTimeout(() => { sheen.style.opacity = '0'; }, 620);
-    }, 120);
-  });
-}
-
-function FinancialBlock({ tiltMult = 1, className = '', children }: { tiltMult?: number; className?: string; children: React.ReactNode }) {
-  return (
-    <div
-      className={`${FB_BASE} ${FB_HOVER} ${FB_GLOSS} ${FB_RING} ${className}`}
-      onMouseMove={fbMouseMove}
-      onMouseLeave={fbMouseLeave}
-      onMouseEnter={fbMouseEnter}
-      data-tilt-mult={tiltMult}
-    >
-      <span data-financial-sheen className={FB_SHEEN} />
-      <div className="relative z-[1]">{children}</div>
-    </div>
-  );
-}
-
 // Starting page - Product submission platform with commission tracking
 export default function Starting() {
   const navigate = useNavigate();
@@ -539,13 +472,28 @@ export default function Starting() {
     };
 
     void syncTicker();
-    const intervalId = window.setInterval(() => {
+    let intervalId = window.setInterval(() => {
       void syncTicker();
     }, 60_000);
+
+    // Pause polling when tab is hidden (saves bandwidth/battery on mobile)
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        window.clearInterval(intervalId);
+        intervalId = 0;
+      } else if (!intervalId) {
+        void syncTicker();
+        intervalId = window.setInterval(() => {
+          void syncTicker();
+        }, 60_000);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, []);
 
@@ -1021,30 +969,7 @@ export default function Starting() {
       <Header onContactClick={() => setIsChatOpen(true)} />
 
       {/* Live Ticker Banner */}
-      <div className="relative overflow-hidden bg-[linear-gradient(90deg,#04182e_0%,#072240_50%,#04182e_100%)] border-y border-[#00D9FF]/20 py-2.5">
-        {/* Edge fade masks */}
-        <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#04182e] to-transparent z-10" />
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[#04182e] to-transparent z-10" />
-        {/* LIVE badge */}
-        <div className="absolute left-4 top-1/2 -translate-y-1/2 z-20 flex items-center gap-1.5 bg-[#00D9FF]/10 border border-[#00D9FF]/40 rounded-full px-2.5 py-1">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
-          </span>
-          <span className="text-[10px] font-bold tracking-widest text-[#00D9FF] uppercase">Live</span>
-        </div>
-        {/* Scrolling winners */}
-        <div className="pl-28 animate-marquee whitespace-nowrap">
-          {[...liveTickerEntries, ...liveTickerEntries].map((entry, idx) => (
-            <span key={`${entry.user}-${idx}`}>
-              <span className="mx-3 text-sm font-semibold text-[#00D9FF]">
-                {entry.emoji} <span className="text-white">{entry.user}</span> just won <span className="text-[#00D9FF] font-bold">{entry.amount}</span>
-              </span>
-              <span className="text-[#00D9FF]/30 mx-1">•</span>
-            </span>
-          ))}
-        </div>
-      </div>
+      <LiveTickerBanner entries={liveTickerEntries} />
 
       {/* Main Content */}
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
@@ -1066,64 +991,7 @@ export default function Starting() {
         </div>
 
         {/* Product Slideshow */}
-        {activeTasks.length > 0 ? (() => { const slide = activeTasks[carouselIndex % activeTasks.length]; return (
-          <div className="bg-[#252d42] rounded-lg p-4 sm:p-6 mb-6 border border-[#00D9FF]/20 relative select-none">
-            {/* Prev button */}
-            <button
-              onClick={() => setCarouselIndex(i => (i - 1 + activeTasks.length) % activeTasks.length)}
-              aria-label="Previous slide"
-              className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 bg-[#1a1f2e]/80 hover:bg-[#252d42] backdrop-blur-sm border border-white/20 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
-            >
-              <ChevronLeft size={20} className="text-gray-300" />
-            </button>
-
-            {/* Slide content */}
-            <div className="text-center px-6 sm:px-8">
-              <div className="flex items-center justify-center mb-4 h-[180px]">
-                <img
-                  key={slide.id}
-                  src={slide.image}
-                  alt={getPrimaryLabel(slide.product)}
-                  width={200}
-                  height={180}
-                  loading="lazy"
-                  className="max-h-[170px] sm:max-h-[180px] max-w-[180px] sm:max-w-[200px] w-full object-contain"
-                />
-              </div>
-                <h3 className="text-base font-semibold text-white mb-2 line-clamp-2">{slide.product}</h3>
-              <div className="flex items-center justify-center gap-1 mb-2">
-                <span className="text-yellow-500">⭐</span>
-                <span className="text-sm font-semibold text-gray-300">{slide.rating}</span>
-              </div>
-              <p className="text-xl font-bold text-white">Price: {slide.price.toFixed(2)} USD</p>
-            </div>
-
-            {/* Next button */}
-            <button
-              onClick={() => setCarouselIndex(i => (i + 1) % activeTasks.length)}
-              aria-label="Next slide"
-              className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 bg-[#1a1f2e]/80 hover:bg-[#252d42] backdrop-blur-sm border border-white/20 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
-            >
-              <ChevronRight size={20} className="text-gray-300" />
-            </button>
-
-            {/* Dot indicators */}
-            <div className="flex justify-center gap-2 mt-4">
-              {activeTasks.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCarouselIndex(i)}
-                  aria-label={`Go to slide ${i + 1}`}
-                  className={`w-2 h-2 rounded-full transition-colors ${i === carouselIndex ? 'bg-[#00D9FF]' : 'bg-gray-600'}`}
-                />
-              ))}
-            </div>
-          </div>
-          ); })() : (
-          <div className="bg-[#252d42] rounded-lg p-6 mb-6 border border-white/10 text-center text-gray-400">
-            No active tasks are available right now.
-          </div>
-        )}
+        <ProductCarousel tasks={activeTasks} index={carouselIndex} onIndexChange={setCarouselIndex} />
 
         {/* POST-UNFREEZE: Premium profit credited confirmation */}
         {!userData?.isFrozen && userData?.activePremium && Number(userData.activePremium.commissionEarned ?? 0) > 0 && (
@@ -1316,129 +1184,22 @@ export default function Starting() {
         )}
 
         {/* Commission Panel */}
-        <div className="relative mb-6 overflow-hidden rounded-[22px] bg-[linear-gradient(145deg,#0b72e7_0%,#0d92f4_52%,#19c0ff_100%)] text-white shadow-[0_16px_36px_rgba(6,58,145,0.22)]">
-          <div className="absolute inset-x-0 top-0 h-20 bg-white/10 blur-3xl" />
-          <div className="relative p-4 md:p-5">
-            <div className="mx-auto max-w-md text-center">
-              <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/90">
-                Financial Summary
-              </div>
-
-              <FinancialBlock tiltMult={1.1} className="mt-3 px-4 py-4">
-                <Rocket className="mx-auto" size={26} />
-                <h3 className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Today's Commission</h3>
-                <p className="mt-2 text-3xl font-bold leading-none">{todayCommissionDisplay.toFixed(2)} USD</p>
-                <p className="mt-2 text-xs text-white/80">Updated from completed submissions in the current working day.</p>
-                {userData?.isFrozen && (
-                  <p className="mt-1 text-[11px] text-amber-100/90">Includes premium commission profit shown in settlement details.</p>
-                )}
-              </FinancialBlock>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <FinancialBlock>
-                <div className="flex flex-col items-center text-center gap-2 md:flex-row md:text-left md:gap-3">
-                  <div className="rounded-full bg-white/15 p-1.5 shrink-0">
-                    <CreditCard size={15} />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">
-                      {userData?.isFrozen ? 'Current Balance' : 'Available Balance'}
-                    </p>
-                    <p className="mt-1 text-xl font-bold">
-                      {(userData?.isFrozen ? Math.max(0, frozenCurrentBalanceBeforeFreeze) : availableFundsForSubmit).toFixed(2)} USD
-                    </p>
-                  </div>
-                </div>
-                <p className="mt-2 text-center text-[11px] text-white/75 md:text-left">
-                  {userData?.isFrozen ? 'Balance held before premium settlement.' : 'Funds currently available for new submissions.'}
-                </p>
-              </FinancialBlock>
-
-              <FinancialBlock>
-                <div className="flex flex-col items-center text-center gap-2 md:flex-row md:text-left md:gap-3">
-                  <div className="rounded-full bg-white/15 p-1.5 shrink-0">
-                    <Snowflake size={15} />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Hold Amount</p>
-                    <p className={`mt-1 text-xl font-bold ${userData?.isFrozen ? 'text-[#ffe1e1]' : 'text-white'}`}>
-                      {userData?.isFrozen && frozenUpholdAmount > 0 ? '-' : ''}{(userData?.isFrozen ? frozenUpholdAmount : Number(userData?.holdAmount ?? 0)).toFixed(2)} USD
-                    </p>
-                  </div>
-                </div>
-                <p className="mt-2 text-center text-[11px] text-white/75 md:text-left">
-                  {userData?.isFrozen ? 'Reserved for the premium settlement requirement.' : 'Amount currently reserved from the working balance.'}
-                </p>
-              </FinancialBlock>
-            </div>
-
-            <FinancialBlock tiltMult={1.2} className="mt-3 rounded-[18px] after:rounded-[15px] hover:border-white/60 hover:shadow-[0_20px_34px_rgba(5,42,107,0.46)] before:bg-[linear-gradient(145deg,rgba(255,255,255,0.24)_0%,rgba(255,255,255,0.06)_45%,rgba(4,34,93,0.08)_100%)] hover:after:border-white/45 p-4">
-              <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">Total Account Balance</p>
-              <p className="mt-1.5 text-center text-[1.75rem] font-bold">{totalAccountBalanceDisplay.toFixed(2)} USD</p>
-              <p className="mt-1.5 text-center text-[11px] text-white/75">
-                {userData?.isFrozen
-                  ? 'Includes pre-freeze balance, current hold amount, and earned premium profit.'
-                  : 'Reflects the active account balance across the current task cycle.'}
-              </p>
-            </FinancialBlock>
-
-            {userData?.isFrozen && (
-              <div className="mt-3 rounded-[18px] border border-amber-300/30 bg-amber-500/10 p-3">
-                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100">Before / Hold / After</p>
-                <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <div className="rounded-lg border border-white/15 bg-white/10 p-2 text-center">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/70">Before Freeze</p>
-                    <p className="mt-1 text-sm font-bold text-white">{Math.max(0, frozenCurrentBalanceBeforeFreeze).toFixed(2)} USD</p>
-                  </div>
-                  <div className="rounded-lg border border-white/15 bg-white/10 p-2 text-center">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/70">Premium Hold</p>
-                    <p className="mt-1 text-sm font-bold text-[#ffe1e1]">{frozenUpholdAmount > 0 ? '-' : ''}{frozenUpholdAmount.toFixed(2)} USD</p>
-                  </div>
-                  <div className="rounded-lg border border-white/15 bg-white/10 p-2 text-center">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/70">After Settlement</p>
-                    <p className="mt-1 text-sm font-bold text-[#b8ffd4]">{afterSettlementProjection.toFixed(2)} USD</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {isPremiumTaskActive && (
-              <FinancialBlock className="mt-3">
-                <div className="text-center">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200/90">Premium Estimated Profit</p>
-                  <p className="mt-1 text-xl font-bold text-[#b8ffd4]">
-                    {(Number(userData?.activePremium?.commissionEarned ?? 0) > 0 ? earnedPremiumProfit : projectedPremiumProfit).toFixed(2)} USD
-                  </p>
-                  <p className="mt-1.5 text-[11px] text-white/75">
-                    {Number(userData?.activePremium?.commissionEarned ?? 0) > 0
-                      ? 'Earned premium commission from completed premium tasks.'
-                      : `Projected from ${premiumDisplayName} at ${premiumCommissionRate.toFixed(2)}% rate.`}
-                  </p>
-                </div>
-              </FinancialBlock>
-            )}
-
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <FinancialBlock className="bg-[#083b93]/35 border-white/15 hover:border-white/45 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.03)_45%,rgba(4,34,93,0.10)_100%)] after:border-white/10 hover:after:border-white/30">
-                <div className="text-center">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Lucky Bonus</p>
-                  <p className="mt-1 text-xl font-bold">{(userData?.luckyBonus || 0).toFixed(2)} USD</p>
-                  <p className="mt-1.5 text-[11px] text-white/75">Bonus value currently carried on the account.</p>
-                </div>
-              </FinancialBlock>
-              <FinancialBlock className="bg-[#083b93]/35 border-white/15 hover:border-white/45 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.03)_45%,rgba(4,34,93,0.10)_100%)] after:border-white/10 hover:after:border-white/30">
-                <div className="text-center">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Working Status</p>
-                  <p className="mt-1 text-xl font-bold">{userData?.isFrozen ? 'Settlement Review' : 'Ready To Submit'}</p>
-                  <p className="mt-1.5 text-[11px] text-white/75">
-                    {userData?.isFrozen ? 'Submission remains paused until the premium requirement is cleared.' : 'The account can continue processing eligible tasks.'}
-                  </p>
-                </div>
-              </FinancialBlock>
-            </div>
-          </div>
-        </div>
+        <FinancialSummaryPanel
+          todayCommission={todayCommissionDisplay}
+          isFrozen={Boolean(userData?.isFrozen)}
+          availableBalance={availableFundsForSubmit}
+          frozenBalance={frozenCurrentBalanceBeforeFreeze}
+          holdAmount={Number(userData?.holdAmount ?? 0)}
+          frozenUpholdAmount={frozenUpholdAmount}
+          totalBalance={totalAccountBalanceDisplay}
+          afterSettlement={afterSettlementProjection}
+          luckyBonus={userData?.luckyBonus || 0}
+          isPremiumActive={isPremiumTaskActive}
+          premiumDisplayName={premiumDisplayName}
+          premiumCommissionRate={premiumCommissionRate}
+          earnedPremiumProfit={earnedPremiumProfit}
+          projectedPremiumProfit={projectedPremiumProfit}
+        />
 
         {/* Important Notice */}
         <div className="bg-[#252d42]/80 border border-[#00D9FF]/20 rounded-xl p-6 text-center shadow-lg mb-6 backdrop-blur-sm">
