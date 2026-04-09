@@ -24,11 +24,21 @@ export default defineConfig({
     chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router'],
-          'vendor-icons': ['lucide-react'],
-          'vendor-supabase': ['@supabase/supabase-js'],
-          'vendor-toast': ['sonner'],
+        manualChunks(id) {
+          // Vendor chunks — split heavy dependencies
+          if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/') || id.includes('node_modules/react-router/')) return 'vendor-react';
+          if (id.includes('node_modules/lucide-react/')) return 'vendor-icons';
+          if (id.includes('node_modules/@supabase/')) return 'vendor-supabase';
+          if (id.includes('node_modules/sonner/')) return 'vendor-toast';
+
+          // Shared layout components used by 12-14 pages — deduplicate into one chunk
+          if (
+            id.includes('/components/Header') ||
+            id.includes('/components/BottomNavigation') ||
+            id.includes('/components/LiveChatBox')
+          ) {
+            return 'layout';
+          }
         },
       },
     },
