@@ -1666,10 +1666,22 @@ function setCachedSnapshotResponse(key: string, payload: any): void {
   }
 }
 
+// Admin platform-users response cache (shared between listing endpoint + invalidation)
+const platformUsersCache: { ts: number; jsonSuper: any; jsonSubByAdmin: Map<string, any> } = {
+  ts: 0,
+  jsonSuper: null,
+  jsonSubByAdmin: new Map(),
+};
+const PLATFORM_USERS_CACHE_TTL_MS = 30_000;
+
 function invalidateUserSnapshots(username: string): void {
   snapshotResponseCache.delete(`snapshot:starting:${username}`);
   snapshotResponseCache.delete(`snapshot:records:${username}`);
   snapshotResponseCache.delete(`snapshot:activity:${username}`);
+  // Also bust the admin platform-users list cache so next request is fresh
+  platformUsersCache.ts = 0;
+  platformUsersCache.jsonSuper = null;
+  platformUsersCache.jsonSubByAdmin.clear();
 }
 
 /**
@@ -11910,6 +11922,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users', async (c: any) => {
 // GET /admin/platform-users  – admin-gated, scoped by role
 // Super-admin: returns all platform users (KV) with referredByAdminId.
 // Sub-admin: returns only users where referredByAdminId = caller's user ID.
+// In-memory response cache (30s TTL) to avoid repeated full KV scans.
 app.get('/make-server-a1c55d7e/admin/platform-users', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);
@@ -11970,6 +11983,12 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c: any) => {
     let scopedUsers: ReturnType<typeof normalizeUserRecord>[] = [];
 
     if (callerIsSuperAdmin) {
+      // Return cached response if still fresh
+      const cacheKey = 'super';
+      if (Date.now() - platformUsersCache.ts < PLATFORM_USERS_CACHE_TTL_MS && platformUsersCache.jsonSuper) {
+        return c.json(platformUsersCache.jsonSuper);
+      }
+
       try {
         await mergeUserEntries(await kv.getEntriesByPrefix('user:'), {
           resolveCanonical: false,
@@ -11980,57 +11999,18 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c: any) => {
         console.error('admin/platform-users super-admin kv scan failed:', scanError);
       }
 
-      if (authClient) {
-        let page = 1;
-        const perPage = 200;
-        const maxPages = 10;
-
-        while (page <= maxPages) {
-          const { data, error } = await authClient.auth.admin.listUsers({ page, perPage });
-          if (error) {
-            console.error('admin/platform-users auth scan error:', error.message);
-            break;
-          }
-
-          const batch = Array.isArray(data?.users) ? data.users : [];
-          for (const authUser of batch) {
-            if (hasAdminRole(authUser)) {
-              continue;
-            }
-
-            const metadataUsername = sanitizeUsername(
-              typeof authUser?.user_metadata?.username === 'string' ? authUser.user_metadata.username : '',
-            );
-            const emailLocal = sanitizeUsername(
-              typeof authUser?.email === 'string' ? (authUser.email.split('@')[0] ?? '') : '',
-            );
-            const candidateUsername = metadataUsername || emailLocal;
-            if (!candidateUsername || userMap.has(candidateUsername.toLowerCase())) {
-              continue;
-            }
-
-            try {
-              const recoveredUser = await bootstrapMissingPlatformUserRecord(candidateUsername, { referredByAdminId: null });
-              const normalizedRecovered = await syncUserWithVipConfig(recoveredUser, candidateUsername);
-              await kv.set(`user:${candidateUsername}`, normalizedRecovered);
-              userMap.set(candidateUsername.toLowerCase(), normalizedRecovered);
-            } catch (recoveryError) {
-              console.error('admin/platform-users auto-recovery failed:', candidateUsername, recoveryError);
-            }
-          }
-
-          if (batch.length < perPage) {
-            break;
-          }
-          page += 1;
-        }
-      }
-
       scopedUsers = Array.from(userMap.values());
     } else {
       // ── Sub-admin path: load ALL users into memory, then filter by scope ──
-      // This is more reliable than PostgREST JSON field filtering which can
-      // miss records due to null handling, type mismatches, or encoding issues.
+      // Return cached response if still fresh
+      const subCacheKey = typeof callingAdmin?.id === 'string' ? callingAdmin.id : '';
+      if (subCacheKey && Date.now() - platformUsersCache.ts < PLATFORM_USERS_CACHE_TTL_MS) {
+        const cached = platformUsersCache.jsonSubByAdmin.get(subCacheKey);
+        if (cached) {
+          return c.json(cached);
+        }
+      }
+
       const relatedAdminIds = new Set<string>();
       if (typeof callingAdmin?.id === 'string' && callingAdmin.id) {
         relatedAdminIds.add(callingAdmin.id);
@@ -12063,9 +12043,11 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c: any) => {
         }
       }
 
-      // Load all users in a single scan (same approach as super-admin, but filtered)
+      // Single KV scan: build both the owned-user list AND the referral chain index in one pass
       try {
         const allEntries = await kv.getEntriesByPrefix('user:');
+        const allUsersByInvitedCode = new Map<string, Array<{ key: string; value: any }>>();
+
         for (const entry of allEntries) {
           const rawUsername = getUsernameFromUserKvEntry(entry);
           if (!rawUsername || rawUsername === 'steadfast_root') {
@@ -12073,12 +12055,20 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c: any) => {
           }
 
           const userData = entry.value;
+
+          // Index by invitedByCode for referral chain traversal later
+          const invCode = typeof userData?.invitedByCode === 'string' ? userData.invitedByCode.trim().toUpperCase() : '';
+          if (invCode) {
+            if (!allUsersByInvitedCode.has(invCode)) {
+              allUsersByInvitedCode.set(invCode, []);
+            }
+            allUsersByInvitedCode.get(invCode)!.push(entry);
+          }
+
+          // Check direct ownership
           const userAdminId = typeof userData?.referredByAdminId === 'string' ? userData.referredByAdminId : '';
           const userInvitedByCode = typeof userData?.invitedByCode === 'string' ? userData.invitedByCode.trim().toUpperCase() : '';
-
-          // Check direct ownership: referredByAdminId matches any of this admin's IDs
           const isDirectOwned = userAdminId && relatedAdminIds.has(userAdminId);
-          // Check code ownership: user's invitedByCode matches any of this admin's codes
           const isCodeOwned = userInvitedByCode && adminOwnedCodes.has(userInvitedByCode);
 
           if (isDirectOwned || isCodeOwned) {
@@ -12099,71 +12089,52 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c: any) => {
             }
           }
         }
-      } catch (scanError) {
-        console.error('admin/platform-users sub-admin kv scan failed:', scanError);
-      }
 
-      // Recursive referral chain: follow invitation codes of found users
-      const processedInviteCodes = new Set<string>();
-      let pendingInviteCodes = Array.from(
-        new Set(
-          Array.from(userMap.values())
-            .map((user) => sanitizeInviteCode(user.invitationCode))
-            .filter((code): code is string => Boolean(code)),
-        ),
-      );
+        // Recursive referral chain: follow invitation codes of found users (using already-built index)
+        const processedInviteCodes = new Set<string>();
+        let pendingInviteCodes = Array.from(
+          new Set(
+            Array.from(userMap.values())
+              .map((user) => sanitizeInviteCode(user.invitationCode))
+              .filter((code): code is string => Boolean(code)),
+          ),
+        );
 
-      if (pendingInviteCodes.length > 0) {
-        // Re-scan all users to find downstream referrals (users invited by our users)
-        try {
-          const allEntries = await kv.getEntriesByPrefix('user:');
-          const allUsersByInvitedCode = new Map<string, Array<{ key: string; value: any }>>();
-          for (const entry of allEntries) {
-            const invCode = typeof entry.value?.invitedByCode === 'string' ? entry.value.invitedByCode.trim().toUpperCase() : '';
-            if (invCode) {
-              if (!allUsersByInvitedCode.has(invCode)) {
-                allUsersByInvitedCode.set(invCode, []);
-              }
-              allUsersByInvitedCode.get(invCode)!.push(entry);
-            }
+        while (pendingInviteCodes.length > 0) {
+          const invitationCode = pendingInviteCodes.shift() ?? null;
+          if (!invitationCode || processedInviteCodes.has(invitationCode)) {
+            continue;
           }
+          processedInviteCodes.add(invitationCode);
 
-          while (pendingInviteCodes.length > 0) {
-            const invitationCode = pendingInviteCodes.shift() ?? null;
-            if (!invitationCode || processedInviteCodes.has(invitationCode)) {
+          const matchingEntries = allUsersByInvitedCode.get(invitationCode.toUpperCase()) ?? [];
+          for (const entry of matchingEntries) {
+            const rawUsername = getUsernameFromUserKvEntry(entry);
+            if (!rawUsername || rawUsername === 'steadfast_root') {
               continue;
             }
-            processedInviteCodes.add(invitationCode);
 
-            const matchingEntries = allUsersByInvitedCode.get(invitationCode.toUpperCase()) ?? [];
-            for (const entry of matchingEntries) {
-              const rawUsername = getUsernameFromUserKvEntry(entry);
-              if (!rawUsername || rawUsername === 'steadfast_root') {
+            try {
+              const canonicalUsername = (await resolveCanonicalUsername(rawUsername)) ?? rawUsername;
+              if (userMap.has(canonicalUsername.toLowerCase())) {
                 continue;
               }
 
-              try {
-                const canonicalUsername = (await resolveCanonicalUsername(rawUsername)) ?? rawUsername;
-                if (userMap.has(canonicalUsername.toLowerCase())) {
-                  continue;
-                }
+              const normalizedUser = normalizeUserRecord(entry.value, canonicalUsername);
+              userMap.set(canonicalUsername.toLowerCase(), normalizedUser);
+              scopeFallbackApplied = true;
 
-                const normalizedUser = normalizeUserRecord(entry.value, canonicalUsername);
-                userMap.set(canonicalUsername.toLowerCase(), normalizedUser);
-                scopeFallbackApplied = true;
-
-                const nestedInvitationCode = sanitizeInviteCode(normalizedUser.invitationCode);
-                if (nestedInvitationCode && !processedInviteCodes.has(nestedInvitationCode)) {
-                  pendingInviteCodes.push(nestedInvitationCode);
-                }
-              } catch (entryError) {
-                console.error('admin/platform-users sub-admin chain merge failed:', rawUsername, entryError);
+              const nestedInvitationCode = sanitizeInviteCode(normalizedUser.invitationCode);
+              if (nestedInvitationCode && !processedInviteCodes.has(nestedInvitationCode)) {
+                pendingInviteCodes.push(nestedInvitationCode);
               }
+            } catch (entryError) {
+              console.error('admin/platform-users sub-admin chain merge failed:', rawUsername, entryError);
             }
           }
-        } catch (chainError) {
-          console.error('admin/platform-users sub-admin referral chain scan failed:', chainError);
         }
+      } catch (scanError) {
+        console.error('admin/platform-users sub-admin kv scan failed:', scanError);
       }
 
       scopedUsers = Array.from(userMap.values());
@@ -12222,12 +12193,25 @@ app.get('/make-server-a1c55d7e/admin/platform-users', async (c: any) => {
       creditScore: typeof u.creditScore === 'number' ? u.creditScore : 100,
     }));
 
-    return c.json({
+    const responsePayload = {
       users,
       total: users.length,
       scoped: !callerIsSuperAdmin,
       scopeFallbackApplied,
-    });
+    };
+
+    // Write to response cache
+    platformUsersCache.ts = Date.now();
+    if (callerIsSuperAdmin) {
+      platformUsersCache.jsonSuper = responsePayload;
+    } else {
+      const subCacheKey = typeof callingAdmin?.id === 'string' ? callingAdmin.id : '';
+      if (subCacheKey) {
+        platformUsersCache.jsonSubByAdmin.set(subCacheKey, responsePayload);
+      }
+    }
+
+    return c.json(responsePayload);
   } catch (err) {
     console.error('admin/platform-users error:', err);
     return c.json({ error: 'Failed to fetch platform users' }, 500);

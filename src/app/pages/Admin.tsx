@@ -176,6 +176,8 @@ export default function Admin() {
   const [syncingAllUsersVip, setSyncingAllUsersVip] = useState(false);
   const adminAuthRedirectedRef = useRef(false);
   const userScopeFallbackNoticeShownRef = useRef(false);
+  const platformUsersFetchedAtRef = useRef(0);
+  const PLATFORM_USERS_STALE_MS = 60_000;
   const importBackupInputRef = useRef<HTMLInputElement | null>(null);
 
   // Bulk product generation state
@@ -425,7 +427,7 @@ export default function Admin() {
       if (result?.user) {
         mergePlatformUser(result.user as PlatformUser);
       } else {
-        await loadPlatformUsers();
+        await loadPlatformUsers(true);
       }
 
       toast.success(successMessage);
@@ -522,7 +524,7 @@ export default function Admin() {
       if (payload?.user) {
         mergePlatformUser(payload.user as PlatformUser);
       } else {
-        void loadPlatformUsers();
+        void loadPlatformUsers(true);
       }
     } catch (error) {
       handleAdminRequestError(error, `Failed to set credit score for ${user.username}`);
@@ -545,7 +547,7 @@ export default function Admin() {
       if (payload?.user) {
         mergePlatformUser(payload.user as PlatformUser);
       } else {
-        void loadPlatformUsers();
+        void loadPlatformUsers(true);
       }
 
       const beforeBalance = Number(payload?.before?.balance ?? user.balance ?? 0);
@@ -589,7 +591,7 @@ export default function Admin() {
         throw new Error(payload?.error ?? `Failed to reconcile premium settlements (${response.status})`);
       }
 
-      await loadPlatformUsers();
+      await loadPlatformUsers(true);
 
       const changed = Number(payload?.usersChanged ?? 0);
       const settlementFixes = Number(payload?.settlementBackfills ?? 0);
@@ -663,7 +665,7 @@ export default function Admin() {
       if (payload?.user) {
         mergePlatformUser(payload.user as PlatformUser);
       } else {
-        await loadPlatformUsers();
+        await loadPlatformUsers(true);
       }
 
       toast.success(
@@ -691,7 +693,7 @@ export default function Admin() {
       if (!response.ok) {
         throw new Error(payload?.error ?? `Failed to assign admin (${response.status})`);
       }
-      await loadPlatformUsers();
+      await loadPlatformUsers(true);
       toast.success(subAdminId ? `Sub-admin assigned to ${username}` : `${username} set to Direct (no sub-admin)`);
     } catch (error) {
       handleAdminRequestError(error, `Failed to assign sub-admin for ${username}`);
@@ -734,7 +736,7 @@ export default function Admin() {
       if (payload?.user) {
         mergePlatformUser(payload.user as PlatformUser);
       } else {
-        await loadPlatformUsers();
+        await loadPlatformUsers(true);
       }
 
       toast.success(
@@ -835,7 +837,7 @@ export default function Admin() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.error ?? 'Sync failed');
       toast.success('All user task assignments updated to match their VIP tier.');
-      await loadPlatformUsers();
+      await loadPlatformUsers(true);
     } catch (error) {
       handleAdminRequestError(error, 'Failed to sync users to VIP tiers');
     } finally {
@@ -1346,7 +1348,11 @@ export default function Admin() {
     return () => window.clearTimeout(timeoutId);
   }, [activeAdminTab, activeMenu, isSuperAdmin, showAdminVisibilityNotice]);
 
-  const loadPlatformUsers = async () => {
+  const loadPlatformUsers = async (force = false) => {
+    // Skip re-fetch if data is still fresh and not forced
+    if (!force && platformUsersLoaded && Date.now() - platformUsersFetchedAtRef.current < PLATFORM_USERS_STALE_MS) {
+      return;
+    }
     setPlatformUsersLoaded(false);
     setPlatformUsersLoading(true);
     try {
@@ -1355,6 +1361,7 @@ export default function Admin() {
       const payload = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(payload?.error ?? `Failed to load platform users (${res.status})`);
       setPlatformUsers(Array.isArray(payload?.users) ? payload.users : []);
+      platformUsersFetchedAtRef.current = Date.now();
       if (payload?.scopeFallbackApplied && !userScopeFallbackNoticeShownRef.current) {
         toast.info('Ownership scope fallback applied to restore legacy users visibility.');
         userScopeFallbackNoticeShownRef.current = true;
@@ -1841,7 +1848,7 @@ export default function Admin() {
         throw new Error(payload?.error ?? 'Failed to delete user');
       }
 
-      await loadPlatformUsers();
+      await loadPlatformUsers(true);
       toast.success(`User ${username} deleted successfully.`);
       setModalType(null);
       setSelectedItem(null);
@@ -2098,7 +2105,7 @@ export default function Admin() {
       toast.success(`User "${username.trim()}" created. Default transaction password: 000000`);
       setAddUserDraft({ username: '', phone: '', password: '', invitationCode: '' });
       setModalType(null);
-      await loadPlatformUsers();
+      await loadPlatformUsers(true);
     } catch (err) {
       handleAdminRequestError(err, 'Failed to create user');
     } finally {
@@ -2176,7 +2183,7 @@ export default function Admin() {
         throw new Error(payload?.error ?? 'Failed to process withdrawal request');
       }
 
-      await Promise.all([loadFinanceData(), loadPlatformUsers()]);
+      await Promise.all([loadFinanceData(), loadPlatformUsers(true)]);
       toast.success(action === 'approve' ? 'Withdrawal approved.' : 'Withdrawal rejected.');
       setModalType(null);
       setSelectedItem(null);
