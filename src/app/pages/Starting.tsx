@@ -752,6 +752,8 @@ export default function Starting() {
           setRewardsConfig(snapshot.rewardsConfig as RewardsConfig);
         }
       } catch (snapshotError) {
+        // If the server explicitly rejected our session (401), don't attempt V1 fallback — redirect to login.
+        if (isAuthError(snapshotError)) throw snapshotError;
         console.warn('[starting] V2 FAILED — falling back to V1.', snapshotError instanceof Error ? snapshotError.message : snapshotError);
         console.warn('Starting snapshot endpoint unavailable, using legacy fallback.', snapshotError);
         void reportClientCompatibilityEvent({

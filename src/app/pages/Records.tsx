@@ -310,6 +310,8 @@ export default function Records() {
       try {
         snapshot = await fetchRecordsSnapshot();
       } catch (snapshotError) {
+        // If the server explicitly rejected our session (401), redirect to login immediately.
+        if (isAuthError(snapshotError)) throw snapshotError;
         console.warn('Records snapshot endpoint unavailable, using legacy fallback.', snapshotError);
         void reportClientCompatibilityEvent({
           event: 'fallback_used',
