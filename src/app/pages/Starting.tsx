@@ -1071,6 +1071,7 @@ export default function Starting() {
             {/* Prev button */}
             <button
               onClick={() => setCarouselIndex(i => (i - 1 + activeTasks.length) % activeTasks.length)}
+              aria-label="Previous slide"
               className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 bg-[#1a1f2e]/80 hover:bg-[#252d42] backdrop-blur-sm border border-white/20 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
             >
               <ChevronLeft size={20} className="text-gray-300" />
@@ -1100,6 +1101,7 @@ export default function Starting() {
             {/* Next button */}
             <button
               onClick={() => setCarouselIndex(i => (i + 1) % activeTasks.length)}
+              aria-label="Next slide"
               className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 bg-[#1a1f2e]/80 hover:bg-[#252d42] backdrop-blur-sm border border-white/20 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
             >
               <ChevronRight size={20} className="text-gray-300" />
@@ -1111,6 +1113,7 @@ export default function Starting() {
                 <button
                   key={i}
                   onClick={() => setCarouselIndex(i)}
+                  aria-label={`Go to slide ${i + 1}`}
                   className={`w-2 h-2 rounded-full transition-colors ${i === carouselIndex ? 'bg-[#00D9FF]' : 'bg-gray-600'}`}
                 />
               ))}
@@ -1301,7 +1304,7 @@ export default function Starting() {
 
         {/* Success Notification */}
         {showSuccess && (
-          <div className={`mb-6 rounded-2xl border px-5 py-4 text-center shadow-sm ${isPremium ? 'border-amber-200 bg-amber-50 text-amber-950' : 'border-emerald-200 bg-emerald-50 text-emerald-950'}`}>
+          <div className={`mb-6 rounded-2xl border px-5 py-4 text-center ${isPremium ? 'border-amber-500/30 bg-amber-900/20 text-amber-300' : 'border-emerald-500/30 bg-emerald-900/20 text-emerald-300'}`}>
             <p className="text-xs font-semibold uppercase tracking-[0.28em]">
               {isPremium ? 'Premium Assignment Completed' : 'Submission Confirmed'}
             </p>

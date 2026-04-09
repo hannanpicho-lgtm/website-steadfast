@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
+import { LiveChatBox } from '../components/LiveChatBox';
 import { getCurrentUsername } from '../services/referralSystem';
 import { publicAnonKey } from '@utils/supabase/info';
 import { buildLoginRedirectState } from '../services/loginRedirect';
@@ -27,6 +28,7 @@ export default function ConnectWallet() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [successBanner, setSuccessBanner] = useState('');
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const username = getCurrentUsername();
   const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
@@ -126,16 +128,10 @@ export default function ConnectWallet() {
   return (
     <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]">
       {/* Header */}
-      <Header onContactClick={() => {}} />
+      <Header onContactClick={() => setIsChatOpen(true)} />
 
       {/* Main Content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-        {loading ? (
-          <div className="flex justify-center items-center min-h-[300px]">
-            <Loader2 size={32} className="animate-spin text-[#0066b3]" />
-          </div>
-        ) : null}
-
         {/* Back Button and Title */}
         <div className="flex items-center gap-4 mb-6">
           <button 
@@ -146,6 +142,13 @@ export default function ConnectWallet() {
           </button>
           <h1 className="text-2xl font-bold text-[#0066b3] flex-1 text-center mr-10">Connect Wallet</h1>
         </div>
+
+        {loading ? (
+          <div className="flex justify-center items-center min-h-[300px]">
+            <Loader2 size={32} className="animate-spin text-[#0066b3]" />
+          </div>
+        ) : (
+        <>
 
         {successBanner ? (
           <div className="mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-900/20 px-4 py-4">
@@ -255,7 +258,12 @@ export default function ConnectWallet() {
               </button>
             </form>
         </div>
+        </>
+        )}
       </div>
+
+      {/* Live Chat Box */}
+      <LiveChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
 
       {/* Bottom Navigation */}
       <BottomNavigation />

@@ -1,4 +1,4 @@
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Loader2 } from 'lucide-react';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useEffect, useState } from 'react';
 import { LiveChatBox } from '../components/LiveChatBox';
@@ -94,6 +94,8 @@ function mapVipConfigToActivity(tiers: VipConfig[]): ActivityVipLevel[] {
 export default function Activity() {
   const goBack = useBackNavigate();
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [workdayRewards, setWorkdayRewards] = useState(defaultRewardsConfig.workday);
   const [resetRewards, setResetRewards] = useState(defaultRewardsConfig.reset);
   const [accumulatedRewards, setAccumulatedRewards] = useState(defaultRewardsConfig.accumulated);
@@ -122,6 +124,8 @@ export default function Activity() {
 
   useEffect(() => {
     const loadActivityConfig = async () => {
+      setLoading(true);
+      setLoadError(null);
       const loadLegacyActivityData = async () => {
         const headers = {
           Authorization: `Bearer ${publicAnonKey}`,
@@ -308,6 +312,7 @@ export default function Activity() {
           setVipLevels(fallbackVipLevels);
           setFinancialSnapshot(null);
           setRecentActivity([]);
+          setLoadError('Unable to load activity data. Some information may be outdated.');
         }
       }
 
@@ -317,6 +322,8 @@ export default function Activity() {
       } catch {
         setRecentBonuses([]);
       }
+
+      setLoading(false);
     };
 
     void loadActivityConfig();
@@ -345,10 +352,31 @@ export default function Activity() {
           <div className="w-9" aria-hidden="true"></div>
         </div>
 
+        {loading && (
+          <div className="flex justify-center py-16">
+            <Loader2 className="animate-spin text-[#0066b3]" size={28} />
+          </div>
+        )}
+
+        {loadError && (
+          <div className="mb-4 rounded-lg border border-amber-700/40 bg-amber-900/20 px-3 py-3 text-sm text-amber-300 flex items-center justify-between gap-3">
+            <span>{loadError}</span>
+            <button
+              onClick={() => window.location.reload()}
+              className="shrink-0 rounded-md bg-amber-800/30 px-3 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-800/50 transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {!loading && (
+        <>
         <div className="bg-[#0f172a] rounded-xl p-5 mb-8 border border-[#1f2937] sf-stagger-1 shadow-[0_4px_16px_rgba(0,0,0,0.15)]">
           <h2 className="text-white text-lg font-semibold mb-4">Live Account Snapshot</h2>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
             <div className="bg-[#111827] rounded-lg p-3 transition-all duration-200 hover:bg-[#1a2332]">
+              <p className="text-gray-400 text-xs uppercase tracking-wide">Balance</p>
               <p className="text-white text-xl font-bold">${(financialSnapshot?.balance ?? 0).toFixed(2)}</p>
             </div>
             <div className="bg-[#111827] rounded-lg p-3">
@@ -640,6 +668,9 @@ export default function Activity() {
             ))}
           </div>
         </div>
+
+        </>
+        )}
 
         {/* Footer */}
         <div className="text-center text-sm text-gray-500 space-y-2 mb-6">
