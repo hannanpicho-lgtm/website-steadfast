@@ -116,6 +116,7 @@ export default function VipLevels() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [currentVipLevel, setCurrentVipLevel] = useState<number | null>(null);
   const [vipCards, setVipCards] = useState<VipCard[]>(fallbackVipCards);
+  const [loading, setLoading] = useState(true);
   const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
 
   useEffect(() => {
@@ -136,6 +137,8 @@ export default function VipLevels() {
       } catch {
         // Keep fallback current badge on VIP1 when session financials are unavailable.
         setVipCards(fallbackVipCards);
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -160,7 +163,29 @@ export default function VipLevels() {
 
         {/* VIP Level Cards */}
         <div className="space-y-3.5 sm:space-y-5">
-          {vipCards.map((vip) => {
+          {loading ? (
+            /* Content-shaped skeleton — mirrors the real VIP card layout */
+            Array.from({ length: 5 }, (_, i) => (
+              <div key={i} className="bg-[#141414] rounded-lg px-2.5 py-3 sm:px-5 sm:py-5 border border-white/[0.06] animate-pulse">
+                <div className="flex items-start justify-between gap-2 mb-2.5 sm:mb-4">
+                  <div className="flex items-start gap-2.5 sm:gap-4">
+                    <div className="w-[48px] h-[42px] sm:w-[62px] sm:h-[56px] bg-white/[0.08] rounded" />
+                    <div>
+                      <div className="h-5 sm:h-7 w-16 sm:w-20 bg-white/[0.08] rounded mb-2" />
+                      <div className="h-5 sm:h-7 w-24 sm:w-32 bg-white/[0.08] rounded" />
+                    </div>
+                  </div>
+                  {i === 0 && <div className="h-6 w-16 bg-white/[0.06] rounded" />}
+                </div>
+                <div className="space-y-1.5 sm:space-y-2">
+                  <div className="h-4 w-3/4 bg-white/[0.06] rounded" />
+                  <div className="h-4 w-2/3 bg-white/[0.06] rounded" />
+                  <div className="h-4 w-4/5 bg-white/[0.06] rounded" />
+                </div>
+              </div>
+            ))
+          ) : (
+          vipCards.map((vip) => {
             const isCurrent = currentVipLevel ? currentVipLevel === vip.level : vip.level === 1;
             return (
             <div 
@@ -202,7 +227,8 @@ export default function VipLevels() {
               </div>
             </div>
             );
-          })}
+          })
+          )}
         </div>
 
         {/* Footer */}
