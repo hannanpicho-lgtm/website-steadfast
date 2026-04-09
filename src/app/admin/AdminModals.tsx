@@ -150,6 +150,92 @@ export interface AdminModalsProps {
   handleDeleteRole: () => void;
   processWithdrawalReview: (id: string, action: 'approve' | 'reject') => void;
   buildRolePermissionsFromForm: (formData: FormData) => Record<string, boolean>;
+
+  // Notifications
+  handleSendNotification: (data: { title: string; message: string; priority: string; recipientType: string; recipientFilter: string | null }) => Promise<boolean>;
+  notificationSending: boolean;
+}
+
+function NotificationSendForm({ onSend, sending, onClose }: {
+  onSend: (data: { title: string; message: string; priority: string; recipientType: string; recipientFilter: string | null }) => Promise<boolean>;
+  sending: boolean;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [message, setMessage] = useState('');
+  const [priority, setPriority] = useState('normal');
+  const [recipientType, setRecipientType] = useState('all');
+  const [recipientFilter, setRecipientFilter] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const success = await onSend({
+      title,
+      message,
+      priority,
+      recipientType,
+      recipientFilter: (recipientType === 'vip' || recipientType === 'specific') ? recipientFilter || null : null,
+    });
+    if (success) onClose();
+  };
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h3 className="text-2xl font-bold text-white">Send Notification</h3>
+        <button onClick={onClose} className="text-gray-400 hover:text-white" aria-label="Close dialog">
+          <X size={24} />
+        </button>
+      </div>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Recipient Type</label>
+          <select value={recipientType} onChange={e => setRecipientType(e.target.value)} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+            <option value="all">All Users</option>
+            <option value="vip">Specific VIP Level</option>
+            <option value="active">Active Users Only</option>
+            <option value="specific">Specific User</option>
+          </select>
+        </div>
+        {recipientType === 'vip' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Minimum VIP Level</label>
+            <input type="number" min={1} max={10} value={recipientFilter} onChange={e => setRecipientFilter(e.target.value)} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="e.g. 4" />
+          </div>
+        )}
+        {recipientType === 'specific' && (
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Username</label>
+            <input type="text" value={recipientFilter} onChange={e => setRecipientFilter(e.target.value)} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter username" />
+          </div>
+        )}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Notification Title</label>
+          <input type="text" required value={title} onChange={e => setTitle(e.target.value)} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter title" />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Message</label>
+          <textarea required value={message} onChange={e => setMessage(e.target.value)} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" rows={5} placeholder="Enter notification message..." />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Priority</label>
+          <select value={priority} onChange={e => setPriority(e.target.value)} className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+          </select>
+        </div>
+        <div className="flex gap-3 mt-6">
+          <button type="submit" disabled={sending} className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors disabled:opacity-50">
+            {sending ? 'Sending...' : 'Send Notification'}
+          </button>
+          <button type="button" onClick={onClose} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
+            Cancel
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 }
 
 export default function AdminModals(props: AdminModalsProps) {
@@ -1054,49 +1140,11 @@ export default function AdminModals(props: AdminModalsProps) {
 
       {/* Send Notification Modal */}
       {modalType === 'notification' && (
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-2xl font-bold text-white">Send Notification</h3>
-            <button onClick={() => setModalType(null)} className="text-gray-400 hover:text-white" aria-label="Close dialog">
-              <X size={24} />
-            </button>
-          </div>
-          <form className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Recipient Type</label>
-              <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
-                <option>All Users</option>
-                <option>Specific VIP Level</option>
-                <option>Active Users Only</option>
-                <option>Specific User</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Notification Title</label>
-              <input type="text" className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" placeholder="Enter title" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Message</label>
-              <textarea className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none" rows={5} placeholder="Enter notification message..."></textarea>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Priority</label>
-              <select className="w-full px-4 py-2 bg-[#1a1f2e] border border-gray-600 rounded-lg text-white focus:border-[#00D9FF] focus:outline-none">
-                <option>Normal</option>
-                <option>High</option>
-                <option>Urgent</option>
-              </select>
-            </div>
-            <div className="flex gap-3 mt-6">
-              <button type="submit" className="flex-1 bg-[#00D9FF] hover:bg-[#00c5e6] text-[#1a1f2e] font-bold py-3 rounded-lg transition-colors">
-                Send Notification
-              </button>
-              <button type="button" onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
-                Cancel
-              </button>
-            </div>
-          </form>
-        </div>
+        <NotificationSendForm
+          onSend={props.handleSendNotification}
+          sending={props.notificationSending}
+          onClose={() => setModalType(null)}
+        />
       )}
 
       {/* Add Product Manual Modal */}

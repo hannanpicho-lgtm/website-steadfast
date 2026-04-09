@@ -199,6 +199,9 @@ export default function Admin() {
   const [addUserDraft, setAddUserDraft] = useState({ username: '', phone: '', password: '', invitationCode: '' });
   const [addUserSaving, setAddUserSaving] = useState(false);
 
+  // Notification state
+  const [notificationSending, setNotificationSending] = useState(false);
+
   useEffect(() => {
     try {
       const enabled = localStorage.getItem('sf_debug_env') === '1' || window.location.search.includes('debugEnv=1');
@@ -2080,6 +2083,27 @@ export default function Admin() {
     toast.success('Product created successfully.');
   };
 
+  const handleSendNotification = async (data: { title: string; message: string; priority: string; recipientType: string; recipientFilter: string | null }): Promise<boolean> => {
+    setNotificationSending(true);
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/notifications`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error ?? 'Failed to send notification');
+      toast.success('Notification sent successfully.');
+      return true;
+    } catch (error) {
+      handleAdminRequestError(error, 'Failed to send notification');
+      return false;
+    } finally {
+      setNotificationSending(false);
+    }
+  };
+
   const handleCreatePlatformUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const { username, phone, password, invitationCode } = addUserDraft;
@@ -2748,6 +2772,8 @@ export default function Admin() {
         addUserSaving={addUserSaving}
         handleCreatePlatformUser={handleCreatePlatformUser}
         currentAdminInvitationCode={currentAdminInvitationCode}
+        handleSendNotification={handleSendNotification}
+        notificationSending={notificationSending}
       />
         </Suspense>
       )}

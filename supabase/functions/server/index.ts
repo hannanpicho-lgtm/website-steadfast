@@ -13914,4 +13914,211 @@ app.post('/make-server-a1c55d7e/me/support/reply', async (c: any) => {
   }
 });
 
+// ─── Notification System ────────────────────────────────────────────────────────
+
+type NotificationRecord = {
+  id: string;
+  title: string;
+  message: string;
+  priority: 'normal' | 'high' | 'urgent';
+  recipientType: 'all' | 'vip' | 'active' | 'specific';
+  recipientFilter: string | null; // VIP level or specific username
+  sentBy: string;
+  sentAt: string;
+};
+
+const NOTIFICATION_INDEX_KEY = 'notifications:index';
+const NOTIFICATION_MAX = 200;
+
+// POST /admin/notifications — admin sends a notification
+app.post('/make-server-a1c55d7e/admin/notifications', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-notifications:send');
+    if (limited) return limited;
+
+    const body = await c.req.json().catch(() => ({}));
+
+    const title = typeof body?.title === 'string' ? body.title.trim().slice(0, 200) : '';
+    const message = typeof body?.message === 'string' ? body.message.trim().slice(0, 2000) : '';
+    const priority = ['normal', 'high', 'urgent'].includes(body?.priority) ? body.priority : 'normal';
+    const recipientType = ['all', 'vip', 'active', 'specific'].includes(body?.recipientType) ? body.recipientType : 'all';
+    const recipientFilter = typeof body?.recipientFilter === 'string' ? body.recipientFilter.trim().slice(0, 100) : null;
+
+    if (!title) return c.json({ error: 'Title is required' }, 400);
+    if (!message) return c.json({ error: 'Message is required' }, 400);
+
+    const adminUser = c.get('adminUser');
+    const sentBy = adminUser?.user_metadata?.full_name ?? adminUser?.email ?? 'Admin';
+
+    const record: NotificationRecord = {
+      id: crypto.randomUUID(),
+      title,
+      message,
+      priority,
+      recipientType,
+      recipientFilter,
+      sentBy,
+      sentAt: new Date().toISOString(),
+    };
+
+    // Store notification
+    await kv.set(`notification:${record.id}`, record);
+
+    // Update index (prepend new ID, cap at NOTIFICATION_MAX)
+    const existingIndex: string[] = (await kv.get(NOTIFICATION_INDEX_KEY)) ?? [];
+    const updatedIndex = [record.id, ...existingIndex].slice(0, NOTIFICATION_MAX);
+    await kv.set(NOTIFICATION_INDEX_KEY, updatedIndex);
+
+    return c.json({ success: true, notification: record }, 201);
+  } catch (error) {
+    console.error('admin/notifications send error:', error);
+    return c.json({ error: 'Failed to send notification' }, 500);
+  }
+});
+
+// GET /admin/notifications — admin lists sent notifications
+app.get('/make-server-a1c55d7e/admin/notifications', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-notifications:list');
+    if (limited) return limited;
+
+    const index: string[] = (await kv.get(NOTIFICATION_INDEX_KEY)) ?? [];
+    if (index.length === 0) return c.json({ notifications: [] });
+
+    const keys = index.map((id: string) => `notification:${id}`);
+    const records = await kv.mget(keys);
+    const notifications = records.filter((r: any) => r != null);
+
+    return c.json({ notifications });
+  } catch (error) {
+    console.error('admin/notifications list error:', error);
+    return c.json({ error: 'Failed to fetch notifications' }, 500);
+  }
+});
+
+// DELETE /admin/notifications/:notificationId — admin deletes a notification
+app.delete('/make-server-a1c55d7e/admin/notifications/:notificationId', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-notifications:delete');
+    if (limited) return limited;
+
+    const notificationId = c.req.param('notificationId');
+    if (!notificationId || typeof notificationId !== 'string') {
+      return c.json({ error: 'Invalid notification ID' }, 400);
+    }
+
+    // Remove from KV
+    await kv.del(`notification:${notificationId}`);
+
+    // Remove from index
+    const index: string[] = (await kv.get(NOTIFICATION_INDEX_KEY)) ?? [];
+    const updatedIndex = index.filter((id: string) => id !== notificationId);
+    await kv.set(NOTIFICATION_INDEX_KEY, updatedIndex);
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('admin/notifications delete error:', error);
+    return c.json({ error: 'Failed to delete notification' }, 500);
+  }
+});
+
+// GET /me/notifications — user fetches notifications relevant to them
+app.get('/make-server-a1c55d7e/me/notifications', async (c: any) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:notifications', 30);
+    if (rateLimited) return rateLimited;
+
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) return sessionResult.response;
+
+    const canonicalUsername = sessionResult.session.username;
+
+    // Get user record for VIP level filtering
+    const userData = await kv.get(`user:${canonicalUsername}`);
+    const userVipLevel = typeof userData?.vipInfo?.level === 'number' ? userData.vipInfo.level : 0;
+
+    // Read-status key for this user
+    const readKey = `user-notifications-read:${canonicalUsername}`;
+    const readSet: string[] = (await kv.get(readKey)) ?? [];
+    const readIds = new Set(readSet);
+
+    // Get all notifications
+    const index: string[] = (await kv.get(NOTIFICATION_INDEX_KEY)) ?? [];
+    if (index.length === 0) return c.json({ notifications: [], unreadCount: 0 });
+
+    const keys = index.map((id: string) => `notification:${id}`);
+    const records = await kv.mget(keys);
+
+    // Filter to notifications this user should see
+    const visible = records.filter((n: any) => {
+      if (!n) return false;
+      if (n.recipientType === 'all') return true;
+      if (n.recipientType === 'active') return true;
+      if (n.recipientType === 'vip') {
+        const targetLevel = parseInt(String(n.recipientFilter), 10);
+        return !isNaN(targetLevel) && userVipLevel >= targetLevel;
+      }
+      if (n.recipientType === 'specific') {
+        return n.recipientFilter?.toLowerCase() === canonicalUsername.toLowerCase();
+      }
+      return false;
+    });
+
+    const notifications = visible.map((n: any) => ({
+      id: n.id,
+      title: n.title,
+      message: n.message,
+      priority: n.priority,
+      sentAt: n.sentAt,
+      read: readIds.has(n.id),
+    }));
+
+    const unreadCount = notifications.filter((n: any) => !n.read).length;
+
+    return c.json({ notifications, unreadCount });
+  } catch (error) {
+    console.error('me/notifications error:', error);
+    return c.json({ error: 'Failed to fetch notifications' }, 500);
+  }
+});
+
+// POST /me/notifications/mark-read — user marks notifications as read
+app.post('/make-server-a1c55d7e/me/notifications/mark-read', async (c: any) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'user:notifications-mark', 30);
+    if (rateLimited) return rateLimited;
+
+    const sessionResult = await requireActiveUserSession(c);
+    if ('response' in sessionResult) return sessionResult.response;
+
+    const canonicalUsername = sessionResult.session.username;
+
+    const body = await c.req.json().catch(() => ({}));
+    const ids: string[] = Array.isArray(body?.ids)
+      ? body.ids.filter((id: unknown) => typeof id === 'string').slice(0, 100)
+      : [];
+
+    if (ids.length === 0) return c.json({ error: 'No notification IDs provided' }, 400);
+
+    const readKey = `user-notifications-read:${canonicalUsername}`;
+    const existing: string[] = (await kv.get(readKey)) ?? [];
+    const merged = Array.from(new Set([...existing, ...ids])).slice(0, 500);
+    await kv.set(readKey, merged);
+
+    return c.json({ success: true, readCount: merged.length });
+  } catch (error) {
+    console.error('me/notifications/mark-read error:', error);
+    return c.json({ error: 'Failed to mark notifications as read' }, 500);
+  }
+});
+
 Deno.serve(app.fetch);

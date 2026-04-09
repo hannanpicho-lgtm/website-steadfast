@@ -11,6 +11,8 @@ import { changeUserCredentials, isPasswordChangeRequired } from '../services/ser
 import { fetchReferralSummary } from '../services/referralReadModel';
 import { fetchFinancialSummary, type FinancialSummaryResponse } from '../services/financialReadModel';
 import { fetchBonusFeed, type BonusFeedItem } from '../services/bonusFeed';
+import { fetchJsonWithRetry } from '../services/networkClient';
+import { projectId, publicAnonKey } from '@utils/supabase/info';
 
 function getStoredProfileImage(username: string | null): string | null {
   if (!username) {
@@ -31,6 +33,9 @@ export default function Profile() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [accountInfoOpen, setAccountInfoOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [userNotifications, setUserNotifications] = useState<Array<{ id: string; title: string; message: string; priority: string; sentAt: string; read: boolean }>>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [languageOpen, setLanguageOpen] = useState(false);
   const [securityCredentialsOpen, setSecurityCredentialsOpen] = useState(false);
   const [todayProfit, setTodayProfit] = useState<number>(0);
@@ -124,6 +129,65 @@ export default function Profile() {
 
     void load();
   }, [username]);
+
+  // Fetch user notifications
+  const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const fetchUserNotifications = async () => {
+    setNotificationsLoading(true);
+    try {
+      const data = await fetchJsonWithRetry<{ notifications: Array<{ id: string; title: string; message: string; priority: string; sentAt: string; read: boolean }>; unreadCount: number }>({
+        url: `${SERVER_URL}/me/notifications`,
+        init: {
+          credentials: 'include',
+          headers: { Authorization: `Bearer ${publicAnonKey}`, apikey: publicAnonKey },
+        },
+        retries: 1,
+        pageTag: 'profile-notifications',
+      });
+      setUserNotifications(data.notifications ?? []);
+      setUnreadCount(data.unreadCount ?? 0);
+    } catch {
+      // Silently fail — notifications are non-critical
+    } finally {
+      setNotificationsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!username) return;
+    fetchUserNotifications();
+  }, [username]);
+
+  const markNotificationsRead = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    try {
+      await fetchJsonWithRetry({
+        url: `${SERVER_URL}/me/notifications/mark-read`,
+        init: {
+          method: 'POST',
+          credentials: 'include',
+          headers: { Authorization: `Bearer ${publicAnonKey}`, apikey: publicAnonKey, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids }),
+        },
+        retries: 1,
+        pageTag: 'profile-notifications-read',
+      });
+      setUserNotifications(prev => prev.map(n => ids.includes(n.id) ? { ...n, read: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - ids.length));
+    } catch {
+      // Non-critical
+    }
+  };
+
+  const handleOpenNotifications = () => {
+    const wasOpen = notificationsOpen;
+    setNotificationsOpen(!wasOpen);
+    // Mark unread as read when opening
+    if (!wasOpen) {
+      const unreadIds = userNotifications.filter(n => !n.read).map(n => n.id);
+      if (unreadIds.length > 0) markNotificationsRead(unreadIds);
+    }
+  };
 
   const handleCopyReferral = () => {
     // Fallback copy method for environments where Clipboard API is blocked
@@ -480,11 +544,18 @@ export default function Profile() {
           {/* Notifications */}
           <div className="bg-[#252d42]/80 border border-white/10 rounded-xl mb-3 overflow-hidden backdrop-blur-sm">
             <button 
-              onClick={() => setNotificationsOpen(!notificationsOpen)}
+              onClick={handleOpenNotifications}
               className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors text-white"
             >
               <div className="flex items-center gap-3">
-                <Bell size={20} />
+                <div className="relative">
+                  <Bell size={20} />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 animate-pulse">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </div>
                 <span className="font-semibold">Notifications</span>
               </div>
               <ChevronDown 
@@ -493,8 +564,22 @@ export default function Profile() {
               />
             </button>
             {notificationsOpen && (
-              <div className="px-4 pb-4 border-t border-white/10">
-                <p className="text-sm text-gray-400">No new notifications</p>
+              <div className="px-4 pb-4 border-t border-white/10 space-y-3">
+                {notificationsLoading && <p className="text-sm text-gray-400 py-2">Loading...</p>}
+                {!notificationsLoading && userNotifications.length === 0 && (
+                  <p className="text-sm text-gray-400 py-2">No notifications</p>
+                )}
+                {userNotifications.map(n => (
+                  <div key={n.id} className={`p-3 rounded-lg ${n.read ? 'bg-white/5' : 'bg-[#00D9FF]/10 border border-[#00D9FF]/20'}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="text-white text-sm font-semibold">{n.title}</h4>
+                      {n.priority === 'urgent' && <span className="text-[10px] px-1.5 py-0.5 bg-red-500/20 text-red-300 rounded flex-shrink-0">Urgent</span>}
+                      {n.priority === 'high' && <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-300 rounded flex-shrink-0">Important</span>}
+                    </div>
+                    <p className="text-gray-400 text-xs mt-1 whitespace-pre-line">{n.message}</p>
+                    <p className="text-gray-500 text-[10px] mt-1.5">{new Date(n.sentAt).toLocaleDateString()}</p>
+                  </div>
+                ))}
               </div>
             )}
           </div>
