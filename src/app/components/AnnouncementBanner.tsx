@@ -19,24 +19,30 @@ const ROTATE_INTERVAL = 6_000;
 const PRIORITY_CONFIG = {
   info: {
     border: 'border-l-[#c8956c]',
-    bg: 'bg-gradient-to-r from-[#c8956c]/[0.12] to-[#c8956c]/[0.04]',
+    bg: '',
+    bgStyle: 'linear-gradient(135deg, #1f1710 0%, #18120d 100%)',
     icon: Info,
     iconColor: 'text-[#d4a87d]',
     dotColor: 'bg-[#c8956c]',
+    bottomBorder: 'rgba(200, 149, 108, 0.25)',
   },
   warning: {
     border: 'border-l-[#d4a853]',
-    bg: 'bg-gradient-to-r from-[#d4a853]/[0.14] to-[#d4a853]/[0.04]',
+    bg: '',
+    bgStyle: 'linear-gradient(135deg, #1f1a0e 0%, #181308 100%)',
     icon: AlertTriangle,
     iconColor: 'text-[#d4a853]',
     dotColor: 'bg-[#d4a853]',
+    bottomBorder: 'rgba(212, 168, 83, 0.25)',
   },
   urgent: {
-    border: 'border-l-[#c87a6c]',
-    bg: 'bg-gradient-to-r from-[#c87a6c]/[0.14] to-[#c87a6c]/[0.04]',
+    border: 'border-l-[#d4935a]',
+    bg: '',
+    bgStyle: 'linear-gradient(135deg, #1f140e 0%, #18100a 100%)',
     icon: AlertCircle,
     iconColor: 'text-[#d4935a]',
     dotColor: 'bg-[#d4935a]',
+    bottomBorder: 'rgba(212, 147, 90, 0.25)',
   },
 } as const;
 
@@ -164,11 +170,11 @@ export default function AnnouncementBanner() {
       onBlurCapture={() => { pausedRef.current = false; }}
     >
       <div
-        className={`relative border-l-4 ${config.border} ${config.bg} backdrop-blur-sm ${current.priority === 'urgent' ? 'announcement-urgent-pulse' : ''}`}
-        style={{ borderBottom: '1px solid rgba(200, 149, 108, 0.12)' }}
+        className={`relative border-l-4 ${config.border} ${current.priority === 'urgent' ? 'announcement-urgent-pulse' : ''}`}
+        style={{ background: config.bgStyle, borderBottom: `1px solid ${config.bottomBorder}` }}
       >
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Icon size={18} className={`${config.iconColor} flex-shrink-0 drop-shadow-[0_0_6px_rgba(200,149,108,0.3)]`} />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center gap-3">
+          <Icon size={20} className={`${config.iconColor} flex-shrink-0`} />
 
           <div
             className={`flex-1 min-w-0 transition-all duration-300 ease-in-out ${
@@ -179,14 +185,14 @@ export default function AnnouncementBanner() {
                 : 'translate-x-0 opacity-100'
             }`}
           >
-            <p className="text-sm text-[#f5f0eb] truncate sm:whitespace-normal">
+            <p className="text-sm font-medium text-[#f5f0eb] truncate sm:whitespace-normal leading-relaxed">
               {current.text}
               {current.linkUrl && (
                 <a
                   href={current.linkUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="ml-2 text-[#c8956c] hover:text-[#d4a87d] font-medium underline underline-offset-2 transition-colors"
+                  className="ml-2 text-[#c8956c] hover:text-[#d4a87d] font-semibold underline underline-offset-2 transition-colors"
                 >
                   {current.linkLabel || 'Learn more →'}
                 </a>
@@ -214,7 +220,7 @@ export default function AnnouncementBanner() {
 
           <button
             onClick={() => handleDismiss(current.id)}
-            className="flex-shrink-0 text-[#a89f95]/60 hover:text-[#f5f0eb] transition-colors p-1 rounded-md hover:bg-white/5"
+            className="flex-shrink-0 text-[#a89f95] hover:text-[#f5f0eb] transition-colors p-1.5 rounded-md hover:bg-white/10"
             aria-label="Dismiss announcement"
           >
             <X size={14} />
