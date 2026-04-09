@@ -175,7 +175,7 @@ export default function Home() {
 
         /* Ticker */
         @keyframes tickerScroll { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
-        .ticker-belt { animation: tickerScroll 32s linear infinite; }
+        .ticker-belt { animation: tickerScroll 14s linear infinite; }
 
         /* Warm glow pulse — very subtle */
         @keyframes warmPulse {

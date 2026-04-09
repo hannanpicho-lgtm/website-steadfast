@@ -103,7 +103,7 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
       className="group relative flex h-[82px] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-2 transition-all duration-300 hover:scale-[1.04] hover:-translate-y-1 sm:h-[88px] sm:px-3"
       style={{
         background: item.bg,
-        boxShadow: `0 4px 16px ${item.accent}25, 0 1px 3px rgba(0,0,0,0.15)`,
+        boxShadow: `0 4px 16px ${item.accent}25, 0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.15)`,
       }}
     >
       {/* Soft inner light */}
@@ -214,12 +214,13 @@ export default function UserHome() {
     else { v.pause(); setIsVideoPlaying(false); }
   }, []);
 
-  /* Dark glass panel style — reused across sections */
+  /* Dark glass panel style — glossy silk finish */
   const glassPanel: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.025)',
-    backdropFilter: 'blur(12px)',
-    border: '1px solid rgba(200,149,108,0.10)',
-    boxShadow: '0 4px 32px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.03)',
+    background: 'linear-gradient(145deg, rgba(255,255,255,0.04), rgba(255,255,255,0.015))',
+    backdropFilter: 'blur(16px)',
+    WebkitBackdropFilter: 'blur(16px)',
+    border: '1px solid rgba(200,149,108,0.12)',
+    boxShadow: '0 4px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(0,0,0,0.1)',
   };
 
   return (
@@ -235,6 +236,34 @@ export default function UserHome() {
       </div>
 
       <style>{`
+        /* Glossy silk sheen on glass panels */
+        .uh-glass-sheen {
+          position: relative;
+        }
+        .uh-glass-sheen::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.03) 100%);
+          pointer-events: none;
+          z-index: 1;
+        }
+        /* Silk highlight line at top of panels */
+        .uh-silk-edge {
+          position: relative;
+        }
+        .uh-silk-edge::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 10%;
+          right: 10%;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(200,149,108,0.25), rgba(255,255,255,0.12), rgba(200,149,108,0.25), transparent);
+          pointer-events: none;
+          z-index: 2;
+        }
         @media (prefers-reduced-motion: reduce) {
           .uh-motion-safe { transition: none !important; opacity: 1 !important; transform: none !important; }
         }
@@ -248,9 +277,9 @@ export default function UserHome() {
         {/* ═══════════════════════════════════════════
             HERO — Cinematic Opening
         ═══════════════════════════════════════════ */}
-        <RevealSection className="mt-4 overflow-hidden rounded-3xl sm:mt-6" style={{
+        <RevealSection className="uh-glass-sheen uh-silk-edge mt-4 overflow-hidden rounded-3xl sm:mt-6" style={{
           ...glassPanel,
-          boxShadow: '0 8px 48px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)',
+          boxShadow: '0 8px 48px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)',
         }}>
           <div className="relative">
             <div className="relative h-[240px] overflow-hidden sm:h-[320px] md:h-[400px]">
@@ -334,7 +363,7 @@ export default function UserHome() {
         {/* ═══════════════════════════════════════════
             QUICK ACCESS — Dark Glass Console
         ═══════════════════════════════════════════ */}
-        <RevealSection delay={0.08} className="mt-5 overflow-hidden rounded-3xl px-4 py-6 sm:px-6 sm:py-7" style={glassPanel}>
+        <RevealSection delay={0.08} className="uh-glass-sheen uh-silk-edge mt-5 overflow-hidden rounded-3xl px-4 py-6 sm:px-6 sm:py-7" style={glassPanel}>
           <p className="mb-1 text-center text-[0.62rem] font-bold uppercase tracking-[0.28em] sm:text-[0.7rem]" style={{ color: '#c8956c' }}>
             Quick Access
           </p>
@@ -351,7 +380,7 @@ export default function UserHome() {
         {/* ═══════════════════════════════════════════
             AREAS OF FOCUS — Dark Gallery Wall
         ═══════════════════════════════════════════ */}
-        <RevealSection delay={0.12} className="mt-5 overflow-hidden rounded-3xl py-8 sm:py-10" style={glassPanel}>
+        <RevealSection delay={0.12} className="uh-glass-sheen uh-silk-edge mt-5 overflow-hidden rounded-3xl py-8 sm:py-10" style={glassPanel}>
           <div className="relative z-10 px-4 sm:px-6">
             <p className="mb-1 text-center text-[0.62rem] font-bold uppercase tracking-[0.28em] sm:text-[0.7rem]" style={{ color: '#c8956c' }}>
               Core Capabilities
@@ -369,7 +398,7 @@ export default function UserHome() {
                     style={{
                       background: `linear-gradient(145deg, ${area.bgFrom}, ${area.bgTo})`,
                       border: `1px solid ${area.color}20`,
-                      boxShadow: `0 2px 16px ${area.color}08`,
+                      boxShadow: `0 2px 16px ${area.color}08, inset 0 1px 0 rgba(255,255,255,0.04)`,
                     }}
                   >
                     {/* Hover glow */}
@@ -414,7 +443,7 @@ export default function UserHome() {
         {/* ═══════════════════════════════════════════
             CLIENTS — Dark Trust Wall
         ═══════════════════════════════════════════ */}
-        <RevealSection delay={0.16} className="mt-5 overflow-hidden rounded-3xl py-6 sm:py-8" style={glassPanel}>
+        <RevealSection delay={0.16} className="uh-glass-sheen uh-silk-edge mt-5 overflow-hidden rounded-3xl py-6 sm:py-8" style={glassPanel}>
           <div className="px-4 sm:px-6">
             <p className="mb-1 text-center text-[0.62rem] font-bold uppercase tracking-[0.28em] sm:text-[0.7rem]" style={{ color: '#c8956c' }}>
               Trusted by Leading Brands
@@ -487,10 +516,10 @@ export default function UserHome() {
         {/* ═══════════════════════════════════════════
             APPROACH — Warm Closing Statement
         ═══════════════════════════════════════════ */}
-        <RevealSection delay={0.2} className="mb-3 mt-5 overflow-hidden rounded-3xl px-5 py-7 text-center sm:px-8 sm:py-8" style={{
-          background: 'linear-gradient(145deg, rgba(200,149,108,0.08), rgba(200,149,108,0.03))',
-          boxShadow: '0 8px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(200,149,108,0.08)',
-          border: '1px solid rgba(200,149,108,0.15)',
+        <RevealSection delay={0.2} className="uh-glass-sheen uh-silk-edge mb-3 mt-5 overflow-hidden rounded-3xl px-5 py-7 text-center sm:px-8 sm:py-8" style={{
+          background: 'linear-gradient(145deg, rgba(200,149,108,0.10), rgba(200,149,108,0.04))',
+          boxShadow: '0 8px 40px rgba(0,0,0,0.3), inset 0 1px 0 rgba(200,149,108,0.10)',
+          border: '1px solid rgba(200,149,108,0.18)',
         }}>
           <p className="mb-2 text-[0.62rem] font-bold uppercase tracking-[0.28em] sm:text-[0.7rem]" style={{ color: '#c8956c' }}>
             Our Philosophy
