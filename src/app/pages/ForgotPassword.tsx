@@ -49,7 +49,7 @@ export default function ForgotPassword() {
           <p className="text-gray-300">For password assistance, contact support via WhatsApp or Telegram only.</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
+        <div className="bg-[#141414] border border-white/[0.06] rounded-2xl shadow-2xl p-8">
           <div className="space-y-3">
             <a
               href={telegramUrl}

@@ -254,7 +254,7 @@ function mapRealtimeConversation(raw: Record<string, unknown>): ChatSummary {
 
 function mapRealtimeMessage(raw: Record<string, unknown>): ChatMessage {
   return {
-    id: typeof raw.id === 'string' ? raw.id : crypto.randomUUID(),
+    id: typeof raw.id === 'string' ? raw.id : (typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : (`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`)),
     message: typeof raw.body === 'string' ? raw.body : '',
     sender: typeof raw.sender_id === 'string' ? raw.sender_id : 'unknown',
     isAdmin: raw.sender_role === 'admin',

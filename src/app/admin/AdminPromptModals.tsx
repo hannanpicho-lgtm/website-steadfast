@@ -18,7 +18,7 @@ export function ResetCredentialsModal({ username, onConfirm, onClose }: ResetCre
       <div className="bg-[#252b3d] border border-gray-700 rounded-lg max-w-md w-full p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-white text-lg font-bold">Reset Credentials</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={18} /></button>
+          <button onClick={onClose} className="text-gray-400 hover:text-white" aria-label="Close"><X size={18} /></button>
         </div>
         <p className="text-gray-400 text-sm mb-4">Set new credentials for <span className="text-white font-semibold">{username}</span></p>
 
@@ -75,7 +75,7 @@ export function CreditScoreModal({ username, currentScore, onConfirm, onClose }:
       <div className="bg-[#252b3d] border border-gray-700 rounded-lg max-w-md w-full p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-white text-lg font-bold">Set Credit Score</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={18} /></button>
+          <button onClick={onClose} className="text-gray-400 hover:text-white" aria-label="Close"><X size={18} /></button>
         </div>
         <p className="text-gray-400 text-sm mb-4">
           Set credit score for <span className="text-white font-semibold">{username}</span>

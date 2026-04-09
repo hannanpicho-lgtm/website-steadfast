@@ -1,5 +1,4 @@
 import { ChevronLeft } from 'lucide-react';
-import { Link } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useState, lazy, Suspense } from 'react';
 const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
@@ -10,7 +9,7 @@ export default function About() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   return (
-    <div className="size-full overflow-auto bg-white">
+    <div className="size-full overflow-auto bg-[#0a0a0a] text-gray-200">
       {/* Header */}
       <Header onContactClick={() => setIsChatOpen(true)} />
 

@@ -177,7 +177,7 @@ export default function Announcements({ formatRelativeTime }: AnnouncementsProps
         <div className="bg-[#252b3d] rounded-lg p-6 space-y-4">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-lg font-semibold text-white">{editingId ? 'Edit Announcement' : 'Create Announcement'}</h3>
-            <button onClick={resetForm} className="text-gray-400 hover:text-white"><X size={20} /></button>
+            <button onClick={resetForm} className="text-gray-400 hover:text-white" aria-label="Close form"><X size={20} /></button>
           </div>
 
           <form onSubmit={handleCreate} className="space-y-4">

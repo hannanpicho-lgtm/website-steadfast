@@ -305,30 +305,30 @@ export default function Support() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'open':
-        return 'bg-blue-100 text-blue-800 border-blue-300';
+        return 'bg-blue-900/30 text-blue-300 border-blue-700/40';
       case 'in-progress':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+        return 'bg-yellow-900/30 text-yellow-300 border-yellow-700/40';
       case 'resolved':
-        return 'bg-green-100 text-green-800 border-green-300';
+        return 'bg-green-900/30 text-green-300 border-green-700/40';
       case 'closed':
-        return 'bg-gray-100 text-gray-800 border-gray-300';
+        return 'bg-gray-800/40 text-gray-300 border-gray-600/40';
       default:
-        return 'bg-gray-100 text-gray-800 border-gray-300';
+        return 'bg-gray-800/40 text-gray-300 border-gray-600/40';
     }
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'low':
-        return 'bg-green-100 text-green-800';
+        return 'bg-green-900/30 text-green-300';
       case 'medium':
-        return 'bg-yellow-100 text-yellow-800';
+        return 'bg-yellow-900/30 text-yellow-300';
       case 'high':
-        return 'bg-orange-100 text-orange-800';
+        return 'bg-orange-900/30 text-orange-300';
       case 'urgent':
-        return 'bg-red-100 text-red-800';
+        return 'bg-red-900/30 text-red-300';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-gray-800/40 text-gray-300';
     }
   };
 

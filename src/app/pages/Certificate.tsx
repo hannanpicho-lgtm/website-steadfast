@@ -1,4 +1,4 @@
-import { ChevronLeft, Loader2 } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -88,18 +88,12 @@ export default function Certificate() {
   };
 
   const vipConfig = vipConfigurations.find((v) => v.level === (userData?.vipLevel ?? 1));
-  const vipName = vipConfig?.name ?? `VIP ${userData?.vipLevel ?? 1}`;
-  const memberSince = userData?.createdAt
-    ? new Date(userData.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-    : '—';
+  // vipName, memberSince, totalCommission, referralEarnings reserved for future certificate display
+  void vipConfig;
 
-  void vipName;
-  void memberSince;
-  void totalCommission;
-  void referralEarnings;
 
   return (
-    <div className="size-full overflow-auto bg-gray-50 pb-20">
+    <div className="size-full overflow-auto bg-[#0a0a0a] pb-20">
       <Header onContactClick={() => setIsChatOpen(true)} />
 
       <div className="max-w-2xl mx-auto px-4 py-6">
@@ -112,15 +106,15 @@ export default function Certificate() {
         </div>
 
         {loading && (
-          <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-4">
-            <div className="h-6 w-48 bg-gray-200 rounded shimmer-line mx-auto" />
-            <div className="h-40 w-full bg-gray-100 rounded shimmer-line" />
-            <div className="h-4 w-32 bg-gray-200 rounded shimmer-line mx-auto" />
+          <div className="bg-[#141414] border border-white/[0.06] rounded-xl p-6 space-y-4">
+            <div className="h-6 w-48 bg-white/[0.08] rounded shimmer-line mx-auto" />
+            <div className="h-40 w-full bg-white/[0.05] rounded shimmer-line" />
+            <div className="h-4 w-32 bg-white/[0.08] rounded shimmer-line mx-auto" />
           </div>
         )}
 
         {error && !loading && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center text-red-600">
+          <div className="bg-red-900/20 border border-red-800/30 rounded-lg p-6 text-center text-red-400">
             {error}
           </div>
         )}

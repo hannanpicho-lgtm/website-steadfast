@@ -1,5 +1,4 @@
 import { ChevronLeft, ChevronDown } from 'lucide-react';
-import { Link } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { useState, type ReactNode, lazy, Suspense } from 'react';
@@ -88,7 +87,7 @@ export default function FAQs() {
   ];
 
   return (
-    <div className="size-full overflow-auto bg-white">
+    <div className="size-full overflow-auto bg-[#0a0a0a] text-gray-200">
       {/* Header */}
       <Header onContactClick={() => setIsChatOpen(true)} />
 

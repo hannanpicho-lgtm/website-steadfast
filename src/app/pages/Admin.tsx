@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, Component, type ReactNode, type ErrorInfo } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, Component, type ReactNode, type ErrorInfo } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import { defaultVipConfigurations, initialProductCatalog, initialAdminRoles } from '../admin/adminData';
@@ -2294,7 +2294,7 @@ export default function Admin() {
   }, [activeMenu, searchTerm, filterStatus]);
 
 
-  const premiumBundleUsers = [...platformUsers]
+  const premiumBundleUsers = useMemo(() => [...platformUsers]
     .sort((a, b) => {
       const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
       const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -2311,29 +2311,29 @@ export default function Admin() {
         balance: user.balance,
         totalCommission,
       };
-    });
+    }), [platformUsers, transactions]);
 
-  const totalDeposits = transactions
+  const totalDeposits = useMemo(() => transactions
     .filter((transaction) => transaction.type === 'Deposit' && transaction.status === 'Completed')
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
-  const totalWithdrawals = transactions
+    .reduce((sum, transaction) => sum + transaction.amount, 0), [transactions]);
+  const totalWithdrawals = useMemo(() => transactions
     .filter((transaction) => transaction.type === 'Withdrawal' && transaction.status === 'Completed')
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
-  const totalCommissions = transactions
+    .reduce((sum, transaction) => sum + transaction.amount, 0), [transactions]);
+  const totalCommissions = useMemo(() => transactions
     .filter((transaction) => transaction.type === 'Commission' && transaction.status === 'Completed')
-    .reduce((sum, transaction) => sum + transaction.amount, 0);
-  const pendingWithdrawalAmount = withdrawalRequests
+    .reduce((sum, transaction) => sum + transaction.amount, 0), [transactions]);
+  const pendingWithdrawalAmount = useMemo(() => withdrawalRequests
     .filter((withdrawal) => withdrawal.status === 'Pending')
-    .reduce((sum, withdrawal) => sum + withdrawal.amount, 0);
-  const deposits = transactions.filter((transaction) => transaction.type === 'Deposit');
+    .reduce((sum, withdrawal) => sum + withdrawal.amount, 0), [withdrawalRequests]);
+  const deposits = useMemo(() => transactions.filter((transaction) => transaction.type === 'Deposit'), [transactions]);
   const platformRevenue = totalDeposits - totalWithdrawals - totalCommissions;
-  const totalUserBalances = platformUsers.reduce((sum, user) => sum + user.balance, 0);
-  const totalCompletedTasks = platformUsers.reduce((sum, user) => sum + user.tasksCompleted, 0);
-  const activePlatformUsers = platformUsers.filter((user) => !user.isSuspended).length;
+  const totalUserBalances = useMemo(() => platformUsers.reduce((sum, user) => sum + user.balance, 0), [platformUsers]);
+  const totalCompletedTasks = useMemo(() => platformUsers.reduce((sum, user) => sum + user.tasksCompleted, 0), [platformUsers]);
+  const activePlatformUsers = useMemo(() => platformUsers.filter((user) => !user.isSuspended).length, [platformUsers]);
   const averageBalance = platformUsers.length > 0 ? totalUserBalances / platformUsers.length : 0;
-  const averageCommissionRate = platformUsers.length > 0
+  const averageCommissionRate = useMemo(() => platformUsers.length > 0
     ? (platformUsers.reduce((sum, user) => sum + (vipConfigurations.find((vip) => vip.level === user.vipLevel)?.commission ?? 0), 0) / platformUsers.length) * 100
-    : 0;
+    : 0, [platformUsers, vipConfigurations]);
   const totalFinanceVolume = totalDeposits + totalWithdrawals + totalCommissions;
 
   const formatCurrency = (amount: number) => `$${amount.toFixed(2)}`;
