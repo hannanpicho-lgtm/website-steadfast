@@ -66,8 +66,29 @@ const LoginHistory = lazy(() => import('../admin/LoginHistory'));
 
 function AdminPanelFallback({ label }: { label: string }) {
   return (
-    <div className="bg-[#252b3d] border border-gray-700 rounded-lg p-8 text-center text-gray-400">
-      {label}
+    <div className="space-y-4" aria-busy="true" aria-label={label}>
+      {/* Header skeleton */}
+      <div className="flex items-center justify-between">
+        <div className="h-7 bg-gray-700/50 rounded w-48 animate-pulse" />
+        <div className="h-9 bg-gray-700/50 rounded-lg w-32 animate-pulse" />
+      </div>
+      {/* Table skeleton rows */}
+      <div className="bg-[#252b3d] border border-gray-700 rounded-lg overflow-hidden">
+        {/* Header row */}
+        <div className="flex gap-4 px-4 py-3 border-b border-gray-700">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-3 bg-gray-700/40 rounded animate-pulse" style={{ width: `${[30, 25, 20, 15][i]}%` }} />
+          ))}
+        </div>
+        {/* Data rows */}
+        {Array.from({ length: 5 }).map((_, r) => (
+          <div key={r} className="flex gap-4 px-4 py-4 border-b border-gray-800">
+            {Array.from({ length: 4 }).map((_, c) => (
+              <div key={c} className="h-4 bg-gray-700/30 rounded animate-pulse" style={{ width: `${[28, 22, 18, 12][c]}%`, animationDelay: `${r * 75}ms` }} />
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -2627,11 +2648,25 @@ export default function Admin() {
         </div>
 
         {/* Navigation Menu */}
-        <nav className="flex-1 overflow-y-auto p-4" aria-label="Admin navigation">
-          <div className="space-y-1">
+        <nav className="flex-1 overflow-y-auto p-4" aria-label="Admin navigation" onKeyDown={(e) => {
+          if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+          e.preventDefault();
+          const idx = menuItems.findIndex(m => m.id === activeMenu);
+          const next = e.key === 'ArrowDown'
+            ? Math.min(idx + 1, menuItems.length - 1)
+            : Math.max(idx - 1, 0);
+          if (next !== idx) {
+            setActiveMenu(menuItems[next].id);
+            const btns = e.currentTarget.querySelectorAll<HTMLElement>('button');
+            btns[next]?.focus();
+          }
+        }}>
+          <div className="space-y-1" role="menubar" aria-orientation="vertical">
             {menuItems.map((item) => (
               <button
                 key={item.id}
+                role="menuitem"
+                tabIndex={activeMenu === item.id ? 0 : -1}
                 onClick={() => setActiveMenu(item.id)}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                   activeMenu === item.id

@@ -246,7 +246,7 @@ export default function Withdrawal() {
         <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mb-6 backdrop-blur-sm sf-stagger-1">
           <h2 className="text-lg font-semibold text-[#00D9FF] mb-3">Total Balance</h2>
           <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-4xl font-bold text-white">{loading ? '...' : walletData?.balance.toFixed(2) ?? '0.00'}</span>
+            <span className="text-4xl font-bold text-white">{loading ? <span className="inline-block h-9 w-28 bg-gray-600/40 rounded animate-pulse align-middle" /> : walletData?.balance.toFixed(2) ?? '0.00'}</span>
             <span className="text-lg text-gray-400">USD</span>
           </div>
           <p className="text-sm italic text-gray-400">You will receive your withdrawal within an hour</p>
@@ -256,11 +256,11 @@ export default function Withdrawal() {
         <div className="space-y-0 mb-6 bg-[#252d42]/80 border border-white/10 rounded-xl px-4 backdrop-blur-sm sf-stagger-2">
           <div className="flex items-center justify-between py-4 border-b border-white/10">
             <span className="text-[#00D9FF] font-semibold">Available Amount</span>
-            <span className="font-bold text-white">{loading ? '...' : `${availableAmount.toFixed(2)} USD`}</span>
+            <span className="font-bold text-white">{loading ? <span className="inline-block h-5 w-20 bg-gray-600/40 rounded animate-pulse align-middle" /> : `${availableAmount.toFixed(2)} USD`}</span>
           </div>
           <div className="flex items-center justify-between py-4">
             <span className="text-[#00D9FF] font-semibold">Freeze Amount</span>
-            <span className="font-bold text-white">{loading ? '...' : `${(walletData?.holdAmount ?? 0).toFixed(2)} USD`}</span>
+            <span className="font-bold text-white">{loading ? <span className="inline-block h-5 w-20 bg-gray-600/40 rounded animate-pulse align-middle" /> : `${(walletData?.holdAmount ?? 0).toFixed(2)} USD`}</span>
           </div>
         </div>
 
