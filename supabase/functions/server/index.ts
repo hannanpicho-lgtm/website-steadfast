@@ -1282,9 +1282,12 @@ function mapAuthUserToAdminRecord(user: any) {
 }
 
 // ── Password hashing (PBKDF2 via Web Crypto) ───────────────────────────────
-// Format stored in KV: "pbkdf2v1:<base64-salt>:<base64-hash>"
-// The "pbkdf2v1:" prefix lets verifyPassword detect hashed vs. legacy plaintext.
+// Format stored in KV:
+//   pbkdf2v1:<base64-salt>:<base64-hash>          — legacy, 200K iterations (rehash on next login)
+//   pbkdf2v2:<iterations>:<base64-salt>:<base64-hash> — current, iteration count embedded
+// The "pbkdf2v1:" / "pbkdf2v2:" prefix lets verifyPassword detect hashed vs. legacy plaintext.
 const PBKDF2_ITERATIONS = 600_000;
+const PBKDF2_LEGACY_ITERATIONS = 200_000;
 const PBKDF2_HASH = 'SHA-256';
 const PBKDF2_KEY_LENGTH = 32; // bytes
 
@@ -1304,19 +1307,44 @@ async function hashPassword(password: string): Promise<string> {
   );
   const saltB64 = btoa(String.fromCharCode(...salt));
   const hashB64 = btoa(String.fromCharCode(...new Uint8Array(hashBuffer)));
-  return `pbkdf2v1:${saltB64}:${hashB64}`;
+  return `pbkdf2v2:${PBKDF2_ITERATIONS}:${saltB64}:${hashB64}`;
 }
 
 async function verifyPassword(password: string, stored: string): Promise<{ valid: boolean; needsRehash: boolean }> {
   // Legacy plaintext: verify then flag for rehash
-  if (!stored.startsWith('pbkdf2v1:')) {
+  if (!stored.startsWith('pbkdf2v1:') && !stored.startsWith('pbkdf2v2:')) {
     const valid = stored === password;
     return { valid, needsRehash: valid };
   }
-  const parts = stored.split(':');
-  if (parts.length !== 3) return { valid: false, needsRehash: false };
-  const salt = Uint8Array.from(atob(parts[1]), (c) => c.charCodeAt(0));
-  const expectedHash = Uint8Array.from(atob(parts[2]), (c) => c.charCodeAt(0));
+
+  let iterations: number;
+  let saltB64: string;
+  let expectedHashB64: string;
+  let needsRehash = false;
+
+  if (stored.startsWith('pbkdf2v2:')) {
+    // v2: pbkdf2v2:<iterations>:<salt>:<hash>
+    const parts = stored.split(':');
+    if (parts.length !== 4) return { valid: false, needsRehash: false };
+    const parsedIter = parseInt(parts[1], 10);
+    if (!Number.isFinite(parsedIter) || parsedIter < 1) return { valid: false, needsRehash: false };
+    iterations = parsedIter;
+    saltB64 = parts[2];
+    expectedHashB64 = parts[3];
+    // Flag for rehash if stored at lower iteration count than current target
+    needsRehash = iterations < PBKDF2_ITERATIONS;
+  } else {
+    // v1: pbkdf2v1:<salt>:<hash> — legacy 200K, always rehash on success
+    const parts = stored.split(':');
+    if (parts.length !== 3) return { valid: false, needsRehash: false };
+    iterations = PBKDF2_LEGACY_ITERATIONS;
+    saltB64 = parts[1];
+    expectedHashB64 = parts[2];
+    needsRehash = true;
+  }
+
+  const salt = Uint8Array.from(atob(saltB64), (c) => c.charCodeAt(0));
+  const expectedHash = Uint8Array.from(atob(expectedHashB64), (c) => c.charCodeAt(0));
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(password),
@@ -1325,7 +1353,7 @@ async function verifyPassword(password: string, stored: string): Promise<{ valid
     ['deriveBits'],
   );
   const hashBuffer = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt, iterations: PBKDF2_ITERATIONS, hash: PBKDF2_HASH },
+    { name: 'PBKDF2', salt, iterations, hash: PBKDF2_HASH },
     keyMaterial,
     PBKDF2_KEY_LENGTH * 8,
   );
@@ -1336,7 +1364,8 @@ async function verifyPassword(password: string, stored: string): Promise<{ valid
   for (let i = 0; i < actualHash.length; i++) {
     diff |= actualHash[i] ^ expectedHash[i];
   }
-  return { valid: diff === 0, needsRehash: false };
+  const valid = diff === 0;
+  return { valid, needsRehash: valid && needsRehash };
 }
 
 // ── Input sanitizers ─────────────────────────────────────────────────────────
