@@ -1,2 +1,0 @@
-﻿ M src/app/pages/Starting.tsx
-?? commit_snapshots/pre_commit_20260318_213937.status.txt

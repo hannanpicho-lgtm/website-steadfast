@@ -1,5 +1,0 @@
-﻿ M src/app/admin/AdminSettings.tsx
- M src/tests/api.integration.test.ts
- M supabase/functions/server/index.tsx
-?? commit_snapshots/pre_commit_20260320_062707.status.txt
-?? src/app/services/adminPlatformSettings.ts

@@ -1,3 +1,0 @@
-﻿ M src/app/routes.ts
-?? commit_snapshots/pre_commit_20260318_214514.status.txt
-?? src/app/components/RouteErrorBoundary.tsx
