@@ -1284,7 +1284,7 @@ function mapAuthUserToAdminRecord(user: any) {
 // ── Password hashing (PBKDF2 via Web Crypto) ───────────────────────────────
 // Format stored in KV: "pbkdf2v1:<base64-salt>:<base64-hash>"
 // The "pbkdf2v1:" prefix lets verifyPassword detect hashed vs. legacy plaintext.
-const PBKDF2_ITERATIONS = 200_000;
+const PBKDF2_ITERATIONS = 600_000;
 const PBKDF2_HASH = 'SHA-256';
 const PBKDF2_KEY_LENGTH = 32; // bytes
 
@@ -1307,13 +1307,14 @@ async function hashPassword(password: string): Promise<string> {
   return `pbkdf2v1:${saltB64}:${hashB64}`;
 }
 
-async function verifyPassword(password: string, stored: string): Promise<boolean> {
-  // Backward-compatible: if not a hash, fall back to plaintext comparison
+async function verifyPassword(password: string, stored: string): Promise<{ valid: boolean; needsRehash: boolean }> {
+  // Legacy plaintext: verify then flag for rehash
   if (!stored.startsWith('pbkdf2v1:')) {
-    return stored === password;
+    const valid = stored === password;
+    return { valid, needsRehash: valid };
   }
   const parts = stored.split(':');
-  if (parts.length !== 3) return false;
+  if (parts.length !== 3) return { valid: false, needsRehash: false };
   const salt = Uint8Array.from(atob(parts[1]), (c) => c.charCodeAt(0));
   const expectedHash = Uint8Array.from(atob(parts[2]), (c) => c.charCodeAt(0));
   const keyMaterial = await crypto.subtle.importKey(
@@ -1330,12 +1331,12 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
   );
   const actualHash = new Uint8Array(hashBuffer);
   // Constant-time comparison to prevent timing attacks
-  if (actualHash.length !== expectedHash.length) return false;
+  if (actualHash.length !== expectedHash.length) return { valid: false, needsRehash: false };
   let diff = 0;
   for (let i = 0; i < actualHash.length; i++) {
     diff |= actualHash[i] ^ expectedHash[i];
   }
-  return diff === 0;
+  return { valid: diff === 0, needsRehash: false };
 }
 
 // ── Input sanitizers ─────────────────────────────────────────────────────────
@@ -6285,8 +6286,19 @@ app.post('/make-server-a1c55d7e/auth/login', async (c: any) => {
     }
 
     const valid = await verifyPassword(loginPassword, storedPassword);
-    if (!valid) {
+    if (!valid.valid) {
       return c.json({ error: 'Invalid username or password.' }, 401);
+    }
+
+    // Auto-migrate legacy plaintext passwords to PBKDF2 on successful login
+    if (valid.needsRehash) {
+      try {
+        (userData as any).password = await hashPassword(loginPassword);
+        await kv.set(userKey, userData);
+        console.log(`[password-rehash] Migrated legacy password for user '${canonicalUsername}' to PBKDF2`);
+      } catch (e) {
+        console.error(`[password-rehash] Failed for '${canonicalUsername}':`, e);
+      }
     }
 
     const mustChangePassword = Boolean((userData as any).mustChangePassword);
@@ -7275,7 +7287,7 @@ async function submitWithdrawalRequest(c: any, username: string, body: any) {
     const method = withdrawalDetails.method;
     const network = withdrawalDetails.network;
 
-    if (!(await verifyPassword(transactionPassword, String(normalizedUserData.transactionPassword ?? '')))) {
+    if (!(await verifyPassword(transactionPassword, String(normalizedUserData.transactionPassword ?? ''))).valid) {
       return jsonError(c, 401, 'invalid_transaction_password', 'Transaction password is incorrect.');
     }
 
@@ -11182,11 +11194,8 @@ app.post("/make-server-a1c55d7e/auth/forgot-password", async (c: any) => {
       used: false,
     });
     
-    // In a real implementation, send email with reset link
-    // For now, we'll just log it
-    console.log(`Password reset requested for: ${email}`);
-    console.log(`Reset token: ${resetToken}`);
-    console.log(`Reset link: /reset-password?token=${resetToken}`);
+    // Token stored in KV — email delivery integration pending
+    console.log(`[password-reset] Requested for user '${resetUsername}' (token stored, expiry: ${new Date(resetExpiry).toISOString()})`);
     
     return c.json({
       success: true,
@@ -11319,7 +11328,7 @@ app.post("/make-server-a1c55d7e/auth/change-password", async (c: any) => {
     }
     
     // Verify current password (constant-time, supports legacy plaintext migration)
-    if (userData.password && !await verifyPassword(currentPassword, userData.password)) {
+    if (userData.password && !(await verifyPassword(currentPassword, userData.password)).valid) {
       return c.json({ error: 'Current password is incorrect' }, 401);
     }
 
@@ -11377,7 +11386,7 @@ app.post('/make-server-a1c55d7e/auth/change-credentials', async (c: any) => {
       return c.json({ error: 'User not found' }, 404);
     }
 
-    if (!(await verifyPassword(currentLoginPassword, String((userData as any).password ?? '')))) {
+    if (!(await verifyPassword(currentLoginPassword, String((userData as any).password ?? ''))).valid) {
       return c.json({ error: 'Current login password is incorrect' }, 401);
     }
 
