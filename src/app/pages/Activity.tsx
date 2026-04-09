@@ -612,7 +612,7 @@ export default function Activity() {
         </div>
 
         {/* Accumulated Deposit Rewards Section */}
-        <div className="bg-white mb-8 px-4">
+        <div className="bg-[#141414] mb-8 px-4 py-5 rounded-lg border border-white/[0.06]">
           <h3 className="text-xl sm:text-2xl font-bold text-[#0066b3] italic mb-6 underline">Accumulated Deposit Rewards For The Day</h3>
           
           <div className="space-y-4">

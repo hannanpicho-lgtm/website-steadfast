@@ -1067,13 +1067,13 @@ export default function Starting() {
 
         {/* Product Slideshow */}
         {activeTasks.length > 0 ? (() => { const slide = activeTasks[carouselIndex % activeTasks.length]; return (
-          <div className="bg-white rounded-lg p-4 sm:p-6 mb-6 shadow-sm relative select-none">
+          <div className="bg-[#252d42] rounded-lg p-4 sm:p-6 mb-6 border border-[#00D9FF]/20 relative select-none">
             {/* Prev button */}
             <button
               onClick={() => setCarouselIndex(i => (i - 1 + activeTasks.length) % activeTasks.length)}
-              className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white backdrop-blur-sm border border-gray-200 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
+              className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 bg-[#1a1f2e]/80 hover:bg-[#252d42] backdrop-blur-sm border border-white/20 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
             >
-              <ChevronLeft size={20} className="text-gray-600" />
+              <ChevronLeft size={20} className="text-gray-300" />
             </button>
 
             {/* Slide content */}
@@ -1089,20 +1089,20 @@ export default function Starting() {
                   className="max-h-[170px] sm:max-h-[180px] max-w-[180px] sm:max-w-[200px] w-full object-contain"
                 />
               </div>
-                <h3 className="text-base font-semibold mb-2 line-clamp-2">{slide.product}</h3>
+                <h3 className="text-base font-semibold text-white mb-2 line-clamp-2">{slide.product}</h3>
               <div className="flex items-center justify-center gap-1 mb-2">
                 <span className="text-yellow-500">⭐</span>
-                <span className="text-sm font-semibold">{slide.rating}</span>
+                <span className="text-sm font-semibold text-gray-300">{slide.rating}</span>
               </div>
-              <p className="text-xl font-bold">Price: {slide.price.toFixed(2)} USD</p>
+              <p className="text-xl font-bold text-white">Price: {slide.price.toFixed(2)} USD</p>
             </div>
 
             {/* Next button */}
             <button
               onClick={() => setCarouselIndex(i => (i + 1) % activeTasks.length)}
-              className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 bg-white/80 hover:bg-white backdrop-blur-sm border border-gray-200 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
+              className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 bg-[#1a1f2e]/80 hover:bg-[#252d42] backdrop-blur-sm border border-white/20 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
             >
-              <ChevronRight size={20} className="text-gray-600" />
+              <ChevronRight size={20} className="text-gray-300" />
             </button>
 
             {/* Dot indicators */}
@@ -1111,13 +1111,13 @@ export default function Starting() {
                 <button
                   key={i}
                   onClick={() => setCarouselIndex(i)}
-                  className={`w-2 h-2 rounded-full transition-colors ${i === carouselIndex ? 'bg-gray-700' : 'bg-gray-300'}`}
+                  className={`w-2 h-2 rounded-full transition-colors ${i === carouselIndex ? 'bg-[#00D9FF]' : 'bg-gray-600'}`}
                 />
               ))}
             </div>
           </div>
           ); })() : (
-          <div className="bg-white rounded-lg p-6 mb-6 shadow-sm text-center text-gray-500">
+          <div className="bg-[#252d42] rounded-lg p-6 mb-6 border border-white/10 text-center text-gray-400">
             No active tasks are available right now.
           </div>
         )}

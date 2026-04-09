@@ -52,8 +52,6 @@ export default function Profile() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [profileImageSrc, setProfileImageSrc] = useState<string | null>(() => getStoredProfileImage(getCurrentUsername()));
 
-  const menuRowHoverFx = 'w-full flex items-center justify-between p-4 transition-all duration-300 hover:bg-[linear-gradient(102deg,rgba(255,255,255,0.98)_0%,rgba(255,245,181,0.34)_52%,rgba(255,255,255,0.98)_100%)] hover:shadow-[inset_0_-14px_0_rgba(255,245,181,0.22)]';
-
   useEffect(() => {
     const forceFromQuery = new URLSearchParams(window.location.search).get('forcePasswordChange') === '1';
     setMustChangePassword(forceFromQuery || isPasswordChangeRequired());
