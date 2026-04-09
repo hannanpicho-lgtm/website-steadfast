@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router';
 import { defaultVipConfigurations, initialProductCatalog, initialAdminRoles } from '../admin/adminData';
 import { formatRelativeTime } from '../admin/adminTypes';
 import type { AdminUserRecord, AdminRole, ModalType, PlatformUser, PlatformUserAudit, ReferralOverviewRow, ReferralOverviewEvent, ReferralOverviewSummary, TaskConfig, TaskDraftState, TransactionRecord, UserBalanceAdjustmentDraft, UserTaskControlDraft, UserVipLevelDraft, VipDraftState, VipLevelConfig, WithdrawalRequestRecord, MenuItem } from '../admin/adminTypes';
-import AdminModals from '../admin/AdminModals';
+const AdminModals = lazy(() => import('../admin/AdminModals'));
 import { ResetCredentialsModal, CreditScoreModal } from '../admin/AdminPromptModals';
 import ScrollToTop from '../admin/ScrollToTop';
 import { 
@@ -2662,8 +2662,10 @@ export default function Admin() {
         <ScrollToTop scrollRef={mainScrollRef} />
       </main>
 
-      {/* Modals */}
-      <AdminModals
+      {/* Modals — lazy-loaded, only fetched when a modal is triggered */}
+      {modalType && (
+        <Suspense fallback={null}>
+          <AdminModals
         modalType={modalType}
         selectedItem={selectedItem}
         setModalType={setModalType}
@@ -2747,6 +2749,8 @@ export default function Admin() {
         handleCreatePlatformUser={handleCreatePlatformUser}
         currentAdminInvitationCode={currentAdminInvitationCode}
       />
+        </Suspense>
+      )}
 
       {/* Prompt-replacement modals */}
       {credentialResetTarget && (
