@@ -99,13 +99,13 @@ export interface AdminModalsProps {
 
   // AI product generation
   aiGenerateVipLevels: number[];
-  aiGenerateCount: string;
-  aiGenerateCategories: string;
+  aiGenerateCount: number;
+  aiGenerateCategories: string[];
   aiGenerating: boolean;
   aiPreviewItems: any[];
   setAiGenerateVipLevels: Dispatch<SetStateAction<number[]>>;
-  setAiGenerateCount: Dispatch<SetStateAction<string>>;
-  setAiGenerateCategories: Dispatch<SetStateAction<string>>;
+  setAiGenerateCount: Dispatch<SetStateAction<number>>;
+  setAiGenerateCategories: Dispatch<SetStateAction<string[]>>;
   setAiPreviewItems: Dispatch<SetStateAction<any[]>>;
 
   // Bulk salary
@@ -125,11 +125,11 @@ export interface AdminModalsProps {
   handleCreatePlatformUser: (e: React.FormEvent<HTMLFormElement>) => void;
   currentAdminInvitationCode: string | null;
   handleSaveUserTaskControls: () => void;
-  handleResetUserTaskSet: () => void;
-  handleRestorePlatformUser: () => void;
-  handleTogglePlatformUserSuspension: () => void;
-  handleRecalculateFinancialState: () => void;
-  handleReconcilePremiumSettlements: (username?: string) => void;
+  handleResetUserTaskSet: (user: any) => void;
+  handleRestorePlatformUser: (user: any) => void;
+  handleTogglePlatformUserSuspension: (user: any) => void;
+  handleRecalculateFinancialState: (user: any) => void;
+  handleReconcilePremiumSettlements: (params?: { username?: string; dryRun?: boolean; maxUsers?: number }) => void;
   handleAdjustPlatformUserBalance: () => void;
   handleAssignAdmin: (username: string, subAdminId: string | null) => void;
   handleSaveUserVipLevel: () => void;
@@ -140,7 +140,7 @@ export interface AdminModalsProps {
   handleSaveProductSystemConfig: (e: React.FormEvent) => void;
   handleGenerateProducts: () => void;
   handleConfirmGenerateProducts: () => void;
-  handleBulkImportProducts: (e: React.FormEvent) => void;
+  handleBulkImportProducts: (rawText: string, format: 'csv' | 'json') => void;
   handleSaveProductEdit: (e: React.FormEvent) => void;
   handleDeleteSelectedProduct: () => void;
   handleUpdateAdminDetails: (e: React.FormEvent) => void;
@@ -149,7 +149,7 @@ export interface AdminModalsProps {
   handleUpdateRole: (e: React.FormEvent) => void;
   handleDeleteRole: () => void;
   processWithdrawalReview: (id: string, action: 'approve' | 'reject') => void;
-  buildRolePermissionsFromForm: (form: HTMLFormElement) => Record<string, boolean>;
+  buildRolePermissionsFromForm: (formData: FormData) => Record<string, boolean>;
 }
 
 export default function AdminModals(props: AdminModalsProps) {

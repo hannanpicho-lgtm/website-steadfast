@@ -1,7 +1,7 @@
-import { Hono } from "npm:hono";
-import { cors } from "npm:hono/cors";
-import { logger } from "npm:hono/logger";
-import { createClient } from "jsr:@supabase/supabase-js@2.49.8";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { logger } from "hono/logger";
+import { createClient } from "@supabase/supabase-js";
 import * as kv from "./kv_store.tsx";
 const app = new Hono();
 
@@ -1081,7 +1081,7 @@ async function requireAdmin(c: any) {
     if (!consumed.ok) {
       logAdminAuthFailure(c, 'invalid_admin_script_token', {
         tokenSource: scriptTokenUsesGatewayAuth ? 'x-admin-script-token' : 'authorization',
-        scriptTokenReason: consumed.reason,
+        scriptTokenReason: (consumed as { ok: false; reason: string }).reason,
       });
       return c.json({ error: 'Unauthorized' }, 401);
     }
@@ -5741,7 +5741,7 @@ app.put('/make-server-a1c55d7e/me/wallet', async (c: any) => {
     const body = await c.req.json();
     const parsed = parseWalletProfileInput(body);
     if (!parsed.ok) {
-      return c.json({ error: parsed.error }, 400);
+      return c.json({ error: (parsed as { ok: false; error: string }).error }, 400);
     }
 
     const canonicalUsername = sessionResult.session.username;
@@ -10808,7 +10808,7 @@ function computeAverageAdminResponseMs(messages: any[]): number | null {
       continue;
     }
 
-    if (Boolean(message?.isAdmin)) {
+    if (message?.isAdmin) {
       if (pendingUserTimestamp !== null) {
         durations.push(Math.max(0, timestampValue - pendingUserTimestamp));
         pendingUserTimestamp = null;
@@ -10834,12 +10834,12 @@ function buildChatThreadSummary(username: string, messages: any[]) {
     : [];
   const lastMessage = safeMessages.length > 0 ? safeMessages[safeMessages.length - 1] : null;
   const preview = buildChatMessagePreview(lastMessage?.message ?? '');
-  const unreadUserMessages = safeMessages.filter((message) => message?.read === false && !Boolean(message?.isAdmin)).length;
+  const unreadUserMessages = safeMessages.filter((message) => message?.read === false && !message?.isAdmin).length;
   const unreadAdminMessages = safeMessages.filter((message) => message?.read === false && Boolean(message?.isAdmin)).length;
-  const latestUserMessage = [...safeMessages].reverse().find((message) => !Boolean(message?.isAdmin) && typeof message?.timestamp === 'string');
+  const latestUserMessage = [...safeMessages].reverse().find((message) => !message?.isAdmin && typeof message?.timestamp === 'string');
   const latestAdminMessage = [...safeMessages].reverse().find((message) => Boolean(message?.isAdmin) && typeof message?.timestamp === 'string');
   const lastSenderRole: 'user' | 'admin' | 'system' = lastMessage
-    ? (Boolean(lastMessage?.isAdmin) ? 'admin' : 'user')
+    ? (lastMessage?.isAdmin ? 'admin' : 'user')
     : 'system';
   const responseState: ChatResponseState = safeMessages.length === 0
     ? 'idle'
@@ -12505,7 +12505,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/recalculate-finan
     await recordObservabilityAuditEvent(
       'admin-user-financial-recalculate',
       actorEmail,
-      `Recalculated financial state for user '${canonicalUsername}' (autoUnfreeze: ${shouldAutoUnfreeze ? 'yes' : 'no'})`,
+      `Recalculated financial state for user '${canonicalUsername}' (autoUnfreeze: ${recalculationResult.shouldAutoUnfreeze ? 'yes' : 'no'})`,
     ).catch((e) => console.error('Failed to record admin-user-financial-recalculate audit event:', e));
 
     invalidateUserSnapshots(canonicalUsername);
@@ -13070,10 +13070,10 @@ app.get('/make-server-a1c55d7e/admin/platform-users/discover-ghost-users', async
 
     // Query all auth users for ghost accounts
     const ghostUsers: any[] = [];
+    let totalScanned = 0;
     if (authClient) {
       try {
         let p = 1;
-        let totalScanned = 0;
         const maxPages = 10; // ~2000 users max
         
         while (p <= maxPages) {
@@ -13477,7 +13477,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/assign-admin', as
       return c.json({ error: 'User not found' }, 404);
     }
 
-    const normalizedUser = await normalizeUserRecord(existingUser);
+    const normalizedUser = await normalizeUserRecord(existingUser, canonicalUsername);
     const previousAdminId = normalizedUser.referredByAdminId ?? null;
     normalizedUser.referredByAdminId = subAdminId;
     await kv.set(userKey, normalizedUser);
@@ -13537,7 +13537,7 @@ app.post('/make-server-a1c55d7e/admin/platform-users/:username/vip-level', async
         return { response: c.json({ error: 'User not found' }, 404) };
       }
 
-      const normalizedUser = await normalizeUserRecord(existingUser);
+      const normalizedUser = await normalizeUserRecord(existingUser, canonicalUsername);
       if (!callerIsSuperAdmin && normalizedUser.referredByAdminId !== callingAdmin?.id) {
         return { response: c.json({ error: 'Forbidden' }, 403) };
       }

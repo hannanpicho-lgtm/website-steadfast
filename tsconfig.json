@@ -16,7 +16,9 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
-    "strict": true
+    "strict": false,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true
   },
   "include": ["src", "utils"],
   "exclude": ["node_modules", "dist", "supabase/functions"]

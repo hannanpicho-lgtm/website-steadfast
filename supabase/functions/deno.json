@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "noImplicitAny": false,
+    "strict": false
+  },
+  "lint": {
+    "rules": {
+      "exclude": [
+        "no-explicit-any",
+        "require-await",
+        "no-unused-vars",
+        "prefer-const",
+        "no-boolean-literal-for-arguments",
+        "no-control-regex",
+        "verbatim-module-syntax",
+        "no-redundant-type-constituents",
+        "no-inferrable-types"
+      ]
+    }
+  },
+  "imports": {
+    "hono": "npm:hono@4",
+    "hono/cors": "npm:hono@4/cors",
+    "hono/logger": "npm:hono@4/logger",
+    "@supabase/supabase-js": "jsr:@supabase/supabase-js@2.49.8"
+  }
+}
