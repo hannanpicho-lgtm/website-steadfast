@@ -130,19 +130,19 @@ function RecordSkeleton() {
   return (
     <div className="space-y-3" aria-busy="true" aria-label="Loading records">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm animate-pulse">
+        <div key={i} className="bg-[#141414] border border-white/[0.06] rounded-lg p-4 animate-pulse">
           <div className="flex gap-3">
-            <div className="shrink-0 w-16 h-16 rounded-lg bg-gray-100" />
+            <div className="shrink-0 w-16 h-16 rounded-lg bg-white/[0.06]" />
             <div className="flex-1 min-w-0 space-y-2">
               <div className="flex justify-between gap-2">
-                <div className="h-4 bg-gray-100 rounded w-2/3" />
-                <div className="h-5 bg-gray-100 rounded-full w-16" />
+                <div className="h-4 bg-white/[0.06] rounded w-2/3" />
+                <div className="h-5 bg-white/[0.06] rounded-full w-16" />
               </div>
-              <div className="h-3 bg-gray-100 rounded w-1/3" />
+              <div className="h-3 bg-white/[0.06] rounded w-1/3" />
               <div className="flex gap-2 mt-3">
-                <div className="h-8 bg-gray-100 rounded-md flex-1" />
-                <div className="h-8 bg-gray-100 rounded-md flex-1" />
-                <div className="h-8 bg-gray-100 rounded-md flex-1" />
+                <div className="h-8 bg-white/[0.06] rounded-md flex-1" />
+                <div className="h-8 bg-white/[0.06] rounded-md flex-1" />
+                <div className="h-8 bg-white/[0.06] rounded-md flex-1" />
               </div>
             </div>
           </div>
@@ -464,7 +464,7 @@ export default function Records() {
   };
 
   return (
-    <div className="size-full overflow-auto pb-20 bg-white">
+    <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]">
       {/* Header */}
       <Header onContactClick={() => setIsChatOpen(true)} />
 
@@ -483,24 +483,24 @@ export default function Records() {
             onClick={exportCsv}
             disabled={loading || (taskRecords.length === 0 && transactions.length === 0)}
             aria-label="Export records as CSV"
-            className="w-9 h-9 flex items-center justify-center rounded-lg text-[#0066b3] hover:bg-[#eef8ff] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className="w-9 h-9 flex items-center justify-center rounded-lg text-[#0066b3] hover:bg-white/[0.06] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <Download size={18} />
           </button>
         </div>
 
         {isRefreshing && (
-          <div className="mb-4 rounded-lg border border-[#a8d7f5] bg-[#eef8ff] px-3 py-2 text-sm text-[#0b5f8b]">
+          <div className="mb-4 rounded-lg border border-[#1e3a5f] bg-[#0d1f33] px-3 py-2 text-sm text-[#7ec8e3]">
             Refreshing latest records in the background...
           </div>
         )}
 
         {loadError && (
-          <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-800 flex items-center justify-between gap-3">
+          <div className="mb-4 rounded-lg border border-amber-700/40 bg-amber-900/20 px-3 py-3 text-sm text-amber-300 flex items-center justify-between gap-3">
             <span>{loadError}</span>
             <button
               onClick={() => { void fetchData(); }}
-              className="shrink-0 rounded-md bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-200 transition-colors"
+              className="shrink-0 rounded-md bg-amber-800/30 px-3 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-800/50 transition-colors"
             >
               Retry
             </button>
@@ -514,7 +514,7 @@ export default function Records() {
             className={`min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
               activeTab === 'all'
                 ? 'bg-[#0066b3] text-white shadow-[0_4px_12px_rgba(0,102,179,0.3)]'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-white/[0.06] text-gray-400 hover:bg-white/[0.10]'
             }`}
           >
             All
@@ -524,7 +524,7 @@ export default function Records() {
             className={`min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
               activeTab === 'pending'
                 ? 'bg-[#0066b3] text-white shadow-[0_4px_12px_rgba(0,102,179,0.3)]'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-white/[0.06] text-gray-400 hover:bg-white/[0.10]'
             }`}
           >
             Pending
@@ -534,7 +534,7 @@ export default function Records() {
             className={`min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
               activeTab === 'completed'
                 ? 'bg-[#0066b3] text-white shadow-[0_4px_12px_rgba(0,102,179,0.3)]'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                : 'bg-white/[0.06] text-gray-400 hover:bg-white/[0.10]'
             }`}
           >
             Completed
@@ -546,13 +546,13 @@ export default function Records() {
           {loading && filteredProducts.length === 0 ? (
             <RecordSkeleton />
           ) : filteredProducts.length === 0 ? (
-            <div className="bg-gray-50 rounded-lg p-12 text-center">
-              <div className="text-gray-400 mb-2">
+            <div className="bg-[#141414] rounded-lg p-12 text-center">
+              <div className="text-gray-600 mb-2">
                 <svg className="w-16 h-16 mx-auto mb-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
                 </svg>
               </div>
-              <p className="text-xl font-bold text-gray-600 mb-2">No more data</p>
+              <p className="text-xl font-bold text-gray-400 mb-2">No more data</p>
               <p className="text-gray-500">
                 {activeTab === 'completed' && 'You haven\'t submitted any products yet'}
                 {activeTab === 'pending' && 'No pending premium order at the moment.'}
@@ -569,55 +569,55 @@ export default function Records() {
                 return (
                   <div
                     key={`${product.id}-${index}`}
-                    className="bg-white border border-orange-200 rounded-lg p-4 shadow-sm"
+                    className="bg-[#141414] border border-orange-500/30 rounded-lg p-4"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                      <div className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                      <div className="bg-orange-500/20 text-orange-300 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
                         <Clock size={12} />
                         Pending Premium Order
                       </div>
-                      <span className="text-xs font-semibold text-[#0b5f8b] uppercase tracking-wide">
+                      <span className="text-xs font-semibold text-[#7ec8e3] uppercase tracking-wide">
                         {product.premiumType === 'bundled' ? 'Bundled Premium' : 'Single Premium'}
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
-                      <div className="bg-[#f6fbff] border border-[#d8ecfa] rounded-md px-3 py-2">
+                      <div className="bg-[#0d1f33] border border-[#1e3a5f] rounded-md px-3 py-2">
                         <p className="text-[11px] text-gray-500">Pending Value</p>
-                        <p className="text-sm font-bold text-gray-900">${product.totalValue.toFixed(2)}</p>
+                        <p className="text-sm font-bold text-white">${product.totalValue.toFixed(2)}</p>
                       </div>
-                      <div className="bg-[#f6fbff] border border-[#d8ecfa] rounded-md px-3 py-2">
+                      <div className="bg-[#0d1f33] border border-[#1e3a5f] rounded-md px-3 py-2">
                         <p className="text-[11px] text-gray-500">Premium Profit %</p>
-                        <p className="text-sm font-bold text-[#0b5f8b]">{product.profitRate.toFixed(2)}%</p>
+                        <p className="text-sm font-bold text-[#7ec8e3]">{product.profitRate.toFixed(2)}%</p>
                       </div>
-                      <div className="bg-[#f6fbff] border border-[#d8ecfa] rounded-md px-3 py-2">
+                      <div className="bg-[#0d1f33] border border-[#1e3a5f] rounded-md px-3 py-2">
                         <p className="text-[11px] text-gray-500">Estimated Profit</p>
-                        <p className="text-sm font-bold text-green-600">+${product.estimatedProfit.toFixed(2)}</p>
+                        <p className="text-sm font-bold text-green-400">+${product.estimatedProfit.toFixed(2)}</p>
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Premium Product Items</p>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Premium Product Items</p>
                       {product.items.map((item, itemIndex) => (
-                        <div key={`${item.id}-${itemIndex}`} className="border border-gray-200 rounded-md p-3">
+                        <div key={`${item.id}-${itemIndex}`} className="border border-white/[0.06] rounded-md p-3">
                           <div className="flex items-center gap-3">
                             {item.image ? (
-                              <div className="shrink-0 bg-gray-100 rounded-md w-12 h-12 flex items-center justify-center overflow-hidden">
+                              <div className="shrink-0 bg-white/[0.06] rounded-md w-12 h-12 flex items-center justify-center overflow-hidden">
                                 <img src={item.image} alt={item.name} width={48} height={48} loading="lazy" decoding="async" className="w-full h-full object-contain" />
                               </div>
                             ) : (
-                              <div className="shrink-0 bg-gray-100 rounded-md w-12 h-12 flex items-center justify-center text-gray-400">
+                              <div className="shrink-0 bg-white/[0.06] rounded-md w-12 h-12 flex items-center justify-center text-gray-500">
                                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between gap-2">
-                                <p className="text-sm font-semibold text-gray-900 truncate">{item.name}</p>
-                                <span className="text-xs font-semibold text-orange-700 shrink-0">{item.profitRate.toFixed(2)}%</span>
+                                <p className="text-sm font-semibold text-white truncate">{item.name}</p>
+                                <span className="text-xs font-semibold text-orange-300 shrink-0">{item.profitRate.toFixed(2)}%</span>
                               </div>
                               <div className="mt-1 flex items-center justify-between text-xs">
-                                <span className="text-gray-600">Value: <strong className="text-gray-900">${item.price.toFixed(2)}</strong></span>
-                                <span className="text-green-600 font-semibold">Profit: +${item.estimatedProfit.toFixed(2)}</span>
+                                <span className="text-gray-400">Value: <strong className="text-white">${item.price.toFixed(2)}</strong></span>
+                                <span className="text-green-400 font-semibold">Profit: +${item.estimatedProfit.toFixed(2)}</span>
                               </div>
                             </div>
                           </div>
@@ -631,11 +631,11 @@ export default function Records() {
               return (
                 <div 
                   key={`${product.id}-${index}`}
-                  className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow"
+                  className="bg-[#141414] border border-white/[0.06] rounded-lg p-4 hover:bg-[#1a1a1a] transition-colors"
                 >
                   <div className="flex gap-3">
                     {/* Product Image */}
-                    <div className="shrink-0 w-16 h-16 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center overflow-hidden">
+                    <div className="shrink-0 w-16 h-16 rounded-lg bg-white/[0.06] border border-white/[0.04] flex items-center justify-center overflow-hidden">
                       {product.image ? (
                         <img
                           src={product.image}
@@ -647,7 +647,7 @@ export default function Records() {
                           className="w-full h-full object-contain"
                         />
                       ) : (
-                        <Package size={22} className="text-gray-300" />
+                        <Package size={22} className="text-gray-600" />
                       )}
                     </div>
 
@@ -655,10 +655,10 @@ export default function Records() {
                     <div className="flex-1 min-w-0">
                       {/* Name + status */}
                       <div className="flex items-start justify-between gap-2 mb-1.5">
-                        <h3 className="text-sm font-semibold text-gray-800 line-clamp-2 leading-snug flex-1">
+                        <h3 className="text-sm font-semibold text-white line-clamp-2 leading-snug flex-1">
                           {product.name}
                         </h3>
-                        <div className="shrink-0 bg-green-100 text-green-700 px-2 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1">
+                        <div className="shrink-0 bg-green-500/20 text-green-300 px-2 py-0.5 rounded-full text-[11px] font-semibold flex items-center gap-1">
                           <CheckCircle size={10} />
                           Done
                         </div>
@@ -668,10 +668,10 @@ export default function Records() {
                       <div className="flex items-center gap-2 mb-2">
                         <div className="flex items-center gap-0.5">
                           {[1, 2, 3, 4, 5].map((star) => (
-                            <span key={star} className={`text-xs leading-none ${star <= Math.round(product.rating) ? 'text-yellow-400' : 'text-gray-200'}`}>★</span>
+                            <span key={star} className={`text-xs leading-none ${star <= Math.round(product.rating) ? 'text-yellow-400' : 'text-gray-600'}`}>★</span>
                           ))}
                         </div>
-                        <span className="text-xs text-gray-500 font-medium">${product.price.toFixed(2)}</span>
+                        <span className="text-xs text-gray-400 font-medium">${product.price.toFixed(2)}</span>
                         {product.isPremium && (
                           <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">10X</span>
                         )}
@@ -681,7 +681,7 @@ export default function Records() {
                       <div className="flex items-end justify-between">
                         <div>
                           <p className="text-[11px] text-gray-400 mb-0.5">Commission earned</p>
-                          <p className="text-base font-bold text-green-600">+${product.commission.toFixed(2)}</p>
+                          <p className="text-base font-bold text-green-400">+${product.commission.toFixed(2)}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-[11px] text-gray-400">
@@ -704,7 +704,7 @@ export default function Records() {
                 {visibleCompleted < filteredProducts.length ? (
                   <button
                     onClick={() => setVisibleCompleted(filteredProducts.length)}
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0066b3] hover:text-[#0052a3] py-2 px-4 rounded-lg hover:bg-[#eef8ff] transition-colors"
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0066b3] hover:text-[#0052a3] py-2 px-4 rounded-lg hover:bg-white/[0.06] transition-colors"
                   >
                     <ChevronDown size={16} />
                     See More ({filteredProducts.length - visibleCompleted} more)
@@ -712,7 +712,7 @@ export default function Records() {
                 ) : (
                   <button
                     onClick={() => setVisibleCompleted(8)}
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-100 transition-colors"
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-400 hover:text-gray-300 py-2 px-4 rounded-lg hover:bg-white/[0.06] transition-colors"
                   >
                     <ChevronUp size={16} />
                     See Less
@@ -727,45 +727,45 @@ export default function Records() {
         <div className="mt-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg sm:text-xl font-bold text-[#0066b3]">Financial Activity</h2>
-            <span className="text-sm text-gray-500">{transactions.length} entries</span>
+            <span className="text-sm text-gray-400">{transactions.length} entries</span>
           </div>
 
           <div className="space-y-3">
             {loading && transactions.length === 0 ? (
-              <div className="bg-gray-50 rounded-lg p-6 flex items-center justify-center gap-2 text-gray-500"><Loader2 size={18} className="animate-spin flex-shrink-0" />Loading transaction history...</div>
+              <div className="bg-[#141414] rounded-lg p-6 flex items-center justify-center gap-2 text-gray-400"><Loader2 size={18} className="animate-spin flex-shrink-0" />Loading transaction history...</div>
             ) : transactions.length === 0 ? (
-              <div className="bg-gray-50 rounded-lg p-6 text-center text-gray-500">No financial activity recorded yet.</div>
+              <div className="bg-[#141414] rounded-lg p-6 text-center text-gray-400">No financial activity recorded yet.</div>
             ) : (
               <>
                 {transactions.slice(0, visibleTransactions).map((transaction) => (
-              <div key={transaction.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+              <div key={transaction.id} className="bg-[#141414] border border-white/[0.06] rounded-lg p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                         transaction.type === 'Withdrawal'
-                          ? 'bg-orange-100 text-orange-700'
+                          ? 'bg-orange-500/20 text-orange-300'
                           : transaction.type === 'Deposit'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-green-100 text-green-700'
+                            ? 'bg-blue-500/20 text-blue-300'
+                            : 'bg-green-500/20 text-green-300'
                       }`}>
                         {transaction.type}
                       </span>
                       <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
                         transaction.status === 'Completed'
-                          ? 'bg-green-100 text-green-700'
+                          ? 'bg-green-500/20 text-green-300'
                           : transaction.status === 'Pending'
-                            ? 'bg-yellow-100 text-yellow-700'
-                            : 'bg-red-100 text-red-700'
+                            ? 'bg-yellow-500/20 text-yellow-300'
+                            : 'bg-red-500/20 text-red-300'
                       }`}>
                         {transaction.status}
                       </span>
                     </div>
-                    <p className="text-sm font-semibold text-gray-900">{transaction.description || `${transaction.type} via ${transaction.method}`}</p>
+                    <p className="text-sm font-semibold text-white">{transaction.description || `${transaction.type} via ${transaction.method}`}</p>
                     <p className="text-xs text-gray-500 mt-1">{new Date(transaction.date).toLocaleString()}</p>
                   </div>
                   <div className="text-right">
-                    <p className={`text-base font-bold ${transaction.type === 'Withdrawal' ? 'text-orange-600' : 'text-green-600'}`}>
+                    <p className={`text-base font-bold ${transaction.type === 'Withdrawal' ? 'text-orange-400' : 'text-green-400'}`}>
                       {transaction.type === 'Withdrawal' ? '-' : '+'}${transaction.amount.toFixed(2)}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">{transaction.method}</p>
@@ -780,7 +780,7 @@ export default function Records() {
                     {visibleTransactions < transactions.length ? (
                       <button
                         onClick={() => setVisibleTransactions(transactions.length)}
-                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0066b3] hover:text-[#0052a3] py-2 px-4 rounded-lg hover:bg-[#eef8ff] transition-colors"
+                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#0066b3] hover:text-[#0052a3] py-2 px-4 rounded-lg hover:bg-white/[0.06] transition-colors"
                       >
                         <ChevronDown size={16} />
                         See All ({transactions.length - visibleTransactions} more)
@@ -788,7 +788,7 @@ export default function Records() {
                     ) : (
                       <button
                         onClick={() => setVisibleTransactions(5)}
-                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-100 transition-colors"
+                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-400 hover:text-gray-300 py-2 px-4 rounded-lg hover:bg-white/[0.06] transition-colors"
                       >
                         <ChevronUp size={16} />
                         Collapse

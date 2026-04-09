@@ -124,7 +124,7 @@ export default function ConnectWallet() {
   };
 
   return (
-    <div className="size-full overflow-auto pb-20 bg-gray-50">
+    <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]">
       {/* Header */}
       <Header onContactClick={() => {}} />
 
@@ -144,16 +144,16 @@ export default function ConnectWallet() {
           >
             <ChevronLeft size={20} />
           </button>
-          <h1 className="text-2xl font-bold text-[#1a1f2e] flex-1 text-center mr-10">Connect Wallet</h1>
+          <h1 className="text-2xl font-bold text-[#0066b3] flex-1 text-center mr-10">Connect Wallet</h1>
         </div>
 
         {successBanner ? (
-          <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm">
+          <div className="mb-6 rounded-2xl border border-emerald-500/30 bg-emerald-900/20 px-4 py-4">
             <div className="flex items-start gap-3">
-              <CheckCircle2 className="mt-0.5 text-emerald-600" size={20} />
+              <CheckCircle2 className="mt-0.5 text-emerald-400" size={20} />
               <div>
-                <p className="text-sm font-semibold text-emerald-900">Wallet details saved</p>
-                <p className="text-sm text-emerald-800">{successBanner}</p>
+                <p className="text-sm font-semibold text-emerald-300">Wallet details saved</p>
+                <p className="text-sm text-emerald-400">{successBanner}</p>
               </div>
             </div>
           </div>
@@ -164,9 +164,9 @@ export default function ConnectWallet() {
 
 
         {/* Crypto Form */}
-        <div className="bg-white rounded-xl shadow-lg p-8">
+        <div className="bg-[#141414] rounded-xl border border-white/[0.06] p-8">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-[#1a1f2e] flex items-center gap-3">
+              <h2 className="text-xl font-bold text-white flex items-center gap-3">
                 <Bitcoin size={24} className="text-purple-600" />
                 Connect Crypto Wallet
               </h2>
@@ -175,13 +175,13 @@ export default function ConnectWallet() {
             <form onSubmit={handleCryptoSubmit} className="space-y-6">
               {/* Wallet Type */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
                   Cryptocurrency Type *
                 </label>
                 <select
                   value={cryptoForm.walletType}
                   onChange={(e) => setCryptoForm({ ...cryptoForm, walletType: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-white/[0.1] rounded-lg bg-[#1a1a1a] text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   required
                 >
                   <option value="bitcoin">Bitcoin (BTC)</option>
@@ -192,13 +192,13 @@ export default function ConnectWallet() {
 
               {/* Network */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
                   Network *
                 </label>
                 <select
                   value={cryptoForm.network}
                   onChange={(e) => setCryptoForm({ ...cryptoForm, network: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-white/[0.1] rounded-lg bg-[#1a1a1a] text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   required
                 >
                   <option value="mainnet">Mainnet</option>
@@ -211,7 +211,7 @@ export default function ConnectWallet() {
 
               {/* Wallet Address */}
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="block text-sm font-semibold text-gray-300 mb-2">
                   Wallet Address *
                 </label>
                 <input
@@ -219,7 +219,7 @@ export default function ConnectWallet() {
                   value={cryptoForm.walletAddress}
                   onChange={(e) => setCryptoForm({ ...cryptoForm, walletAddress: e.target.value })}
                   placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono text-sm"
+                  className="w-full px-4 py-3 border border-white/[0.1] rounded-lg bg-[#1a1a1a] text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono text-sm placeholder:text-gray-600"
                   required
                 />
                 <p className="text-xs text-gray-500 mt-2">
@@ -228,16 +228,16 @@ export default function ConnectWallet() {
               </div>
 
               {/* Warning Box */}
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <div className="bg-amber-900/20 border border-amber-700/40 rounded-lg p-4">
                 <div className="flex gap-3">
-                  <div className="text-amber-600 mt-0.5">
+                  <div className="text-amber-400 mt-0.5">
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-semibold text-amber-900 mb-1">Important Security Notice</h3>
-                    <p className="text-sm text-amber-800">
+                    <h3 className="font-semibold text-amber-300 mb-1">Important Security Notice</h3>
+                    <p className="text-sm text-amber-400/80">
                       Always verify the wallet address before confirming. Steadfast Digital will never ask for your private keys or seed phrases.
                     </p>
                   </div>

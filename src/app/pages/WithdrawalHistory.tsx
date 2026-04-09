@@ -76,7 +76,7 @@ export default function WithdrawalHistory() {
   const filtered = withdrawals.filter((w) => w.status === STATUS_MAP[activeTab]);
 
   return (
-    <div className="size-full overflow-auto pb-20 bg-white">
+    <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]">
       <Header onContactClick={() => setIsChatOpen(true)} />
 
       <div className="max-w-3xl mx-auto px-4 py-5">
@@ -84,15 +84,15 @@ export default function WithdrawalHistory() {
         <div className="relative flex items-center justify-center mb-5">
           <button
             onClick={goBack} aria-label="Go back"
-            className="absolute left-0 flex items-center justify-center w-9 h-9 rounded border border-gray-300 bg-white hover:bg-gray-50 transition-colors"
+            className="absolute left-0 flex items-center justify-center w-9 h-9 rounded border border-white/[0.06] bg-[#141414] hover:bg-[#1a1a1a] transition-colors"
           >
-            <ChevronLeft size={20} className="text-gray-700" />
+            <ChevronLeft size={20} className="text-gray-300" />
           </button>
           <h1 className="text-2xl font-bold text-[#0066b3]">History</h1>
         </div>
 
         {/* Tab buttons */}
-        <div className="grid grid-cols-3 gap-0 mb-6 rounded-md overflow-hidden border border-gray-200">
+        <div className="grid grid-cols-3 gap-0 mb-6 rounded-md overflow-hidden border border-white/[0.06]">
           {TABS.map((tab) => {
             const isActive = tab === activeTab;
             return (
@@ -102,7 +102,7 @@ export default function WithdrawalHistory() {
                 className={`py-3 text-sm font-semibold transition-colors ${
                   isActive
                     ? 'bg-[#0066b3] text-white'
-                    : 'bg-black text-white hover:bg-gray-800'
+                    : 'bg-[#141414] text-gray-400 hover:bg-[#1a1a1a]'
                 }`}
               >
                 {tab}
@@ -117,54 +117,54 @@ export default function WithdrawalHistory() {
             <Loader2 className="animate-spin text-[#0066b3]" size={28} />
           </div>
         ) : filtered.length === 0 ? (
-          <p className="text-center text-gray-400 text-sm py-16">No more data</p>
+          <p className="text-center text-gray-500 text-sm py-16">No withdrawal records found</p>
         ) : (
           <div className="space-y-3">
             {filtered.map((item) => (
               <div
                 key={item.id}
-                className="bg-gray-50 rounded-lg border border-gray-200 px-4 py-4 space-y-2"
+                className="bg-[#141414] rounded-lg border border-white/[0.06] px-4 py-4 space-y-2"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500">Amount</span>
-                  <span className="text-sm font-bold text-gray-900">${item.amount.toFixed(2)}</span>
+                  <span className="text-sm text-gray-400">Amount</span>
+                  <span className="text-sm font-bold text-white">${item.amount.toFixed(2)}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500">Status</span>
+                  <span className="text-sm text-gray-400">Status</span>
                   <span
                     className={`text-sm font-semibold ${
                       item.status === 'Approved'
-                        ? 'text-green-600'
+                        ? 'text-green-400'
                         : item.status === 'Rejected'
-                        ? 'text-red-600'
-                        : 'text-yellow-600'
+                        ? 'text-red-400'
+                        : 'text-yellow-400'
                     }`}
                   >
                     {item.status === 'Pending' ? 'Reviewing' : item.status}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500">Date</span>
-                  <span className="text-sm text-gray-700">
+                  <span className="text-sm text-gray-400">Date</span>
+                  <span className="text-sm text-gray-300">
                     {new Date(item.requestedDate).toLocaleString()}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-500">Account</span>
-                  <span className="text-sm text-gray-700 text-right max-w-[60%] truncate">
+                  <span className="text-sm text-gray-400">Account</span>
+                  <span className="text-sm text-gray-300 text-right max-w-[60%] truncate">
                     {item.walletAddress}
                   </span>
                 </div>
                 {item.method && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500">Method</span>
-                    <span className="text-sm text-gray-700">{item.method}</span>
+                    <span className="text-sm text-gray-400">Method</span>
+                    <span className="text-sm text-gray-300">{item.method}</span>
                   </div>
                 )}
                 {item.txHash && (
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-500">Tx Hash</span>
-                    <span className="text-sm text-gray-700 text-right max-w-[60%] truncate font-mono">
+                    <span className="text-sm text-gray-400">Tx Hash</span>
+                    <span className="text-sm text-gray-300 text-right max-w-[60%] truncate font-mono">
                       {item.txHash}
                     </span>
                   </div>

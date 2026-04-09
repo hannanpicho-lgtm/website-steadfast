@@ -330,7 +330,7 @@ export default function Activity() {
   }, {} as Record<string, number>);
 
   return (
-    <div className="size-full overflow-auto pb-20 bg-white">
+    <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]">
       {/* Header */}
       <Header onContactClick={() => setIsChatOpen(true)} />
 
@@ -420,7 +420,7 @@ export default function Activity() {
             <p className="text-[1.2rem] sm:text-[1.35rem] text-white text-center mb-4">Check In. Show Up. Get Paid</p>
 
             <div className="space-y-2.5 sm:space-y-3">
-              {screenshotWorkdayRewards.map((reward) => (
+              {workdayRewards.map((reward) => (
                 <div key={reward.days} className="flex items-center gap-2 sm:gap-2.5">
                   <div className="w-[80px] h-[56px] sm:w-[104px] sm:h-[72px] bg-[#d5fff7] rounded-[999px] flex flex-col items-center justify-center shrink-0">
                     <div className="text-[1.5rem] sm:text-[2.2rem] leading-none font-bold text-[#0f172a]">{reward.days}</div>
@@ -449,13 +449,13 @@ export default function Activity() {
         </div>
 
         {/* How It Works Section */}
-        <div className="bg-white mb-8 px-4">
-          <h3 className="text-xl font-bold mb-3">How It Works:</h3>
-          <p className="text-gray-800 mb-4">
+        <div className="bg-[#141414] mb-8 px-4 py-5 rounded-lg border border-white/[0.06]">
+          <h3 className="text-xl font-bold text-white mb-3">How It Works:</h3>
+          <p className="text-gray-300 mb-4">
             For everyday you check in and complete your work, you earn guaranteed income!<br/>
             The more you show up, the more you earn. Simple as that!
           </p>
-          <p className="text-lg font-bold mb-6">Perfect attendance will earn up to 6120 USD per month.</p>
+          <p className="text-lg font-bold text-white mb-6">Perfect attendance will earn up to 6120 USD per month.</p>
         </div>
 
         {/* VIP Level Chart Section */}
@@ -527,29 +527,29 @@ export default function Activity() {
         </div>
 
         {/* Benefits Section */}
-        <div className="bg-white mb-8 px-4">
-          <h3 className="text-xl font-bold mb-4">Benefits of Upgrading Your VIP Level:</h3>
+        <div className="bg-[#141414] mb-8 px-4 py-5 rounded-lg border border-white/[0.06]">
+          <h3 className="text-xl font-bold text-white mb-4">Benefits of Upgrading Your VIP Level:</h3>
           <ul className="space-y-2 mb-6">
             <li className="flex items-start gap-2">
-              <span className="font-bold">•</span>
-              <span className="font-bold">Higher Daily Profits</span>
+              <span className="font-bold text-gray-300">•</span>
+              <span className="font-bold text-gray-300">Higher Daily Profits</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="font-bold">•</span>
-              <span className="font-bold">More Work Opportunities</span>
+              <span className="font-bold text-gray-300">•</span>
+              <span className="font-bold text-gray-300">More Work Opportunities</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="font-bold">•</span>
-              <span className="font-bold">Priority Access to Special Events</span>
+              <span className="font-bold text-gray-300">•</span>
+              <span className="font-bold text-gray-300">Priority Access to Special Events</span>
             </li>
             <li className="flex items-start gap-2">
-              <span className="font-bold">•</span>
-              <span className="font-bold">Bonus Rewards for Top-tier Members</span>
+              <span className="font-bold text-gray-300">•</span>
+              <span className="font-bold text-gray-300">Bonus Rewards for Top-tier Members</span>
             </li>
           </ul>
 
-          <h3 className="text-lg font-bold italic mb-3">Notice to All Users:</h3>
-          <p className="text-gray-800 mb-3">
+          <h3 className="text-lg font-bold italic text-white mb-3">Notice to All Users:</h3>
+          <p className="text-gray-300 mb-3">
             All advance for the above mentioned unlocked VIP levels will be credited to the account and all deposits can be withdrawn by the users after completing the daily works.
           </p>
           <p className="text-[#0066b3] text-lg font-bold italic mb-6">
