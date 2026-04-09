@@ -304,6 +304,7 @@ export default function Login() {
             <input
               type="text"
               placeholder={adminRequired ? 'Admin email address' : 'Username / Phone'}
+              aria-label={adminRequired ? 'Admin email address' : 'Username or phone number'}
               value={username}
               onChange={(e) => {
                 setUsername(e.target.value);
@@ -320,6 +321,7 @@ export default function Login() {
             <input
               type={showPassword ? "text" : "password"}
               placeholder="Password"
+              aria-label="Password"
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);

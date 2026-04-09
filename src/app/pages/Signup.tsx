@@ -188,6 +188,7 @@ export default function Signup() {
             <input
               type="text"
               placeholder="Username"
+              aria-label="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className={inputCls}
@@ -208,6 +209,7 @@ export default function Signup() {
             <input
               type="tel"
               placeholder="Phone number"
+              aria-label="Phone number"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               className={`${inputCls} pl-24`}
@@ -221,6 +223,7 @@ export default function Signup() {
             <input
               type={showTransactionPassword ? "text" : "password"}
               placeholder="Transaction Password"
+              aria-label="Transaction password"
               value={transactionPassword}
               onChange={(e) => setTransactionPassword(e.target.value)}
               className={`${inputCls} pr-12`}
@@ -238,6 +241,7 @@ export default function Signup() {
             <input
               type={showLoginPassword ? "text" : "password"}
               placeholder="Login Password"
+              aria-label="Login password"
               value={loginPassword}
               onChange={(e) => setLoginPassword(e.target.value)}
               className={`${inputCls} pr-12`}
@@ -255,6 +259,7 @@ export default function Signup() {
             <input
               type={showConfirmPassword ? "text" : "password"}
               placeholder="Confirm Login Password"
+              aria-label="Confirm login password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className={`${inputCls} pr-12`}
