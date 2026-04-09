@@ -22,13 +22,16 @@ function usePrefetchRoutes() {
     const targets = prefetchMap[pathname];
     if (!targets) return;
 
-    const id = requestIdleCallback(() => {
+    const schedule = typeof requestIdleCallback === 'function' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 1);
+    const cancel = typeof cancelIdleCallback === 'function' ? cancelIdleCallback : clearTimeout;
+
+    const id = schedule(() => {
       for (const mod of targets) {
         import(/* @vite-ignore */ mod).catch(() => {});
       }
     });
 
-    return () => cancelIdleCallback(id);
+    return () => cancel(id);
   }, [pathname]);
 }
 

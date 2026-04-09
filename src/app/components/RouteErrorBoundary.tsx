@@ -7,11 +7,8 @@ function getErrorMessage(error: unknown): string {
     if (error.status === 403) return 'You do not have permission to view this page.';
     return 'This page is temporarily unavailable.';
   }
-  // Temporarily show error details for debugging — revert after investigation
-  if (error instanceof Error) {
-    return `${error.name}: ${error.message}`;
-  }
-  return String(error);
+  // Never expose raw JS error messages (stack traces, variable names) to users in production.
+  return '';
 }
 
 export default function RouteErrorBoundary() {
