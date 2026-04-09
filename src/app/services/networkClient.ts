@@ -6,6 +6,7 @@ import {
   type ApiVersion,
   type CompatibilityFeatureName,
 } from './apiCompatibility';
+import { publicAnonKey } from '@utils/supabase/info';
 
 type CacheEnvelope<T> = {
   timestamp: number;
@@ -135,6 +136,13 @@ async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs: n
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   const headers = new Headers(init.headers ?? {});
+
+  // Supabase API gateway requires Authorization or apikey header on every request.
+  // Without it, the gateway returns 401 with Access-Control-Allow-Origin: * which
+  // browsers block when credentials: 'include' is set, hiding the real error.
+  if (!headers.has('Authorization') && !headers.has('apikey')) {
+    headers.set('Authorization', `Bearer ${publicAnonKey}`);
+  }
 
   if (!headers.has('x-client-app-version')) {
     headers.set('x-client-app-version', FRONTEND_APP_VERSION);
