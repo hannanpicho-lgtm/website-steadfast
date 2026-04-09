@@ -966,8 +966,29 @@ export default function Starting() {
     return (
       <div className="size-full flex flex-col bg-[#1a1f2e]">
         <Header onContactClick={() => setIsChatOpen(true)} />
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="animate-spin text-[#00D9FF]" size={28} />
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4" aria-busy="true" aria-label="Loading tasks">
+          {/* Stats skeleton */}
+          <div className="grid grid-cols-2 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-[#252d42] rounded-xl p-4 animate-pulse">
+                <div className="h-3 bg-gray-600/40 rounded w-2/3 mb-3" />
+                <div className="h-6 bg-gray-600/40 rounded w-1/2" />
+              </div>
+            ))}
+          </div>
+          {/* Task card skeletons */}
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="bg-[#252d42] rounded-xl p-4 animate-pulse">
+              <div className="flex gap-3">
+                <div className="shrink-0 w-16 h-16 rounded-lg bg-gray-600/40" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 bg-gray-600/40 rounded w-3/4" />
+                  <div className="h-3 bg-gray-600/40 rounded w-1/2" />
+                  <div className="h-8 bg-gray-600/40 rounded-lg w-full mt-2" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
         <BottomNavigation />
       </div>

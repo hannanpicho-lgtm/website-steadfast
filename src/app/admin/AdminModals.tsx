@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import {
   X,
@@ -154,6 +154,69 @@ export interface AdminModalsProps {
   // Notifications
   handleSendNotification: (data: { title: string; message: string; priority: string; recipientType: string; recipientFilter: string | null }) => Promise<boolean>;
   notificationSending: boolean;
+}
+
+function ModalFocusTrap({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        onClose();
+        return;
+      }
+      // Trap Tab focus within the modal
+      if (e.key === 'Tab' && overlayRef.current) {
+        const focusable = overlayRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    // Auto-focus first focusable element
+    const timer = setTimeout(() => {
+      if (overlayRef.current) {
+        const first = overlayRef.current.querySelector<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+        );
+        first?.focus();
+      }
+    }, 50);
+
+    document.addEventListener('keydown', handleKeyDown);
+    // Prevent body scroll
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prev;
+      clearTimeout(timer);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      ref={overlayRef}
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      {children}
+    </div>
+  );
 }
 
 function NotificationSendForm({ onSend, sending, onClose }: {
@@ -370,7 +433,7 @@ export default function AdminModals(props: AdminModalsProps) {
   if (!modalType) return null;
 
   return (
-  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+  <ModalFocusTrap onClose={() => setModalType(null)}>
     <div className="bg-[#252b3d] rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
       {/* Add User Modal */}
       {modalType === 'add-user' && (
@@ -2705,7 +2768,7 @@ export default function AdminModals(props: AdminModalsProps) {
         </div>
       )}
     </div>
-  </div>
+  </ModalFocusTrap>
 
   );
 }
