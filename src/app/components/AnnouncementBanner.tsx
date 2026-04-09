@@ -18,22 +18,25 @@ const ROTATE_INTERVAL = 6_000;
 
 const PRIORITY_CONFIG = {
   info: {
-    border: 'border-l-[#00D9FF]',
-    bg: 'bg-[#00D9FF]/[0.08]',
+    border: 'border-l-[#c8956c]',
+    bg: 'bg-gradient-to-r from-[#c8956c]/[0.12] to-[#c8956c]/[0.04]',
     icon: Info,
-    iconColor: 'text-[#00D9FF]',
+    iconColor: 'text-[#d4a87d]',
+    dotColor: 'bg-[#c8956c]',
   },
   warning: {
-    border: 'border-l-amber-500',
-    bg: 'bg-amber-500/[0.08]',
+    border: 'border-l-[#d4a853]',
+    bg: 'bg-gradient-to-r from-[#d4a853]/[0.14] to-[#d4a853]/[0.04]',
     icon: AlertTriangle,
-    iconColor: 'text-amber-400',
+    iconColor: 'text-[#d4a853]',
+    dotColor: 'bg-[#d4a853]',
   },
   urgent: {
-    border: 'border-l-red-500',
-    bg: 'bg-red-500/[0.08]',
+    border: 'border-l-[#c87a6c]',
+    bg: 'bg-gradient-to-r from-[#c87a6c]/[0.14] to-[#c87a6c]/[0.04]',
     icon: AlertCircle,
-    iconColor: 'text-red-400',
+    iconColor: 'text-[#d4935a]',
+    dotColor: 'bg-[#d4935a]',
   },
 } as const;
 
@@ -161,10 +164,11 @@ export default function AnnouncementBanner() {
       onBlurCapture={() => { pausedRef.current = false; }}
     >
       <div
-        className={`relative border-l-4 ${config.border} ${config.bg} ${current.priority === 'urgent' ? 'announcement-urgent-pulse' : ''}`}
+        className={`relative border-l-4 ${config.border} ${config.bg} backdrop-blur-sm ${current.priority === 'urgent' ? 'announcement-urgent-pulse' : ''}`}
+        style={{ borderBottom: '1px solid rgba(200, 149, 108, 0.12)' }}
       >
-        <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center gap-3">
-          <Icon size={18} className={`${config.iconColor} flex-shrink-0`} />
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-3">
+          <Icon size={18} className={`${config.iconColor} flex-shrink-0 drop-shadow-[0_0_6px_rgba(200,149,108,0.3)]`} />
 
           <div
             className={`flex-1 min-w-0 transition-all duration-300 ease-in-out ${
@@ -175,14 +179,14 @@ export default function AnnouncementBanner() {
                 : 'translate-x-0 opacity-100'
             }`}
           >
-            <p className="text-sm text-gray-200 truncate sm:whitespace-normal">
+            <p className="text-sm text-[#f5f0eb] truncate sm:whitespace-normal">
               {current.text}
               {current.linkUrl && (
                 <a
                   href={current.linkUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="ml-2 text-[#00D9FF] hover:text-[#00c5e6] font-medium underline underline-offset-2 transition-colors"
+                  className="ml-2 text-[#c8956c] hover:text-[#d4a87d] font-medium underline underline-offset-2 transition-colors"
                 >
                   {current.linkLabel || 'Learn more →'}
                 </a>
@@ -199,8 +203,8 @@ export default function AnnouncementBanner() {
                   onClick={() => goToSlide(i)}
                   className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
                     i === activeIndex
-                      ? 'bg-[#00D9FF] w-3'
-                      : 'bg-gray-500 hover:bg-gray-400'
+                      ? `${config.dotColor} w-3`
+                      : 'bg-[#a89f95]/40 hover:bg-[#a89f95]/70'
                   }`}
                   aria-label={`Announcement ${i + 1} of ${live.length}`}
                 />
@@ -210,7 +214,7 @@ export default function AnnouncementBanner() {
 
           <button
             onClick={() => handleDismiss(current.id)}
-            className="flex-shrink-0 text-gray-500 hover:text-gray-300 transition-colors p-1 rounded-md hover:bg-white/5"
+            className="flex-shrink-0 text-[#a89f95]/60 hover:text-[#f5f0eb] transition-colors p-1 rounded-md hover:bg-white/5"
             aria-label="Dismiss announcement"
           >
             <X size={14} />

@@ -21,9 +21,9 @@ interface AnnouncementsProps {
 }
 
 const PRIORITY_CONFIG = {
-  info: { border: 'border-l-[#00D9FF]', bg: 'bg-[#00D9FF]/[0.08]', icon: Info, iconColor: 'text-[#00D9FF]', label: 'Info', badgeBg: 'bg-cyan-500/20', badgeText: 'text-cyan-300' },
-  warning: { border: 'border-l-amber-500', bg: 'bg-amber-500/[0.08]', icon: AlertTriangle, iconColor: 'text-amber-400', label: 'Warning', badgeBg: 'bg-amber-500/20', badgeText: 'text-amber-300' },
-  urgent: { border: 'border-l-red-500', bg: 'bg-red-500/[0.08]', icon: AlertCircle, iconColor: 'text-red-400', label: 'Urgent', badgeBg: 'bg-red-500/20', badgeText: 'text-red-300' },
+  info: { border: 'border-l-[#c8956c]', bg: 'bg-[#c8956c]/[0.10]', icon: Info, iconColor: 'text-[#d4a87d]', label: 'Info', badgeBg: 'bg-[#c8956c]/20', badgeText: 'text-[#d4a87d]' },
+  warning: { border: 'border-l-[#d4a853]', bg: 'bg-[#d4a853]/[0.10]', icon: AlertTriangle, iconColor: 'text-[#d4a853]', label: 'Warning', badgeBg: 'bg-[#d4a853]/20', badgeText: 'text-[#d4a853]' },
+  urgent: { border: 'border-l-[#c87a6c]', bg: 'bg-[#c87a6c]/[0.10]', icon: AlertCircle, iconColor: 'text-[#d4935a]', label: 'Urgent', badgeBg: 'bg-[#d4935a]/20', badgeText: 'text-[#d4935a]' },
 } as const;
 
 export default function Announcements({ formatRelativeTime }: AnnouncementsProps) {
@@ -250,13 +250,13 @@ export default function Announcements({ formatRelativeTime }: AnnouncementsProps
                   <Eye size={14} />
                   <span>Live Preview</span>
                 </div>
-                <div className={`border-l-4 ${previewConfig.border} ${previewConfig.bg} rounded-r-lg`}>
-                  <div className="px-4 py-2.5 flex items-center gap-3">
+                <div className={`border-l-4 ${previewConfig.border} ${previewConfig.bg} rounded-r-lg`} style={{ background: '#0a0a0a' }}>
+                  <div className={`border-l-4 ${previewConfig.border} ${previewConfig.bg} px-4 py-3 flex items-center gap-3`}>
                     <PreviewIcon size={18} className={`${previewConfig.iconColor} flex-shrink-0`} />
-                    <p className="flex-1 text-sm text-gray-200">
+                    <p className="flex-1 text-sm text-[#f5f0eb]">
                       {formText}
                       {formLinkUrl && (
-                        <span className="ml-2 text-[#00D9FF] font-medium underline underline-offset-2">
+                        <span className="ml-2 text-[#c8956c] font-medium underline underline-offset-2">
                           {formLinkLabel || 'Learn more →'}
                         </span>
                       )}
