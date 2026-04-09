@@ -126,7 +126,7 @@ export default function Notifications({
                     <span className="flex items-center gap-1"><Clock size={12} /> {formatRelativeTime(n.sentAt)}</span>
                     <span>Sent to: {getRecipientLabel(n)}</span>
                     <span className={`px-2 py-1 rounded ${ps.bg} ${ps.text}`}>{ps.label}</span>
-                    <span>By: {n.sentBy}</span>
+                    <span>By: Customer Support</span>
                   </div>
                 </div>
                 <button

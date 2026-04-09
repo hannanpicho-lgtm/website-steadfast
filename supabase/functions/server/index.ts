@@ -13951,7 +13951,7 @@ app.post('/make-server-a1c55d7e/admin/notifications', async (c: any) => {
     if (!message) return c.json({ error: 'Message is required' }, 400);
 
     const adminUser = c.get('adminUser');
-    const sentBy = adminUser?.user_metadata?.full_name ?? adminUser?.email ?? 'Admin';
+    const sentBy = 'Customer Support';
 
     const record: NotificationRecord = {
       id: crypto.randomUUID(),
