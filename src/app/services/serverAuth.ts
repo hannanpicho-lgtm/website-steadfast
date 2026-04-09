@@ -118,6 +118,8 @@ export function storeSessionToken(token: string, username: string, mustChangePas
   persistSessionToken(token.trim() || null);
   sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
   localStorage.removeItem(LEGACY_CURRENT_USER_KEY);
+  // Track session creation time for timeout warning
+  try { localStorage.setItem('steadfast_session_created_at', String(Date.now())); } catch { /* ignore */ }
 }
 
 export function clearSessionToken(): void {
@@ -126,6 +128,7 @@ export function clearSessionToken(): void {
   persistSessionToken(null);
   localStorage.removeItem(LEGACY_CURRENT_USER_KEY);
   sessionStorage.removeItem(MUST_CHANGE_PASSWORD_KEY);
+  try { localStorage.removeItem('steadfast_session_created_at'); } catch { /* ignore */ }
 }
 
 export function getStoredSessionToken(): string | null {

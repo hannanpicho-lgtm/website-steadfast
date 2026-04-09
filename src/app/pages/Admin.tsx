@@ -32,6 +32,7 @@ import {
   CheckCircle,
   ClipboardList
 } from 'lucide-react';
+import { Search as SearchIcon } from 'lucide-react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { buildAdminAuthHeaders, supabase } from '../services/supabaseAuth';
 import { handleAdminAuthError } from '../services/adminAuthError';
@@ -63,6 +64,7 @@ const VipConfig = lazy(() => import('../admin/VipConfig'));
 const AdminHome = lazy(() => import('../admin/AdminHome'));
 const AdminSettings = lazy(() => import('../admin/AdminSettings'));
 const LoginHistory = lazy(() => import('../admin/LoginHistory'));
+const ActivityLog = lazy(() => import('../admin/ActivityLog'));
 
 function AdminPanelFallback({ label }: { label: string }) {
   return (
@@ -137,6 +139,7 @@ export default function Admin() {
   const productsPerPage = 12;
   const usersPerPage = 15;
   const [activeMenu, setActiveMenu] = useState('home');
+  const [sidebarSearch, setSidebarSearch] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [modalType, setModalType] = useState<ModalType>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -2186,6 +2189,7 @@ export default function Admin() {
     { id: 'deposits', label: 'Deposit Records', icon: <Database size={18} /> },
     { id: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
     { id: 'login-history', label: 'Login History', icon: <ClipboardList size={18} /> },
+    { id: 'activity-log', label: 'Activity Log', icon: <Activity size={18} /> },
     { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
   ];
 
@@ -2241,6 +2245,44 @@ export default function Admin() {
     } finally {
       setProcessingWithdrawal(false);
     }
+  };
+
+  const handleBulkApprove = async (ids: string[]) => {
+    if (!ids.length) return;
+    const count = ids.length;
+    toast.info(`Processing ${count} approval${count > 1 ? 's' : ''}...`);
+    let success = 0;
+    for (const id of ids) {
+      try {
+        const headers = await buildAdminAuthHeaders();
+        const res = await fetch(`${serverUrl}/admin/withdrawals/${id}/review`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ action: 'approve', txHash: '' }),
+        });
+        if (res.ok) success++;
+      } catch { /* skip */ }
+    }
+    await loadFinanceData();
+    toast.success(`${success}/${count} withdrawal${count > 1 ? 's' : ''} approved.`);
+  };
+
+  const handleBulkReject = async (ids: string[]) => {
+    if (!ids.length) return;
+    const count = ids.length;
+    toast.info(`Processing ${count} rejection${count > 1 ? 's' : ''}...`);
+    let success = 0;
+    for (const id of ids) {
+      try {
+        const headers = await buildAdminAuthHeaders();
+        const res = await fetch(`${serverUrl}/admin/withdrawals/${id}/review`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ action: 'reject', rejectionReason: 'Bulk rejection' }),
+        });
+        if (res.ok) success++;
+      } catch { /* skip */ }
+    }
+    await loadFinanceData();
+    toast.success(`${success}/${count} withdrawal${count > 1 ? 's' : ''} rejected.`);
   };
 
   useEffect(() => {
@@ -2511,6 +2553,8 @@ export default function Admin() {
               handleExport={handleExport}
               handleApproveWithdrawal={handleApproveWithdrawal}
               handleRejectWithdrawal={handleRejectWithdrawal}
+              handleBulkApprove={handleBulkApprove}
+              handleBulkReject={handleBulkReject}
               formatCurrency={formatCurrency}
               formatDateTime={formatDateTime}
             />
@@ -2558,6 +2602,13 @@ export default function Admin() {
         return (
           <Suspense fallback={<AdminPanelFallback label="Loading login history..." />}>
             <LoginHistory />
+          </Suspense>
+        );
+
+      case 'activity-log':
+        return (
+          <Suspense fallback={<AdminPanelFallback label="Loading activity log..." />}>
+            <ActivityLog />
           </Suspense>
         );
 
@@ -2647,22 +2698,38 @@ export default function Admin() {
           )}
         </div>
 
+        {/* Sidebar Search */}
+        <div className="px-4 pt-4 pb-0">
+          <div className="relative">
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={14} />
+            <input
+              type="text"
+              placeholder="Search panels..."
+              aria-label="Search admin panels"
+              value={sidebarSearch}
+              onChange={(e) => setSidebarSearch(e.target.value)}
+              className="w-full pl-8 pr-3 py-2 bg-[#1a1f2e] border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-[#00D9FF] text-xs"
+            />
+          </div>
+        </div>
+
         {/* Navigation Menu */}
         <nav className="flex-1 overflow-y-auto p-4" aria-label="Admin navigation" onKeyDown={(e) => {
           if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
           e.preventDefault();
-          const idx = menuItems.findIndex(m => m.id === activeMenu);
+          const filtered = menuItems.filter(m => m.label.toLowerCase().includes(sidebarSearch.toLowerCase()));
+          const idx = filtered.findIndex(m => m.id === activeMenu);
           const next = e.key === 'ArrowDown'
-            ? Math.min(idx + 1, menuItems.length - 1)
+            ? Math.min(idx + 1, filtered.length - 1)
             : Math.max(idx - 1, 0);
           if (next !== idx) {
-            setActiveMenu(menuItems[next].id);
+            setActiveMenu(filtered[next].id);
             const btns = e.currentTarget.querySelectorAll<HTMLElement>('button');
             btns[next]?.focus();
           }
         }}>
           <div className="space-y-1" role="menubar" aria-orientation="vertical">
-            {menuItems.map((item) => (
+            {menuItems.filter(m => m.label.toLowerCase().includes(sidebarSearch.toLowerCase())).map((item) => (
               <button
                 key={item.id}
                 role="menuitem"

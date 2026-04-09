@@ -13930,6 +13930,29 @@ type NotificationRecord = {
 const NOTIFICATION_INDEX_KEY = 'notifications:index';
 const NOTIFICATION_MAX = 200;
 
+// GET /admin/activity-log — any admin can view recent platform activity
+app.get('/make-server-a1c55d7e/admin/activity-log', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:activity-log-read');
+    if (rateLimited) return rateLimited;
+
+    const requestedLimit = Number(c.req.query('limit') ?? 50);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(200, Math.max(1, Math.round(requestedLimit))) : 50;
+
+    const allEvents = sanitizeAdminObservabilityAuditLog(await kv.get(ADMIN_OBSERVABILITY_AUDIT_LOG_KEY));
+    const sorted = allEvents.sort((a: any, b: any) => Date.parse(String(b.at)) - Date.parse(String(a.at)));
+    const items = sorted.slice(0, limit);
+
+    return c.json({ total: allEvents.length, items });
+  } catch (error) {
+    console.error('Error fetching admin activity log:', error);
+    return c.json({ error: 'Failed to fetch activity log' }, 500);
+  }
+});
+
 // POST /admin/notifications — admin sends a notification
 app.post('/make-server-a1c55d7e/admin/notifications', async (c: any) => {
   try {

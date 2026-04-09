@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Check, X, Download, Search } from 'lucide-react';
+import { Check, X, Download, Search, CheckSquare } from 'lucide-react';
 import { useTableSort } from '../hooks/useTableSort';
 import { SortIcon } from './SortIcon';
 
@@ -11,6 +11,8 @@ interface WithdrawalsProps {
   handleExport: () => void;
   handleApproveWithdrawal: (id: string) => void;
   handleRejectWithdrawal: (id: string) => void;
+  handleBulkApprove?: (ids: string[]) => void;
+  handleBulkReject?: (ids: string[]) => void;
   formatCurrency: (amount: number) => string;
   formatDateTime: (date: string) => string;
 }
@@ -24,11 +26,14 @@ function Withdrawals({
   handleExport,
   handleApproveWithdrawal,
   handleRejectWithdrawal,
+  handleBulkApprove,
+  handleBulkReject,
   formatCurrency,
   formatDateTime,
 }: WithdrawalsProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const defaultFormatCurrency = (amount: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount);
@@ -47,6 +52,23 @@ function Withdrawals({
 
   const handleSearch = (val: string) => { setSearchTerm(val); };
   const handleFilterStatus = (val: string) => { setFilterStatus(val); };
+
+  const pendingSorted = sorted.filter((w: any) => w.status === 'Pending');
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleSelectAll = () => {
+    if (selectedIds.size === pendingSorted.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(pendingSorted.map((w: any) => w.id)));
+    }
+  };
+  const selectedCount = selectedIds.size;
 
   const tableRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
@@ -102,12 +124,54 @@ function Withdrawals({
         </button>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selectedCount > 0 && (
+        <div className="flex items-center gap-3 bg-[#00D9FF]/10 border border-[#00D9FF]/30 rounded-lg px-4 py-3">
+          <CheckSquare size={18} className="text-[#00D9FF]" />
+          <span className="text-white text-sm font-medium">{selectedCount} selected</span>
+          <div className="flex-1" />
+          {handleBulkApprove && (
+            <button
+              onClick={() => { handleBulkApprove([...selectedIds]); setSelectedIds(new Set()); }}
+              className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1"
+            >
+              <Check size={14} />
+              Approve All
+            </button>
+          )}
+          {handleBulkReject && (
+            <button
+              onClick={() => { handleBulkReject([...selectedIds]); setSelectedIds(new Set()); }}
+              className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-semibold transition-colors flex items-center gap-1"
+            >
+              <X size={14} />
+              Reject All
+            </button>
+          )}
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg text-xs transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       {/* Withdrawals Table */}
       <div className="bg-[#252b3d] rounded-lg overflow-hidden">
         <div ref={tableRef} className="overflow-auto" style={{ maxHeight: 'calc(100vh - 280px)' }}>
           <table className="w-full">
             <thead className="sticky top-0 z-30 bg-[#1a1f2e] border-b border-gray-700">
               <tr>
+                <th className="px-3 py-4 text-center w-10">
+                  <input
+                    type="checkbox"
+                    checked={pendingSorted.length > 0 && selectedIds.size === pendingSorted.length}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 accent-[#00D9FF] rounded"
+                    aria-label="Select all pending"
+                  />
+                </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">ID</th>
                 <th
                   className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white"
@@ -136,11 +200,11 @@ function Withdrawals({
             <tbody className="divide-y divide-gray-700">
               {financeLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-10 text-center text-gray-400">Loading withdrawal requests…</td>
+                  <td colSpan={9} className="px-6 py-10 text-center text-gray-400">Loading withdrawal requests…</td>
                 </tr>
               ) : sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-10 text-center text-gray-400">
+                  <td colSpan={9} className="px-6 py-10 text-center text-gray-400">
                     {withdrawalRequests.length === 0 ? 'No withdrawal requests submitted yet.' : 'No withdrawals match your filters.'}
                   </td>
                 </tr>
@@ -150,6 +214,17 @@ function Withdrawals({
                 const withdrawal = sorted[virtualRow.index];
                 return (
                 <tr key={withdrawal.id} className="hover:bg-[#2c3e50] transition-colors">
+                  <td className="px-3 py-4 text-center">
+                    {withdrawal.status === 'Pending' ? (
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(withdrawal.id)}
+                        onChange={() => toggleSelect(withdrawal.id)}
+                        className="w-4 h-4 accent-[#00D9FF] rounded"
+                        aria-label={`Select withdrawal ${withdrawal.id}`}
+                      />
+                    ) : <span className="block w-4" />}
+                  </td>
                   <td className="px-6 py-4 text-sm text-gray-300">{withdrawal.id}</td>
                   <td className="px-6 py-4 text-sm font-medium text-white">{withdrawal.username}</td>
                   <td className="px-6 py-4 text-sm font-bold text-[#00D9FF]">{fmt(withdrawal.amount)}</td>
