@@ -184,8 +184,8 @@ function RevealSection({ children, className, style, delay = 0 }: {
       style={{
         ...style,
         opacity: isVisible ? 1 : 0,
-        transform: isVisible ? 'translateY(0)' : 'translateY(24px)',
-        transition: `opacity 0.7s ease ${delay}s, transform 0.7s ease ${delay}s`,
+        transform: isVisible ? 'translateY(0)' : 'translateY(20px)',
+        transition: `opacity 0.45s ease ${delay}s, transform 0.45s ease ${delay}s`,
       }}
     >
       {children}
@@ -363,7 +363,7 @@ export default function UserHome() {
         {/* ═══════════════════════════════════════════
             QUICK ACCESS — Dark Glass Console
         ═══════════════════════════════════════════ */}
-        <RevealSection delay={0.08} className="uh-glass-sheen uh-silk-edge mt-5 overflow-hidden rounded-3xl px-4 py-6 sm:px-6 sm:py-7" style={glassPanel}>
+        <section className="uh-glass-sheen uh-silk-edge mt-5 overflow-hidden rounded-3xl px-4 py-6 sm:px-6 sm:py-7" style={glassPanel}>
           <p className="mb-1 text-center text-[0.62rem] font-bold uppercase tracking-[0.28em] sm:text-[0.7rem]" style={{ color: '#c8956c' }}>
             Quick Access
           </p>
@@ -375,7 +375,7 @@ export default function UserHome() {
               <QuickLinkCard key={item.title} item={item} />
             ))}
           </div>
-        </RevealSection>
+        </section>
 
         {/* ═══════════════════════════════════════════
             AREAS OF FOCUS — Dark Gallery Wall

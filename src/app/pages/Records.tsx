@@ -1,7 +1,7 @@
 import { UserCircle, ChevronLeft, Package, Clock, CheckCircle, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { toast } from 'sonner';
 import { LiveChatBox } from '../components/LiveChatBox';
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -126,9 +126,36 @@ type RecordsSnapshotResponse = {
   };
 };
 
+function RecordSkeleton() {
+  return (
+    <div className="space-y-3" aria-busy="true" aria-label="Loading records">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm animate-pulse">
+          <div className="flex gap-3">
+            <div className="shrink-0 w-16 h-16 rounded-lg bg-gray-100" />
+            <div className="flex-1 min-w-0 space-y-2">
+              <div className="flex justify-between gap-2">
+                <div className="h-4 bg-gray-100 rounded w-2/3" />
+                <div className="h-5 bg-gray-100 rounded-full w-16" />
+              </div>
+              <div className="h-3 bg-gray-100 rounded w-1/3" />
+              <div className="flex gap-2 mt-3">
+                <div className="h-8 bg-gray-100 rounded-md flex-1" />
+                <div className="h-8 bg-gray-100 rounded-md flex-1" />
+                <div className="h-8 bg-gray-100 rounded-md flex-1" />
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Records() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'completed'>('all');
+  const [isPending, startTransition] = useTransition();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [taskRecords, setTaskRecords] = useState<TaskRecord[]>([]);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
@@ -447,7 +474,7 @@ export default function Records() {
         {/* Tabs */}
         <div className="grid grid-cols-3 gap-1.5 sm:gap-4 mb-6 sf-stagger-1">
           <button
-            onClick={() => setActiveTab('all')}
+            onClick={() => startTransition(() => setActiveTab('all'))}
             className={`min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
               activeTab === 'all'
                 ? 'bg-[#0066b3] text-white shadow-[0_4px_12px_rgba(0,102,179,0.3)]'
@@ -457,7 +484,7 @@ export default function Records() {
             All
           </button>
           <button
-            onClick={() => setActiveTab('pending')}
+            onClick={() => startTransition(() => setActiveTab('pending'))}
             className={`min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
               activeTab === 'pending'
                 ? 'bg-[#0066b3] text-white shadow-[0_4px_12px_rgba(0,102,179,0.3)]'
@@ -467,7 +494,7 @@ export default function Records() {
             Pending
           </button>
           <button
-            onClick={() => setActiveTab('completed')}
+            onClick={() => startTransition(() => setActiveTab('completed'))}
             className={`min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
               activeTab === 'completed'
                 ? 'bg-[#0066b3] text-white shadow-[0_4px_12px_rgba(0,102,179,0.3)]'
@@ -481,11 +508,7 @@ export default function Records() {
         {/* Records List */}
         <div className="space-y-3">
           {loading && filteredProducts.length === 0 ? (
-            <div className="bg-gray-50 rounded-lg p-12 text-center">
-              <Loader2 className="w-16 h-16 mx-auto mb-4 animate-spin text-[#0066b3]" />
-              <p className="text-xl font-bold text-gray-600 mb-2">Loading...</p>
-              <p className="text-gray-500">Fetching your records</p>
-            </div>
+            <RecordSkeleton />
           ) : filteredProducts.length === 0 ? (
             <div className="bg-gray-50 rounded-lg p-12 text-center">
               <div className="text-gray-400 mb-2">
@@ -544,7 +567,7 @@ export default function Records() {
                           <div className="flex items-center gap-3">
                             {item.image ? (
                               <div className="shrink-0 bg-gray-100 rounded-md w-12 h-12 flex items-center justify-center overflow-hidden">
-                                <img src={item.image} alt={item.name} width={48} height={48} className="w-full h-full object-contain" />
+                                <img src={item.image} alt={item.name} width={48} height={48} loading="lazy" decoding="async" className="w-full h-full object-contain" />
                               </div>
                             ) : (
                               <div className="shrink-0 bg-gray-100 rounded-md w-12 h-12 flex items-center justify-center text-gray-400">
@@ -583,6 +606,8 @@ export default function Records() {
                           alt={product.name.split(',')[0]}
                           width={64}
                           height={64}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-contain"
                         />
                       ) : (
