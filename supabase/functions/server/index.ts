@@ -13931,6 +13931,192 @@ type NotificationRecord = {
 const NOTIFICATION_INDEX_KEY = 'notifications:index';
 const NOTIFICATION_MAX = 200;
 
+// ── Announcements ──
+type AnnouncementRecord = {
+  id: string;
+  text: string;
+  linkUrl: string | null;
+  linkLabel: string | null;
+  priority: 'info' | 'warning' | 'urgent';
+  active: boolean;
+  createdAt: string;
+  expiresAt: string | null;
+  createdBy: string;
+};
+
+const ANNOUNCEMENTS_KEY = 'announcements:active';
+const ANNOUNCEMENTS_MAX = 10;
+
+// GET /announcements — public, rate-limited, returns active non-expired announcements
+app.get('/make-server-a1c55d7e/announcements', async (c: any) => {
+  try {
+    const rateLimited = enforceUserRateLimit(c, 'public:announcements', 60);
+    if (rateLimited) return rateLimited;
+
+    const all: AnnouncementRecord[] = (await kv.get(ANNOUNCEMENTS_KEY)) ?? [];
+    const now = Date.now();
+    const visible = all.filter((a) => a.active && (!a.expiresAt || Date.parse(a.expiresAt) > now));
+    return c.json({ announcements: visible });
+  } catch (error) {
+    console.error('GET /announcements error:', error);
+    return c.json({ announcements: [] });
+  }
+});
+
+// GET /admin/announcements — admin lists ALL announcements (including inactive/expired)
+app.get('/make-server-a1c55d7e/admin/announcements', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:announcements-read');
+    if (rateLimited) return rateLimited;
+
+    const all: AnnouncementRecord[] = (await kv.get(ANNOUNCEMENTS_KEY)) ?? [];
+    return c.json({ announcements: all });
+  } catch (error) {
+    console.error('GET /admin/announcements error:', error);
+    return c.json({ announcements: [] });
+  }
+});
+
+// POST /admin/announcements — create announcement
+app.post('/make-server-a1c55d7e/admin/announcements', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin:announcements-write');
+    if (limited) return limited;
+
+    const body = await c.req.json().catch(() => ({}));
+
+    const text = typeof body?.text === 'string' ? body.text.trim().slice(0, 500) : '';
+    if (!text) return c.json({ error: 'Announcement text is required' }, 400);
+
+    const priority = ['info', 'warning', 'urgent'].includes(body?.priority) ? body.priority : 'info';
+    const linkUrl = typeof body?.linkUrl === 'string' && body.linkUrl.trim() ? body.linkUrl.trim().slice(0, 500) : null;
+    const linkLabel = typeof body?.linkLabel === 'string' && body.linkLabel.trim() ? body.linkLabel.trim().slice(0, 50) : null;
+
+    let expiresAt: string | null = null;
+    if (typeof body?.expiresAt === 'string' && body.expiresAt.trim()) {
+      const parsed = Date.parse(body.expiresAt.trim());
+      if (isNaN(parsed)) return c.json({ error: 'Invalid expiresAt date' }, 400);
+      expiresAt = new Date(parsed).toISOString();
+    }
+
+    const adminUser = c.get('adminUser');
+    const record: AnnouncementRecord = {
+      id: crypto.randomUUID(),
+      text,
+      linkUrl,
+      linkLabel,
+      priority,
+      active: true,
+      createdAt: new Date().toISOString(),
+      expiresAt,
+      createdBy: typeof adminUser?.email === 'string' ? adminUser.email : 'admin',
+    };
+
+    const existing: AnnouncementRecord[] = (await kv.get(ANNOUNCEMENTS_KEY)) ?? [];
+    if (existing.length >= ANNOUNCEMENTS_MAX) {
+      return c.json({ error: `Maximum ${ANNOUNCEMENTS_MAX} announcements allowed. Delete one first.` }, 400);
+    }
+    await kv.set(ANNOUNCEMENTS_KEY, [record, ...existing]);
+
+    await recordObservabilityAuditEvent(
+      'announcement-created',
+      record.createdBy,
+      `Created announcement: "${text.slice(0, 80)}" (priority: ${priority})`,
+    ).catch((e) => console.error('Failed to record announcement audit:', e));
+
+    return c.json({ success: true, announcement: record }, 201);
+  } catch (error) {
+    console.error('POST /admin/announcements error:', error);
+    return c.json({ error: 'Failed to create announcement' }, 500);
+  }
+});
+
+// PUT /admin/announcements/:id — update announcement (toggle active, edit text)
+app.put('/make-server-a1c55d7e/admin/announcements/:id', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin:announcements-write');
+    if (limited) return limited;
+
+    const id = c.req.param('id');
+    const body = await c.req.json().catch(() => ({}));
+
+    const all: AnnouncementRecord[] = (await kv.get(ANNOUNCEMENTS_KEY)) ?? [];
+    const idx = all.findIndex((a) => a.id === id);
+    if (idx === -1) return c.json({ error: 'Announcement not found' }, 404);
+
+    const updated = { ...all[idx] };
+    if (typeof body?.text === 'string' && body.text.trim()) updated.text = body.text.trim().slice(0, 500);
+    if (typeof body?.active === 'boolean') updated.active = body.active;
+    if (['info', 'warning', 'urgent'].includes(body?.priority)) updated.priority = body.priority;
+    if (body?.linkUrl !== undefined) updated.linkUrl = typeof body.linkUrl === 'string' && body.linkUrl.trim() ? body.linkUrl.trim().slice(0, 500) : null;
+    if (body?.linkLabel !== undefined) updated.linkLabel = typeof body.linkLabel === 'string' && body.linkLabel.trim() ? body.linkLabel.trim().slice(0, 50) : null;
+    if (body?.expiresAt !== undefined) {
+      if (body.expiresAt === null) {
+        updated.expiresAt = null;
+      } else if (typeof body.expiresAt === 'string' && body.expiresAt.trim()) {
+        const parsed = Date.parse(body.expiresAt.trim());
+        if (isNaN(parsed)) return c.json({ error: 'Invalid expiresAt date' }, 400);
+        updated.expiresAt = new Date(parsed).toISOString();
+      }
+    }
+
+    all[idx] = updated;
+    await kv.set(ANNOUNCEMENTS_KEY, all);
+
+    const adminUser = c.get('adminUser');
+    await recordObservabilityAuditEvent(
+      'announcement-updated',
+      typeof adminUser?.email === 'string' ? adminUser.email : 'admin',
+      `Updated announcement ${id}: active=${updated.active}, text="${updated.text.slice(0, 60)}"`,
+    ).catch((e) => console.error('Failed to record announcement audit:', e));
+
+    return c.json({ success: true, announcement: updated });
+  } catch (error) {
+    console.error('PUT /admin/announcements error:', error);
+    return c.json({ error: 'Failed to update announcement' }, 500);
+  }
+});
+
+// DELETE /admin/announcements/:id — permanently remove announcement
+app.delete('/make-server-a1c55d7e/admin/announcements/:id', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin:announcements-write');
+    if (limited) return limited;
+
+    const id = c.req.param('id');
+
+    const all: AnnouncementRecord[] = (await kv.get(ANNOUNCEMENTS_KEY)) ?? [];
+    const target = all.find((a) => a.id === id);
+    if (!target) return c.json({ error: 'Announcement not found' }, 404);
+
+    await kv.set(ANNOUNCEMENTS_KEY, all.filter((a) => a.id !== id));
+
+    const adminUser = c.get('adminUser');
+    await recordObservabilityAuditEvent(
+      'announcement-deleted',
+      typeof adminUser?.email === 'string' ? adminUser.email : 'admin',
+      `Deleted announcement ${id}: "${target.text.slice(0, 60)}"`,
+    ).catch((e) => console.error('Failed to record announcement audit:', e));
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('DELETE /admin/announcements error:', error);
+    return c.json({ error: 'Failed to delete announcement' }, 500);
+  }
+});
+
 // GET /admin/activity-log — any admin can view recent platform activity
 app.get('/make-server-a1c55d7e/admin/activity-log', async (c: any) => {
   try {

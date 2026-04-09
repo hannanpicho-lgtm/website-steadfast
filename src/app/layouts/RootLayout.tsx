@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router';
 import { warmApiCompatibilityState } from '../services/apiCompatibility';
 import SessionTimeoutWarning from '../components/SessionTimeoutWarning';
+import AnnouncementBanner from '../components/AnnouncementBanner';
 
 /**
  * Prefetch likely next-route chunks so navigation feels instant.
@@ -47,6 +48,7 @@ export default function RootLayout() {
         Skip to main content
       </a>
       <SessionTimeoutWarning />
+      <AnnouncementBanner />
       <div id="main-content">
         <Outlet />
       </div>
