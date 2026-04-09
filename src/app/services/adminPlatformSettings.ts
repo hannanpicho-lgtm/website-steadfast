@@ -1,6 +1,24 @@
 import { projectId } from '@utils/supabase/info';
 import { buildAdminAuthHeaders } from './supabaseAuth';
 
+export type DaySchedule = {
+  enabled: boolean;
+  start: number; // 0-23
+  end: number;   // 1-24
+};
+
+export type WeeklySchedule = {
+  sunday: DaySchedule;
+  monday: DaySchedule;
+  tuesday: DaySchedule;
+  wednesday: DaySchedule;
+  thursday: DaySchedule;
+  friday: DaySchedule;
+  saturday: DaySchedule;
+};
+
+export const DAY_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+
 export type AdminPlatformSettings = {
   maintenanceMode: boolean;
   allowNewRegistration: boolean;
@@ -13,6 +31,8 @@ export type AdminPlatformSettings = {
   platformHoursEnabled: boolean;
   platformHoursStart: number;
   platformHoursEnd: number;
+  platformScheduleMode: 'simple' | 'per-day';
+  weeklySchedule: WeeklySchedule;
   defaultTaskSetCount: number;
   savedAt: string;
 };
@@ -30,6 +50,46 @@ function sanitizeAutoAssignTasks(value: unknown): 'Enabled' | 'Disabled' {
   return value === 'Disabled' ? 'Disabled' : 'Enabled';
 }
 
+function getDefaultDaySchedule(): DaySchedule {
+  return { enabled: true, start: 9, end: 22 };
+}
+
+export function getDefaultWeeklySchedule(): WeeklySchedule {
+  return {
+    sunday: getDefaultDaySchedule(),
+    monday: getDefaultDaySchedule(),
+    tuesday: getDefaultDaySchedule(),
+    wednesday: getDefaultDaySchedule(),
+    thursday: getDefaultDaySchedule(),
+    friday: getDefaultDaySchedule(),
+    saturday: getDefaultDaySchedule(),
+  };
+}
+
+function normalizeDaySchedule(value: unknown): DaySchedule {
+  if (!value || typeof value !== 'object') return getDefaultDaySchedule();
+  const src = value as Record<string, unknown>;
+  return {
+    enabled: src.enabled !== false,
+    start: Number.isInteger(Number(src.start)) ? Math.min(23, Math.max(0, Math.round(Number(src.start)))) : 9,
+    end: Number.isInteger(Number(src.end)) ? Math.min(24, Math.max(1, Math.round(Number(src.end)))) : 22,
+  };
+}
+
+function normalizeWeeklySchedule(value: unknown): WeeklySchedule {
+  if (!value || typeof value !== 'object') return getDefaultWeeklySchedule();
+  const src = value as Record<string, unknown>;
+  return {
+    sunday: normalizeDaySchedule(src.sunday),
+    monday: normalizeDaySchedule(src.monday),
+    tuesday: normalizeDaySchedule(src.tuesday),
+    wednesday: normalizeDaySchedule(src.wednesday),
+    thursday: normalizeDaySchedule(src.thursday),
+    friday: normalizeDaySchedule(src.friday),
+    saturday: normalizeDaySchedule(src.saturday),
+  };
+}
+
 export function getDefaultAdminPlatformSettings(): AdminPlatformSettings {
   return {
     maintenanceMode: false,
@@ -43,6 +103,8 @@ export function getDefaultAdminPlatformSettings(): AdminPlatformSettings {
     platformHoursEnabled: false,
     platformHoursStart: 9,
     platformHoursEnd: 22,
+    platformScheduleMode: 'simple',
+    weeklySchedule: getDefaultWeeklySchedule(),
     defaultTaskSetCount: 2,
     savedAt: new Date().toISOString(),
   };
@@ -88,6 +150,8 @@ export function normalizeAdminPlatformSettings(value: unknown): AdminPlatformSet
     platformHoursEnabled: source.platformHoursEnabled === true,
     platformHoursStart: Number.isInteger(Number(source.platformHoursStart)) ? Math.min(23, Math.max(0, Math.round(Number(source.platformHoursStart)))) : 9,
     platformHoursEnd: Number.isInteger(Number(source.platformHoursEnd)) ? Math.min(24, Math.max(1, Math.round(Number(source.platformHoursEnd)))) : 22,
+    platformScheduleMode: source.platformScheduleMode === 'per-day' ? 'per-day' : 'simple',
+    weeklySchedule: normalizeWeeklySchedule(source.weeklySchedule),
     defaultTaskSetCount: Number.isFinite(Number(source.defaultTaskSetCount)) ? Math.min(10, Math.max(2, Math.round(Number(source.defaultTaskSetCount)))) : 2,
     savedAt: typeof source.savedAt === 'string' && source.savedAt ? source.savedAt : new Date().toISOString(),
   };

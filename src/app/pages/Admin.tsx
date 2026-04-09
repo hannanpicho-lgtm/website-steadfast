@@ -28,7 +28,8 @@ import {
   LogOut,
   Info,
   MessageSquare,
-  CheckCircle
+  CheckCircle,
+  ClipboardList
 } from 'lucide-react';
 import steadfastLogo from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 import { buildAdminAuthHeaders, supabase } from '../services/supabaseAuth';
@@ -60,6 +61,7 @@ const Tasks = lazy(() => import('../admin/Tasks'));
 const VipConfig = lazy(() => import('../admin/VipConfig'));
 const AdminHome = lazy(() => import('../admin/AdminHome'));
 const AdminSettings = lazy(() => import('../admin/AdminSettings'));
+const LoginHistory = lazy(() => import('../admin/LoginHistory'));
 
 function AdminPanelFallback({ label }: { label: string }) {
   return (
@@ -2129,6 +2131,7 @@ export default function Admin() {
     { id: 'withdrawals', label: 'Withdrawal Requests', icon: <Activity size={18} />, badge: financeLoaded ? pendingWithdrawalCount || undefined : undefined },
     { id: 'deposits', label: 'Deposit Records', icon: <Database size={18} /> },
     { id: 'notifications', label: 'Notifications', icon: <Bell size={18} /> },
+    { id: 'login-history', label: 'Login History', icon: <ClipboardList size={18} /> },
     { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
   ];
 
@@ -2494,6 +2497,13 @@ export default function Admin() {
         return (
           <Suspense fallback={<AdminPanelFallback label="Loading customer support..." />}>
             <CustomerSupport />
+          </Suspense>
+        );
+
+      case 'login-history':
+        return (
+          <Suspense fallback={<AdminPanelFallback label="Loading login history..." />}>
+            <LoginHistory />
           </Suspense>
         );
 

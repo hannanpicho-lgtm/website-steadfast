@@ -97,6 +97,8 @@ export default function UserManagement({
     isFrozen?: boolean;
     isSuspended?: boolean;
     creditScore?: number;
+    lastLoginIp?: string;
+    lastLoginLocation?: string;
   };
   const normalizedUsers: DisplayUser[] = platformUsersLoaded
     ? [...platformUsers]
@@ -105,7 +107,7 @@ export default function UserManagement({
           const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
           return bTime - aTime;
         })
-        .map((u, i) => ({ id: i + 1, username: u.username, email: '—', phone: '—', vipLevel: u.vipLevel, balance: u.balance, status: u.isSuspended ? 'Suspended' : 'Active', registered: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—', tasksCompleted: u.tasksCompleted, referredByAdminName: u.referredByAdminName || '—', taskSetCount: u.taskSetCount, tasksPerSet: u.tasksPerSet, tasksCompletedInSet: u.tasksCompletedInSet, completedTaskSets: u.completedTaskSets, pendingTaskReset: u.pendingTaskReset, holdAmount: u.holdAmount, isFrozen: u.isFrozen, isSuspended: u.isSuspended, creditScore: typeof u.creditScore === 'number' ? u.creditScore : 100 }))
+        .map((u, i) => ({ id: i + 1, username: u.username, email: '—', phone: '—', vipLevel: u.vipLevel, balance: u.balance, status: u.isSuspended ? 'Suspended' : 'Active', registered: u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—', tasksCompleted: u.tasksCompleted, referredByAdminName: u.referredByAdminName || '—', taskSetCount: u.taskSetCount, tasksPerSet: u.tasksPerSet, tasksCompletedInSet: u.tasksCompletedInSet, completedTaskSets: u.completedTaskSets, pendingTaskReset: u.pendingTaskReset, holdAmount: u.holdAmount, isFrozen: u.isFrozen, isSuspended: u.isSuspended, creditScore: typeof u.creditScore === 'number' ? u.creditScore : 100, lastLoginIp: u.lastLoginIp || '', lastLoginLocation: u.lastLoginLocation || '' }))
     : [];
   const filteredUsers = normalizedUsers.filter(user => {
     const matchesSearch = user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -224,6 +226,8 @@ export default function UserManagement({
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider cursor-pointer select-none hover:text-white" onClick={() => handleSort('registered')}>
                   Registered<SortIcon col="registered" sortCol={sortCol} sortDir={sortDir} />
                 </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Last IP</th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Location</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Referred By</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Set Status</th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
@@ -256,6 +260,10 @@ export default function UserManagement({
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-400">{user.registered}</td>
+                  <td className="px-6 py-4 text-sm text-gray-400">
+                    {user.lastLoginIp ? <code className="text-xs bg-[#1a1f2e] px-1.5 py-0.5 rounded">{user.lastLoginIp}</code> : '—'}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-400">{user.lastLoginLocation || '—'}</td>
                   <td className="px-6 py-4 text-sm text-gray-400">
                     <div className="flex items-center gap-2">
                       <span className={user.referredByAdminName === 'Direct' || user.referredByAdminName === '—' ? 'text-gray-500 italic' : ''}>

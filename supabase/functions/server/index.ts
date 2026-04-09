@@ -1593,6 +1593,8 @@ const AUTO_ACCUMULATED_REWARDS_ENABLED = false;
 const ADMIN_SALARY_PROJECT_KEY = 'admin-salary:project:primary';
 const ADMIN_SALARY_AUDIT_LOG_KEY = 'admin-salary:audit-log:primary';
 const ADMIN_PLATFORM_SETTINGS_KEY = 'admin-platform-settings:primary';
+const LOGIN_HISTORY_KEY_PREFIX = 'login-history:';
+const LOGIN_HISTORY_MAX_ENTRIES = 500;
 const ADMIN_OBSERVABILITY_ALERT_CONFIG_KEY = 'admin-observability:security-alert-config:primary';
 const ADMIN_OBSERVABILITY_ALERT_HISTORY_KEY = 'admin-observability:security-alert-history:primary';
 const ADMIN_OBSERVABILITY_AUDIT_LOG_KEY = 'admin-observability:audit-log:primary';
@@ -2334,6 +2336,39 @@ function sanitizeWinnersTickerEntries(value: unknown) {
 }
 
 function sanitizeAdminPlatformSettings(value: unknown) {
+  const defaultDaySchedule = () => ({ enabled: true, start: 9, end: 22 });
+  const defaultWeeklySchedule = () => ({
+    sunday: defaultDaySchedule(),
+    monday: defaultDaySchedule(),
+    tuesday: defaultDaySchedule(),
+    wednesday: defaultDaySchedule(),
+    thursday: defaultDaySchedule(),
+    friday: defaultDaySchedule(),
+    saturday: defaultDaySchedule(),
+  });
+  const normalizeDaySchedule = (v: unknown) => {
+    if (!v || typeof v !== 'object') return defaultDaySchedule();
+    const s = v as Record<string, unknown>;
+    return {
+      enabled: s.enabled !== false,
+      start: Number.isInteger(Number(s.start)) ? Math.min(23, Math.max(0, Math.round(Number(s.start)))) : 9,
+      end: Number.isInteger(Number(s.end)) ? Math.min(24, Math.max(1, Math.round(Number(s.end)))) : 22,
+    };
+  };
+  const normalizeWeeklySchedule = (v: unknown) => {
+    if (!v || typeof v !== 'object') return defaultWeeklySchedule();
+    const s = v as Record<string, unknown>;
+    return {
+      sunday: normalizeDaySchedule(s.sunday),
+      monday: normalizeDaySchedule(s.monday),
+      tuesday: normalizeDaySchedule(s.tuesday),
+      wednesday: normalizeDaySchedule(s.wednesday),
+      thursday: normalizeDaySchedule(s.thursday),
+      friday: normalizeDaySchedule(s.friday),
+      saturday: normalizeDaySchedule(s.saturday),
+    };
+  };
+
   const defaults = {
     maintenanceMode: false,
     allowNewRegistration: true,
@@ -2346,6 +2381,8 @@ function sanitizeAdminPlatformSettings(value: unknown) {
     platformHoursEnabled: false,
     platformHoursStart: 9,
     platformHoursEnd: 22,
+    platformScheduleMode: 'simple',
+    weeklySchedule: defaultWeeklySchedule(),
     defaultTaskSetCount: 2,
     winnersTicker: sanitizeWinnersTickerEntries(null),
     savedAt: new Date().toISOString(),
@@ -2384,16 +2421,36 @@ function sanitizeAdminPlatformSettings(value: unknown) {
     platformHoursEnabled: source.platformHoursEnabled === true,
     platformHoursStart: Number.isInteger(Number(source.platformHoursStart)) ? Math.min(23, Math.max(0, Math.round(Number(source.platformHoursStart)))) : defaults.platformHoursStart,
     platformHoursEnd: Number.isInteger(Number(source.platformHoursEnd)) ? Math.min(24, Math.max(1, Math.round(Number(source.platformHoursEnd)))) : defaults.platformHoursEnd,
+    platformScheduleMode: source.platformScheduleMode === 'per-day' ? 'per-day' : 'simple',
+    weeklySchedule: normalizeWeeklySchedule(source.weeklySchedule),
     defaultTaskSetCount: Number.isFinite(Number(source.defaultTaskSetCount)) ? Math.min(10, Math.max(2, Math.round(Number(source.defaultTaskSetCount)))) : 2,
     winnersTicker: sanitizeWinnersTickerEntries(source.winnersTicker),
     savedAt: typeof source.savedAt === 'string' && source.savedAt ? source.savedAt : new Date().toISOString(),
   };
 }
 
-function isPlatformWithinHours(settings: { platformHoursEnabled: boolean; platformHoursStart: number; platformHoursEnd: number }): boolean {
+function isPlatformWithinHours(settings: {
+  platformHoursEnabled: boolean;
+  platformHoursStart: number;
+  platformHoursEnd: number;
+  platformScheduleMode?: string;
+  weeklySchedule?: Record<string, { enabled: boolean; start: number; end: number }>;
+}): boolean {
   if (!settings.platformHoursEnabled) return true;
   // EST = UTC-5 (fixed offset; DST shift ignored for simplicity)
-  const estHour = (new Date().getUTCHours() - 5 + 24) % 24;
+  const now = new Date();
+  const estHour = (now.getUTCHours() - 5 + 24) % 24;
+
+  if (settings.platformScheduleMode === 'per-day' && settings.weeklySchedule) {
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    // Compute EST day-of-week: shift UTC date by -5 hours
+    const estDate = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+    const dayKey = dayNames[estDate.getUTCDay()];
+    const daySchedule = settings.weeklySchedule[dayKey];
+    if (!daySchedule || !daySchedule.enabled) return false;
+    return estHour >= daySchedule.start && estHour < daySchedule.end;
+  }
+
   return estHour >= settings.platformHoursStart && estHour < settings.platformHoursEnd;
 }
 
@@ -6218,6 +6275,22 @@ app.post('/make-server-a1c55d7e/auth/login', async (c: any) => {
     normalizedUserData.lastActivityLocation = clientMeta.location;
     await kv.set(userKey, normalizedUserData);
 
+    // Capture login history entry
+    try {
+      const historyKey = `${LOGIN_HISTORY_KEY_PREFIX}${canonicalUsername}`;
+      const existingHistory: any[] = (await kv.get(historyKey) as any[]) ?? [];
+      existingHistory.push({
+        id: `login_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        username: canonicalUsername,
+        at: normalizedUserData.lastLoginAt,
+        ip: clientMeta.clientIp,
+        location: clientMeta.location,
+      });
+      await kv.set(historyKey, existingHistory.slice(-LOGIN_HISTORY_MAX_ENTRIES));
+    } catch (histErr) {
+      console.error('Failed to record login history entry:', histErr);
+    }
+
     const session = await createUserSession(canonicalUsername, mustChangePassword);
     c.header('Set-Cookie', buildSessionCookieValue(session.sessionId));
 
@@ -8200,6 +8273,44 @@ app.put('/make-server-a1c55d7e/admin/platform-settings', async (c: any) => {
   } catch (error) {
     console.error('Error saving admin platform settings:', error);
     return c.json({ error: 'Failed to save platform settings' }, 500);
+  }
+});
+
+// GET /admin/login-history — fetch login history for all users or a specific user
+app.get('/make-server-a1c55d7e/admin/login-history', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const rateLimited = enforceAdminRateLimit(c, 'admin:login-history-read');
+    if (rateLimited) return rateLimited;
+
+    const username = (c.req.query('username') ?? '').trim();
+
+    if (username) {
+      const historyKey = `${LOGIN_HISTORY_KEY_PREFIX}${username}`;
+      const entries: any[] = (await kv.get(historyKey) as any[]) ?? [];
+      return c.json({ entries: entries.slice(-200) });
+    }
+
+    // Aggregate: pull from all known platform users via KV prefix scan
+    const allUserEntries = await kv.getEntriesByPrefix('user:');
+    const allEntries: any[] = [];
+    let scanned = 0;
+    for (const entry of allUserEntries) {
+      if (scanned >= 200) break;
+      const uname = getUsernameFromUserKvEntry(entry);
+      if (!uname) continue;
+      scanned++;
+      const historyKey = `${LOGIN_HISTORY_KEY_PREFIX}${uname}`;
+      const entries: any[] = (await kv.get(historyKey) as any[]) ?? [];
+      allEntries.push(...entries.slice(-10));
+    }
+    allEntries.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+    return c.json({ entries: allEntries.slice(0, 200) });
+  } catch (error) {
+    console.error('Error fetching login history:', error);
+    return c.json({ error: 'Failed to fetch login history' }, 500);
   }
 });
 
