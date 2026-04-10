@@ -150,7 +150,7 @@ export default function Signup() {
     navigate('/login', { replace: true });
   };
 
-  const inputCls = 'w-full px-4 py-3 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/40';
+  const inputCls = 'w-full px-4 py-3 rounded-xl text-white placeholder-white/30 sf-input-focus focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/40';
   const inputStyle = { background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' };
 
   return (

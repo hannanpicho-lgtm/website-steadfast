@@ -185,12 +185,12 @@ export default function VipLevels() {
               </div>
             ))
           ) : (
-          vipCards.map((vip) => {
+          vipCards.map((vip, idx) => {
             const isCurrent = currentVipLevel ? currentVipLevel === vip.level : vip.level === 1;
             return (
             <div 
               key={vip.level}
-              className="bg-[#141414] rounded-lg px-2.5 py-3 sm:px-5 sm:py-5 border border-white/[0.06]"
+              className={`sf-morph-${Math.min(idx + 1, 5)} bg-[#141414] rounded-lg px-2.5 py-3 sm:px-5 sm:py-5 border border-white/[0.06]`}
             >
               <div className="flex items-start justify-between gap-2 mb-2.5 sm:mb-4">
                 <div className="flex items-start gap-2.5 sm:gap-4 min-w-0">

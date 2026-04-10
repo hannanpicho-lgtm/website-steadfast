@@ -5,6 +5,7 @@ import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
 const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { OnboardingFlow, useOnboarding } from '../components/OnboardingFlow';
+import { useScrollReveal, scrollRevealStyle, useStaggerReveal } from '../hooks/useScrollReveal';
 
 /*
  * ─── DESIGN SYSTEM: "Dark Atelier" ───
@@ -100,7 +101,7 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
   return (
     <Link
       to={item.to}
-      className="group relative flex h-[82px] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-2 transition-all duration-300 hover:scale-[1.04] hover:-translate-y-1 sm:h-[88px] sm:px-3"
+      className="sf-btn-magnetic sf-ripple group relative flex h-[82px] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-2 sm:h-[88px] sm:px-3"
       style={{
         background: item.bg,
         boxShadow: `0 4px 16px ${item.accent}25, 0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.15)`,
@@ -151,41 +152,21 @@ for (let i = 0; i < clientBrands.length; i += 3) {
   clientSlides.push(clientBrands.slice(i, i + 3));
 }
 
-/* ── Scroll-reveal hook (IntersectionObserver) ── */
-function useScrollReveal() {
-  const ref = useRef<HTMLElement>(null);
-  const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([entry]) => { if (entry.isIntersecting) { setIsVisible(true); obs.unobserve(el); } },
-      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-
-  return { ref, isVisible };
-}
-
+/* ── Scroll-reveal — now uses shared hook ── */
 function RevealSection({ children, className, style, delay = 0 }: {
   children: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
   delay?: number;
 }) {
-  const { ref, isVisible } = useScrollReveal();
+  const [ref, isVisible] = useScrollReveal<HTMLElement>();
   return (
     <section
       ref={ref}
       className={className}
       style={{
         ...style,
-        opacity: isVisible ? 1 : 0,
-        transform: isVisible ? 'translateY(0)' : 'translateY(20px)',
-        transition: `opacity 0.45s ease ${delay}s, transform 0.45s ease ${delay}s`,
+        ...scrollRevealStyle(isVisible, { delay: delay * 1000, distance: 20 }),
       }}
     >
       {children}

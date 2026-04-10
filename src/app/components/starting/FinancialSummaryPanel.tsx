@@ -1,5 +1,6 @@
 import { memo, type MouseEvent as ReactMouseEvent } from 'react';
 import { Rocket, CreditCard, Snowflake } from 'lucide-react';
+import { useAnimatedNumber } from '../../hooks/useAnimatedNumber';
 
 /* ─── Reusable financial-card wrapper with tilt + sheen FX ─── */
 const FB_BASE = 'relative overflow-hidden rounded-xl border border-white/20 bg-white/12 p-3 backdrop-blur-sm transition-all duration-300 ease-out will-change-transform';
@@ -83,6 +84,20 @@ export const FinancialSummaryPanel = memo(function FinancialSummaryPanel(props: 
     earnedPremiumProfit, projectedPremiumProfit,
   } = props;
 
+  // Animated financial numbers — count up smoothly on data changes
+  const animOpts = { suffix: ' USD', duration: 900 };
+  const animCommission = useAnimatedNumber(todayCommission, animOpts);
+  const animBalance = useAnimatedNumber(isFrozen ? Math.max(0, frozenBalance) : availableBalance, animOpts);
+  const animHold = useAnimatedNumber(isFrozen ? frozenUpholdAmount : holdAmount, animOpts);
+  const animTotal = useAnimatedNumber(totalBalance, { ...animOpts, duration: 1100 });
+  const animBonus = useAnimatedNumber(luckyBonus, animOpts);
+  const animBeforeFreeze = useAnimatedNumber(Math.max(0, frozenBalance), animOpts);
+  const animPremiumHold = useAnimatedNumber(frozenUpholdAmount, animOpts);
+  const animAfterSettlement = useAnimatedNumber(afterSettlement, animOpts);
+  const animPremiumProfit = useAnimatedNumber(
+    earnedPremiumProfit > 0 ? earnedPremiumProfit : projectedPremiumProfit, animOpts
+  );
+
   return (
     <div className="relative mb-6 overflow-hidden rounded-[22px] bg-[linear-gradient(145deg,#0b72e7_0%,#0d92f4_52%,#19c0ff_100%)] text-white shadow-[0_16px_36px_rgba(6,58,145,0.22)]">
       <div className="absolute inset-x-0 top-0 h-20 bg-white/10 blur-3xl" />
@@ -95,7 +110,7 @@ export const FinancialSummaryPanel = memo(function FinancialSummaryPanel(props: 
           <FinancialBlock tiltMult={1.1} className="mt-3 px-4 py-4">
             <Rocket className="mx-auto" size={26} />
             <h3 className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/80">Today's Commission</h3>
-            <p className="mt-2 text-3xl font-bold leading-none">{todayCommission.toFixed(2)} USD</p>
+            <p className="mt-2 text-3xl font-bold leading-none">{animCommission}</p>
             <p className="mt-2 text-xs text-white/80">Updated from completed submissions in the current working day.</p>
             {isFrozen && (
               <p className="mt-1 text-[11px] text-amber-100/90">Includes premium commission profit shown in settlement details.</p>
@@ -114,7 +129,7 @@ export const FinancialSummaryPanel = memo(function FinancialSummaryPanel(props: 
                   {isFrozen ? 'Current Balance' : 'Available Balance'}
                 </p>
                 <p className="mt-1 text-xl font-bold">
-                  {(isFrozen ? Math.max(0, frozenBalance) : availableBalance).toFixed(2)} USD
+                  {animBalance}
                 </p>
               </div>
             </div>
@@ -131,7 +146,7 @@ export const FinancialSummaryPanel = memo(function FinancialSummaryPanel(props: 
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Hold Amount</p>
                 <p className={`mt-1 text-xl font-bold ${isFrozen ? 'text-[#ffe1e1]' : 'text-white'}`}>
-                  {isFrozen && frozenUpholdAmount > 0 ? '-' : ''}{(isFrozen ? frozenUpholdAmount : holdAmount).toFixed(2)} USD
+                  {isFrozen && frozenUpholdAmount > 0 ? '-' : ''}{animHold}
                 </p>
               </div>
             </div>
@@ -143,7 +158,7 @@ export const FinancialSummaryPanel = memo(function FinancialSummaryPanel(props: 
 
         <FinancialBlock tiltMult={1.2} className="mt-3 rounded-[18px] after:rounded-[15px] hover:border-white/60 hover:shadow-[0_20px_34px_rgba(5,42,107,0.46)] before:bg-[linear-gradient(145deg,rgba(255,255,255,0.24)_0%,rgba(255,255,255,0.06)_45%,rgba(4,34,93,0.08)_100%)] hover:after:border-white/45 p-4">
           <p className="text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-white/75">Total Account Balance</p>
-          <p className="mt-1.5 text-center text-[1.75rem] font-bold">{totalBalance.toFixed(2)} USD</p>
+          <p className="mt-1.5 text-center text-[1.75rem] font-bold">{animTotal}</p>
           <p className="mt-1.5 text-center text-[11px] text-white/75">
             {isFrozen
               ? 'Includes pre-freeze balance, current hold amount, and earned premium profit.'
@@ -157,15 +172,15 @@ export const FinancialSummaryPanel = memo(function FinancialSummaryPanel(props: 
             <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
               <div className="rounded-lg border border-white/15 bg-white/10 p-2 text-center">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-white/70">Before Freeze</p>
-                <p className="mt-1 text-sm font-bold text-white">{Math.max(0, frozenBalance).toFixed(2)} USD</p>
+                <p className="mt-1 text-sm font-bold text-white">{animBeforeFreeze}</p>
               </div>
               <div className="rounded-lg border border-white/15 bg-white/10 p-2 text-center">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-white/70">Premium Hold</p>
-                <p className="mt-1 text-sm font-bold text-[#ffe1e1]">{frozenUpholdAmount > 0 ? '-' : ''}{frozenUpholdAmount.toFixed(2)} USD</p>
+                <p className="mt-1 text-sm font-bold text-[#ffe1e1]">{frozenUpholdAmount > 0 ? '-' : ''}{animPremiumHold}</p>
               </div>
               <div className="rounded-lg border border-white/15 bg-white/10 p-2 text-center">
                 <p className="text-[10px] uppercase tracking-[0.16em] text-white/70">After Settlement</p>
-                <p className="mt-1 text-sm font-bold text-[#b8ffd4]">{afterSettlement.toFixed(2)} USD</p>
+                <p className="mt-1 text-sm font-bold text-[#b8ffd4]">{animAfterSettlement}</p>
               </div>
             </div>
           </div>
@@ -176,7 +191,7 @@ export const FinancialSummaryPanel = memo(function FinancialSummaryPanel(props: 
             <div className="text-center">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-200/90">Premium Estimated Profit</p>
               <p className="mt-1 text-xl font-bold text-[#b8ffd4]">
-                {(earnedPremiumProfit > 0 ? earnedPremiumProfit : projectedPremiumProfit).toFixed(2)} USD
+                {animPremiumProfit}
               </p>
               <p className="mt-1.5 text-[11px] text-white/75">
                 {earnedPremiumProfit > 0
@@ -191,7 +206,7 @@ export const FinancialSummaryPanel = memo(function FinancialSummaryPanel(props: 
           <FinancialBlock className="bg-[#083b93]/35 border-white/15 hover:border-white/45 before:bg-[linear-gradient(145deg,rgba(255,255,255,0.14)_0%,rgba(255,255,255,0.03)_45%,rgba(4,34,93,0.10)_100%)] after:border-white/10 hover:after:border-white/30">
             <div className="text-center">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/70">Lucky Bonus</p>
-              <p className="mt-1 text-xl font-bold">{luckyBonus.toFixed(2)} USD</p>
+              <p className="mt-1 text-xl font-bold">{animBonus}</p>
               <p className="mt-1.5 text-[11px] text-white/75">Bonus value currently carried on the account.</p>
             </div>
           </FinancialBlock>

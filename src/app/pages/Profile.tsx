@@ -460,7 +460,7 @@ export default function Profile() {
                     value={currentLoginPassword}
                     onChange={(e) => setCurrentLoginPassword(e.target.value)}
                     placeholder="Enter current password"
-                    className="w-full bg-[#1a2236] border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-cyan-400/50"
+                    className="w-full bg-[#1a2236] border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-gray-500 sf-input-focus focus:outline-none focus:border-cyan-400/50"
                     autoComplete="current-password"
                   />
                 </div>
@@ -471,7 +471,7 @@ export default function Profile() {
                     value={newLoginPassword}
                     onChange={(e) => setNewLoginPassword(e.target.value)}
                     placeholder="Leave blank to keep current"
-                    className="w-full bg-[#1a2236] border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-cyan-400/50"
+                    className="w-full bg-[#1a2236] border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-gray-500 sf-input-focus focus:outline-none focus:border-cyan-400/50"
                     autoComplete="new-password"
                   />
                 </div>
@@ -482,7 +482,7 @@ export default function Profile() {
                     value={newTransactionPassword}
                     onChange={(e) => setNewTransactionPassword(e.target.value)}
                     placeholder="Leave blank to keep current"
-                    className="w-full bg-[#1a2236] border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-gray-500 focus:outline-none focus:border-cyan-400/50"
+                    className="w-full bg-[#1a2236] border border-white/10 rounded-lg px-3 py-2 text-white text-sm placeholder:text-gray-500 sf-input-focus focus:outline-none focus:border-cyan-400/50"
                     autoComplete="new-password"
                   />
                 </div>

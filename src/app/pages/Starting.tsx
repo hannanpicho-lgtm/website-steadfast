@@ -1,6 +1,6 @@
 import { Loader2, Lock, AlertCircle, CheckCircle2, MessageCircle } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { toast } from 'sonner';
 const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -8,6 +8,8 @@ import { Header } from '../components/Header';
 import { LiveTickerBanner } from '../components/starting/LiveTickerBanner';
 import { ProductCarousel } from '../components/starting/ProductCarousel';
 import { FinancialSummaryPanel } from '../components/starting/FinancialSummaryPanel';
+import { usePullToRefresh, PullToRefreshIndicator } from '../hooks/usePullToRefresh';
+import { useConfetti } from '../hooks/useConfetti';
 import { publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
@@ -271,6 +273,17 @@ export default function Starting() {
   const username = sessionUsername;
   const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
 
+  // Pull-to-refresh for mobile PWA
+  const { containerRef: pullRef, state: pullState, indicatorStyle: pullIndicatorStyle } = usePullToRefresh<HTMLDivElement>({
+    onRefresh: async () => {
+      if (username) await fetchUserData();
+    },
+    enabled: !loading && !submitting,
+  });
+
+  // Confetti for celebrations (task completion, etc.)
+  const { fireSuccess: fireTaskConfetti, fireCelebration } = useConfetti();
+
   const activeVipTier = userData
     ? (vipConfigurations.find((tier) => tier.level === userData.vipLevel) ?? null)
     : null;
@@ -512,6 +525,8 @@ export default function Starting() {
     if (taskSetResetRequired && isAllSetsComplete) {
       if (!localStorage.getItem(completionStorageKey)) {
         localStorage.setItem(completionStorageKey, new Date().toDateString());
+        // Celebrate all sets complete!
+        fireCelebration();
       }
     } else if (!taskSetResetRequired) {
       localStorage.removeItem(completionStorageKey);
@@ -876,6 +891,9 @@ export default function Starting() {
       setIsPremium(Boolean(result.isPremium ?? isSubmittingPremiumTask));
       setShowSuccess(true);
 
+      // Fire confetti on successful task submission
+      fireTaskConfetti();
+
       if (username) {
         invalidateSessionCacheByPrefix(buildUserScopedCacheKey('records:', username, 'v2'));
         void fetchJsonWithRetry({
@@ -964,7 +982,10 @@ export default function Starting() {
   }
 
   return (
-    <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
+    <div ref={pullRef} className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
+      {/* Pull-to-refresh indicator */}
+      <PullToRefreshIndicator state={pullState} style={pullIndicatorStyle} />
+
       {/* Header */}
       <Header onContactClick={() => setIsChatOpen(true)} />
 
@@ -974,7 +995,7 @@ export default function Starting() {
       {/* Main Content */}
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6">
         {/* Greeting Section */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="sf-morph-1 flex items-center justify-between mb-6">
           <div>
             <p className="text-sm text-gray-400">Hello,</p>
             <h1 className="text-2xl font-bold text-white">{userData?.username || username}</h1>

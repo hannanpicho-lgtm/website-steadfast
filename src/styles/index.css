@@ -189,3 +189,210 @@ textarea {
 .announcement-urgent-pulse {
   animation: announcement-urgent-glow 3s ease-in-out infinite;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   NEXT-GEN DESIGN SYSTEM — v2
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Glass Design System Tokens ─────────────────────────────── */
+.sf-glass {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.sf-glass-strong {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.sf-glass-subtle {
+  background: rgba(255, 255, 255, 0.015);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+.sf-glass-warm {
+  background: rgba(200, 149, 108, 0.04);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(200, 149, 108, 0.1);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(200, 149, 108, 0.05);
+}
+/* Glow on hover variant */
+.sf-glass-glow:hover {
+  border-color: rgba(0, 217, 255, 0.2);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(0, 217, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.sf-glass-glow-warm:hover {
+  border-color: rgba(200, 149, 108, 0.2);
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(200, 149, 108, 0.06),
+    inset 0 1px 0 rgba(200, 149, 108, 0.06);
+}
+
+/* ─── Skeleton → Content Morphing ────────────────────────────── */
+@keyframes sf-skeleton-morph {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1);
+  }
+}
+.sf-morph-in {
+  animation: sf-skeleton-morph 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+/* Staggered morph variants */
+.sf-morph-1 { animation: sf-skeleton-morph 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.02s both; }
+.sf-morph-2 { animation: sf-skeleton-morph 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.06s both; }
+.sf-morph-3 { animation: sf-skeleton-morph 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.10s both; }
+.sf-morph-4 { animation: sf-skeleton-morph 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.14s both; }
+.sf-morph-5 { animation: sf-skeleton-morph 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.18s both; }
+
+/* ─── Micro-interactions ─────────────────────────────────────── */
+/* Magnetic button — slight scale + lift on hover, press-in on active */
+.sf-btn-magnetic {
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 200ms cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 150ms ease;
+  will-change: transform;
+  -webkit-tap-highlight-color: transparent;
+}
+.sf-btn-magnetic:hover {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+.sf-btn-magnetic:active {
+  transform: translateY(0px) scale(0.97);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition-duration: 80ms;
+}
+
+/* Input focus glow animation */
+.sf-input-focus {
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+.sf-input-focus:focus {
+  border-color: rgba(0, 217, 255, 0.4);
+  box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.1), 0 0 12px rgba(0, 217, 255, 0.06);
+}
+.sf-input-focus-warm:focus {
+  border-color: rgba(200, 149, 108, 0.4);
+  box-shadow: 0 0 0 3px rgba(200, 149, 108, 0.1), 0 0 12px rgba(200, 149, 108, 0.06);
+}
+
+/* Toggle switch spring animation */
+.sf-toggle-spring {
+  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Success shake — subtle horizontal vibration */
+@keyframes sf-shake-success {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+.sf-shake-success {
+  animation: sf-shake-success 0.4s ease-in-out;
+}
+
+/* Error shake — more pronounced */
+@keyframes sf-shake-error {
+  0%, 100% { transform: translateX(0); }
+  10% { transform: translateX(-5px); }
+  30% { transform: translateX(5px); }
+  50% { transform: translateX(-4px); }
+  70% { transform: translateX(4px); }
+  90% { transform: translateX(-2px); }
+}
+.sf-shake-error {
+  animation: sf-shake-error 0.45s ease-in-out;
+}
+
+/* Ripple effect on tap (pseudo-element based) */
+.sf-ripple {
+  position: relative;
+  overflow: hidden;
+}
+.sf-ripple::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%), rgba(0, 217, 255, 0.15) 0%, transparent 60%);
+  opacity: 0;
+  transform: scale(0);
+  transition: opacity 0.4s ease, transform 0.4s ease;
+  pointer-events: none;
+}
+.sf-ripple:active::after {
+  opacity: 1;
+  transform: scale(2.5);
+  transition-duration: 0.1s;
+}
+
+/* ─── Number counter flash on change ─────────────────────────── */
+@keyframes sf-number-flash {
+  0% { color: inherit; }
+  30% { color: #00D9FF; text-shadow: 0 0 8px rgba(0, 217, 255, 0.3); }
+  100% { color: inherit; text-shadow: none; }
+}
+.sf-number-flash {
+  animation: sf-number-flash 0.6s ease-out;
+}
+
+/* ─── Floating label animation ───────────────────────────────── */
+.sf-float-label {
+  transition: transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+              font-size 200ms cubic-bezier(0.22, 1, 0.36, 1),
+              color 200ms ease,
+              opacity 200ms ease;
+}
+
+/* ─── Reduce motion — disable ALL next-gen animations ────────── */
+@media (prefers-reduced-motion: reduce) {
+  .sf-morph-in,
+  .sf-morph-1,
+  .sf-morph-2,
+  .sf-morph-3,
+  .sf-morph-4,
+  .sf-morph-5 {
+    animation: none;
+  }
+  .sf-btn-magnetic:hover,
+  .sf-btn-magnetic:active {
+    transform: none;
+  }
+  .sf-shake-success,
+  .sf-shake-error {
+    animation: none;
+  }
+  .sf-ripple::after {
+    display: none;
+  }
+  .sf-number-flash {
+    animation: none;
+  }
+  .sf-toggle-spring {
+    transition: none;
+  }
+}

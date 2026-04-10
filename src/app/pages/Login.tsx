@@ -255,7 +255,7 @@ export default function Login() {
           <div className="mt-12 sm:mt-14 space-y-3 sf-stagger-2">
             <Link
               to="/signup"
-              className="block w-full rounded-2xl font-bold text-xl sm:text-2xl py-4 transition-all duration-200 hover:brightness-110 hover:scale-[1.01] sf-pulse-glow"
+              className="sf-btn-magnetic block w-full rounded-2xl font-bold text-xl sm:text-2xl py-4 transition-all duration-200 hover:brightness-110 hover:scale-[1.01] sf-pulse-glow"
               style={{ background: 'linear-gradient(135deg, #00D9FF, #0099cc)', color: '#060e1c' }}
             >
               CREATE AN ACCOUNT
@@ -273,8 +273,7 @@ export default function Login() {
 
         {showSignInForm ? (
           <section
-            className="w-full max-w-[560px] mt-6 rounded-2xl p-5 sm:p-7"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', backdropFilter: 'blur(12px)', boxShadow: '0 16px 48px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)' }}
+            className="sf-glass w-full max-w-[560px] mt-6 rounded-2xl p-5 sm:p-7"
           >
             <h2 className="text-[#00D9FF] text-2xl font-bold text-center mb-1">Sign In</h2>
             <p className="text-white/45 text-center text-sm mb-6">
@@ -310,7 +309,7 @@ export default function Login() {
                 setUsername(e.target.value);
                 setErrorText('');
               }}
-              className="w-full px-4 py-3 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/40"
+              className="w-full px-4 py-3 rounded-xl text-white placeholder-white/30 sf-input-focus focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/40"
               style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
               required
             />
@@ -327,7 +326,7 @@ export default function Login() {
                 setPassword(e.target.value);
                 setErrorText('');
               }}
-              className="w-full px-4 py-3 pr-12 rounded-xl text-white placeholder-white/30 focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/40"
+              className="w-full px-4 py-3 pr-12 rounded-xl text-white placeholder-white/30 sf-input-focus focus:outline-none focus:ring-2 focus:ring-[#00D9FF]/40"
               style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}
               required
             />
@@ -365,7 +364,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full font-bold py-3 px-4 rounded-xl transition-all duration-200 uppercase tracking-wider hover:brightness-110 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="sf-btn-magnetic w-full font-bold py-3 px-4 rounded-xl transition-all duration-200 uppercase tracking-wider hover:brightness-110 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             style={{ background: 'linear-gradient(135deg, #00D9FF, #0099cc)', color: '#060e1c', boxShadow: '0 4px 20px rgba(0,217,255,0.25)' }}
           >
             {isSubmitting ? <><Loader2 size={18} className="animate-spin" /> Signing in...</> : 'SIGN IN'}

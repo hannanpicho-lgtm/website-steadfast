@@ -46,15 +46,15 @@ export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onI
 
       {/* Slide content */}
       <div className="text-center px-6 sm:px-8">
-        <div className="flex items-center justify-center mb-4 h-[180px]">
+        <div className="flex items-center justify-center mb-4 h-[260px] sm:h-[300px]">
           <img
             key={slide.id}
             src={slide.image}
             alt={getPrimaryLabel(slide.product)}
-            width={200}
-            height={180}
+            width={320}
+            height={300}
             loading="lazy"
-            className="max-h-[170px] sm:max-h-[180px] max-w-[180px] sm:max-w-[200px] w-full object-contain"
+            className="max-h-[250px] sm:max-h-[290px] max-w-[280px] sm:max-w-[320px] w-full object-contain"
           />
         </div>
           <h3 className="text-base font-semibold text-white mb-2 line-clamp-2">{slide.product}</h3>

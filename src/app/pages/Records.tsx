@@ -511,7 +511,7 @@ export default function Records() {
         <div className="grid grid-cols-3 gap-1.5 sm:gap-4 mb-6 sf-stagger-1">
           <button
             onClick={() => startTransition(() => setActiveTab('all'))}
-            className={`min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
+            className={`sf-btn-magnetic min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
               activeTab === 'all'
                 ? 'bg-[#0066b3] text-white shadow-[0_4px_12px_rgba(0,102,179,0.3)]'
                 : 'bg-white/[0.06] text-gray-400 hover:bg-white/[0.10]'
@@ -521,7 +521,7 @@ export default function Records() {
           </button>
           <button
             onClick={() => startTransition(() => setActiveTab('pending'))}
-            className={`min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
+            className={`sf-btn-magnetic min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
               activeTab === 'pending'
                 ? 'bg-[#0066b3] text-white shadow-[0_4px_12px_rgba(0,102,179,0.3)]'
                 : 'bg-white/[0.06] text-gray-400 hover:bg-white/[0.10]'
@@ -531,7 +531,7 @@ export default function Records() {
           </button>
           <button
             onClick={() => startTransition(() => setActiveTab('completed'))}
-            className={`min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
+            className={`sf-btn-magnetic min-h-[44px] py-2 sm:py-3 rounded-lg text-sm sm:text-base font-semibold transition-all duration-200 ${
               activeTab === 'completed'
                 ? 'bg-[#0066b3] text-white shadow-[0_4px_12px_rgba(0,102,179,0.3)]'
                 : 'bg-white/[0.06] text-gray-400 hover:bg-white/[0.10]'

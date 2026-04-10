@@ -278,7 +278,7 @@ export default function Withdrawal() {
                 value={walletAddress}
                 onChange={(event) => setWalletAddress(event.target.value)}
                 readOnly={Boolean(walletProfile)}
-                className="w-full px-4 pr-12 py-3 bg-[#252d42] border border-white/10 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:border-[#00D9FF] transition-colors font-mono text-sm"
+                className="w-full px-4 pr-12 py-3 bg-[#252d42] border border-white/10 rounded-xl text-white placeholder-gray-500 sf-input-focus focus:outline-none focus:border-[#00D9FF] transition-colors font-mono text-sm"
               />
               <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500" size={20} />
             </div>
@@ -308,7 +308,7 @@ export default function Withdrawal() {
                 onChange={(e) => setWithdrawAmount(e.target.value)}
                 min="0"
                 step="0.01"
-                className="w-full px-4 py-3 bg-[#252d42] border border-white/10 rounded-xl text-white focus:outline-none focus:border-[#00D9FF] transition-colors"
+                className="w-full px-4 py-3 bg-[#252d42] border border-white/10 rounded-xl text-white sf-input-focus focus:outline-none focus:border-[#00D9FF] transition-colors"
               />
               <button
                 type="button"
