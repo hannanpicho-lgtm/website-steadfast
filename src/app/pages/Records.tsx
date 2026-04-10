@@ -635,13 +635,13 @@ export default function Records() {
                 >
                   <div className="flex gap-3">
                     {/* Product Image */}
-                    <div className="shrink-0 w-16 h-16 rounded-lg bg-white/[0.06] border border-white/[0.04] flex items-center justify-center overflow-hidden">
+                    <div className="shrink-0 w-20 h-20 rounded-lg bg-gradient-to-br from-[#1a2035] to-[#151b2e] border border-white/[0.06] flex items-center justify-center overflow-hidden shadow-md">
                       {product.image ? (
                         <img
                           src={product.image}
                           alt={product.name.split(',')[0]}
-                          width={64}
-                          height={64}
+                          width={80}
+                          height={80}
                           loading="lazy"
                           decoding="async"
                           className="w-full h-full object-contain"

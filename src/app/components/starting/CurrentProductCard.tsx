@@ -36,7 +36,7 @@ export default function CurrentProductCard({
     <div className="bg-gradient-to-br from-[#252d42] to-[#1a1f2e] border border-[#00D9FF]/30 rounded-xl mb-6 shadow-xl overflow-hidden">
       {/* Product image + name */}
       <div className="flex items-center gap-4 p-4 bg-white/5">
-        <div className="shrink-0 bg-white rounded-lg p-2 w-20 h-20 flex items-center justify-center">
+        <div className="shrink-0 bg-white rounded-xl p-2.5 w-24 h-24 flex items-center justify-center">
           <img
             src={displayProduct?.image}
             alt={displayProduct?.product || 'Task'}

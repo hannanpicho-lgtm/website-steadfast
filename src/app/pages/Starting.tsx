@@ -313,18 +313,31 @@ export default function Starting() {
     const tierTaggedActive = tierTagged(allActive);
     return tierTaggedActive.length > 0 ? tierTaggedActive : allActive;
   }, [taskCatalog, currentVipLevel, vipPriceMin, vipPriceMax, hasVipPriceRange]);
+
+  // Carousel shows ALL active products across all VIPs, shuffled
+  const carouselTasks = useMemo(() => {
+    const allActive = taskCatalog.filter((task) => task.status === 'Active');
+    // Fisher-Yates shuffle
+    const shuffled = [...allActive];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }, [taskCatalog]);
+
   const currentProduct = activeTasks.length > 0 ? activeTasks[currentProductIndex % activeTasks.length] : null;
 
   // Auto-advance carousel
   useEffect(() => {
-    if (activeTasks.length === 0) {
+    if (carouselTasks.length === 0) {
       return;
     }
     const timer = setInterval(() => {
-      setCarouselIndex(i => (i + 1) % activeTasks.length);
+      setCarouselIndex(i => (i + 1) % carouselTasks.length);
     }, 3000);
     return () => clearInterval(timer);
-  }, [activeTasks.length]);
+  }, [carouselTasks.length]);
   const commissionRate = userData
     ? (activeVipTier?.commission ?? 0.005) * 100
     : 0.5;
@@ -1015,7 +1028,7 @@ export default function Starting() {
         </div>
 
         {/* Product Slideshow */}
-        <ProductCarousel tasks={activeTasks} index={carouselIndex} onIndexChange={setCarouselIndex} />
+        <ProductCarousel tasks={carouselTasks} index={carouselIndex} onIndexChange={setCarouselIndex} />
 
         {/* POST-UNFREEZE: Premium profit credited confirmation */}
         {!userData?.isFrozen && userData?.activePremium && Number(userData.activePremium.commissionEarned ?? 0) > 0 && (

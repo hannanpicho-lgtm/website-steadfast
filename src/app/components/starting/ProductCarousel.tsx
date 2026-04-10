@@ -47,9 +47,9 @@ export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onI
       {/* Slide content */}
       <div className="text-center px-6 sm:px-8">
         {/* 3D Cinema Display Frame */}
-        <div className="flex items-center justify-center mb-4 h-[180px]">
+        <div className="flex items-center justify-center mb-4 h-[260px] sm:h-[300px]">
           <div
-            className="relative flex items-center justify-center w-[220px] sm:w-[260px] h-[170px] sm:h-[180px] rounded-xl"
+            className="relative flex items-center justify-center w-[300px] sm:w-[380px] h-[240px] sm:h-[280px] rounded-xl"
             style={{
               background: 'linear-gradient(145deg, #1e2740, #151b2e)',
               border: '2px solid rgba(0, 217, 255, 0.15)',
@@ -65,13 +65,11 @@ export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onI
               key={slide.id}
               src={slide.image}
               alt={getPrimaryLabel(slide.product)}
-              width={240}
-              height={170}
+              width={360}
+              height={260}
               loading="lazy"
-              className="relative z-[1] max-h-[155px] sm:max-h-[165px] max-w-[200px] sm:max-w-[235px] w-full object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
+              className="relative z-[1] max-h-[220px] sm:max-h-[260px] max-w-[280px] sm:max-w-[360px] w-full object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
             />
-            {/* Reflection edge at bottom */}
-            <div className="absolute inset-x-0 bottom-0 h-8 rounded-b-lg" style={{ background: 'linear-gradient(to top, rgba(0,217,255,0.04), transparent)' }} />
           </div>
         </div>
         <h3 className="text-base font-semibold text-white mb-2 line-clamp-2">{slide.product}</h3>
