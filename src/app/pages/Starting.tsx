@@ -314,30 +314,18 @@ export default function Starting() {
     return tierTaggedActive.length > 0 ? tierTaggedActive : allActive;
   }, [taskCatalog, currentVipLevel, vipPriceMin, vipPriceMax, hasVipPriceRange]);
 
-  // Carousel shows ALL active products across all VIPs, shuffled
-  const carouselTasks = useMemo(() => {
-    const allActive = taskCatalog.filter((task) => task.status === 'Active');
-    // Fisher-Yates shuffle
-    const shuffled = [...allActive];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-    }
-    return shuffled;
-  }, [taskCatalog]);
-
   const currentProduct = activeTasks.length > 0 ? activeTasks[currentProductIndex % activeTasks.length] : null;
 
-  // Auto-advance carousel
+  // Auto-advance carousel (VIP-appropriate products only)
   useEffect(() => {
-    if (carouselTasks.length === 0) {
+    if (activeTasks.length === 0) {
       return;
     }
     const timer = setInterval(() => {
-      setCarouselIndex(i => (i + 1) % carouselTasks.length);
+      setCarouselIndex(i => (i + 1) % activeTasks.length);
     }, 3000);
     return () => clearInterval(timer);
-  }, [carouselTasks.length]);
+  }, [activeTasks.length]);
   const commissionRate = userData
     ? (activeVipTier?.commission ?? 0.005) * 100
     : 0.5;
@@ -842,9 +830,7 @@ export default function Starting() {
             ? {
                 productPrice: premiumDisplayPrice,
               }
-            : {
-                taskId: currentProduct?.id,
-              },
+            : {},
         ),
       });
 
@@ -1032,7 +1018,7 @@ export default function Starting() {
         {/* Product Slideshow */}
         <ProductCarousel tasks={carouselTasks} index={carouselIndex} onIndexChange={setCarouselIndex} />
 
-        {/* POST-UNFREEZE: Premium profit credited confirmation */}
+        {/* POST-UNFREEZE: Premiactivet credited confirmation */}
         {!userData?.isFrozen && userData?.activePremium && Number(userData.activePremium.commissionEarned ?? 0) > 0 && (
           <div className="bg-green-500/10 border border-green-500/40 rounded-xl p-4 mb-6">
             <div className="flex items-center gap-2">
