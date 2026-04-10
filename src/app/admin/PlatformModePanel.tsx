@@ -146,22 +146,37 @@ export default function PlatformModePanel({ isSuperAdmin }: { isSuperAdmin: bool
     }
   };
 
-  const handleRollback = async () => {
+  const handleRollback = async (forceSkipVerification = false) => {
     if (!isSuperAdmin) return;
     setChanging(true);
     try {
       const headers = await buildAdminAuthHeaders();
+      const body: Record<string, unknown> = { reason: 'Manual rollback from admin panel' };
+      if (forceSkipVerification) {
+        body.skipReconciliation = true;
+      }
       const res = await fetch(`${serverUrl}/admin/platform-mode/rollback`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ reason: 'Manual rollback from admin panel' }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
-        toast.error(data.error ?? 'Rollback failed');
+        const errMsg = data.error ?? 'Rollback failed';
+        if (!forceSkipVerification && errMsg.toLowerCase().includes('verification')) {
+          toast.error(errMsg, {
+            duration: 8000,
+            action: {
+              label: 'Force Rollback',
+              onClick: () => handleRollback(true),
+            },
+          });
+        } else {
+          toast.error(errMsg);
+        }
         return;
       }
-      toast.success('Platform mode rolled back successfully');
+      toast.success(forceSkipVerification ? 'Platform mode force-rolled back (verification skipped)' : 'Platform mode rolled back successfully');
       await fetchMode();
     } catch {
       toast.error('Rollback failed');
@@ -250,15 +265,25 @@ export default function PlatformModePanel({ isSuperAdmin }: { isSuperAdmin: bool
 
         {/* Quick Actions */}
         {isSuperAdmin && modeRecord && (
-          <div className="flex gap-2 mt-4 pt-4 border-t border-gray-700">
+          <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-700">
             {modeRecord.previousMode && (
-              <button
-                onClick={handleRollback}
-                disabled={changing}
-                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-sm rounded-lg disabled:opacity-50 transition-colors"
-              >
-                ↩ Rollback to {MODE_LABELS[modeRecord.previousMode]}
-              </button>
+              <>
+                <button
+                  onClick={() => handleRollback(false)}
+                  disabled={changing}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-sm rounded-lg disabled:opacity-50 transition-colors"
+                >
+                  ↩ Rollback to {MODE_LABELS[modeRecord.previousMode]}
+                </button>
+                <button
+                  onClick={() => handleRollback(true)}
+                  disabled={changing}
+                  className="px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white text-sm rounded-lg disabled:opacity-50 transition-colors"
+                  title="Skip verification checks and force rollback"
+                >
+                  ⚡ Force Rollback
+                </button>
+              </>
             )}
             <button
               onClick={handleVerify}
