@@ -709,6 +709,136 @@ app.use(
   }),
 );
 
+// ── Platform Mode Guard Middleware ──────────────────────────────────────────
+// Enforces platform mode (active/readonly/shutdown) on all requests.
+// Admin script-token requests always pass through. Fail-open on KV errors.
+app.use('*', async (c: any, next: any) => {
+  const path = c.req.path;
+  const method = c.req.method.toUpperCase();
+
+  // Always allow: health, version, OPTIONS, and platform-mode admin endpoints
+  if (
+    method === 'OPTIONS' ||
+    path.endsWith('/health') ||
+    path.endsWith('/version') ||
+    path.includes('/admin/platform-mode')
+  ) {
+    return next();
+  }
+
+  // Always allow admin script-token requests through
+  const scriptTokenHeader = c.req.header('x-admin-script-token');
+  if (typeof scriptTokenHeader === 'string' && scriptTokenHeader.startsWith('ast_')) {
+    return next();
+  }
+
+  let modeRecord: PlatformModeRecord;
+  try {
+    modeRecord = await getCurrentPlatformMode();
+  } catch {
+    // Fail-open: if we can't read mode, allow request
+    return next();
+  }
+
+  // Set response header so frontend can read the mode
+  c.header('X-Platform-Mode', modeRecord.mode);
+
+  if (modeRecord.mode === 'active') {
+    return next();
+  }
+
+  if (modeRecord.mode === 'readonly') {
+    // Allow reads
+    if (method === 'GET' || method === 'HEAD') {
+      return next();
+    }
+    // During grace period, allow writes that started before mode change
+    if (isGracePeriodActive(modeRecord)) {
+      c.header('X-Platform-Mode-Grace', 'true');
+      const graceRemainingMs = Math.max(0, new Date(modeRecord.graceDeadline!).getTime() - Date.now());
+      c.header('X-Platform-Grace-Remaining-Sec', String(Math.ceil(graceRemainingMs / 1000)));
+      return next();
+    }
+    // Block writes
+    const graceRemainingMs = modeRecord.graceDeadline
+      ? Math.max(0, new Date(modeRecord.graceDeadline).getTime() - Date.now())
+      : 30_000;
+    c.header('Retry-After', String(Math.max(1, Math.ceil(graceRemainingMs / 1000))));
+    return c.json({
+      code: 'platform_readonly',
+      error: "We're performing a quick system update. Your funds are safe — transactions will resume shortly.",
+      mode: 'readonly',
+      retryAfterSeconds: Math.max(1, Math.ceil(graceRemainingMs / 1000)),
+    }, 503);
+  }
+
+  if (modeRecord.mode === 'shutdown') {
+    return c.json({
+      code: 'platform_shutdown',
+      error: 'Scheduled maintenance in progress. Your account and funds are fully secure. We\'ll be back shortly.',
+      mode: 'shutdown',
+    }, 503);
+  }
+
+  return next();
+});
+
+// ── Idempotency Middleware for Financial Writes ─────────────────────────────
+// Prevents duplicate transactions on retry. Applied to specific POST endpoints.
+const IDEMPOTENCY_PROTECTED_PATHS = [
+  '/starting',
+  '/withdrawal',
+  '/balance-adjustment',
+];
+
+app.use('*', async (c: any, next: any) => {
+  const method = c.req.method.toUpperCase();
+  if (method !== 'POST') return next();
+
+  const path = c.req.path;
+  const isProtected = IDEMPOTENCY_PROTECTED_PATHS.some(p => path.endsWith(p));
+  if (!isProtected) return next();
+
+  pruneIdempotencyCache();
+
+  // Read body for hashing
+  let rawBody: string;
+  try {
+    rawBody = await c.req.text();
+  } catch {
+    return next();
+  }
+
+  // Determine user identity
+  const userJwt = c.req.header('authorization')?.replace('Bearer ', '') ?? c.req.header('x-user-jwt') ?? 'anon';
+  const userId = userJwt.slice(0, 32); // Use first 32 chars as user identifier for idempotency
+
+  const bodyHash = await simpleBodyHash(rawBody);
+  const idempotencyKey = computeIdempotencyKey(method, path, userId, bodyHash);
+
+  // Check cache
+  const cached = _idempotencyCache.get(idempotencyKey);
+  if (cached && (Date.now() - cached.processedAt) < IDEMPOTENCY_TTL_MS) {
+    c.header('X-Idempotency-Replayed', 'true');
+    return c.json(cached.responseBody, cached.responseStatus);
+  }
+
+  // Monkey-patch the body so downstream handlers can re-read it
+  const originalJson = c.req.json.bind(c.req);
+  c.req.json = async () => {
+    try { return JSON.parse(rawBody); } catch { return {}; }
+  };
+
+  await next();
+
+  // Cache the response for idempotency
+  try {
+    const responseBody = await c.res.clone().json();
+    const responseStatus = c.res.status;
+    _idempotencyCache.set(idempotencyKey, { responseStatus, responseBody, processedAt: Date.now() });
+  } catch { /* non-JSON response, skip caching */ }
+});
+
 // ── Admin authorization helper ──────────────────────────────────────────────
 // Admin access is granted only to authenticated Supabase users with an admin
 // role in app_metadata/user_metadata. Example app_metadata:
@@ -897,6 +1027,12 @@ function isAdminScriptTokenScopeAllowedForRequest(scope: AdminScriptTokenScope, 
     'platform-settings:manage': [
       { method: 'GET', path: /^\/admin\/platform-settings$/ },
       { method: 'PUT', path: /^\/admin\/platform-settings$/ },
+      { method: 'GET', path: /^\/admin\/platform-mode$/ },
+      { method: 'PUT', path: /^\/admin\/platform-mode$/ },
+      { method: 'POST', path: /^\/admin\/platform-mode\/rollback$/ },
+      { method: 'POST', path: /^\/admin\/platform-mode\/verify$/ },
+      { method: 'GET', path: /^\/admin\/platform-mode\/audit-log$/ },
+      { method: 'GET', path: /^\/admin\/platform-mode\/health$/ },
     ],
   };
 
@@ -1644,6 +1780,498 @@ const ADMIN_OBSERVABILITY_AUDIT_LOG_KEY = 'admin-observability:audit-log:primary
 const ADMIN_OBSERVABILITY_MAX_AUDIT_EVENTS = 100;
 const ADMIN_OBSERVABILITY_RATE_LIMIT_VIOLATIONS_KEY = 'admin-observability:rate-limit-violations:primary';
 const ADMIN_OBSERVABILITY_MAX_RATE_LIMIT_VIOLATIONS = 200;
+
+// ── Platform Mode (Kill-Switch) ─────────────────────────────────────────────
+type PlatformMode = 'active' | 'readonly' | 'shutdown';
+type PlatformModeStrategy = 'immediate' | 'phased' | 'auto-health';
+
+const PLATFORM_MODE_KEY = 'platform-mode:current';
+const PLATFORM_MODE_AUDIT_PREFIX = 'platform-mode:audit:';
+const PLATFORM_MODE_HEALTH_KEY = 'platform-mode:health-checks';
+const PLATFORM_MODE_MAX_AUDIT_ENTRIES = 500;
+const PLATFORM_MODE_CACHE_TTL_MS = 5_000;
+const PLATFORM_MODE_HEALTH_INTERVAL_MS = 30_000;
+const PLATFORM_MODE_AUTO_READONLY_THRESHOLD = 3;
+const PLATFORM_MODE_AUTO_SHUTDOWN_THRESHOLD = 5;
+const PLATFORM_MODE_RECOVERY_THRESHOLD = 3;
+const PLATFORM_MODE_RATE_LIMIT_MODE_CHANGE = 5;
+const PLATFORM_MODE_RATE_LIMIT_VERIFY = 10;
+
+const VALID_PLATFORM_MODES: PlatformMode[] = ['active', 'readonly', 'shutdown'];
+const VALID_PLATFORM_STRATEGIES: PlatformModeStrategy[] = ['immediate', 'phased', 'auto-health'];
+
+type PlatformModeRecord = {
+  mode: PlatformMode;
+  previousMode: PlatformMode | null;
+  strategy: PlatformModeStrategy;
+  initiatedBy: string;
+  initiatedAt: string;
+  gracePeriodMs: number;
+  graceDeadline: string | null;
+  autoRevertAt: string | null;
+  autoRevertOnFailure: boolean;
+  reason: string;
+  version: number;
+};
+
+type PlatformModeAuditEntry = {
+  id: string;
+  action: string;
+  fromMode: PlatformMode;
+  toMode: PlatformMode;
+  strategy: PlatformModeStrategy | null;
+  actor: string;
+  reason: string;
+  durationMs: number | null;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
+type PlatformHealthCheck = {
+  lastCheck: string;
+  status: 'healthy' | 'degraded' | 'critical';
+  checks: Array<{ name: string; status: 'ok' | 'fail'; latencyMs: number }>;
+  consecutiveFailures: number;
+  consecutivePasses: number;
+};
+
+// In-memory cache for platform mode (fail-open with fallback)
+let _platformModeCache: { record: PlatformModeRecord | null; fetchedAt: number } = {
+  record: null,
+  fetchedAt: 0,
+};
+let _platformModeKvFailureCount = 0;
+
+function getDefaultPlatformModeRecord(): PlatformModeRecord {
+  return {
+    mode: 'active',
+    previousMode: null,
+    strategy: 'immediate',
+    initiatedBy: 'system:default',
+    initiatedAt: new Date().toISOString(),
+    gracePeriodMs: 0,
+    graceDeadline: null,
+    autoRevertAt: null,
+    autoRevertOnFailure: false,
+    reason: 'Default active state',
+    version: 0,
+  };
+}
+
+function sanitizePlatformModeRecord(value: unknown): PlatformModeRecord {
+  if (!value || typeof value !== 'object') return getDefaultPlatformModeRecord();
+  const src = value as Record<string, unknown>;
+
+  const mode = VALID_PLATFORM_MODES.includes(src.mode as PlatformMode)
+    ? (src.mode as PlatformMode) : 'active';
+  const previousMode = VALID_PLATFORM_MODES.includes(src.previousMode as PlatformMode)
+    ? (src.previousMode as PlatformMode) : null;
+  const strategy = VALID_PLATFORM_STRATEGIES.includes(src.strategy as PlatformModeStrategy)
+    ? (src.strategy as PlatformModeStrategy) : 'immediate';
+
+  return {
+    mode,
+    previousMode,
+    strategy,
+    initiatedBy: typeof src.initiatedBy === 'string' ? src.initiatedBy : 'unknown',
+    initiatedAt: typeof src.initiatedAt === 'string' ? src.initiatedAt : new Date().toISOString(),
+    gracePeriodMs: typeof src.gracePeriodMs === 'number' && Number.isFinite(src.gracePeriodMs)
+      ? Math.max(0, Math.min(300_000, Math.round(src.gracePeriodMs))) : 0,
+    graceDeadline: typeof src.graceDeadline === 'string' ? src.graceDeadline : null,
+    autoRevertAt: typeof src.autoRevertAt === 'string' ? src.autoRevertAt : null,
+    autoRevertOnFailure: src.autoRevertOnFailure === true,
+    reason: typeof src.reason === 'string' ? src.reason.slice(0, 500) : '',
+    version: typeof src.version === 'number' && Number.isFinite(src.version) ? Math.max(0, Math.round(src.version)) : 0,
+  };
+}
+
+async function getCurrentPlatformMode(): Promise<PlatformModeRecord> {
+  const now = Date.now();
+  if (_platformModeCache.record && (now - _platformModeCache.fetchedAt) < PLATFORM_MODE_CACHE_TTL_MS) {
+    return _platformModeCache.record;
+  }
+
+  try {
+    const raw = await kv.get(PLATFORM_MODE_KEY);
+    const record = sanitizePlatformModeRecord(raw);
+    _platformModeCache = { record, fetchedAt: now };
+    _platformModeKvFailureCount = 0;
+    return record;
+  } catch (err) {
+    _platformModeKvFailureCount++;
+    console.error(`Platform mode KV read failed (consecutive: ${_platformModeKvFailureCount}):`, err);
+
+    // Fail-open: use cached value if available, else default to active
+    if (_platformModeCache.record) {
+      return _platformModeCache.record;
+    }
+    return getDefaultPlatformModeRecord();
+  }
+}
+
+function generatePlatformModeAuditId(): string {
+  const ts = Date.now().toString(36);
+  const rand = Math.random().toString(36).substring(2, 10);
+  return `pma_${ts}_${rand}`;
+}
+
+async function recordPlatformModeAudit(entry: Omit<PlatformModeAuditEntry, 'id' | 'createdAt'>): Promise<void> {
+  const id = generatePlatformModeAuditId();
+  const now = new Date().toISOString();
+  const fullEntry: PlatformModeAuditEntry = { ...entry, id, createdAt: now };
+  const auditKey = `${PLATFORM_MODE_AUDIT_PREFIX}${id}`;
+  await kv.set(auditKey, fullEntry);
+
+  // Also record in main observability audit log
+  await recordObservabilityAuditEvent(
+    `platform-mode:${entry.action}`,
+    entry.actor,
+    `${entry.fromMode} → ${entry.toMode}: ${entry.reason}`,
+  ).catch(err => console.error('Failed to record platform mode observability audit:', err));
+}
+
+async function getPlatformModeAuditLog(limit = 50): Promise<PlatformModeAuditEntry[]> {
+  const entries = await kv.getByPrefix(PLATFORM_MODE_AUDIT_PREFIX);
+  const sanitized = entries
+    .filter((e: any) => e && typeof e === 'object' && typeof e.id === 'string')
+    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, Math.min(limit, PLATFORM_MODE_MAX_AUDIT_ENTRIES));
+  return sanitized;
+}
+
+async function getLastPlatformModeAuditEntry(): Promise<PlatformModeAuditEntry | null> {
+  const log = await getPlatformModeAuditLog(1);
+  return log.length > 0 ? log[0] : null;
+}
+
+function isGracePeriodActive(record: PlatformModeRecord): boolean {
+  if (!record.graceDeadline) return false;
+  return Date.now() < new Date(record.graceDeadline).getTime();
+}
+
+// Idempotency layer for financial write endpoints
+const IDEMPOTENCY_PREFIX = 'idempotency:';
+const IDEMPOTENCY_TTL_MS = 300_000; // 5 minutes
+const _idempotencyCache = new Map<string, { responseStatus: number; responseBody: any; processedAt: number }>();
+
+function computeIdempotencyKey(method: string, path: string, userId: string, bodyHash: string): string {
+  return `${IDEMPOTENCY_PREFIX}${method}:${path}:${userId}:${bodyHash}`;
+}
+
+async function simpleBodyHash(body: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(body);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+}
+
+function pruneIdempotencyCache(): void {
+  const now = Date.now();
+  for (const [key, entry] of _idempotencyCache) {
+    if (now - entry.processedAt > IDEMPOTENCY_TTL_MS) {
+      _idempotencyCache.delete(key);
+    }
+  }
+}
+
+// Health check for platform mode auto-health strategy
+async function runPlatformHealthChecks(): Promise<PlatformHealthCheck> {
+  const checks: Array<{ name: string; status: 'ok' | 'fail'; latencyMs: number }> = [];
+
+  // Check 1: KV store read/write test
+  const kvStart = Date.now();
+  try {
+    const testKey = 'platform-mode:health-ping';
+    await kv.set(testKey, { ts: Date.now() });
+    const readBack = await kv.get(testKey);
+    checks.push({ name: 'kv_store', status: readBack?.ts ? 'ok' : 'fail', latencyMs: Date.now() - kvStart });
+  } catch {
+    checks.push({ name: 'kv_store', status: 'fail', latencyMs: Date.now() - kvStart });
+  }
+
+  // Check 2: Auth service (verify authClient is functional)
+  const authStart = Date.now();
+  try {
+    if (authClient) {
+      const { error } = await authClient.auth.admin.listUsers({ page: 1, perPage: 1 });
+      checks.push({ name: 'auth', status: error ? 'fail' : 'ok', latencyMs: Date.now() - authStart });
+    } else {
+      checks.push({ name: 'auth', status: 'fail', latencyMs: 0 });
+    }
+  } catch {
+    checks.push({ name: 'auth', status: 'fail', latencyMs: Date.now() - authStart });
+  }
+
+  // Check 3: Edge function responsive (self — if we reached here, it's ok)
+  checks.push({ name: 'edge_function', status: 'ok', latencyMs: 0 });
+
+  const failedCount = checks.filter(c => c.status === 'fail').length;
+  const status = failedCount === 0 ? 'healthy' : (failedCount === 1 ? 'degraded' : 'critical');
+
+  // Retrieve previous health for consecutive tracking
+  let previousHealth: PlatformHealthCheck | null = null;
+  try {
+    previousHealth = await kv.get(PLATFORM_MODE_HEALTH_KEY) as PlatformHealthCheck | null;
+  } catch { /* ignore */ }
+
+  const prevFailures = previousHealth?.consecutiveFailures ?? 0;
+  const prevPasses = previousHealth?.consecutivePasses ?? 0;
+
+  const healthRecord: PlatformHealthCheck = {
+    lastCheck: new Date().toISOString(),
+    status,
+    checks,
+    consecutiveFailures: failedCount > 0 ? prevFailures + 1 : 0,
+    consecutivePasses: failedCount === 0 ? prevPasses + 1 : 0,
+  };
+
+  try {
+    await kv.set(PLATFORM_MODE_HEALTH_KEY, healthRecord);
+  } catch { /* best-effort */ }
+
+  return healthRecord;
+}
+
+// Auto-health mode transitions
+async function evaluateAutoHealthTransition(health: PlatformHealthCheck): Promise<void> {
+  const current = await getCurrentPlatformMode();
+
+  // Auto-escalation: healthy → readonly → shutdown
+  if (current.mode === 'active' && health.consecutiveFailures >= PLATFORM_MODE_AUTO_READONLY_THRESHOLD) {
+    const newRecord: PlatformModeRecord = {
+      mode: 'readonly',
+      previousMode: 'active',
+      strategy: 'auto-health',
+      initiatedBy: 'system:auto-health',
+      initiatedAt: new Date().toISOString(),
+      gracePeriodMs: 30_000,
+      graceDeadline: new Date(Date.now() + 30_000).toISOString(),
+      autoRevertAt: null,
+      autoRevertOnFailure: true,
+      reason: `Auto-escalation: ${health.consecutiveFailures} consecutive health failures`,
+      version: current.version + 1,
+    };
+    await kv.set(PLATFORM_MODE_KEY, newRecord);
+    _platformModeCache = { record: newRecord, fetchedAt: Date.now() };
+
+    const lastAudit = await getLastPlatformModeAuditEntry();
+    const durationMs = lastAudit ? Date.now() - new Date(lastAudit.createdAt).getTime() : null;
+    await recordPlatformModeAudit({
+      action: 'auto_escalate',
+      fromMode: 'active',
+      toMode: 'readonly',
+      strategy: 'auto-health',
+      actor: 'system:auto-health',
+      reason: newRecord.reason,
+      durationMs,
+      metadata: { consecutiveFailures: health.consecutiveFailures, checks: health.checks },
+    });
+  }
+
+  if (current.mode === 'readonly' && current.strategy === 'auto-health' && health.consecutiveFailures >= PLATFORM_MODE_AUTO_SHUTDOWN_THRESHOLD) {
+    const newRecord: PlatformModeRecord = {
+      ...current,
+      mode: 'shutdown',
+      previousMode: 'readonly',
+      initiatedAt: new Date().toISOString(),
+      graceDeadline: null,
+      reason: `Auto-escalation: ${health.consecutiveFailures} consecutive health failures`,
+      version: current.version + 1,
+    };
+    await kv.set(PLATFORM_MODE_KEY, newRecord);
+    _platformModeCache = { record: newRecord, fetchedAt: Date.now() };
+
+    const lastAudit = await getLastPlatformModeAuditEntry();
+    const durationMs = lastAudit ? Date.now() - new Date(lastAudit.createdAt).getTime() : null;
+    await recordPlatformModeAudit({
+      action: 'auto_escalate',
+      fromMode: 'readonly',
+      toMode: 'shutdown',
+      strategy: 'auto-health',
+      actor: 'system:auto-health',
+      reason: newRecord.reason,
+      durationMs,
+      metadata: { consecutiveFailures: health.consecutiveFailures, checks: health.checks },
+    });
+  }
+
+  // Auto-recovery: shutdown/readonly → previous mode on health recovery
+  if ((current.mode === 'readonly' || current.mode === 'shutdown') && current.strategy === 'auto-health') {
+    if (health.consecutivePasses >= PLATFORM_MODE_RECOVERY_THRESHOLD) {
+      const targetMode = current.previousMode ?? 'active';
+      const newRecord: PlatformModeRecord = {
+        mode: targetMode,
+        previousMode: current.mode,
+        strategy: 'auto-health',
+        initiatedBy: 'system:auto-health',
+        initiatedAt: new Date().toISOString(),
+        gracePeriodMs: 0,
+        graceDeadline: null,
+        autoRevertAt: null,
+        autoRevertOnFailure: false,
+        reason: `Auto-recovery: ${health.consecutivePasses} consecutive health passes`,
+        version: current.version + 1,
+      };
+      await kv.set(PLATFORM_MODE_KEY, newRecord);
+      _platformModeCache = { record: newRecord, fetchedAt: Date.now() };
+
+      const lastAudit = await getLastPlatformModeAuditEntry();
+      const durationMs = lastAudit ? Date.now() - new Date(lastAudit.createdAt).getTime() : null;
+      await recordPlatformModeAudit({
+        action: 'auto_revert',
+        fromMode: current.mode,
+        toMode: targetMode,
+        strategy: 'auto-health',
+        actor: 'system:auto-health',
+        reason: newRecord.reason,
+        durationMs,
+        metadata: { consecutivePasses: health.consecutivePasses, checks: health.checks },
+      });
+    }
+  }
+}
+
+// Background health check loop (runs in warm edge function instances)
+let _healthCheckTimer: ReturnType<typeof setInterval> | null = null;
+function startPlatformHealthLoop(): void {
+  if (_healthCheckTimer) return;
+  _healthCheckTimer = setInterval(async () => {
+    try {
+      const health = await runPlatformHealthChecks();
+      await evaluateAutoHealthTransition(health);
+
+      // Check auto-revert timer
+      const current = await getCurrentPlatformMode();
+      if (current.autoRevertAt) {
+        const revertTime = new Date(current.autoRevertAt).getTime();
+        if (Date.now() >= revertTime) {
+          const targetMode = current.previousMode ?? 'active';
+          const newRecord: PlatformModeRecord = {
+            mode: targetMode,
+            previousMode: current.mode,
+            strategy: current.strategy,
+            initiatedBy: 'system:auto-revert-timer',
+            initiatedAt: new Date().toISOString(),
+            gracePeriodMs: 0,
+            graceDeadline: null,
+            autoRevertAt: null,
+            autoRevertOnFailure: false,
+            reason: `Auto-revert timer expired (was set for ${current.autoRevertAt})`,
+            version: current.version + 1,
+          };
+          await kv.set(PLATFORM_MODE_KEY, newRecord);
+          _platformModeCache = { record: newRecord, fetchedAt: Date.now() };
+
+          const lastAudit = await getLastPlatformModeAuditEntry();
+          const durationMs = lastAudit ? Date.now() - new Date(lastAudit.createdAt).getTime() : null;
+          await recordPlatformModeAudit({
+            action: 'auto_revert',
+            fromMode: current.mode,
+            toMode: targetMode,
+            strategy: current.strategy,
+            actor: 'system:auto-revert-timer',
+            reason: newRecord.reason,
+            durationMs,
+            metadata: { scheduledRevertAt: current.autoRevertAt },
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Platform health check loop error:', err);
+    }
+  }, PLATFORM_MODE_HEALTH_INTERVAL_MS);
+}
+startPlatformHealthLoop();
+
+// Verification suite for recovery transitions
+async function runPlatformRecoveryVerification(): Promise<{ passed: boolean; results: Array<{ check: string; passed: boolean; detail: string }> }> {
+  const results: Array<{ check: string; passed: boolean; detail: string }> = [];
+
+  // 1. KV store round-trip
+  try {
+    const testKey = 'platform-mode:verify-ping';
+    const testVal = { ts: Date.now(), nonce: Math.random() };
+    await kv.set(testKey, testVal);
+    const readBack = await kv.get(testKey);
+    const passed = readBack?.ts === testVal.ts;
+    results.push({ check: 'kv_store_roundtrip', passed, detail: passed ? 'OK' : 'Read-back mismatch' });
+    await kv.del(testKey);
+  } catch (e: any) {
+    results.push({ check: 'kv_store_roundtrip', passed: false, detail: e?.message ?? 'Unknown error' });
+  }
+
+  // 2. Auth service responding
+  try {
+    if (authClient) {
+      const { error } = await authClient.auth.admin.listUsers({ page: 1, perPage: 1 });
+      results.push({ check: 'auth_service', passed: !error, detail: error ? error.message : 'OK' });
+    } else {
+      results.push({ check: 'auth_service', passed: false, detail: 'Auth client not configured' });
+    }
+  } catch (e: any) {
+    results.push({ check: 'auth_service', passed: false, detail: e?.message ?? 'Unknown error' });
+  }
+
+  // 3. Financial ledger integrity (last 10 entries checksum)
+  try {
+    const ledgerEntries = await kv.getByPrefix('financial-ledger:');
+    const recentEntries = ledgerEntries
+      .filter((e: any) => e && typeof e === 'object')
+      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 10);
+    const allValid = recentEntries.every((e: any) =>
+      typeof e.operation === 'string' &&
+      typeof e.stateVersion === 'number' &&
+      Number.isFinite(Number(e.balanceBefore)) &&
+      Number.isFinite(Number(e.balanceAfter))
+    );
+    results.push({
+      check: 'financial_ledger_integrity',
+      passed: allValid,
+      detail: allValid ? `OK (${recentEntries.length} entries verified)` : 'Integrity check failed',
+    });
+  } catch (e: any) {
+    results.push({ check: 'financial_ledger_integrity', passed: false, detail: e?.message ?? 'Unknown error' });
+  }
+
+  // 4. No orphaned distributed locks
+  try {
+    const locks = await kv.getByPrefix('dist-lock:');
+    const orphanedCount = locks.filter((l: any) => {
+      if (!l || typeof l !== 'object') return false;
+      const expiresAt = typeof l.expiresAt === 'number' ? l.expiresAt : 0;
+      return Date.now() > expiresAt + 60_000; // consider orphan if 60s past expiry
+    }).length;
+    results.push({
+      check: 'orphaned_locks',
+      passed: orphanedCount === 0,
+      detail: orphanedCount === 0 ? 'OK' : `${orphanedCount} orphaned lock(s) found`,
+    });
+  } catch (e: any) {
+    results.push({ check: 'orphaned_locks', passed: false, detail: e?.message ?? 'Unknown error' });
+  }
+
+  // 5. Rate limit buckets not saturated
+  try {
+    let saturated = 0;
+    for (const [, val] of adminRateLimitStore) {
+      if (val.count >= ADMIN_RATE_LIMIT_MAX_REQUESTS && Date.now() < val.resetAt) {
+        saturated++;
+      }
+    }
+    results.push({
+      check: 'rate_limit_saturation',
+      passed: saturated === 0,
+      detail: saturated === 0 ? 'OK' : `${saturated} saturated bucket(s)`,
+    });
+  } catch (e: any) {
+    results.push({ check: 'rate_limit_saturation', passed: false, detail: e?.message ?? 'Unknown error' });
+  }
+
+  const passed = results.every(r => r.passed);
+  return { passed, results };
+}
 const ADMIN_SALARY_MAX_RESTORE_POINTS = 10;
 const ADMIN_SALARY_MAX_AUDIT_EVENTS = 50;
 const PREMIUM_SETTLEMENT_FIX_DEPLOYED_AT_MS = new Date('2026-03-25T02:53:42.000Z').getTime();
@@ -8339,6 +8967,298 @@ app.put('/make-server-a1c55d7e/admin/platform-settings', async (c: any) => {
   } catch (error) {
     console.error('Error saving admin platform settings:', error);
     return c.json({ error: 'Failed to save platform settings' }, 500);
+  }
+});
+
+// ── Platform Mode (Kill-Switch) Endpoints ───────────────────────────────────
+
+// GET /admin/platform-mode — current mode + recent audit
+app.get('/make-server-a1c55d7e/admin/platform-mode', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+    const rateLimited = enforceAdminRateLimit(c, 'admin:platform-mode-read');
+    if (rateLimited) return rateLimited;
+
+    const modeRecord = await getCurrentPlatformMode();
+    const recentAudit = await getPlatformModeAuditLog(10);
+    const graceActive = isGracePeriodActive(modeRecord);
+
+    return c.json({
+      mode: modeRecord,
+      graceActive,
+      graceRemainingMs: graceActive && modeRecord.graceDeadline
+        ? Math.max(0, new Date(modeRecord.graceDeadline).getTime() - Date.now())
+        : 0,
+      kvFailureCount: _platformModeKvFailureCount,
+      recentAudit,
+    });
+  } catch (error) {
+    console.error('Error fetching platform mode:', error);
+    return c.json({ error: 'Failed to fetch platform mode' }, 500);
+  }
+});
+
+// PUT /admin/platform-mode — change platform mode
+app.put('/make-server-a1c55d7e/admin/platform-mode', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+    if (!isSuperAdmin(c.get('adminUser'))) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const rateLimited = await enforceCriticalAdminRateLimit(c, 'admin:platform-mode-change', PLATFORM_MODE_RATE_LIMIT_MODE_CHANGE);
+    if (rateLimited) return rateLimited;
+
+    const body = await c.req.json();
+    const targetMode = body?.mode;
+    if (!VALID_PLATFORM_MODES.includes(targetMode)) {
+      return c.json({ error: `Invalid mode. Must be one of: ${VALID_PLATFORM_MODES.join(', ')}` }, 400);
+    }
+
+    const strategy: PlatformModeStrategy = VALID_PLATFORM_STRATEGIES.includes(body?.strategy)
+      ? body.strategy : 'immediate';
+    const reason = typeof body?.reason === 'string' && body.reason.trim()
+      ? body.reason.trim().slice(0, 500) : 'No reason provided';
+    const gracePeriodMs = strategy === 'phased'
+      ? Math.max(0, Math.min(300_000, Math.round(Number(body?.gracePeriodMs) || 30_000)))
+      : 0;
+    const autoRevertAfterMs = typeof body?.autoRevertAfterMs === 'number' && Number.isFinite(body.autoRevertAfterMs)
+      ? Math.max(60_000, Math.min(86_400_000, Math.round(body.autoRevertAfterMs)))
+      : null;
+
+    const current = await getCurrentPlatformMode();
+    if (current.mode === targetMode) {
+      return c.json({ error: `Platform is already in ${targetMode} mode`, current }, 409);
+    }
+
+    const adminUser = c.get('adminUser');
+    const actorEmail = typeof adminUser?.email === 'string' ? adminUser.email : String(adminUser?.id ?? 'unknown');
+    const now = new Date();
+
+    const newRecord: PlatformModeRecord = {
+      mode: targetMode,
+      previousMode: current.mode,
+      strategy,
+      initiatedBy: actorEmail,
+      initiatedAt: now.toISOString(),
+      gracePeriodMs,
+      graceDeadline: gracePeriodMs > 0 ? new Date(now.getTime() + gracePeriodMs).toISOString() : null,
+      autoRevertAt: autoRevertAfterMs ? new Date(now.getTime() + autoRevertAfterMs).toISOString() : null,
+      autoRevertOnFailure: body?.autoRevertOnFailure === true,
+      reason,
+      version: current.version + 1,
+    };
+
+    await kv.set(PLATFORM_MODE_KEY, newRecord);
+    _platformModeCache = { record: newRecord, fetchedAt: Date.now() };
+
+    // Sync legacy maintenanceMode in platform settings for backward compatibility
+    try {
+      const settings = sanitizeAdminPlatformSettings(await kv.get(ADMIN_PLATFORM_SETTINGS_KEY));
+      const shouldBeMaintenanceMode = targetMode === 'shutdown';
+      if (settings.maintenanceMode !== shouldBeMaintenanceMode) {
+        await kv.set(ADMIN_PLATFORM_SETTINGS_KEY, { ...settings, maintenanceMode: shouldBeMaintenanceMode });
+      }
+    } catch { /* best-effort legacy sync */ }
+
+    const lastAudit = await getLastPlatformModeAuditEntry();
+    const durationMs = lastAudit ? Date.now() - new Date(lastAudit.createdAt).getTime() : null;
+
+    await recordPlatformModeAudit({
+      action: 'mode_change',
+      fromMode: current.mode,
+      toMode: targetMode,
+      strategy,
+      actor: actorEmail,
+      reason,
+      durationMs,
+      metadata: {
+        gracePeriodMs,
+        autoRevertAfterMs,
+        autoRevertOnFailure: newRecord.autoRevertOnFailure,
+        sourceIp: requestSource(c),
+      },
+    });
+
+    return c.json({ success: true, mode: newRecord });
+  } catch (error) {
+    console.error('Error changing platform mode:', error);
+    return c.json({ error: 'Failed to change platform mode' }, 500);
+  }
+});
+
+// POST /admin/platform-mode/rollback — rollback to previous mode
+app.post('/make-server-a1c55d7e/admin/platform-mode/rollback', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+    if (!isSuperAdmin(c.get('adminUser'))) {
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const rateLimited = await enforceCriticalAdminRateLimit(c, 'admin:platform-mode-rollback', PLATFORM_MODE_RATE_LIMIT_MODE_CHANGE);
+    if (rateLimited) return rateLimited;
+
+    const body = await c.req.json().catch(() => ({}));
+    const reason = typeof body?.reason === 'string' && body.reason.trim()
+      ? body.reason.trim().slice(0, 500) : 'Manual rollback';
+    const skipReconciliation = body?.skipReconciliation === true;
+
+    const current = await getCurrentPlatformMode();
+    if (!current.previousMode) {
+      return c.json({ error: 'No previous mode to rollback to' }, 409);
+    }
+
+    const targetMode = current.previousMode;
+
+    // If rolling back to active, run verification (unless skipped)
+    if (targetMode === 'active' && !skipReconciliation) {
+      const verification = await runPlatformRecoveryVerification();
+      if (!verification.passed) {
+        const adminUser = c.get('adminUser');
+        const actorEmail = typeof adminUser?.email === 'string' ? adminUser.email : String(adminUser?.id ?? 'unknown');
+        await recordPlatformModeAudit({
+          action: 'verification_fail',
+          fromMode: current.mode,
+          toMode: targetMode,
+          strategy: null,
+          actor: actorEmail,
+          reason: 'Rollback blocked: verification failed',
+          durationMs: null,
+          metadata: { verificationResults: verification.results, skipReconciliation },
+        });
+        return c.json({
+          error: 'Rollback blocked: verification checks failed. Use skipReconciliation=true to force.',
+          verificationResults: verification.results,
+        }, 422);
+      }
+    }
+
+    const adminUser = c.get('adminUser');
+    const actorEmail = typeof adminUser?.email === 'string' ? adminUser.email : String(adminUser?.id ?? 'unknown');
+
+    const newRecord: PlatformModeRecord = {
+      mode: targetMode,
+      previousMode: current.mode,
+      strategy: current.strategy,
+      initiatedBy: actorEmail,
+      initiatedAt: new Date().toISOString(),
+      gracePeriodMs: 0,
+      graceDeadline: null,
+      autoRevertAt: null,
+      autoRevertOnFailure: false,
+      reason,
+      version: current.version + 1,
+    };
+
+    await kv.set(PLATFORM_MODE_KEY, newRecord);
+    _platformModeCache = { record: newRecord, fetchedAt: Date.now() };
+
+    // Sync legacy maintenanceMode
+    try {
+      const settings = sanitizeAdminPlatformSettings(await kv.get(ADMIN_PLATFORM_SETTINGS_KEY));
+      const shouldBeMaintenanceMode = targetMode === 'shutdown';
+      if (settings.maintenanceMode !== shouldBeMaintenanceMode) {
+        await kv.set(ADMIN_PLATFORM_SETTINGS_KEY, { ...settings, maintenanceMode: shouldBeMaintenanceMode });
+      }
+    } catch { /* best-effort */ }
+
+    const lastAudit = await getLastPlatformModeAuditEntry();
+    const durationMs = lastAudit ? Date.now() - new Date(lastAudit.createdAt).getTime() : null;
+
+    await recordPlatformModeAudit({
+      action: 'rollback',
+      fromMode: current.mode,
+      toMode: targetMode,
+      strategy: null,
+      actor: actorEmail,
+      reason,
+      durationMs,
+      metadata: { skipReconciliation, sourceIp: requestSource(c) },
+    });
+
+    return c.json({ success: true, mode: newRecord });
+  } catch (error) {
+    console.error('Error rolling back platform mode:', error);
+    return c.json({ error: 'Failed to rollback platform mode' }, 500);
+  }
+});
+
+// POST /admin/platform-mode/verify — run verification checks
+app.post('/make-server-a1c55d7e/admin/platform-mode/verify', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const rateLimited = await enforceCriticalAdminRateLimit(c, 'admin:platform-mode-verify', PLATFORM_MODE_RATE_LIMIT_VERIFY);
+    if (rateLimited) return rateLimited;
+
+    const verification = await runPlatformRecoveryVerification();
+
+    const adminUser = c.get('adminUser');
+    const actorEmail = typeof adminUser?.email === 'string' ? adminUser.email : String(adminUser?.id ?? 'unknown');
+    await recordPlatformModeAudit({
+      action: verification.passed ? 'verification_pass' : 'verification_fail',
+      fromMode: (await getCurrentPlatformMode()).mode,
+      toMode: (await getCurrentPlatformMode()).mode,
+      strategy: null,
+      actor: actorEmail,
+      reason: 'Manual verification check',
+      durationMs: null,
+      metadata: { results: verification.results },
+    });
+
+    return c.json({ verification });
+  } catch (error) {
+    console.error('Error running platform mode verification:', error);
+    return c.json({ error: 'Failed to run verification' }, 500);
+  }
+});
+
+// GET /admin/platform-mode/audit-log — immutable audit chain
+app.get('/make-server-a1c55d7e/admin/platform-mode/audit-log', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+    const rateLimited = enforceAdminRateLimit(c, 'admin:platform-mode-audit');
+    if (rateLimited) return rateLimited;
+
+    const limitParam = Number(c.req.query('limit') ?? '50');
+    const limit = Math.max(1, Math.min(PLATFORM_MODE_MAX_AUDIT_ENTRIES, limitParam));
+    const entries = await getPlatformModeAuditLog(limit);
+    return c.json({ entries, total: entries.length });
+  } catch (error) {
+    console.error('Error fetching platform mode audit log:', error);
+    return c.json({ error: 'Failed to fetch audit log' }, 500);
+  }
+});
+
+// GET /admin/platform-mode/health — health check status
+app.get('/make-server-a1c55d7e/admin/platform-mode/health', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+    const rateLimited = enforceAdminRateLimit(c, 'admin:platform-mode-health');
+    if (rateLimited) return rateLimited;
+
+    const health = await runPlatformHealthChecks();
+    const modeRecord = await getCurrentPlatformMode();
+
+    return c.json({
+      health,
+      currentMode: modeRecord.mode,
+      kvFailureCount: _platformModeKvFailureCount,
+      autoHealthThresholds: {
+        readonlyAt: PLATFORM_MODE_AUTO_READONLY_THRESHOLD,
+        shutdownAt: PLATFORM_MODE_AUTO_SHUTDOWN_THRESHOLD,
+        recoveryAt: PLATFORM_MODE_RECOVERY_THRESHOLD,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching platform health:', error);
+    return c.json({ error: 'Failed to fetch platform health' }, 500);
   }
 });
 

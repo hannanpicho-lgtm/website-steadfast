@@ -7,6 +7,7 @@ import { PageTransition } from '../components/PageTransition';
 import { NetworkStatus } from '../components/NetworkStatus';
 import { TopProgressBar } from '../components/TopProgressBar';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import PlatformModeBanner from '../components/PlatformModeBanner';
 
 /**
  * Prefetch likely next-route chunks so navigation feels instant.
@@ -49,6 +50,7 @@ export default function RootLayout() {
 
   return (
     <>
+      <PlatformModeBanner />
       <NetworkStatus />
       <TopProgressBar />
       <a

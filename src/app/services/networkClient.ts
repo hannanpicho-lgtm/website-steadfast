@@ -7,6 +7,7 @@ import {
   type CompatibilityFeatureName,
 } from './apiCompatibility';
 import { publicAnonKey } from '@utils/supabase/info';
+import { updatePlatformModeFromHeaders } from '../hooks/usePlatformMode';
 
 type CacheEnvelope<T> = {
   timestamp: number;
@@ -160,6 +161,10 @@ async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs: n
       headers,
       signal: controller.signal,
     });
+
+    // Extract platform mode from every server response
+    updatePlatformModeFromHeaders(response.headers);
+
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {

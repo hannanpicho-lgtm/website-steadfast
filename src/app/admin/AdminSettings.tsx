@@ -9,6 +9,7 @@ import {
   DAY_KEYS,
   getDefaultWeeklySchedule,
 } from '../services/adminPlatformSettings';
+import PlatformModePanel from './PlatformModePanel';
 
 interface AdminSettingsProps {
   isSuperAdmin: boolean;
@@ -140,6 +141,9 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
         <h2 className="text-2xl font-bold text-white">Platform Settings</h2>
         <p className="text-gray-400 text-sm mt-1">Configure global platform settings and parameters</p>
       </div>
+
+      {/* Platform Mode (Kill-Switch) Panel */}
+      <PlatformModePanel isSuperAdmin={isSuperAdmin} />
 
       <div className="space-y-4">
         {/* General Settings */}
