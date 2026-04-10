@@ -126,11 +126,7 @@ export default function WithdrawalHistory() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center text-sm py-16 space-y-3">
-            <span className="block text-4xl mb-3">📋</span>
-            <span className="block text-gray-400 font-medium">No withdrawal records found</span>
-            <span className="block text-gray-600 text-xs">Your withdrawal history will appear here once you make your first request.</span>
-          </div>
+          <div className="py-16" />
         ) : (
           <div className="space-y-3">
             {filtered.map((item) => (

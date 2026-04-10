@@ -20,7 +20,7 @@ export default function FAQs() {
       num: 'I',
       title: "Start Product Optimization missions",
       content: [
-        <>Minimum account balance of <H>50 USD</H> for the first <H>40</H> missions/ord</>,
+        <>Minimum account balance of <H>50 USD</H> for the first <H>40</H> missions/set</>,
         <>A minimum renewal of <H>100 USD</H> is required to start the new missions</>,
         "Users need to complete the missions before they can request a withdrawal"
       ]
