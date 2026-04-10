@@ -79,7 +79,7 @@ export default function WithdrawalHistory() {
     <div className="flex min-h-screen flex-col overflow-auto pb-20 bg-[#0a0a0a]">
       <Header onContactClick={() => setIsChatOpen(true)} />
 
-      <div className="max-w-3xl mx-auto px-4 py-5">
+      <div className="w-full px-4 py-5 sm:max-w-3xl sm:mx-auto">
         {/* Title row */}
         <div className="relative flex items-center justify-center mb-5">
           <button
@@ -132,7 +132,7 @@ export default function WithdrawalHistory() {
             {filtered.map((item) => (
               <div
                 key={item.id}
-                className="bg-[#141414] rounded-lg border border-white/[0.06] px-4 py-4 space-y-2"
+                className="bg-[#141414] rounded-lg border border-white/[0.06] px-4 py-4 space-y-2 overflow-hidden"
               >
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-gray-400">Amount</span>
