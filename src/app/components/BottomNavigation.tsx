@@ -1,6 +1,6 @@
-import { Home, FileCheck } from 'lucide-react';
+import { Home, FileCheck, ChevronDown } from 'lucide-react';
 import { Link, useLocation } from 'react-router';
-import { memo, useMemo, useCallback } from 'react';
+import { memo, useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 
 const NAV_STYLES = `
@@ -86,13 +86,58 @@ export const BottomNavigation = memo(function BottomNavigation() {
 
   const styleTag = useMemo(() => <style>{NAV_STYLES}</style>, []);
 
+  // Floating scroll-to-nav button
+  const [showFab, setShowFab] = useState(false);
+  const rafRef = useRef(0);
+
+  useEffect(() => {
+    function checkScroll() {
+      const scrollEl = document.scrollingElement ?? document.documentElement;
+      const distFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+      setShowFab(distFromBottom > 200);
+    }
+
+    function onScroll() {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(checkScroll);
+    }
+
+    // Initial check
+    checkScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(rafRef.current);
+    };
+  }, [location.pathname]);
+
+  const scrollToNav = useCallback(() => {
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+  }, []);
+
   // F4: Prefetch route chunks on hover for instant nav
   const prefetchHome = useCallback(() => { import(/* @vite-ignore */ '../pages/UserHome').catch(() => {}); }, []);
   const prefetchStarting = useCallback(() => { import(/* @vite-ignore */ '../pages/Starting').catch(() => {}); }, []);
   const prefetchRecords = useCallback(() => { import(/* @vite-ignore */ '../pages/Records').catch(() => {}); }, []);
 
   return (
-    <nav aria-label="Main navigation" className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#0f6ea8] bg-gradient-to-b from-[#0d689f] to-[#0b5f94] px-3 pb-[calc(0.9rem+env(safe-area-inset-bottom))] pt-3 text-white shadow-[0_-10px_28px_rgba(4,45,74,0.28)] backdrop-blur-sm">
+    <>
+      {/* Floating scroll-to-nav button */}
+      <button
+        onClick={scrollToNav}
+        aria-label="Scroll to navigation"
+        className="fixed right-4 z-[60] flex h-11 w-11 items-center justify-center rounded-full border border-[#0f6ea8]/60 bg-[#0b5f94]/90 text-white shadow-[0_4px_20px_rgba(4,45,74,0.5)] backdrop-blur-sm transition-all duration-300"
+        style={{
+          bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px) + 0.75rem)',
+          opacity: showFab ? 1 : 0,
+          transform: showFab ? 'scale(1)' : 'scale(0.7)',
+          pointerEvents: showFab ? 'auto' : 'none',
+        }}
+      >
+        <ChevronDown size={22} strokeWidth={2.5} />
+      </button>
+
+      <nav aria-label="Main navigation" className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#0f6ea8] bg-gradient-to-b from-[#0d689f] to-[#0b5f94] px-3 pb-[calc(0.9rem+env(safe-area-inset-bottom))] pt-3 text-white shadow-[0_-10px_28px_rgba(4,45,74,0.28)] backdrop-blur-sm">
       <div className="mx-auto grid w-full max-w-6xl grid-cols-3 items-end">
         <Link 
           to={homePath} 
@@ -146,5 +191,6 @@ export const BottomNavigation = memo(function BottomNavigation() {
       </div>
       {styleTag}
     </nav>
+    </>
   );
 });
