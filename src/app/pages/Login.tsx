@@ -51,11 +51,11 @@ function buildRouteNotice(state: LoginLocationState | null): LoginNotice | null 
 
   if (state.authReason === 'admin-access-required' || state.adminRequired) {
     return {
-      title: 'Admin Access Required',
+      title: 'Authorization Required',
       message: destination
-        ? `Use an authorized admin account to open ${destination}.`
-        : 'Use an authorized admin account to continue.',
-      hint: 'Admin sign-in requires a Supabase Auth email with admin or super_admin access.',
+        ? `Use an authorized Steadfast account to open ${destination}.`
+        : 'Use an authorized Steadfast account to continue.',
+      hint: 'Sign-in requires an authorized email address with the appropriate access level.',
       tone: 'warning',
     };
   }
@@ -86,8 +86,8 @@ function buildLoginErrorNotice(error: string, isAdminAttempt: boolean): LoginNot
 
   if (normalized.includes('invalid login credentials')) {
     return {
-      title: isAdminAttempt ? 'Admin Sign-In Failed' : 'Sign-In Failed',
-      message: isAdminAttempt ? 'The admin email or password is incorrect.' : 'The username or password is incorrect.',
+      title: 'Sign-In Failed',
+      message: isAdminAttempt ? 'The email or password is incorrect.' : 'The username or password is incorrect.',
       hint: 'Check your credentials carefully or use password reset if you no longer know them.',
       tone: 'error',
     };
@@ -95,27 +95,27 @@ function buildLoginErrorNotice(error: string, isAdminAttempt: boolean): LoginNot
 
   if (normalized.includes('not authorized')) {
     return {
-      title: 'Admin Access Denied',
-      message: 'This account signed in successfully but does not have admin permissions.',
-      hint: 'Use an account with app_metadata.role set to admin or super_admin.',
+      title: 'Access Denied',
+      message: 'This account signed in successfully but does not have the required permissions.',
+      hint: 'Please use an authorized Steadfast account or contact customer support.',
       tone: 'error',
     };
   }
 
   if (normalized.includes('valid admin email')) {
     return {
-      title: 'Admin Email Required',
-      message: 'Admin access only accepts a valid email address.',
-      hint: 'Enter the full admin email address used in Supabase Auth.',
+      title: 'Valid Email Required',
+      message: 'This access level requires a valid email address.',
+      hint: 'Enter the full email address associated with your Steadfast account.',
       tone: 'error',
     };
   }
 
   return {
-    title: isAdminAttempt ? 'Admin Sign-In Failed' : 'Sign-In Failed',
+    title: 'Sign-In Failed',
     message: error,
     hint: isAdminAttempt
-      ? 'If this persists, confirm the account is active in Supabase Auth and has the correct admin role.'
+      ? 'If this persists, please verify your credentials or contact Steadfast customer support.'
       : 'Try again or contact support if you cannot access your account.',
     tone: 'error',
   };
@@ -278,7 +278,7 @@ export default function Login() {
             <h2 className="text-[#00D9FF] text-2xl font-bold text-center mb-1">Sign In</h2>
             <p className="text-white/45 text-center text-sm mb-6">
               {adminRequired
-                ? 'Admin access now requires a Supabase Auth admin account.'
+                ? 'Authorized access requires a verified Steadfast account.'
                 : 'Enter your username and password to access'}
             </p>
 
@@ -302,8 +302,8 @@ export default function Login() {
           <div>
             <input
               type="text"
-              placeholder={adminRequired ? 'Admin email address' : 'Username / Phone'}
-              aria-label={adminRequired ? 'Admin email address' : 'Username or phone number'}
+              placeholder={adminRequired ? 'Email address' : 'Username / Phone'}
+              aria-label={adminRequired ? 'Email address' : 'Username or phone number'}
               value={username}
               onChange={(e) => {
                 setUsername(e.target.value);

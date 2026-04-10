@@ -55,7 +55,7 @@ export function userHasAdminRole(user: User | null | undefined): boolean {
 export async function signInAdmin(identifier: string, password: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const email = resolveAdminIdentifier(identifier);
   if (!email.includes('@')) {
-    return { ok: false, error: 'Enter a valid admin email address.' };
+    return { ok: false, error: 'Enter a valid email address.' };
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -64,12 +64,12 @@ export async function signInAdmin(identifier: string, password: string): Promise
   });
 
   if (error || !data.user) {
-    return { ok: false, error: error?.message ?? 'Admin sign-in failed.' };
+    return { ok: false, error: error?.message ?? 'Sign-in failed. Please check your credentials.' };
   }
 
   if (!userHasAdminRole(data.user)) {
     await supabase.auth.signOut();
-    return { ok: false, error: 'This account is not authorized for admin access.' };
+    return { ok: false, error: 'This account does not have the required access level.' };
   }
 
   return { ok: true };
@@ -102,12 +102,12 @@ export async function requireAdminAccessToken(): Promise<string> {
   }
 
   if (!session?.access_token) {
-    throw new Error('Admin session expired. Please sign in again.');
+    throw new Error('Session expired. Please sign in again.');
   }
 
   // The session user already has app_metadata/user_metadata with role claims
   if (!userHasAdminRole(session.user)) {
-    throw new Error('Admin access denied. Please sign in with an authorized admin account.');
+    throw new Error('Access denied. Please sign in with an authorized account.');
   }
 
   return session.access_token;

@@ -93,7 +93,7 @@ export default function Signup() {
     // Validate admin invitation code if provided
     if (effectiveAdminCode) {
       if (!/^[A-Z0-9]{5}$/.test(effectiveAdminCode)) {
-        setErrorText('Admin invitation code must be exactly 5 letters/numbers.');
+        setErrorText('Referral code must be exactly 5 letters/numbers.');
         setIsSubmitting(false);
         return;
       }
@@ -106,7 +106,7 @@ export default function Signup() {
         });
         if (!verifyRes.ok) {
           setAdminCodeStatus('invalid');
-          setErrorText('Admin invitation code is not valid. Please check and try again.');
+          setErrorText('Referral code is not valid. Please check and try again.');
           setIsSubmitting(false);
           return;
         }
@@ -114,7 +114,7 @@ export default function Signup() {
         adminCodeValidated = true;
       } catch {
         setAdminCodeStatus('invalid');
-        setErrorText('Unable to validate admin invitation code right now. Please try again.');
+        setErrorText('Unable to validate referral code right now. Please try again.');
         setIsSubmitting(false);
         return;
       }
@@ -313,7 +313,7 @@ export default function Signup() {
             <div className="relative">
               <input
                 type="text"
-                placeholder="Admin Referral Code (optional)"
+                placeholder="Referral Code (optional)"
                 value={adminCode}
                 onChange={(e) => {
                   const val = e.target.value.toUpperCase();
@@ -339,7 +339,7 @@ export default function Signup() {
               )}
             </div>
             <p className="mt-1.5 text-xs px-1" style={{ color: 'rgba(255,255,255,0.3)' }}>
-              If a staff member referred you, enter their 5-character admin referral code. Leave blank otherwise.
+              If a staff member referred you, enter their 5-character referral code. Leave blank otherwise.
             </p>
           </div>
 

@@ -381,7 +381,7 @@ export default function Starting() {
     : 1;
   const activePremiumEncounterLabel = Number.isFinite(Number(userData?.activePremium?.triggerTaskNumber))
     ? `Task #${Number(userData?.activePremium?.triggerTaskNumber)}`
-    : 'Admin assigned';
+    : 'Assigned by Steadfast';
   const premiumDisplayPrice = roundMoney(Number(userData?.activePremium?.totalBundleValue ?? userData?.activePremium?.premiumProductValue ?? 0));
   const isPremiumTaskActive = Boolean(userData?.activePremium) && premiumDisplayPrice > 0;
   const premiumDisplayName = (() => {
@@ -802,7 +802,7 @@ export default function Starting() {
     }
 
     if (taskSetResetRequired) {
-      toast.info('Current task set is complete. Please contact support or wait for admin reset before continuing.');
+      toast.info('Current task set is complete. Please contact customer support or wait for your account to be reset.');
       return;
     }
 
@@ -1176,7 +1176,7 @@ export default function Starting() {
               ) : isAccountSuspended ? (
                 'Account Suspended'
               ) : taskSetResetRequired ? (
-                'Waiting For Admin Reset'
+                'Pending Reset'
               ) : vipFundingBlocked ? (
                 'Top-up Required Before Start'
               ) : premiumSubmissionBlocked ? (
