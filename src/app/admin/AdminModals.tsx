@@ -135,6 +135,7 @@ export interface AdminModalsProps {
   handleDeleteSelectedProduct: () => void;
   handleUpdateAdminDetails: (e: React.FormEvent) => void;
   handleDeleteAdminUser: () => void;
+  handleResetAdminPassword: (newPassword: string) => Promise<void>;
   handleCreateRole: (e: React.FormEvent) => void;
   handleUpdateRole: (e: React.FormEvent) => void;
   handleDeleteRole: () => void;
@@ -379,6 +380,7 @@ export default function AdminModals(props: AdminModalsProps) {
     handleDeleteSelectedProduct,
     handleUpdateAdminDetails,
     handleDeleteAdminUser,
+    handleResetAdminPassword,
     handleCreateRole,
     handleUpdateRole,
     handleDeleteRole,
@@ -394,6 +396,9 @@ export default function AdminModals(props: AdminModalsProps) {
   const [editAllowUnreachable, setEditAllowUnreachable] = useState(false);
   const [assignAdminSelectedId, setAssignAdminSelectedId] = useState<string>('');
   const [assignAdminSaving, setAssignAdminSaving] = useState(false);
+  const [resetAdminPassword, setResetAdminPassword] = useState('');
+  const [resetAdminPasswordConfirm, setResetAdminPasswordConfirm] = useState('');
+  const [resettingAdminPassword, setResettingAdminPassword] = useState(false);
 
   useEffect(() => {
     if (modalType === 'assign-admin') {
@@ -2509,6 +2514,65 @@ export default function AdminModals(props: AdminModalsProps) {
             </button>
             <button onClick={() => void handleDeleteAdminUser()} className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-lg transition-colors">
               Delete Admin
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Admin Password Modal */}
+      {modalType === 'reset-admin-password' && selectedItem && (
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-2xl font-bold text-white">Reset Admin Password</h3>
+            <button onClick={() => setModalType(null)} className="text-gray-400 hover:text-white" aria-label="Close dialog">
+              <X size={24} />
+            </button>
+          </div>
+          <div className="mb-4">
+            <p className="text-gray-400 mb-1">Admin: <span className="text-white font-semibold">{selectedItem.fullName}</span></p>
+            <p className="text-gray-400 mb-4">Email: <span className="text-white font-semibold">{selectedItem.email}</span></p>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">New Password</label>
+              <input
+                type="password"
+                value={resetAdminPassword}
+                onChange={(e) => setResetAdminPassword(e.target.value)}
+                placeholder="Minimum 8 characters"
+                className="w-full bg-[#1a1f2e] border border-gray-600 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#00D9FF]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Confirm Password</label>
+              <input
+                type="password"
+                value={resetAdminPasswordConfirm}
+                onChange={(e) => setResetAdminPasswordConfirm(e.target.value)}
+                placeholder="Re-enter password"
+                className="w-full bg-[#1a1f2e] border border-gray-600 text-white rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#00D9FF]"
+              />
+            </div>
+          </div>
+          <div className="flex gap-3 mt-6">
+            <button onClick={() => setModalType(null)} className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 rounded-lg transition-colors">
+              Cancel
+            </button>
+            <button
+              disabled={resettingAdminPassword || resetAdminPassword.length < 8 || resetAdminPassword !== resetAdminPasswordConfirm}
+              onClick={async () => {
+                setResettingAdminPassword(true);
+                try {
+                  await handleResetAdminPassword(resetAdminPassword);
+                } finally {
+                  setResettingAdminPassword(false);
+                  setResetAdminPassword('');
+                  setResetAdminPasswordConfirm('');
+                }
+              }}
+              className="flex-1 bg-purple-500 hover:bg-purple-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors"
+            >
+              {resettingAdminPassword ? 'Resetting...' : 'Reset Password'}
             </button>
           </div>
         </div>

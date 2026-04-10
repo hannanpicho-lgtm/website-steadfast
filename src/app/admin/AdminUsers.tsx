@@ -289,6 +289,9 @@ export default function AdminUsers({
                           <button onClick={() => { setSelectedItem(admin); setModalType('edit-admin'); }} className="p-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded transition-colors" title="Edit Admin">
                             <Edit size={14} />
                           </button>
+                          <button onClick={() => { setSelectedItem(admin); setModalType('reset-admin-password'); }} className="p-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded transition-colors" title="Reset Password">
+                            <Key size={14} />
+                          </button>
                           <button onClick={() => { setSelectedItem(admin); setModalType('delete-admin'); }} className="p-1.5 bg-red-500 hover:bg-red-600 text-white rounded transition-colors" title="Delete Admin">
                             <Trash2 size={14} />
                           </button>

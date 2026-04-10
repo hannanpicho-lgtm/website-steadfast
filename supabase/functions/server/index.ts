@@ -6009,6 +6009,79 @@ app.delete("/make-server-a1c55d7e/admin/users/:adminId", async (c: any) => {
   }
 });
 
+app.put('/make-server-a1c55d7e/admin/users/:adminId/reset-password', async (c: any) => {
+  try {
+    const unauthorized = await requireAdmin(c);
+    if (unauthorized) return unauthorized;
+
+    const limited = enforceAdminRateLimit(c, 'admin-users:reset-password');
+    if (limited) return limited;
+
+    if (!authClient) {
+      return c.json({ error: 'Server auth configuration missing' }, 500);
+    }
+
+    const callingAdmin = c.get('adminUser');
+    const callerIsSuperAdmin = isSuperAdmin(callingAdmin);
+    const actorEmail = typeof callingAdmin?.email === 'string' && callingAdmin.email
+      ? callingAdmin.email
+      : String(callingAdmin?.id ?? 'unknown');
+
+    const adminId = String(c.req.param('adminId') ?? '').trim();
+    if (!adminId) {
+      return c.json({ error: 'adminId is required' }, 400);
+    }
+
+    // Only super-admins can reset another admin's password
+    if (!callerIsSuperAdmin && callingAdmin?.id !== adminId) {
+      await recordObservabilityAuditEvent(
+        'admin-password-reset-denied',
+        actorEmail,
+        `Denied password reset for admin ${adminId}: insufficient privileges`,
+      ).catch((e) => console.error('Failed to record admin-password-reset-denied audit event:', e));
+      return c.json({ error: 'Forbidden: super-admin access required' }, 403);
+    }
+
+    const { data: targetData, error: targetError } = await authClient.auth.admin.getUserById(adminId);
+    if (targetError || !targetData?.user) {
+      return c.json({ error: 'Admin user not found' }, 404);
+    }
+
+    if (!hasAdminRole(targetData.user)) {
+      return c.json({ error: 'Target user is not an admin account' }, 400);
+    }
+
+    const body = await c.req.json();
+    const newPassword = typeof body?.password === 'string' ? body.password.trim() : '';
+
+    if (newPassword.length < 8) {
+      return c.json({ error: 'Password must be at least 8 characters' }, 400);
+    }
+
+    const { error: updateError } = await authClient.auth.admin.updateUserById(adminId, {
+      password: newPassword,
+    });
+
+    if (updateError) {
+      return c.json({ error: updateError.message ?? 'Failed to reset password' }, 400);
+    }
+
+    const targetEmail = typeof targetData.user.email === 'string' && targetData.user.email
+      ? targetData.user.email
+      : adminId;
+    await recordObservabilityAuditEvent(
+      'admin-password-reset',
+      actorEmail,
+      `Reset password for admin account ${targetEmail} (${adminId})`,
+    ).catch((e) => console.error('Failed to record admin-password-reset audit event:', e));
+
+    return c.json({ ok: true, adminId, updatedAt: new Date().toISOString() });
+  } catch (error) {
+    console.error('Admin password reset error:', error);
+    return c.json({ error: 'Failed to reset admin password' }, 500);
+  }
+});
+
 app.get('/make-server-a1c55d7e/admin/referrals/overview', async (c: any) => {
   try {
     const unauthorized = await requireAdmin(c);

@@ -1852,6 +1852,35 @@ export default function Admin() {
     }
   };
 
+  const handleResetAdminPassword = async (newPassword: string) => {
+    if (!selectedItem?.id) {
+      toast.error('Unable to reset password: missing identifier.');
+      return;
+    }
+
+    const targetId = String(selectedItem.id);
+
+    try {
+      const headers = await buildAdminAuthHeaders();
+      const response = await fetch(`${serverUrl}/admin/users/${targetId}/reset-password`, {
+        method: 'PUT',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? 'Failed to reset admin password');
+      }
+
+      toast.success('Admin password reset successfully.');
+      setModalType(null);
+      setSelectedItem(null);
+    } catch (error) {
+      handleAdminRequestError(error, 'Failed to reset admin password');
+    }
+  };
+
   const handleDeletePlatformUser = async () => {
     const username = typeof selectedItem?.username === 'string' ? selectedItem.username.trim() : '';
     if (!username) {
@@ -2872,6 +2901,7 @@ export default function Admin() {
         handleDeleteSelectedProduct={handleDeleteSelectedProduct}
         handleUpdateAdminDetails={handleUpdateAdminDetails}
         handleDeleteAdminUser={handleDeleteAdminUser}
+        handleResetAdminPassword={handleResetAdminPassword}
         handleCreateRole={handleCreateRole}
         handleUpdateRole={handleUpdateRole}
         handleDeleteRole={handleDeleteRole}
