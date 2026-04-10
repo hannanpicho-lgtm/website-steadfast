@@ -297,7 +297,7 @@ export default function UserHome() {
                 <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.3em] sm:text-xs" style={{ color: '#c8956c' }}>
                   Welcome to
                 </p>
-                <h2 className="text-2xl font-extrabold leading-tight tracking-tight text-white sm:text-4xl md:text-5xl" style={{
+                <h2 className="text-2xl font-extrabold leading-tight tracking-tight sf-heading-gradient-warm sm:text-4xl md:text-5xl" style={{
                   textShadow: '0 2px 24px rgba(0,0,0,0.5)',
                 }}>
                   Steadfast Digital

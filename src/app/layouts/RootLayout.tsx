@@ -4,6 +4,9 @@ import { warmApiCompatibilityState } from '../services/apiCompatibility';
 import SessionTimeoutWarning from '../components/SessionTimeoutWarning';
 import AnnouncementBanner from '../components/AnnouncementBanner';
 import { PageTransition } from '../components/PageTransition';
+import { NetworkStatus } from '../components/NetworkStatus';
+import { TopProgressBar } from '../components/TopProgressBar';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 
 /**
  * Prefetch likely next-route chunks so navigation feels instant.
@@ -38,6 +41,7 @@ function usePrefetchRoutes() {
 
 export default function RootLayout() {
   usePrefetchRoutes();
+  useKeyboardShortcuts();
 
   useEffect(() => {
     void warmApiCompatibilityState();
@@ -45,6 +49,8 @@ export default function RootLayout() {
 
   return (
     <>
+      <NetworkStatus />
+      <TopProgressBar />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-[#00D9FF] focus:text-[#1a1f2e] focus:rounded-lg focus:font-semibold focus:text-sm"

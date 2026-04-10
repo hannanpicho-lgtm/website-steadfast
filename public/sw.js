@@ -9,7 +9,7 @@
  *  • Old caches are deleted on activate whenever CACHE_VERSION is bumped
  */
 
-const CACHE_VERSION = 'v6';
+const CACHE_VERSION = 'v7';
 const CACHE_NAME = `steadfast-shell-${CACHE_VERSION}`;
 
 const PRECACHE_ASSETS = [

@@ -166,7 +166,7 @@ export default function Signup() {
         <div className="max-w-2xl mx-auto flex items-center justify-center gap-3">
           <div className="relative">
             <div className="absolute inset-0 rounded-full blur-xl opacity-25" style={{ background: '#00D9FF' }} />
-            <img src={steadfastLogo} alt="Steadfast Digital Logo" width={36} height={36} className="relative z-10 w-9 h-9 object-contain" />
+            <img src={steadfastLogo} alt="Steadfast Digital Logo" width={36} height={36} decoding="async" className="relative z-10 w-9 h-9 object-contain" />
           </div>
           <div className="flex flex-col leading-tight">
             <span className="text-[11px] uppercase tracking-[0.28em] font-semibold" style={{ color: 'rgba(255,255,255,0.35)' }}>Steadfast Digital</span>

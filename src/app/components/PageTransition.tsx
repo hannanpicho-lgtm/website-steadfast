@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion';
+import { LazyMotion, domAnimation, m, AnimatePresence } from 'framer-motion';
 import { useLocation } from 'react-router';
 import type { ReactNode } from 'react';
 
@@ -37,17 +37,19 @@ export function PageTransition({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
 
   return (
-    <AnimatePresence mode="wait" initial={false}>
-      <motion.div
-        key={pathname}
-        variants={pageVariants}
-        initial="initial"
-        animate="enter"
-        exit="exit"
-        style={{ willChange: 'opacity, transform' }}
-      >
-        {children}
-      </motion.div>
-    </AnimatePresence>
+    <LazyMotion features={domAnimation} strict>
+      <AnimatePresence mode="wait" initial={false}>
+        <m.div
+          key={pathname}
+          variants={pageVariants}
+          initial="initial"
+          animate="enter"
+          exit="exit"
+          style={{ willChange: 'opacity, transform' }}
+        >
+          {children}
+        </m.div>
+      </AnimatePresence>
+    </LazyMotion>
   );
 }

@@ -1,6 +1,6 @@
 import { Home, FileCheck } from 'lucide-react';
 import { Link, useLocation } from 'react-router';
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useCallback } from 'react';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 
 const NAV_STYLES = `
@@ -93,11 +93,18 @@ export const BottomNavigation = memo(function BottomNavigation() {
 
   const styleTag = useMemo(() => <style>{NAV_STYLES}</style>, []);
 
+  // F4: Prefetch route chunks on hover for instant nav
+  const prefetchHome = useCallback(() => { import(/* @vite-ignore */ '../pages/UserHome').catch(() => {}); }, []);
+  const prefetchStarting = useCallback(() => { import(/* @vite-ignore */ '../pages/Starting').catch(() => {}); }, []);
+  const prefetchRecords = useCallback(() => { import(/* @vite-ignore */ '../pages/Records').catch(() => {}); }, []);
+
   return (
     <nav aria-label="Main navigation" className="fixed bottom-0 left-0 right-0 z-50 border-t border-[#0f6ea8] bg-gradient-to-b from-[#0d689f] to-[#0b5f94] px-3 pb-[calc(0.9rem+env(safe-area-inset-bottom))] pt-3 text-white shadow-[0_-10px_28px_rgba(4,45,74,0.28)] backdrop-blur-sm">
       <div className="mx-auto grid w-full max-w-6xl grid-cols-3 items-end">
         <Link 
           to={homePath} 
+          onMouseEnter={prefetchHome}
+          onFocus={prefetchHome}
           className={`group flex min-w-0 flex-col items-center gap-1 py-1.5 transition-all duration-300 ${isHomeActive ? 'text-white' : 'text-white/90 hover:text-white'}`}
         >
           <div className={`relative overflow-hidden rounded-xl px-3 py-1.5 transition-all duration-300 ${isHomeActive ? 'bg-white/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_6px_14px_rgba(1,43,72,0.28)] ring-1 ring-white/30 platform-side-glow' : 'bg-transparent group-hover:bg-white/10'}`}>
@@ -110,6 +117,8 @@ export const BottomNavigation = memo(function BottomNavigation() {
 
         <Link 
           to="/starting" 
+          onMouseEnter={prefetchStarting}
+          onFocus={prefetchStarting}
           className="group relative -mt-12 flex min-w-0 flex-col items-center gap-1 py-1"
         >
           <div className={`absolute top-[-6px] h-16 w-16 rounded-full ${isStartingActive ? 'platform-orbit-ring opacity-100' : 'opacity-0'}`} />
@@ -130,6 +139,8 @@ export const BottomNavigation = memo(function BottomNavigation() {
 
         <Link 
           to="/records" 
+          onMouseEnter={prefetchRecords}
+          onFocus={prefetchRecords}
           className={`group flex min-w-0 flex-col items-center gap-1 py-1.5 transition-all duration-300 ${isRecordsActive ? 'text-white' : 'text-white/90 hover:text-white'}`}
         >
           <div className={`relative overflow-hidden rounded-xl px-3 py-1.5 transition-all duration-300 ${isRecordsActive ? 'bg-white/22 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_6px_14px_rgba(1,43,72,0.28)] ring-1 ring-white/30 platform-side-glow' : 'bg-transparent group-hover:bg-white/10'}`}>

@@ -167,6 +167,8 @@ export default function Withdrawal() {
     }
 
     setSubmitting(true);
+    // F3: Haptic tap on mobile
+    if ('vibrate' in navigator) try { navigator.vibrate(10); } catch {}
     try {
       const response = await fetch(`${serverUrl}/me/withdrawals/request`, {
         method: 'POST',
@@ -244,7 +246,7 @@ export default function Withdrawal() {
 
         {/* Total Balance Card */}
         <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mb-6 backdrop-blur-sm sf-stagger-1">
-          <h2 className="text-lg font-semibold text-[#00D9FF] mb-3">Total Balance</h2>
+          <h2 className="text-lg font-semibold sf-heading-gradient-cool mb-3">Total Balance</h2>
           <div className="flex items-baseline gap-2 mb-2">
             <span className="text-4xl font-bold text-white">{loading ? <span className="inline-block h-9 w-28 bg-gray-600/40 rounded animate-pulse align-middle" /> : walletData?.balance.toFixed(2) ?? '0.00'}</span>
             <span className="text-lg text-gray-400">USD</span>

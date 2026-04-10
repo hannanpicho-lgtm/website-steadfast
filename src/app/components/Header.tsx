@@ -22,6 +22,7 @@ export const Header = memo(function Header({ onContactClick }: HeaderProps) {
               alt="Steadfast Digital Logo" 
               width={32}
               height={32}
+              decoding="async"
               className="h-7 w-7 object-contain transition-transform duration-300 group-hover:scale-105 sm:h-8 sm:w-8"
             />
           </div>

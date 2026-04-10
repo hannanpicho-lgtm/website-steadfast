@@ -783,6 +783,8 @@ export default function Starting() {
 
   const handleSubmitTask = async () => {
     if (!userData || submitting || (!displayProduct && !isPremiumTaskActive)) return;
+    // F3: Haptic tap on mobile
+    if ('vibrate' in navigator) try { navigator.vibrate(10); } catch {}
 
     if (vipFundingBlocked) {
       toast.error(`VIP${userData.vipLevel} requires at least $${requiredFundsForVip.toFixed(2)} available before submitting tasks.`);
@@ -1143,7 +1145,7 @@ export default function Starting() {
           <div className="bg-gradient-to-br from-[#1a0a00] to-[#2d1600] border-2 border-amber-500/60 rounded-xl p-6 mb-6 shadow-xl">
             <div className="flex items-center justify-center gap-3 mb-3">
               <AlertCircle className="text-amber-400" size={32} />
-              <h2 className="text-xl font-bold text-white text-center">NO PRODUCTS AVAILABLE</h2>
+              <h2 className="text-xl font-bold sf-heading-gradient-warm text-center">NO PRODUCTS AVAILABLE</h2>
             </div>
             <p className="text-amber-300 font-semibold text-center mb-1">
               VIP{userData?.vipLevel} range: ${vipPriceMin.toFixed(2)} – ${vipPriceMax.toFixed(2)}

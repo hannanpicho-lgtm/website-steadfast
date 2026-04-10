@@ -478,7 +478,7 @@ export default function Records() {
           >
             <ChevronLeft size={20} />
           </button>
-          <h1 className="text-xl sm:text-2xl font-bold text-[#0066b3] text-center">Records</h1>
+          <h1 className="text-xl sm:text-2xl font-bold sf-heading-gradient-cool text-center">Records</h1>
           <button
             onClick={exportCsv}
             disabled={loading || (taskRecords.length === 0 && transactions.length === 0)}
@@ -547,13 +547,13 @@ export default function Records() {
             <RecordSkeleton />
           ) : filteredProducts.length === 0 ? (
             <div className="bg-[#141414] rounded-lg p-12 text-center">
-              <div className="text-gray-600 mb-2">
-                <svg className="w-16 h-16 mx-auto mb-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+              <div className="sf-empty-icon mb-4">
+                <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
                 </svg>
               </div>
-              <p className="text-xl font-bold text-gray-400 mb-2">No records yet</p>
-              <p className="text-gray-500">
+              <p className="text-lg font-bold text-gray-400 mb-1">No records yet</p>
+              <p className="text-sm text-gray-500">
                 {activeTab === 'completed' && 'You haven\'t submitted any products yet'}
                 {activeTab === 'pending' && 'No pending premium order at the moment.'}
                 {activeTab === 'all' && 'No records available'}

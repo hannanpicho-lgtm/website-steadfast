@@ -396,3 +396,129 @@ textarea {
     transition: none;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   NEXT-GEN DESIGN SYSTEM — v3
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── P4: Content-visibility for off-screen sections ─────────── */
+.sf-offscreen {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 600px;
+}
+
+/* ─── U1: Gradient text headings ─────────────────────────────── */
+@keyframes sf-gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.sf-heading-gradient {
+  background: linear-gradient(135deg, #00D9FF 0%, #00a8cc 25%, #c8956c 50%, #d4a853 75%, #00D9FF 100%);
+  background-size: 200% 200%;
+  animation: sf-gradient-shift 6s ease infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.sf-heading-gradient-cool {
+  background: linear-gradient(135deg, #00D9FF 0%, #0088cc 40%, #7a8db8 70%, #00D9FF 100%);
+  background-size: 200% 200%;
+  animation: sf-gradient-shift 5s ease infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.sf-heading-gradient-warm {
+  background: linear-gradient(135deg, #c8956c 0%, #d4a853 40%, #e8c275 70%, #c8956c 100%);
+  background-size: 200% 200%;
+  animation: sf-gradient-shift 5s ease infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* ─── U2: Enhanced empty states ──────────────────────────────── */
+@keyframes sf-empty-float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
+.sf-empty-icon {
+  animation: sf-empty-float 3s ease-in-out infinite;
+  will-change: transform;
+  color: rgba(0, 217, 255, 0.25);
+}
+
+/* ─── U3: Focus ring — enhanced accessibility ────────────────── */
+.sf-focus-ring:focus-visible {
+  outline: 2px solid rgba(0, 217, 255, 0.7);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 217, 255, 0.12);
+}
+
+/* ─── U5: Skeleton → content crossfade ───────────────────────── */
+@keyframes sf-content-reveal {
+  from { opacity: 0; filter: blur(6px); transform: translateY(4px); }
+  to   { opacity: 1; filter: blur(0);   transform: translateY(0); }
+}
+.sf-content-reveal {
+  animation: sf-content-reveal 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ─── F2: Top loading progress bar ───────────────────────────── */
+@keyframes sf-progress-indeterminate {
+  0%   { left: -30%; width: 30%; }
+  50%  { left: 50%;  width: 30%; }
+  100% { left: 100%; width: 10%; }
+}
+.sf-progress-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 9999;
+  pointer-events: none;
+  background: transparent;
+  overflow: hidden;
+}
+.sf-progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, #00D9FF, #00a8cc);
+  border-radius: 0 2px 2px 0;
+  animation: sf-progress-indeterminate 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  box-shadow: 0 0 8px rgba(0, 217, 255, 0.4);
+}
+
+/* ─── F3: Haptic tap visual feedback ─────────────────────────── */
+.sf-haptic-tap {
+  -webkit-tap-highlight-color: transparent;
+}
+.sf-haptic-tap:active {
+  transform: scale(0.97);
+  transition: transform 60ms ease;
+}
+
+/* ─── Reduce motion — disable v3 additions ───────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .sf-heading-gradient,
+  .sf-heading-gradient-cool,
+  .sf-heading-gradient-warm {
+    animation: none;
+  }
+  .sf-empty-icon {
+    animation: none;
+  }
+  .sf-content-reveal {
+    animation: none;
+  }
+  .sf-progress-bar::after {
+    animation: none;
+  }
+  .sf-haptic-tap:active {
+    transform: none;
+  }
+}
