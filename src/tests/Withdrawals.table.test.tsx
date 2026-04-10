@@ -1,6 +1,26 @@
 /** @vitest-environment jsdom */
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+
+// Mock virtual scrolling to render all rows in JSDOM (zero-size container)
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (opts: { count: number; estimateSize: () => number }) => {
+    const size = opts.estimateSize();
+    return {
+      getVirtualItems: () =>
+        Array.from({ length: opts.count }, (_, i) => ({
+          index: i,
+          start: i * size,
+          end: (i + 1) * size,
+          size,
+          key: i,
+        })),
+      getTotalSize: () => opts.count * size,
+      measureElement: vi.fn(),
+    };
+  },
+}));
+
 import Withdrawals from '../app/admin/Withdrawals';
 
 function makeWithdrawal(i: number, overrides: Record<string, unknown> = {}) {
@@ -78,9 +98,11 @@ describe('Withdrawals admin table', () => {
     expect(rejectMock).toHaveBeenCalledWith('wd-3');
   });
 
-  it('Previous page button is disabled on page 1', () => {
-    render(<Withdrawals {...baseProps} withdrawalRequests={[makeWithdrawal(1)]} />);
-    expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled();
+  it('renders all rows in virtual scroll (no pagination buttons)', () => {
+    const reqs = Array.from({ length: 5 }, (_, i) => makeWithdrawal(i + 1));
+    render(<Withdrawals {...baseProps} withdrawalRequests={reqs} />);
+    expect(screen.getByText('user1')).toBeInTheDocument();
+    expect(screen.getByText('user5')).toBeInTheDocument();
   });
 
   it('status filter hides rows that do not match the selected status', () => {

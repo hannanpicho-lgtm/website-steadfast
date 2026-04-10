@@ -1,6 +1,26 @@
 /** @vitest-environment jsdom */
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+
+// Mock virtual scrolling to render all rows in JSDOM (zero-size container)
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (opts: { count: number; estimateSize: () => number }) => {
+    const size = opts.estimateSize();
+    return {
+      getVirtualItems: () =>
+        Array.from({ length: opts.count }, (_, i) => ({
+          index: i,
+          start: i * size,
+          end: (i + 1) * size,
+          size,
+          key: i,
+        })),
+      getTotalSize: () => opts.count * size,
+      measureElement: vi.fn(),
+    };
+  },
+}));
+
 import UserManagement from '../app/admin/UserManagement';
 
 function makeUser(i: number, overrides: Record<string, unknown> = {}) {
@@ -84,19 +104,10 @@ describe('UserManagement table', () => {
     expect(html.indexOf('bob')).toBeLessThan(html.indexOf('charlie'));
   });
 
-  it('Previous page button is disabled on page 1', () => {
-    render(<UserManagement {...defaultProps} platformUsers={[makeUser(1)]} />);
-    expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled();
-  });
-
-  it('Next page button is enabled and calls setUserPage when there are more users than usersPerPage', () => {
-    const setUserPage = vi.fn();
+  it('renders all rows in virtual scroll (no pagination buttons)', () => {
     const users = Array.from({ length: 6 }, (_, i) => makeUser(i + 1));
-    render(<UserManagement {...defaultProps} platformUsers={users} setUserPage={setUserPage} />);
-
-    const nextBtn = screen.getByRole('button', { name: 'Next page' });
-    expect(nextBtn).not.toBeDisabled();
-    fireEvent.click(nextBtn);
-    expect(setUserPage).toHaveBeenCalled();
+    render(<UserManagement {...defaultProps} platformUsers={users} />);
+    expect(screen.getByText('user01')).toBeInTheDocument();
+    expect(screen.getByText('user06')).toBeInTheDocument();
   });
 });

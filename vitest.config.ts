@@ -7,6 +7,7 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     include: ['src/tests/**/*.test.{ts,tsx}'],
+    exclude: ['src/tests/*.integration.test.{ts,tsx}'],
     setupFiles: ['src/tests/setup.ts'],
     testTimeout: 20_000, // API integration tests need more time
     coverage: {

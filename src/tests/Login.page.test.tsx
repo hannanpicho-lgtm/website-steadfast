@@ -89,8 +89,8 @@ describe('Login page', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByPlaceholderText('Admin email address')).toBeInTheDocument();
-    expect(screen.getByText('Admin access now requires a Supabase Auth admin account.')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Email address')).toBeInTheDocument();
+    expect(screen.getByText(/Use an authorized Steadfast account to open/)).toBeInTheDocument();
   });
 
   it('navigates to home after successful sign in and welcome modal continue', async () => {

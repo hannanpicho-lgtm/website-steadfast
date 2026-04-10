@@ -8,6 +8,7 @@ const toastSuccessMock = vi.fn();
 const toastInfoMock = vi.fn();
 const toastErrorMock = vi.fn();
 const fetchMock = vi.fn();
+const fetchJsonWithRetryMock = vi.fn();
 
 vi.mock('@/app/components/Header', () => ({ Header: () => <div>Header</div> }));
 vi.mock('@/app/components/BottomNavigation', () => ({ BottomNavigation: () => <div>BottomNavigation</div> }));
@@ -15,6 +16,15 @@ vi.mock('@/app/components/LiveChatBox', () => ({ LiveChatBox: () => <div>LiveCha
 vi.mock('@/app/services/referralSystem', () => ({ getCurrentUsername: () => 'alice_01' }));
 vi.mock('@/app/services/loginRedirect', () => ({
   buildLoginRedirectState: () => ({ authReason: 'session-expired' }),
+}));
+vi.mock('@/app/hooks/useBackNavigate', () => ({ useBackNavigate: () => vi.fn() }));
+vi.mock('@utils/supabase/info', () => ({ publicAnonKey: 'test-anon-key' }));
+vi.mock('@/app/services/runtimeEnvironment', () => ({
+  RUNTIME_ENVIRONMENT: { apiBaseUrl: 'https://test.local/api' },
+}));
+vi.mock('@/app/services/networkClient', () => ({
+  fetchJsonWithRetry: (...args: unknown[]) => fetchJsonWithRetryMock(...args),
+  isAuthError: () => false,
 }));
 vi.mock('sonner', () => ({
   toast: {
@@ -27,24 +37,28 @@ vi.mock('sonner', () => ({
 describe('Withdrawal page', () => {
   beforeEach(() => {
     fetchMock.mockReset();
+    fetchJsonWithRetryMock.mockReset();
     toastSuccessMock.mockReset();
     toastInfoMock.mockReset();
     toastErrorMock.mockReset();
 
-    fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ username: 'alice_01', balance: 100, holdAmount: 20 }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ([]),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ walletProfile: null }),
+    // fetchJsonWithRetry is called for the three data-loading requests
+    fetchJsonWithRetryMock
+      .mockImplementation(({ url }: { url: string }) => {
+        if (url.includes('/me/financials'))
+          return Promise.resolve({ username: 'alice_01', balance: 100, holdAmount: 20 });
+        if (url.includes('/me/withdrawals'))
+          return Promise.resolve([]);
+        if (url.includes('/me/wallet'))
+          return Promise.resolve({ walletProfile: null });
+        return Promise.resolve({});
       });
 
+    // Raw fetch is used by the submit handler
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ id: 'w1' }),
+    });
     vi.spyOn(globalThis, 'fetch').mockImplementation(fetchMock as typeof fetch);
   });
 
@@ -66,24 +80,6 @@ describe('Withdrawal page', () => {
   });
 
   it('submits withdrawal request with expected payload and shows success toast', async () => {
-    fetchMock
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ id: 'w1' }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ username: 'alice_01', balance: 100, holdAmount: 20 }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ([]),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ walletProfile: null }),
-      });
-
     render(
       <MemoryRouter>
         <Withdrawal />

@@ -1,6 +1,26 @@
 /** @vitest-environment jsdom */
 import { render, screen, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+
+// Mock virtual scrolling to render all rows in JSDOM (zero-size container)
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: (opts: { count: number; estimateSize: () => number }) => {
+    const size = opts.estimateSize();
+    return {
+      getVirtualItems: () =>
+        Array.from({ length: opts.count }, (_, i) => ({
+          index: i,
+          start: i * size,
+          end: (i + 1) * size,
+          size,
+          key: i,
+        })),
+      getTotalSize: () => opts.count * size,
+      measureElement: vi.fn(),
+    };
+  },
+}));
+
 import Transactions from '../app/admin/Transactions';
 
 function makeTx(i: number, overrides: Record<string, unknown> = {}) {
@@ -56,20 +76,11 @@ describe('Transactions admin table', () => {
     expect(screen.getByText('bob')).toBeInTheDocument();
   });
 
-  it('Previous page button is disabled on page 1', () => {
-    render(<Transactions {...baseProps} transactions={[makeTx(1)]} />);
-    expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled();
-  });
-
-  it('Next page click shows rows from page 2 when exceeding 15 items per page', () => {
-    // 16 transactions: items 1–15 on page 1, item 16 on page 2
+  it('renders all rows without pagination (virtual scroll)', () => {
     const txs = Array.from({ length: 16 }, (_, i) => makeTx(i + 1));
     render(<Transactions {...baseProps} transactions={txs} />);
-
-    expect(screen.queryByText('user16')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Next page' }));
-
+    // All 16 rows are visible in virtual scroll (no pagination)
+    expect(screen.getByText('user1')).toBeInTheDocument();
     expect(screen.getByText('user16')).toBeInTheDocument();
   });
 });

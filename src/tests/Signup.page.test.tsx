@@ -108,7 +108,7 @@ describe('Signup page', () => {
       </MemoryRouter>,
     );
 
-    const adminCodeInput = screen.getByPlaceholderText('Admin Referral Code (optional)');
+    const adminCodeInput = screen.getByPlaceholderText('Referral Code (optional)');
     fireEvent.change(adminCodeInput, { target: { value: 'AB' } });
     fireEvent.blur(adminCodeInput);
 
@@ -128,7 +128,7 @@ describe('Signup page', () => {
       </MemoryRouter>,
     );
 
-    const adminCodeInput = screen.getByPlaceholderText('Admin Referral Code (optional)');
+    const adminCodeInput = screen.getByPlaceholderText('Referral Code (optional)');
     fireEvent.change(adminCodeInput, { target: { value: 'ABCDE' } });
     fireEvent.blur(adminCodeInput);
 
