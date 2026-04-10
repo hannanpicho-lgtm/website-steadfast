@@ -20,7 +20,7 @@ export default function FAQs() {
       num: 'I',
       title: "Start Product Optimization missions",
       content: [
-        <>Minimum account balance of <H>50 USD</H> for the first <H>20</H> missions/ord</>,
+        <>Minimum account balance of <H>50 USD</H> for the first <H>40</H> missions/ord</>,
         <>A minimum renewal of <H>100 USD</H> is required to start the new missions</>,
         "Users need to complete the missions before they can request a withdrawal"
       ]
@@ -59,7 +59,7 @@ export default function FAQs() {
       num: 'V',
       title: "General Product Data",
       content: [
-        <>Platform profit is categorized into normal product data profit and 15 times combo product data profit</>,
+        <>Platform profit is categorized into normal product data profit and 10 times combo product data profit</>,
         <>Normal users will earn <H>0.5%</H> of the profit for each normal missions of optimizing</>,
         <>VIP 2 users will earn <H>1%</H> of the profit for each normal missions of optimizing</>,
         <>VIP 3 users will earn <H>1.5%</H> of the profit for each normal missions of optimizing</>,

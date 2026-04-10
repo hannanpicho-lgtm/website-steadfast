@@ -121,7 +121,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(8,15,28,0.85)', backdropFilter: 'blur(8px)' }}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[10vh] sm:pt-[15vh] p-4" style={{ backgroundColor: 'rgba(8,15,28,0.85)', backdropFilter: 'blur(8px)' }}>
       <div
         className="relative w-full max-w-lg rounded-2xl overflow-hidden"
         style={{

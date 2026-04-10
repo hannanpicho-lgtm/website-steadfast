@@ -76,7 +76,7 @@ export default function WithdrawalHistory() {
   const filtered = withdrawals.filter((w) => w.status === STATUS_MAP[activeTab]);
 
   return (
-    <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]">
+    <div className="flex min-h-screen flex-col overflow-auto pb-20 bg-[#0a0a0a]">
       <Header onContactClick={() => setIsChatOpen(true)} />
 
       <div className="max-w-3xl mx-auto px-4 py-5">
@@ -126,7 +126,11 @@ export default function WithdrawalHistory() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <p className="text-center text-gray-500 text-sm py-16 space-y-3">\n            <span className="block text-4xl mb-3">📋</span>\n            <span className="block text-gray-400 font-medium">No withdrawal records found</span>\n            <span className="block text-gray-600 text-xs">Your withdrawal history will appear here once you make your first request.</span>\n          </p>
+          <div className="text-center text-sm py-16 space-y-3">
+            <span className="block text-4xl mb-3">📋</span>
+            <span className="block text-gray-400 font-medium">No withdrawal records found</span>
+            <span className="block text-gray-600 text-xs">Your withdrawal history will appear here once you make your first request.</span>
+          </div>
         ) : (
           <div className="space-y-3">
             {filtered.map((item) => (

@@ -93,10 +93,10 @@ export default function Certificate() {
 
 
   return (
-    <div className="size-full overflow-auto bg-[#0a0a0a] pb-20">
+    <div className="flex min-h-screen flex-col bg-[#0a0a0a] pb-20">
       <Header onContactClick={() => setIsChatOpen(true)} />
 
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="max-w-2xl mx-auto px-2 py-3 flex-1 w-full">
         {/* Back + Title */}
         <div className="flex items-center gap-4 mb-6">
           <button onClick={goBack} aria-label="Go back" className="btn-mobile-icon">
@@ -122,8 +122,8 @@ export default function Certificate() {
         {!loading && !error && userData && (
           <>
             {/* Official Certificate */}
-            <div className="mb-6 rounded-2xl border border-slate-300/80 bg-gradient-to-b from-slate-100 to-slate-200 p-3 shadow-[0_16px_42px_-22px_rgba(15,23,42,0.55)]">
-              <div className="rounded-xl border border-slate-400/70 bg-white p-2 shadow-inner">
+            <div className="rounded-2xl border border-slate-300/80 bg-gradient-to-b from-slate-100 to-slate-200 p-2 shadow-[0_16px_42px_-22px_rgba(15,23,42,0.55)]">
+              <div className="rounded-xl border border-slate-400/70 bg-white p-1.5 shadow-inner">
                 <div className="overflow-hidden rounded-lg border-2 border-slate-500/60 bg-white">
                   <img
                     src="/certificate-official.webp"
