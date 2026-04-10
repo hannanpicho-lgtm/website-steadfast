@@ -842,7 +842,9 @@ export default function Starting() {
             ? {
                 productPrice: premiumDisplayPrice,
               }
-            : {},
+            : {
+                taskId: currentProduct?.id,
+              },
         ),
       });
 
