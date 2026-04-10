@@ -1,6 +1,7 @@
 import { Home, FileCheck, ChevronDown } from 'lucide-react';
 import { Link, useLocation } from 'react-router';
 import { memo, useMemo, useCallback, useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png';
 
 const NAV_STYLES = `
@@ -91,8 +92,21 @@ export const BottomNavigation = memo(function BottomNavigation() {
   const rafRef = useRef(0);
 
   useEffect(() => {
+    // Find the actual scrolling container (page div with overflow-auto or the document)
+    function getScrollContainer(): Element {
+      const mainContent = document.getElementById('main-content');
+      if (mainContent) {
+        // Walk down to find the first scrollable child
+        const walker = mainContent.querySelector('[class*="overflow-auto"], [class*="overflow-y"]');
+        if (walker && walker.scrollHeight > walker.clientHeight) return walker;
+      }
+      return document.scrollingElement ?? document.documentElement;
+    }
+
+    let scrollEl: Element;
+
     function checkScroll() {
-      const scrollEl = document.scrollingElement ?? document.documentElement;
+      scrollEl ??= getScrollContainer();
       const distFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
       setShowFab(distFromBottom > 200);
     }
@@ -102,17 +116,28 @@ export const BottomNavigation = memo(function BottomNavigation() {
       rafRef.current = requestAnimationFrame(checkScroll);
     }
 
-    // Initial check
+    // Re-detect scroll container on route change
+    scrollEl = getScrollContainer();
     checkScroll();
+
+    // Listen on both the scroll container and window
+    scrollEl.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
+      scrollEl.removeEventListener('scroll', onScroll);
       window.removeEventListener('scroll', onScroll);
       cancelAnimationFrame(rafRef.current);
     };
   }, [location.pathname]);
 
   const scrollToNav = useCallback(() => {
-    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+    const mainContent = document.getElementById('main-content');
+    const scrollEl = mainContent?.querySelector('[class*="overflow-auto"], [class*="overflow-y"]');
+    if (scrollEl && scrollEl.scrollHeight > scrollEl.clientHeight) {
+      scrollEl.scrollTo({ top: scrollEl.scrollHeight, behavior: 'smooth' });
+    } else {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+    }
   }, []);
 
   // F4: Prefetch route chunks on hover for instant nav
@@ -120,7 +145,14 @@ export const BottomNavigation = memo(function BottomNavigation() {
   const prefetchStarting = useCallback(() => { import(/* @vite-ignore */ '../pages/Starting').catch(() => {}); }, []);
   const prefetchRecords = useCallback(() => { import(/* @vite-ignore */ '../pages/Records').catch(() => {}); }, []);
 
-  return (
+  // Portal target — renders outside PageTransition's transform container
+  const portalTarget = typeof document !== 'undefined'
+    ? document.getElementById('bottom-nav-portal') ?? document.body
+    : null;
+
+  if (!portalTarget) return null;
+
+  return createPortal(
     <>
       {/* Floating scroll-to-nav button */}
       <button
@@ -191,6 +223,7 @@ export const BottomNavigation = memo(function BottomNavigation() {
       </div>
       {styleTag}
     </nav>
-    </>
+    </>,
+    portalTarget,
   );
 });

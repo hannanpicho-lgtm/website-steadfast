@@ -66,6 +66,7 @@ export default function RootLayout() {
           <Outlet />
         </PageTransition>
       </div>
+      <div id="bottom-nav-portal" />
     </>
   );
 }
