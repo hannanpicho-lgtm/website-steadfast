@@ -1,4 +1,4 @@
-import { ChevronLeft, Bitcoin, CheckCircle2, Loader2 } from 'lucide-react';
+import { ChevronLeft, Bitcoin, CheckCircle2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useState, useEffect, lazy, Suspense } from 'react';

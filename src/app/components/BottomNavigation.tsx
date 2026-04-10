@@ -20,14 +20,6 @@ const NAV_STYLES = `
     0% { transform: translateX(-130%); }
     100% { transform: translateX(130%); }
   }
-  @keyframes platformSideFloat {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-1px); }
-  }
-  @keyframes platformSideUnderlinePulse {
-    0%, 100% { opacity: 0.85; }
-    50% { opacity: 1; }
-  }
   .platform-icon-float { animation: platformFloat 2.8s ease-in-out infinite; }
   .platform-glow-aura {
     background: radial-gradient(circle, rgba(0, 217, 255, 0.18) 0%, rgba(0, 217, 255, 0) 70%);
@@ -41,31 +33,32 @@ const NAV_STYLES = `
     background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.42) 50%, transparent 80%);
     transform: translateX(-130%);
     animation: platformSheenSweep 2.8s ease-in-out infinite;
+    animation-iteration-count: 3;
     opacity: 0.6;
   }
   .platform-title-glow { text-shadow: 0 0 10px rgba(77, 208, 255, 0.42); }
   .platform-underline-pulse {
-    animation: platformUnderlinePulse 2.2s ease-in-out infinite;
+    animation: platformUnderlinePulse 2.2s ease-in-out 3;
     box-shadow: 0 0 9px rgba(0, 217, 255, 0.48);
   }
   .platform-side-glow {
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 14px rgba(1,43,72,0.28), 0 0 10px rgba(0,217,255,0.12);
   }
-  .platform-side-float { animation: platformSideFloat 2.6s ease-in-out infinite; }
+  .platform-side-float { animation: platformFloat 2.8s ease-in-out 3; }
   .platform-side-sheen {
     background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.28) 50%, transparent 80%);
     transform: translateX(-130%);
-    animation: platformSheenSweep 3.2s ease-in-out infinite;
+    animation: platformSheenSweep 3.2s ease-in-out 3;
     opacity: 0.45;
   }
   .platform-side-hover-sheen {
     background: linear-gradient(120deg, transparent 20%, rgba(255, 255, 255, 0.2) 50%, transparent 80%);
     transform: translateX(-130%);
-    animation: platformSheenSweep 1.8s ease-in-out infinite;
+    animation: platformSheenSweep 1.8s ease-in-out 1;
   }
   .platform-side-title-glow { text-shadow: 0 0 7px rgba(77, 208, 255, 0.32); }
   .platform-side-underline-pulse {
-    animation: platformSideUnderlinePulse 2.4s ease-in-out infinite;
+    animation: platformUnderlinePulse 2.4s ease-in-out 3;
     box-shadow: 0 0 7px rgba(0, 217, 255, 0.42);
   }
   @media (prefers-reduced-motion: reduce) {

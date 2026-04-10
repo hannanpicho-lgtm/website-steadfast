@@ -1,4 +1,4 @@
-import { ChevronLeft, Loader2 } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useEffect, useState, lazy, Suspense } from 'react';
@@ -126,7 +126,7 @@ export default function WithdrawalHistory() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <p className="text-center text-gray-500 text-sm py-16">No withdrawal records found</p>
+          <p className="text-center text-gray-500 text-sm py-16 space-y-3">\n            <span className="block text-4xl mb-3">📋</span>\n            <span className="block text-gray-400 font-medium">No withdrawal records found</span>\n            <span className="block text-gray-600 text-xs">Your withdrawal history will appear here once you make your first request.</span>\n          </p>
         ) : (
           <div className="space-y-3">
             {filtered.map((item) => (

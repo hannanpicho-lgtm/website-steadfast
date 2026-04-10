@@ -343,11 +343,13 @@ export default function Signup() {
             </p>
           </div>
 
-          {errorText ? (
-            <div className="rounded-xl px-4 py-3 text-sm font-medium text-red-300" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)' }}>
-              {errorText}
-            </div>
-          ) : null}
+          <div role="alert" aria-live="assertive" aria-atomic="true">
+            {errorText ? (
+              <div className="rounded-xl px-4 py-3 text-sm font-medium text-red-300" style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                {errorText}
+              </div>
+            ) : null}
+          </div>
 
           {/* Terms and Conditions */}
           <div className="flex items-start gap-3 pt-1">

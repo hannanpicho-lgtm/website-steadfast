@@ -42,13 +42,35 @@ import logoImage from '../../assets/4b611159e2ff0ca97c6252bef878e480dedd2a43.png
 
 /* ── Image paths (Pexels royalty-free, saved in public/) ── */
 const IMAGES = {
-  heroOffice:      '/hero-office.jpg',           // Warm home office with monitor, plants
-  personWorking1:  '/person-working-1.jpg',      // Professional woman working at desk
-  personWorking2:  '/person-working-2.jpg',      // Woman at home office desk
-  dashboardLight:  '/dashboard-light.jpg',       // Laptop showing analytics dashboard
-  dashboardDark:   '/dashboard-dark.jpg',        // Monitor with statistics / dark charts
-  dashboardGrid:   '/dashboard-grid.jpg',        // Workspace with analytical graphs
+  heroOffice:      '/hero-office',               // Warm home office with monitor, plants
+  personWorking1:  '/person-working-1',           // Professional woman working at desk
+  personWorking2:  '/person-working-2',           // Woman at home office desk
+  dashboardLight:  '/dashboard-light',            // Laptop showing analytics dashboard
+  dashboardDark:   '/dashboard-dark',             // Monitor with statistics / dark charts
+  dashboardGrid:   '/dashboard-grid',             // Workspace with analytical graphs
 } as const;
+
+/** Responsive picture: WebP with JPG fallback */
+function OptimizedImg({ src, alt, className, width, height, loading = 'lazy', fetchPriority }: {
+  src: string; alt: string; className?: string; width?: number; height?: number;
+  loading?: 'lazy' | 'eager'; fetchPriority?: 'high' | 'low' | 'auto';
+}) {
+  return (
+    <picture>
+      <source srcSet={`${src}.webp`} type="image/webp" />
+      <img
+        src={`${src}.jpg`}
+        alt={alt}
+        className={className}
+        width={width}
+        height={height}
+        loading={loading}
+        decoding="async"
+        fetchPriority={fetchPriority}
+      />
+    </picture>
+  );
+}
 
 const focusAreas = [
   { title: 'Search',       desc: 'Google & Bing precision ROAS.',       icon: Search,    badge: '01' },
@@ -243,14 +265,14 @@ export default function Home() {
         <section className="relative min-h-[92vh] overflow-hidden" aria-label="Hero section">
           {/* Parallax background image */}
           <div ref={parallaxHero} className="absolute inset-0 -top-16 -z-10 will-change-transform">
-            <img
+            <OptimizedImg
               src={IMAGES.heroOffice}
               alt="Warm minimal workspace with wooden desk and plants"
               className="img-warm absolute inset-0 h-[120%] w-full object-cover"
               width={1920}
               height={1080}
               loading="eager"
-              decoding="async"
+              fetchPriority="high"
             />
             {/* Dark overlay gradient */}
             <div className="absolute inset-0 bg-gradient-to-b from-[#0a0a0a]/75 via-[#0a0a0a]/60 to-[#0a0a0a]" />
@@ -307,13 +329,11 @@ export default function Home() {
               <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#111]/80 shadow-[0_40px_100px_rgba(0,0,0,0.6),0_0_60px_rgba(200,149,108,0.08)]">
                 {/* Dashboard screenshot */}
                 <div className="relative">
-                  <img
+                  <OptimizedImg
                     src={IMAGES.dashboardDark}
                     alt="Steadfast analytics dashboard showing revenue charts and performance metrics"
                     className="w-full object-cover"
                     loading="eager"
-                    decoding="async"
-                    style={{ maxHeight: '380px' }}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#111] via-transparent to-transparent" />
                 </div>
@@ -397,12 +417,10 @@ export default function Home() {
         {/* ═══════════════════════════ VISUAL SHOWCASE — Person Working ═══════════════════════════ */}
         <section className="relative overflow-hidden py-20" aria-label="About our approach">
           <div ref={parallaxOffice} className="absolute inset-0 -top-12 -z-10 will-change-transform">
-            <img
+            <OptimizedImg
               src={IMAGES.personWorking1}
               alt="Professional woman working at desk with focused attention"
               className="img-warm absolute inset-0 h-[120%] w-full object-cover object-top"
-              loading="lazy"
-              decoding="async"
             />
             <div className="absolute inset-0 bg-[#0a0a0a]/80" />
             <div className="absolute inset-0 bg-gradient-to-r from-[#0a0a0a] via-[#0a0a0a]/70 to-transparent" />
@@ -477,12 +495,10 @@ export default function Home() {
             {/* Row 1: Dashboard image (left) + Channel Mastery (right) */}
             <div className="sf-reveal grid items-center gap-12 lg:grid-cols-2" data-reveal>
               <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_30px_80px_rgba(0,0,0,0.5),0_0_40px_rgba(200,149,108,0.04)]">
-                <img
+                <OptimizedImg
                   src={IMAGES.dashboardLight}
                   alt="Revenue analytics dashboard with overview charts and traffic sources"
                   className="img-warm w-full object-cover"
-                  loading="lazy"
-                  decoding="async"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/40 to-transparent" />
               </div>
@@ -550,13 +566,10 @@ export default function Home() {
               </div>
 
               <div className="relative overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_30px_80px_rgba(0,0,0,0.5),0_0_40px_rgba(200,149,108,0.04)]">
-                <img
+                <OptimizedImg
                   src={IMAGES.personWorking2}
                   alt="Professional strategist working at computer with planning board in background"
                   className="img-warm w-full object-cover"
-                  loading="lazy"
-                  decoding="async"
-                  style={{ maxHeight: '440px' }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/30 to-transparent" />
               </div>
@@ -639,12 +652,10 @@ export default function Home() {
             </div>
 
             <div className="sf-reveal relative mx-auto max-w-5xl overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_40px_100px_rgba(0,0,0,0.5),0_0_60px_rgba(200,149,108,0.06)]" data-reveal style={{ '--d': '100ms' } as React.CSSProperties}>
-              <img
+              <OptimizedImg
                 src={IMAGES.dashboardGrid}
                 alt="Collection of e-commerce dashboard templates showing various analytics views"
                 className="img-warm w-full object-cover"
-                loading="lazy"
-                decoding="async"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#0c0c0c] via-transparent to-transparent opacity-60" />
               <div className="absolute bottom-0 left-0 right-0 p-8">

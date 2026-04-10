@@ -197,6 +197,8 @@
   .btn-nav-back {
     @apply inline-flex items-center justify-center rounded bg-[#0066b3] text-white transition-colors hover:bg-[#0052a3] active:scale-95;
     padding: 0.5rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
   }
 
   .btn-mobile-primary {

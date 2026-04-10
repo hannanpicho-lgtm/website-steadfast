@@ -128,11 +128,27 @@ html {
   transform: scale(0.96);
 }
 
-/* ─── Focus-visible ring ─────────────────────────────────────── */
+/* ─── Focus-visible ring (WCAG 2.1 AA keyboard navigation) ─── */
 :focus-visible {
-  outline: 2px solid rgba(0, 217, 255, 0.6);
+  outline: 2px solid rgba(0, 217, 255, 0.7);
   outline-offset: 2px;
   border-radius: 4px;
+}
+:focus:not(:focus-visible) {
+  outline: none;
+}
+/* Ensure all interactive elements show focus ring on keyboard nav */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible,
+[role="link"]:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid rgba(0, 217, 255, 0.7);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 217, 255, 0.15);
 }
 
 /* ─── Smooth colour transitions on interactive elements ──────── */

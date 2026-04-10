@@ -18,6 +18,8 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": false,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
     "allowSyntheticDefaultImports": true
   },
   "include": ["src", "utils"],

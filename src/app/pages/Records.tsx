@@ -1,4 +1,4 @@
-import { UserCircle, ChevronLeft, Package, Clock, CheckCircle, Loader2, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { ChevronLeft, Package, Clock, CheckCircle, Loader2, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useState, useEffect, useTransition, lazy, Suspense } from 'react';

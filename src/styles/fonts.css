@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&display=swap');
+/* Font loaded via <link preload> in index.html for non-blocking FCP */
 
 :root {
 	--font-family-ui: 'Manrope', 'Segoe UI', 'Inter', 'Roboto', 'Helvetica Neue', Arial, sans-serif;

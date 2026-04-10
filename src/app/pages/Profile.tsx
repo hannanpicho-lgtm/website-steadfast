@@ -1,4 +1,4 @@
-import { ArrowLeft, User, Link as LinkIcon, Users, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle, PencilLine, Mars, Venus, UserRound, Check } from 'lucide-react';
+import { ArrowLeft, User, Link as LinkIcon, Bell, Globe, LogOut, ChevronDown, Copy, MessageSquare, HelpCircle, PencilLine, Mars, Venus, UserRound, Check } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useState, useEffect, useRef, lazy, Suspense } from 'react';

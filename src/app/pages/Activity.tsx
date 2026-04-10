@@ -1,4 +1,4 @@
-import { ChevronLeft, Loader2 } from 'lucide-react';
+import { ChevronLeft } from 'lucide-react';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useEffect, useState, lazy, Suspense } from 'react';
 const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
@@ -415,7 +415,10 @@ export default function Activity() {
           <h3 className="text-white text-sm font-semibold mb-2">Recent Activity Log</h3>
           <div className="space-y-2 max-h-56 overflow-auto pr-1">
             {recentActivity.length === 0 ? (
-              <p className="text-gray-400 text-sm">No recent activity found for this session.</p>
+              <p className="text-gray-400 text-sm py-4 text-center">
+                <span className="block text-2xl mb-2">📊</span>
+                No recent activity found for this session.
+              </p>
             ) : recentActivity.map((entry) => (
               <div key={entry.id} className="bg-[#111827] rounded-lg px-3 py-2 flex items-start justify-between gap-3">
                 <div>

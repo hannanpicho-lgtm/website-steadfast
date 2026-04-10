@@ -2,26 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import {
   X,
-  Eye,
   Check,
   XCircle,
-  Percent,
   Target,
-  TrendingDown,
   Image,
   Sparkles,
   Upload,
   Edit,
-  Tag,
-  Link as LinkIcon,
   Gift,
   Award,
-  RefreshCw,
-  Calculator,
-  AlertTriangle,
-  Info,
   Copy,
-  CheckCircle,
 } from 'lucide-react';
 import type { RewardsConfig } from '../services/rewardsConfig';
 import type { VipConfig } from '../services/vipConfig';

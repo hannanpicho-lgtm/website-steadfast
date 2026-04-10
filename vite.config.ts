@@ -30,6 +30,8 @@ export default defineConfig({
           if (id.includes('node_modules/lucide-react/')) return 'vendor-icons';
           if (id.includes('node_modules/@supabase/')) return 'vendor-supabase';
           if (id.includes('node_modules/sonner/')) return 'vendor-toast';
+          if (id.includes('node_modules/framer-motion/')) return 'vendor-animation';
+          if (id.includes('node_modules/i18next') || id.includes('node_modules/react-i18next')) return 'vendor-i18n';
 
           // Shared layout components used by 12-14 pages — deduplicate into one chunk
           if (

@@ -99,7 +99,7 @@ export const FinancialSummaryPanel = memo(function FinancialSummaryPanel(props: 
   );
 
   return (
-    <div className="relative mb-5 overflow-hidden rounded-[18px] bg-[linear-gradient(145deg,#0b72e7_0%,#0d92f4_52%,#19c0ff_100%)] text-white shadow-[0_16px_36px_rgba(6,58,145,0.22)]">
+    <div className="relative mb-5 overflow-hidden rounded-[18px] bg-[linear-gradient(145deg,#0b72e7_0%,#0d92f4_52%,#19c0ff_100%)] text-white shadow-[0_16px_36px_rgba(6,58,145,0.22)]" role="region" aria-label="Financial summary" aria-live="polite">
       <div className="absolute inset-x-0 top-0 h-16 bg-white/10 blur-3xl" />
       <div className="relative p-3 md:p-4">
         <div className="mx-auto max-w-md text-center">

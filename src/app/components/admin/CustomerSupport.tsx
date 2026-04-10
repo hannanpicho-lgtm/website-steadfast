@@ -16,12 +16,9 @@ import {
   AlertCircle,
   XCircle,
   User,
-  Filter,
   Search,
   Link as LinkIcon,
-  Plus,
   Edit,
-  Trash2,
   Save,
   Eye
 } from 'lucide-react';
