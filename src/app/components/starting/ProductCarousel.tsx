@@ -39,25 +39,42 @@ export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onI
       <button
         onClick={() => onIndexChange(i => (i - 1 + tasks.length) % tasks.length)}
         aria-label="Previous slide"
-        className="absolute left-1 sm:left-2 top-1/2 -translate-y-1/2 z-10 bg-[#1a1f2e]/80 hover:bg-[#252d42] backdrop-blur-sm border border-white/20 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
+        className="absolute left-1 sm:left-2 top-[40%] -translate-y-1/2 z-10 bg-[#1a1f2e]/80 hover:bg-[#252d42] backdrop-blur-sm border border-white/20 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
       >
         <ChevronLeft size={20} className="text-gray-300" />
       </button>
 
       {/* Slide content */}
       <div className="text-center px-6 sm:px-8">
-        <div className="flex items-center justify-center mb-4 h-[260px] sm:h-[300px]">
-          <img
-            key={slide.id}
-            src={slide.image}
-            alt={getPrimaryLabel(slide.product)}
-            width={320}
-            height={300}
-            loading="lazy"
-            className="max-h-[250px] sm:max-h-[290px] max-w-[280px] sm:max-w-[320px] w-full object-contain"
-          />
+        {/* 3D Cinema Display Frame */}
+        <div className="flex items-center justify-center mb-4 h-[180px]">
+          <div
+            className="relative flex items-center justify-center w-[220px] sm:w-[260px] h-[170px] sm:h-[180px] rounded-xl"
+            style={{
+              background: 'linear-gradient(145deg, #1e2740, #151b2e)',
+              border: '2px solid rgba(0, 217, 255, 0.15)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 20px rgba(0,217,255,0.06), inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -2px 6px rgba(0,0,0,0.3)',
+              perspective: '800px',
+              transform: 'perspective(800px) rotateX(1deg)',
+            }}
+          >
+            {/* Screen bezel highlight */}
+            <div className="absolute inset-[3px] rounded-lg overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 30%)' }} />
+            {/* Product image — fills the display */}
+            <img
+              key={slide.id}
+              src={slide.image}
+              alt={getPrimaryLabel(slide.product)}
+              width={240}
+              height={170}
+              loading="lazy"
+              className="relative z-[1] max-h-[155px] sm:max-h-[165px] max-w-[200px] sm:max-w-[235px] w-full object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
+            />
+            {/* Reflection edge at bottom */}
+            <div className="absolute inset-x-0 bottom-0 h-8 rounded-b-lg" style={{ background: 'linear-gradient(to top, rgba(0,217,255,0.04), transparent)' }} />
+          </div>
         </div>
-          <h3 className="text-base font-semibold text-white mb-2 line-clamp-2">{slide.product}</h3>
+        <h3 className="text-base font-semibold text-white mb-2 line-clamp-2">{slide.product}</h3>
         <div className="flex items-center justify-center gap-1 mb-2">
           <span className="text-yellow-500">⭐</span>
           <span className="text-sm font-semibold text-gray-300">{slide.rating}</span>
@@ -69,7 +86,7 @@ export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onI
       <button
         onClick={() => onIndexChange(i => (i + 1) % tasks.length)}
         aria-label="Next slide"
-        className="absolute right-1 sm:right-2 top-1/2 -translate-y-1/2 z-10 bg-[#1a1f2e]/80 hover:bg-[#252d42] backdrop-blur-sm border border-white/20 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
+        className="absolute right-1 sm:right-2 top-[40%] -translate-y-1/2 z-10 bg-[#1a1f2e]/80 hover:bg-[#252d42] backdrop-blur-sm border border-white/20 rounded-full p-1.5 shadow-md transition-all hover:scale-110"
       >
         <ChevronRight size={20} className="text-gray-300" />
       </button>
