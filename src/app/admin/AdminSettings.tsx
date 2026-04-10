@@ -142,8 +142,8 @@ export default function AdminSettings({ isSuperAdmin }: AdminSettingsProps) {
         <p className="text-gray-400 text-sm mt-1">Configure global platform settings and parameters</p>
       </div>
 
-      {/* Platform Mode (Kill-Switch) Panel */}
-      <PlatformModePanel isSuperAdmin={isSuperAdmin} />
+      {/* Platform Mode (Kill-Switch) Panel — super admin only */}
+      {isSuperAdmin && <PlatformModePanel isSuperAdmin={isSuperAdmin} />}
 
       <div className="space-y-4">
         {/* General Settings */}
