@@ -148,12 +148,14 @@ export interface AdminModalsProps {
 
 function ModalFocusTrap({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
         return;
       }
       // Trap Tab focus within the modal
@@ -194,7 +196,7 @@ function ModalFocusTrap({ onClose, children }: { onClose: () => void; children: 
       document.body.style.overflow = prev;
       clearTimeout(timer);
     };
-  }, [onClose]);
+  }, []);
 
   return (
     <div
