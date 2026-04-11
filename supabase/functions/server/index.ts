@@ -7760,6 +7760,106 @@ async function handleStartingSnapshot(c: any) {
   }
 }
 
+function buildPremiumTaskRecordMetadata(premium: any, completedTaskIndex: number) {
+  const bundledProducts = Array.isArray(premium?.bundledProducts) ? premium.bundledProducts : [];
+
+  if (completedTaskIndex <= 0) {
+    const productName = typeof premium?.premiumProductName === 'string' && premium.premiumProductName.trim()
+      ? premium.premiumProductName.trim()
+      : 'Premium Product';
+    return {
+      taskId: `premium-primary:${premium?.id ?? 'unknown'}`,
+      merchant: 'Premium Assignment',
+      productName,
+      image: typeof premium?.image === 'string' && premium.image.trim()
+        ? premium.image.trim()
+        : (typeof bundledProducts[0]?.image === 'string' ? sanitizeTaskUrl(bundledProducts[0].image) : ''),
+      rating: Number.isFinite(Number(premium?.rating)) ? Number(premium.rating) : 5,
+      productUrl: typeof premium?.productUrl === 'string' ? sanitizeTaskUrl(premium.productUrl) : '',
+    };
+  }
+
+  const bundledProduct = bundledProducts[completedTaskIndex - 1];
+  if (!bundledProduct || typeof bundledProduct !== 'object') {
+    return null;
+  }
+
+  return {
+    taskId: `premium-bundled:${premium?.id ?? 'unknown'}:${completedTaskIndex}`,
+    merchant: 'Premium Assignment',
+    productName: sanitizeTaskText(bundledProduct.name, `Bundled Product ${completedTaskIndex}`),
+    image: sanitizeTaskUrl(bundledProduct.image),
+    rating: Number.isFinite(Number(bundledProduct.rating)) ? Number(bundledProduct.rating) : 4.5,
+    productUrl: '',
+  };
+}
+
+async function hydratePremiumTaskRecords(username: string, tasks: any[]) {
+  const premiumIds = Array.from(new Set(
+    tasks
+      .filter((task: any) => task?.isPremium && typeof task?.premiumBundleId === 'string' && task.premiumBundleId)
+      .map((task: any) => task.premiumBundleId),
+  ));
+
+  if (premiumIds.length === 0) {
+    return tasks;
+  }
+
+  const premiumEntries = await Promise.all(
+    premiumIds.map(async (premiumId) => [premiumId, await kv.get(`premium:${username}:${premiumId}`)] as const),
+  );
+  const premiumById = new Map(
+    premiumEntries.filter((entry): entry is readonly [string, any] => Boolean(entry[1])),
+  );
+
+  const groupedPremiumTasks = new Map<string, Array<{ task: any; index: number }>>();
+  tasks.forEach((task: any, index: number) => {
+    if (!task?.isPremium || typeof task?.premiumBundleId !== 'string' || !task.premiumBundleId) {
+      return;
+    }
+    const existingGroup = groupedPremiumTasks.get(task.premiumBundleId) ?? [];
+    existingGroup.push({ task, index });
+    groupedPremiumTasks.set(task.premiumBundleId, existingGroup);
+  });
+
+  const hydratedByIndex = new Map<number, any>();
+  groupedPremiumTasks.forEach((records, premiumId) => {
+    const premium = premiumById.get(premiumId);
+    if (!premium) {
+      return;
+    }
+
+    const orderedRecords = [...records].sort((left, right) =>
+      new Date(left.task.timestamp).getTime() - new Date(right.task.timestamp).getTime(),
+    );
+
+    orderedRecords.forEach((record, completedTaskIndex) => {
+      const metadata = buildPremiumTaskRecordMetadata(premium, completedTaskIndex);
+      if (!metadata) {
+        return;
+      }
+      hydratedByIndex.set(record.index, metadata);
+    });
+  });
+
+  return tasks.map((task: any, index: number) => {
+    const metadata = hydratedByIndex.get(index);
+    if (!metadata) {
+      return task;
+    }
+
+    return {
+      ...task,
+      taskId: typeof task?.taskId === 'string' && task.taskId ? task.taskId : metadata.taskId,
+      merchant: typeof task?.merchant === 'string' && task.merchant ? task.merchant : metadata.merchant,
+      productName: typeof task?.productName === 'string' && task.productName ? task.productName : metadata.productName,
+      image: typeof task?.image === 'string' && task.image ? task.image : metadata.image,
+      rating: Number.isFinite(Number(task?.rating)) ? Number(task.rating) : metadata.rating,
+      productUrl: typeof task?.productUrl === 'string' && task.productUrl ? task.productUrl : metadata.productUrl,
+    };
+  });
+}
+
 async function handleRecordsSnapshot(c: any) {
   const t0 = performance.now();
   try {
@@ -7806,7 +7906,7 @@ async function handleRecordsSnapshot(c: any) {
       new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime()
     );
 
-    const pagedTasks = sortedTasks.slice(0, tasksLimit);
+    const pagedTasks = await hydratePremiumTaskRecords(username, sortedTasks.slice(0, tasksLimit));
     const pagedTransactions = transactions.slice(0, transactionsLimit);
     const tBuild = performance.now();
 
@@ -8436,6 +8536,8 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
 
     const before = snapshotFinancialState(normalizedUserData);
     const premium = normalizedUserData.activePremium;
+  const completedTaskIndex = Math.max(0, Number(premium.tasksCompleted ?? 0));
+  const premiumTaskMetadata = buildPremiumTaskRecordMetadata(premium, completedTaskIndex);
 
     const vipConfig = await getVipConfigForLevel(normalizedUserData.vipLevel);
     const commissionRate = vipConfig.commission * 10;
@@ -8486,11 +8588,17 @@ async function completePremiumTaskForUser(c: any, username: string, productPrice
     const premiumKey = `premium:${username}:${premium.id}`;
     const taskKey = `task:${username}:${Date.now()}`;
     const taskRecord = {
+      taskId: premiumTaskMetadata?.taskId,
       username,
       productPrice,
       commission,
       isPremium: true,
       premiumBundleId: premium.id,
+      merchant: premiumTaskMetadata?.merchant,
+      productName: premiumTaskMetadata?.productName,
+      image: premiumTaskMetadata?.image,
+      rating: premiumTaskMetadata?.rating,
+      productUrl: premiumTaskMetadata?.productUrl,
       timestamp: new Date().toISOString(),
     };
     const transaction = buildTransactionRecord({

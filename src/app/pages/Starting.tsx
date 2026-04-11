@@ -386,6 +386,10 @@ export default function Starting() {
     : 'Assigned by Steadfast';
   const premiumDisplayPrice = roundMoney(Number(userData?.activePremium?.totalBundleValue ?? userData?.activePremium?.premiumProductValue ?? 0));
   const isPremiumTaskActive = Boolean(userData?.activePremium) && premiumDisplayPrice > 0;
+  const premiumCurrentStep = Math.max(0, Number(userData?.activePremium?.tasksCompleted ?? 0));
+  const premiumBundledProducts = Array.isArray(userData?.activePremium?.bundledProducts)
+    ? userData.activePremium.bundledProducts
+    : [];
   const premiumDisplayName = (() => {
     const configuredName = typeof userData?.activePremium?.premiumProductName === 'string'
       ? userData.activePremium.premiumProductName.trim()
@@ -398,17 +402,55 @@ export default function Starting() {
       : 0;
     return bundledCount > 0 ? `Premium Bundle (${bundledCount + 1} tasks)` : 'Premium Product';
   })();
+  const premiumCurrentItem = (() => {
+    if (premiumCurrentStep === 0) {
+      return {
+        merchant: 'Premium Assignment',
+        product: premiumDisplayName,
+        image: typeof userData?.activePremium?.image === 'string' && userData.activePremium.image.trim()
+          ? userData.activePremium.image.trim()
+          : (typeof premiumBundledProducts[0]?.image === 'string' ? premiumBundledProducts[0].image : ''),
+        rating: 5,
+        productUrl: typeof userData?.activePremium?.productUrl === 'string' ? userData.activePremium.productUrl : '',
+      };
+    }
+
+    const bundledProduct = premiumBundledProducts[premiumCurrentStep - 1];
+    if (!bundledProduct) {
+      return {
+        merchant: 'Premium Assignment',
+        product: premiumDisplayName,
+        image: '',
+        rating: 5,
+        productUrl: '',
+      };
+    }
+
+    return {
+      merchant: 'Premium Assignment',
+      product: typeof bundledProduct.name === 'string' && bundledProduct.name.trim()
+        ? bundledProduct.name
+        : premiumDisplayName,
+      image: typeof bundledProduct.image === 'string' ? bundledProduct.image : '',
+      rating: Number.isFinite(Number(bundledProduct.rating)) ? Number(bundledProduct.rating) : 4.5,
+      productUrl: '',
+    };
+  })();
   const displayProduct = isPremiumTaskActive
     ? {
         id: String(userData?.activePremium?.id ?? 'premium-task'),
-        merchant: 'Premium Assignment',
-        product: premiumDisplayName,
+        merchant: typeof premiumCurrentItem?.merchant === 'string' && premiumCurrentItem.merchant.trim()
+          ? premiumCurrentItem.merchant
+          : 'Premium Assignment',
+        product: typeof premiumCurrentItem?.product === 'string' && premiumCurrentItem.product.trim()
+          ? premiumCurrentItem.product
+          : premiumDisplayName,
         price: premiumDisplayPrice,
         commission: roundMoney(premiumDisplayPrice * (premiumCommissionRate / 100)),
         status: 'Active' as const,
-        image: currentProduct?.image ?? activeTasks[0]?.image ?? '',
-        rating: 5,
-        productUrl: '',
+        image: typeof premiumCurrentItem?.image === 'string' ? premiumCurrentItem.image : '',
+        rating: Number.isFinite(Number(premiumCurrentItem?.rating)) ? Number(premiumCurrentItem.rating) : 5,
+        productUrl: typeof premiumCurrentItem?.productUrl === 'string' ? premiumCurrentItem.productUrl : '',
       }
     : currentProduct;
   const displayCommissionRate = isPremiumTaskActive ? premiumCommissionRate : commissionRate;
@@ -830,7 +872,9 @@ export default function Starting() {
             ? {
                 productPrice: premiumDisplayPrice,
               }
-            : {},
+            : {
+                taskId: currentProduct?.id,
+              },
         ),
       });
 
