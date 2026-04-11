@@ -255,7 +255,6 @@ export default function Starting() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [currentProductIndex, setCurrentProductIndex] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const [lastCommission, setLastCommission] = useState(0);
   const [isPremium, setIsPremium] = useState(false);
@@ -314,7 +313,7 @@ export default function Starting() {
     return tierTaggedActive.length > 0 ? tierTaggedActive : allActive;
   }, [taskCatalog, currentVipLevel, vipPriceMin, vipPriceMax, hasVipPriceRange]);
 
-  const currentProduct = activeTasks.length > 0 ? activeTasks[currentProductIndex % activeTasks.length] : null;
+  const currentProduct = activeTasks.length > 0 ? activeTasks[carouselIndex % activeTasks.length] : null;
 
   // Auto-advance carousel (VIP-appropriate products only)
   useEffect(() => {
@@ -960,7 +959,7 @@ export default function Starting() {
       
       // Move to next product
       if (!isSubmittingPremiumTask) {
-        setCurrentProductIndex((prev) => prev + 1);
+        setCarouselIndex((prev) => prev + 1);
       }
       
       // Hide success message after 3 seconds
