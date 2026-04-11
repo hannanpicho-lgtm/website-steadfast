@@ -48,6 +48,8 @@ const IMAGES = {
   dashboardLight:  '/dashboard-light',            // Laptop showing analytics dashboard
   dashboardDark:   '/dashboard-dark',             // Monitor with statistics / dark charts
   dashboardGrid:   '/dashboard-grid',             // Workspace with analytical graphs
+  productMockupDark:  '/product-mockup-dark',      // Laptop + monitor setup (dark studio)
+  productMockupLight: '/product-mockup-light',     // Laptop + monitor setup (light desk)
 } as const;
 
 /** Responsive picture: WebP with JPG fallback */
@@ -662,6 +664,34 @@ export default function Home() {
                 <Link to="/signup" className="inline-flex items-center gap-2 rounded-xl bg-[#c8956c] px-6 py-3 text-sm font-bold text-[#0a0a0a] shadow-[0_6px_24px_rgba(200,149,108,0.3)] transition hover:bg-[#d4a87d]">
                   Explore the Platform <ArrowRight size={16} />
                 </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════ PRODUCT SHOWCASE ═══════════════════════════ */}
+        <section className="border-t border-white/[0.06] py-20" aria-label="Product showcase">
+          <div className="mx-auto max-w-7xl px-5 sm:px-8 lg:px-12">
+            <div className="sf-reveal mb-12 text-center" data-reveal>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-[#c8956c]">Experience the Platform</p>
+              <h2 className="mt-3 text-3xl font-black text-[#f5f0eb] sm:text-4xl">Designed for Every Screen</h2>
+              <p className="mx-auto mt-4 max-w-lg text-[#a89f95]">Pixel-perfect across desktop and mobile — built for the way modern teams work.</p>
+            </div>
+
+            <div className="grid gap-8 md:grid-cols-2">
+              <div className="sf-reveal overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_40px_100px_rgba(0,0,0,0.5),0_0_60px_rgba(200,149,108,0.06)] transition-transform duration-500 hover:scale-[1.02]" data-reveal style={{ '--d': '0ms' } as React.CSSProperties}>
+                <OptimizedImg
+                  src={IMAGES.productMockupDark}
+                  alt="Steadfast Digital platform displayed on laptop and ultrawide monitor in a professional dark studio setup"
+                  className="w-full object-cover"
+                />
+              </div>
+              <div className="sf-reveal overflow-hidden rounded-2xl border border-white/[0.08] shadow-[0_40px_100px_rgba(0,0,0,0.5),0_0_60px_rgba(200,149,108,0.06)] transition-transform duration-500 hover:scale-[1.02]" data-reveal style={{ '--d': '150ms' } as React.CSSProperties}>
+                <OptimizedImg
+                  src={IMAGES.productMockupLight}
+                  alt="Steadfast Digital platform displayed on laptop and external monitor in a clean modern workspace"
+                  className="w-full object-cover"
+                />
               </div>
             </div>
           </div>
