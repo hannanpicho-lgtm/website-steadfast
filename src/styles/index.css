@@ -547,6 +547,7 @@ textarea {
 .sc-kb-cell img {
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: cover; border-radius: 0.75rem; opacity: 0;
+  will-change: transform, opacity;
 }
 .sc-kb-cell:hover img { animation-play-state: paused !important; }
 
@@ -647,4 +648,13 @@ textarea {
 
 @media (max-width: 640px) {
   .sc-kb-cell, .sc-vid-cell { height: 120px; }
+}
+
+/* ── Mobile: disable expensive gradient-text animation ── */
+@media (max-width: 640px) {
+  .sf-heading-gradient,
+  .sf-heading-gradient-cool,
+  .sf-heading-gradient-warm {
+    animation: none;
+  }
 }

@@ -101,7 +101,7 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
   return (
     <Link
       to={item.to}
-      className="sf-btn-magnetic sf-ripple group relative flex h-[82px] flex-col items-center justify-center gap-1.5 overflow-hidden rounded-2xl px-2 sm:h-[88px] sm:px-3"
+      className="sf-btn-magnetic sf-ripple group relative flex h-[58px] flex-col items-center justify-center gap-1 overflow-hidden rounded-xl px-1.5 sm:h-[82px] sm:gap-1.5 sm:rounded-2xl sm:px-3"
       style={{
         background: item.bg,
         boxShadow: `0 4px 16px ${item.accent}25, 0 1px 3px rgba(0,0,0,0.15), inset 0 1px 0 rgba(255,255,255,0.15)`,
@@ -115,17 +115,17 @@ function QuickLinkCard({ item }: { item: QuickLinkItem }) {
 
       {/* Icon */}
       <div
-        className="relative z-10 flex h-9 w-9 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110"
+        className="relative z-10 flex h-7 w-7 items-center justify-center rounded-lg transition-transform duration-300 group-hover:scale-110 sm:h-9 sm:w-9 sm:rounded-xl"
         style={{
           background: 'rgba(255,255,255,0.22)',
           boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.3)',
         }}
       >
-        <Icon size={17} strokeWidth={2.2} className="text-white/90" />
+        <Icon size={14} strokeWidth={2.2} className="text-white/90 sm:!h-[17px] sm:!w-[17px]" />
       </div>
 
       {/* Label */}
-      <span className="relative z-10 text-center text-[0.72rem] font-bold leading-tight tracking-wide text-white sm:text-[0.82rem]">
+      <span className="relative z-10 text-center text-[0.65rem] font-bold leading-tight tracking-wide text-white sm:text-[0.82rem]">
         {item.title}
       </span>
     </Link>
@@ -152,6 +152,76 @@ for (let i = 0; i < clientBrands.length; i += 3) {
   clientSlides.push(clientBrands.slice(i, i + 3));
 }
 
+/* ── Isolated carousel component — keeps 4s re-render out of parent ── */
+function ClientCarousel() {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setIdx((i) => (i + 1) % clientSlides.length), 4000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div className="overflow-hidden rounded-xl">
+      <div
+        className="flex transition-transform ease-in-out"
+        style={{ transform: `translateX(-${idx * 100}%)`, transitionDuration: '600ms' }}
+      >
+        {clientSlides.map((slide, slideIdx) => (
+          <div key={slideIdx} className="flex min-w-full gap-2.5 sm:gap-3">
+            {slide.map((brand, bi) =>
+              brand.name ? (
+                <div
+                  key={brand.name}
+                  className="relative flex flex-1 cursor-default select-none flex-col items-center justify-center overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-1"
+                  style={{
+                    background: brand.bg,
+                    border: `1.5px solid ${brand.border}`,
+                    minHeight: '96px',
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  <div className="flex w-full flex-col items-center justify-center gap-0.5 px-2 pb-3 pt-4">
+                    <span
+                      className="text-center text-[0.95rem] font-black leading-none tracking-tight sm:text-lg"
+                      style={{ color: brand.nameColor }}
+                    >
+                      {brand.name}
+                    </span>
+                    {brand.sub && (
+                      <span
+                        className="mt-1 text-center text-[0.5rem] font-bold uppercase tracking-[0.2em] sm:text-[0.6rem]"
+                        style={{ color: brand.subColor || brand.nameColor }}
+                      >
+                        {brand.sub}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div key={`empty-${slideIdx}-${bi}`} className="flex-1" />
+              ),
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="mt-5 flex items-center justify-center gap-1.5">
+        {clientSlides.map((_, i) => (
+          <button
+            key={i}
+            onClick={() => setIdx(i)}
+            className="h-[5px] rounded-full transition-all duration-300"
+            style={{
+              width: i === idx ? '22px' : '7px',
+              background: i === idx ? '#c8956c' : 'rgba(200,149,108,0.25)',
+            }}
+            aria-label={`Show clients ${i * 3 + 1}–${Math.min(i * 3 + 3, 10)}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── Scroll-reveal — now uses shared hook ── */
 function RevealSection({ children, className, style, delay = 0 }: {
   children: React.ReactNode;
@@ -176,17 +246,9 @@ function RevealSection({ children, className, style, delay = 0 }: {
 
 export default function UserHome() {
   const [isChatOpen, setIsChatOpen] = useState(false);
-  const [clientIndex, setClientIndex] = useState(0);
   const [isVideoPlaying, setIsVideoPlaying] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
   const { shouldShow: showOnboarding, completeOnboarding } = useOnboarding();
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setClientIndex((i) => (i + 1) % clientSlides.length);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, []);
 
   const toggleVideo = useCallback(() => {
     const v = videoRef.current;
@@ -344,14 +406,11 @@ export default function UserHome() {
         {/* ═══════════════════════════════════════════
             QUICK ACCESS — Dark Glass Console
         ═══════════════════════════════════════════ */}
-        <section className="uh-glass-sheen uh-silk-edge mt-5 overflow-hidden rounded-3xl px-4 py-6 sm:px-6 sm:py-7" style={glassPanel}>
-          <p className="mb-1 text-center text-[0.62rem] font-bold uppercase tracking-[0.28em] sm:text-[0.7rem]" style={{ color: '#c8956c' }}>
+        <section className="uh-glass-sheen uh-silk-edge mt-3 overflow-hidden rounded-3xl px-3 py-4 sm:mt-5 sm:px-6 sm:py-7" style={glassPanel}>
+          <p className="mb-3 text-center text-[0.62rem] font-bold uppercase tracking-[0.28em] sm:mb-5 sm:text-[0.7rem]" style={{ color: '#c8956c' }}>
             Quick Access
           </p>
-          <h2 className="mb-5 text-center text-[1.1rem] font-extrabold sm:text-[1.25rem]" style={{ color: '#f5f0eb' }}>
-            One-Tap Features
-          </h2>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
             {quickLinkConfig.map((item) => (
               <QuickLinkCard key={item.title} item={item} />
             ))}
@@ -361,21 +420,21 @@ export default function UserHome() {
         {/* ═══════════════════════════════════════════
             AREAS OF FOCUS — Dark Gallery Wall
         ═══════════════════════════════════════════ */}
-        <RevealSection delay={0.12} className="uh-glass-sheen uh-silk-edge mt-5 overflow-hidden rounded-3xl py-8 sm:py-10" style={glassPanel}>
-          <div className="relative z-10 px-4 sm:px-6">
+        <RevealSection delay={0.12} className="uh-glass-sheen uh-silk-edge mt-3 overflow-hidden rounded-3xl py-5 sm:mt-5 sm:py-10" style={glassPanel}>
+          <div className="relative z-10 px-3 sm:px-6">
             <p className="mb-1 text-center text-[0.62rem] font-bold uppercase tracking-[0.28em] sm:text-[0.7rem]" style={{ color: '#c8956c' }}>
               Core Capabilities
             </p>
-            <h2 className="mb-7 text-center text-[1.4rem] font-extrabold sm:mb-8 sm:text-[1.8rem]" style={{ color: '#f5f0eb' }}>
+            <h2 className="mb-4 text-center text-[1.15rem] font-extrabold sm:mb-8 sm:text-[1.8rem]" style={{ color: '#f5f0eb' }}>
               Areas of Focus
             </h2>
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 sm:gap-4 md:grid-cols-5">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-4 md:grid-cols-5">
               {focusAreas.map((area) => {
                 const IconComponent = area.icon;
                 return (
                   <div
                     key={area.title}
-                    className="group relative min-h-[140px] cursor-default overflow-hidden rounded-2xl p-4 transition-all duration-300 hover:-translate-y-1.5 sm:min-h-[160px] sm:p-5"
+                    className="group relative min-h-[100px] cursor-default overflow-hidden rounded-xl p-3 transition-all duration-300 hover:-translate-y-1.5 sm:min-h-[160px] sm:rounded-2xl sm:p-5 [&:last-child:nth-child(odd)]:col-span-2 sm:[&:last-child:nth-child(odd)]:col-span-1"
                     style={{
                       background: `linear-gradient(145deg, ${area.bgFrom}, ${area.bgTo})`,
                       border: `1px solid ${area.color}20`,
@@ -383,11 +442,11 @@ export default function UserHome() {
                     }}
                   >
                     {/* Hover glow */}
-                    <div className="absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100" style={{ boxShadow: `inset 0 0 30px ${area.color}12, 0 4px 20px ${area.color}15` }} />
+                    <div className="absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300 group-hover:opacity-100 sm:rounded-2xl" style={{ boxShadow: `inset 0 0 30px ${area.color}12, 0 4px 20px ${area.color}15` }} />
 
                     {/* Badge */}
                     <div
-                      className="absolute -right-1 -top-1 flex h-10 w-10 items-center justify-center rounded-full text-[10px] font-black text-white"
+                      className="absolute -right-1 -top-1 flex h-8 w-8 items-center justify-center rounded-full text-[9px] font-black text-white sm:h-10 sm:w-10 sm:text-[10px]"
                       style={{
                         background: `linear-gradient(135deg, ${area.color}, ${area.accent})`,
                         boxShadow: `0 3px 12px ${area.color}40`,
@@ -398,20 +457,20 @@ export default function UserHome() {
 
                     {/* Icon */}
                     <div
-                      className="relative z-10 mb-3 inline-flex rounded-xl p-2.5 transition-transform duration-300 group-hover:scale-105"
+                      className="relative z-10 mb-2 inline-flex rounded-lg p-2 transition-transform duration-300 group-hover:scale-105 sm:mb-3 sm:rounded-xl sm:p-2.5"
                       style={{
                         background: area.color,
                         color: 'white',
                         boxShadow: `0 3px 14px ${area.color}35`,
                       }}
                     >
-                      <IconComponent size={20} strokeWidth={2.2} />
+                      <IconComponent size={16} strokeWidth={2.2} className="sm:!h-5 sm:!w-5" />
                     </div>
 
-                    <h3 className="relative z-10 mb-1.5 text-[0.95rem] font-bold leading-tight" style={{ color: area.accent }}>
+                    <h3 className="relative z-10 mb-1 text-[0.82rem] font-bold leading-tight sm:mb-1.5 sm:text-[0.95rem]" style={{ color: area.accent }}>
                       {area.title}
                     </h3>
-                    <p className="relative z-10 text-xs font-medium leading-relaxed opacity-70 transition-opacity group-hover:opacity-100" style={{ color: '#b8a898' }}>
+                    <p className="relative z-10 text-[0.65rem] font-medium leading-snug opacity-70 transition-opacity group-hover:opacity-100 sm:text-xs sm:leading-relaxed" style={{ color: '#b8a898' }}>
                       {area.desc}
                     </p>
                   </div>
@@ -483,65 +542,7 @@ export default function UserHome() {
             <h2 className="mb-5 text-center text-[1.4rem] font-extrabold sm:mb-7 sm:text-[1.8rem]" style={{ color: '#f5f0eb' }}>
               Our Clients
             </h2>
-            <div className="overflow-hidden rounded-xl">
-              <div
-                className="flex transition-transform duration-600 ease-in-out"
-                style={{ transform: `translateX(-${clientIndex * 100}%)`, transitionDuration: '600ms' }}
-              >
-                {clientSlides.map((slide, slideIdx) => (
-                  <div key={slideIdx} className="flex min-w-full gap-2.5 sm:gap-3">
-                    {slide.map((brand, bi) =>
-                      brand.name ? (
-                        <div
-                          key={brand.name}
-                          className="relative flex flex-1 cursor-default select-none flex-col items-center justify-center overflow-hidden rounded-2xl transition-all duration-300 hover:-translate-y-1"
-                          style={{
-                            background: brand.bg,
-                            border: `1.5px solid ${brand.border}`,
-                            minHeight: '96px',
-                            boxShadow: `0 2px 12px rgba(0,0,0,0.2)`,
-                          }}
-                        >
-                          <div className="flex w-full flex-col items-center justify-center gap-0.5 px-2 pb-3 pt-4">
-                            <span
-                              className="text-center text-[0.95rem] font-black leading-none tracking-tight sm:text-lg"
-                              style={{ color: brand.nameColor }}
-                            >
-                              {brand.name}
-                            </span>
-                            {brand.sub && (
-                              <span
-                                className="mt-1 text-center text-[0.5rem] font-bold uppercase tracking-[0.2em] sm:text-[0.6rem]"
-                                style={{ color: brand.subColor || brand.nameColor }}
-                              >
-                                {brand.sub}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <div key={`empty-${slideIdx}-${bi}`} className="flex-1" />
-                      ),
-                    )}
-                  </div>
-                ))}
-              </div>
-              {/* Dot navigation */}
-              <div className="mt-5 flex items-center justify-center gap-1.5">
-                {clientSlides.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setClientIndex(i)}
-                    className="h-[5px] rounded-full transition-all duration-300"
-                    style={{
-                      width: i === clientIndex ? '22px' : '7px',
-                      background: i === clientIndex ? '#c8956c' : 'rgba(200,149,108,0.25)',
-                    }}
-                    aria-label={`Show clients ${i * 3 + 1}–${Math.min(i * 3 + 3, 10)}`}
-                  />
-                ))}
-              </div>
-            </div>
+            <ClientCarousel />
           </div>
         </RevealSection>
 
