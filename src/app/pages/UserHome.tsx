@@ -422,7 +422,7 @@ export default function UserHome() {
         </RevealSection>
 
         {/* ═══════════════════════════════════════════
-            PRODUCT SHOWCASE — Dual Screen Mockup
+            PRODUCT SHOWCASE — Video + Ken Burns Crossfade
         ═══════════════════════════════════════════ */}
         <RevealSection delay={0.14} className="uh-glass-sheen uh-silk-edge mt-5 overflow-hidden rounded-3xl py-6 sm:py-8" style={glassPanel}>
           <div className="px-4 sm:px-6">
@@ -432,31 +432,42 @@ export default function UserHome() {
             <h2 className="mb-5 text-center text-[1.4rem] font-extrabold sm:mb-7 sm:text-[1.8rem]" style={{ color: '#f5f0eb' }}>
               Designed for Every Screen
             </h2>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="overflow-hidden rounded-xl">
-                <picture>
-                  <source srcSet="/product-mockup-dark.webp" type="image/webp" />
-                  <img
-                    src="/product-mockup-dark.jpg"
-                    alt="Steadfast Digital platform on laptop and ultrawide monitor in a dark studio"
-                    className="w-full rounded-xl object-cover transition-transform duration-500 hover:scale-[1.03]"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </picture>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {/* Video cell */}
+              <div className="sc-vid-cell">
+                <video autoPlay muted loop playsInline>
+                  <source src="/showcase/hailuo_clean.mp4" type="video/mp4" />
+                </video>
+                <div
+                  className="sc-vid-badge absolute left-2 top-2 z-[3] flex items-center gap-1.5 rounded-full px-2.5 py-1"
+                  style={{
+                    background: 'rgba(0,0,0,0.55)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(200,149,108,0.3)',
+                    fontSize: '0.48rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.15em',
+                    textTransform: 'uppercase',
+                    color: '#c8956c',
+                  }}
+                >
+                  <span className="sc-pulse-dot" />
+                  Live Preview
+                </div>
               </div>
-              <div className="overflow-hidden rounded-xl">
-                <picture>
-                  <source srcSet="/product-mockup-light.webp" type="image/webp" />
-                  <img
-                    src="/product-mockup-light.jpg"
-                    alt="Steadfast Digital platform on laptop and monitor in a clean modern workspace"
-                    className="w-full rounded-xl object-cover transition-transform duration-500 hover:scale-[1.03]"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </picture>
+
+              {/* Ken Burns crossfade cell */}
+              <div className="sc-kb-cell">
+                <img src="/showcase/mockup_homepage_couch.webp" alt="Homepage — laptop on couch" loading="lazy" decoding="async" />
+                <img src="/showcase/mockup_starting_desk.webp" alt="Starting page — laptop at desk" loading="lazy" decoding="async" />
+                <img src="/showcase/mockup_mobile_home.webp" alt="Mobile home — phone in hand" loading="lazy" decoding="async" />
+                <img src="/showcase/product_01_dark_desk.webp" alt="Dark studio — ultrawide and laptop" loading="lazy" decoding="async" />
+                <img src="/showcase/product_02_light_desk.webp" alt="Light studio — dual monitors" loading="lazy" decoding="async" />
+                <img src="/showcase/product_04_hero_vignette.webp" alt="Cinematic dark hero shot" loading="lazy" decoding="async" />
               </div>
+            </div>
+            <div className="sc-dots">
+              <span /><span /><span /><span /><span /><span />
             </div>
           </div>
         </RevealSection>

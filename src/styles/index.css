@@ -541,3 +541,110 @@ textarea {
     transform: none;
   }
 }
+
+/* ── Showcase Ken Burns crossfade ── */
+.sc-kb-cell { position: relative; overflow: hidden; border-radius: 0.75rem; height: 180px; }
+.sc-kb-cell img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; border-radius: 0.75rem; opacity: 0;
+}
+.sc-kb-cell:hover img { animation-play-state: paused !important; }
+
+.sc-kb-cell img:nth-child(1) { transform-origin: top left;     animation: sc-kb-right  24s infinite 0s; }
+.sc-kb-cell img:nth-child(2) { transform-origin: center right;  animation: sc-kb-left   24s infinite 4s; }
+.sc-kb-cell img:nth-child(3) { transform-origin: top center;    animation: sc-kb-down   24s infinite 8s; }
+.sc-kb-cell img:nth-child(4) { transform-origin: center center; animation: sc-kb-out    24s infinite 12s; }
+.sc-kb-cell img:nth-child(5) { transform-origin: bottom left;   animation: sc-kb-diag   24s infinite 16s; }
+.sc-kb-cell img:nth-child(6) { transform-origin: center center; animation: sc-kb-center 24s infinite 20s; }
+
+@keyframes sc-kb-right {
+  0%{opacity:0;transform:scale(1) translate(0,0)}
+  1.5%{opacity:1;transform:scale(1) translate(0,0)}
+  14.5%{opacity:1;transform:scale(1.14) translate(3%,2%)}
+  16.5%{opacity:0;transform:scale(1.14) translate(3%,2%)}
+  17%{opacity:0;transform:scale(1) translate(0,0)}100%{opacity:0}
+}
+@keyframes sc-kb-left {
+  0%{opacity:0;transform:scale(1) translate(0,0)}
+  1.5%{opacity:1;transform:scale(1) translate(0,0)}
+  14.5%{opacity:1;transform:scale(1.12) translate(-2%,1%)}
+  16.5%{opacity:0;transform:scale(1.12) translate(-2%,1%)}
+  17%{opacity:0;transform:scale(1) translate(0,0)}100%{opacity:0}
+}
+@keyframes sc-kb-down {
+  0%{opacity:0;transform:scale(1) translate(0,0)}
+  1.5%{opacity:1;transform:scale(1) translate(0,0)}
+  14.5%{opacity:1;transform:scale(1.15) translate(0,3%)}
+  16.5%{opacity:0;transform:scale(1.15) translate(0,3%)}
+  17%{opacity:0;transform:scale(1) translate(0,0)}100%{opacity:0}
+}
+@keyframes sc-kb-out {
+  0%{opacity:0;transform:scale(1.15)}
+  1.5%{opacity:1;transform:scale(1.14)}
+  14.5%{opacity:1;transform:scale(1)}
+  16.5%{opacity:0;transform:scale(1)}
+  17%{opacity:0;transform:scale(1.15)}100%{opacity:0}
+}
+@keyframes sc-kb-diag {
+  0%{opacity:0;transform:scale(1) translate(0,0)}
+  1.5%{opacity:1;transform:scale(1) translate(0,0)}
+  14.5%{opacity:1;transform:scale(1.13) translate(2%,-2%)}
+  16.5%{opacity:0;transform:scale(1.13) translate(2%,-2%)}
+  17%{opacity:0;transform:scale(1) translate(0,0)}100%{opacity:0}
+}
+@keyframes sc-kb-center {
+  0%{opacity:0;transform:scale(1)}
+  1.5%{opacity:1;transform:scale(1)}
+  14.5%{opacity:1;transform:scale(1.16)}
+  16.5%{opacity:0;transform:scale(1.16)}
+  17%{opacity:0;transform:scale(1)}100%{opacity:0}
+}
+
+/* Brass inset border */
+.sc-kb-cell::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 0.75rem;
+  border: 1.5px solid rgba(200,149,108,0.12);
+  pointer-events: none; z-index: 2;
+}
+.sc-kb-cell:hover::after { border-color: rgba(200,149,108,0.4); }
+
+/* Video cell */
+.sc-vid-cell { position: relative; overflow: hidden; border-radius: 0.75rem; height: 180px; }
+.sc-vid-cell video { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 0.75rem; }
+
+/* Dot indicators */
+.sc-dots { display: flex; justify-content: center; gap: 0.35rem; margin-top: 0.6rem; }
+.sc-dots span {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  animation: sc-dot6 24s infinite;
+}
+.sc-dots span:nth-child(1){animation-delay:0s}
+.sc-dots span:nth-child(2){animation-delay:4s}
+.sc-dots span:nth-child(3){animation-delay:8s}
+.sc-dots span:nth-child(4){animation-delay:12s}
+.sc-dots span:nth-child(5){animation-delay:16s}
+.sc-dots span:nth-child(6){animation-delay:20s}
+
+@keyframes sc-dot6 {
+  0%{background:rgba(255,255,255,0.15);transform:scale(1)}
+  1.5%{background:#c8956c;transform:scale(1.4)}
+  14.5%{background:#c8956c;transform:scale(1.4)}
+  16.5%{background:rgba(255,255,255,0.15);transform:scale(1)}
+  100%{background:rgba(255,255,255,0.15);transform:scale(1)}
+}
+
+/* Live badge pulse */
+.sc-vid-badge .sc-pulse-dot {
+  width: 5px; height: 5px; background: #ef4444; border-radius: 50%;
+  animation: sc-pulse-dot 2s infinite;
+}
+@keyframes sc-pulse-dot {
+  0%,100%{opacity:1}50%{opacity:0.3}
+}
+
+@media (max-width: 640px) {
+  .sc-kb-cell, .sc-vid-cell { height: 120px; }
+}
