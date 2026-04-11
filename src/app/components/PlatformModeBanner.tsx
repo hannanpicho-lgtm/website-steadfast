@@ -19,7 +19,7 @@ export default function PlatformModeBanner() {
   if (mode === 'active') return null;
 
   const style = BANNER_STYLES[mode];
-  const graceSeconds = Math.ceil(graceRemainingMs / 1000);
+  const graceSeconds = Math.max(0, Math.ceil(graceRemainingMs / 1000) || 0);
 
   return (
     <div

@@ -32,7 +32,16 @@ function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = AUTH_TIME
 
 function readSessionTokenFromStorage(): string | null {
   try {
-    return sessionStorage.getItem(SESSION_TOKEN_KEY) ?? localStorage.getItem(SESSION_TOKEN_KEY);
+    const token = sessionStorage.getItem(SESSION_TOKEN_KEY);
+    if (token) return token;
+    // One-time migration from localStorage to sessionStorage
+    const legacyToken = localStorage.getItem(SESSION_TOKEN_KEY);
+    if (legacyToken) {
+      sessionStorage.setItem(SESSION_TOKEN_KEY, legacyToken);
+      localStorage.removeItem(SESSION_TOKEN_KEY);
+      return legacyToken;
+    }
+    return null;
   } catch {
     return null;
   }
@@ -42,12 +51,14 @@ function persistSessionToken(token: string | null): void {
   try {
     if (!token) {
       sessionStorage.removeItem(SESSION_TOKEN_KEY);
-      localStorage.removeItem(SESSION_TOKEN_KEY);
+      localStorage.removeItem(SESSION_TOKEN_KEY); // clean up legacy
       return;
     }
 
     sessionStorage.setItem(SESSION_TOKEN_KEY, token);
-    localStorage.setItem(SESSION_TOKEN_KEY, token);
+    // Do NOT store in localStorage — XSS-accessible
+    // Clean up any legacy localStorage token
+    localStorage.removeItem(SESSION_TOKEN_KEY);
   } catch {
     // ignore storage failures and rely on in-memory state
   }

@@ -4,17 +4,15 @@ const SYSTEM_ROOT_USERNAME = 'steadfast_root';
 const SYSTEM_ROOT_INVITE_CODE = 'STF01';
 const ADMIN_USERNAME = 'admin';
 const ADMIN_INVITE_CODE = 'ADM01';
-const ADMIN_PASSWORD = 'admin123';
 const LEGACY_CURRENT_USER_KEY = 'steadfast_current_user_v1';
 
 export function getSystemInviteCode(): string {
   return SYSTEM_ROOT_INVITE_CODE;
 }
 
-export function getAdminCredentials(): { username: string; password: string; inviteCode: string } {
+export function getAdminCredentials(): { username: string; inviteCode: string } {
   return {
     username: ADMIN_USERNAME,
-    password: ADMIN_PASSWORD,
     inviteCode: ADMIN_INVITE_CODE,
   };
 }

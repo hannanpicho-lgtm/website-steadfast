@@ -52,7 +52,7 @@ i18n
       th: { translation: th },
     },
     fallbackLng: 'en',
-    interpolation: { escapeValue: false },
+    interpolation: { escapeValue: true },
     detection: {
       order: ['localStorage', 'navigator'],
       caches: ['localStorage'],

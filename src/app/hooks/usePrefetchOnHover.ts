@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 
 /**
  * F4: Smart link prefetch on hover — prefetches route chunks when hovering nav items.
@@ -12,11 +12,11 @@ export function usePrefetchOnHover(
   _path: string,
   loader: () => Promise<unknown>
 ) {
-  const prefetched = new Set<string>();
+  const prefetched = useRef(new Set<string>());
 
   const trigger = useCallback(() => {
-    if (prefetched.has(_path)) return;
-    prefetched.add(_path);
+    if (prefetched.current.has(_path)) return;
+    prefetched.current.add(_path);
     loader().catch(() => {});
   }, [_path, loader]);
 

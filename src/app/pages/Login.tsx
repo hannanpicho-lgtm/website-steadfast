@@ -154,8 +154,13 @@ export default function Login() {
       .then((r) => r.json())
       .then((payload) => {
         if (typeof payload?.telegramUsername === 'string' && payload.telegramUsername) {
-          const u = payload.telegramUsername;
-          setTelegramUrl(u.startsWith('http') ? u : `https://t.me/${u}`);
+          try {
+            const u = payload.telegramUsername;
+            const candidate = u.startsWith('http') ? new URL(u) : new URL(`https://t.me/${u}`);
+            if (candidate.hostname === 't.me' || candidate.hostname.endsWith('.telegram.org')) {
+              setTelegramUrl(candidate.toString());
+            }
+          } catch { /* keep default */ }
         }
       })
       .catch(() => {});

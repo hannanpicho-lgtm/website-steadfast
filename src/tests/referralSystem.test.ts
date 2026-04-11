@@ -31,7 +31,6 @@ describe('getAdminCredentials', () => {
   it('returns the static admin credentials', () => {
     const creds = getAdminCredentials();
     expect(creds.username).toBe('admin');
-    expect(creds.password).toBe('admin123');
     expect(creds.inviteCode).toBe('ADM01');
   });
 });

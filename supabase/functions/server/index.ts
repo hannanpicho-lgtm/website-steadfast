@@ -133,7 +133,15 @@ const DEFAULT_PRODUCTION_CORS_ALLOWED_ORIGINS = [
 const envCorsAllowedOrigins = (Deno.env.get('CORS_ALLOWED_ORIGINS') ?? '')
   .split(',')
   .map((value: string) => value.trim())
-  .filter((value: string) => value.length > 0);
+  .filter((value: string) => {
+    if (value.length === 0) return false;
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  });
 
 const CORS_ALLOWED_ORIGINS = envCorsAllowedOrigins.length > 0
   ? envCorsAllowedOrigins
@@ -254,7 +262,7 @@ function resolveRequestId(c: any): string {
     return crypto.randomUUID();
   }
 
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 function requestSource(c: any): string {
@@ -305,7 +313,10 @@ async function _geoLookup(ip: string): Promise<string> {
   const cached = _geoCache.get(ip);
   if (cached && Date.now() - cached.ts < _GEO_CACHE_TTL) return cached.location;
   try {
-    const res = await fetch(`http://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,city,regionName,country`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3000);
+    const res = await fetch(`https://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,city,regionName,country`, { signal: controller.signal });
+    clearTimeout(timeout);
     if (res.ok) {
       const data = await res.json();
       if (data.status === 'success') {
@@ -1708,9 +1719,12 @@ app.post('/make-server-a1c55d7e/admin/script-tokens', async (c: any) => {
   }
 });
 
-const VIP_CONFIG_EDITOR_ALLOWLIST = new Set([
-  'hillarydark6@gmail.com',
-]);
+const VIP_CONFIG_EDITOR_ALLOWLIST = new Set(
+  (Deno.env.get('VIP_CONFIG_EDITOR_ALLOWLIST') ?? '')
+    .split(',')
+    .map((e: string) => e.trim().toLowerCase())
+    .filter((e: string) => e.length > 0)
+);
 
 function canEditVipConfig(user: any): boolean {
   if (isSuperAdmin(user)) {
@@ -1911,7 +1925,7 @@ async function getCurrentPlatformMode(): Promise<PlatformModeRecord> {
 
 function generatePlatformModeAuditId(): string {
   const ts = Date.now().toString(36);
-  const rand = Math.random().toString(36).substring(2, 10);
+  const rand = crypto.randomUUID().slice(0, 8);
   return `pma_${ts}_${rand}`;
 }
 
@@ -3218,7 +3232,7 @@ function sanitizeAdminObservabilityAuditEvent(value: unknown): Record<string, un
   }
 
   return {
-    id: typeof source.id === 'string' ? source.id : `audit_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    id: typeof source.id === 'string' ? source.id : `audit_${Date.now()}_${crypto.randomUUID().slice(0, 6)}`,
     at: typeof source.at === 'string' ? source.at : new Date().toISOString(),
     action: source.action,
     actor: typeof source.actor === 'string' ? source.actor : 'unknown',
@@ -3240,7 +3254,7 @@ function sanitizeAdminObservabilityAuditLog(values: unknown): Record<string, unk
 async function recordObservabilityAuditEvent(action: string, actor: string, detail: string): Promise<void> {
   const existing = sanitizeAdminObservabilityAuditLog(await kv.get(ADMIN_OBSERVABILITY_AUDIT_LOG_KEY));
   existing.push({
-    id: `audit_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    id: `audit_${Date.now()}_${crypto.randomUUID().slice(0, 6)}`,
     at: new Date().toISOString(),
     action,
     actor,
@@ -3260,7 +3274,7 @@ function sanitizeAdminObservabilityRateLimitViolation(value: unknown): Record<st
   }
 
   return {
-    id: typeof source.id === 'string' ? source.id : `violation_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    id: typeof source.id === 'string' ? source.id : `violation_${Date.now()}_${crypto.randomUUID().slice(0, 6)}`,
     at: typeof source.at === 'string' ? source.at : new Date().toISOString(),
     bucket: source.bucket,
     userId: source.userId,
@@ -3284,7 +3298,7 @@ function sanitizeAdminObservabilityRateLimitViolations(values: unknown): Record<
 async function recordRateLimitViolation(bucket: string, userId: string, sourceIp: string, retryAfterSeconds: number): Promise<void> {
   const existing = sanitizeAdminObservabilityRateLimitViolations(await kv.get(ADMIN_OBSERVABILITY_RATE_LIMIT_VIOLATIONS_KEY));
   existing.push({
-    id: `violation_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    id: `violation_${Date.now()}_${crypto.randomUUID().slice(0, 6)}`,
     at: new Date().toISOString(),
     bucket,
     userId,
@@ -7047,7 +7061,7 @@ app.post('/make-server-a1c55d7e/auth/login', async (c: any) => {
       const historyKey = `${LOGIN_HISTORY_KEY_PREFIX}${canonicalUsername}`;
       const existingHistory: any[] = (await kv.get(historyKey) as any[]) ?? [];
       existingHistory.push({
-        id: `login_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        id: `login_${Date.now()}_${crypto.randomUUID().slice(0, 6)}`,
         username: canonicalUsername,
         at: normalizedUserData.lastLoginAt,
         ip: clientMeta.clientIp,
@@ -11666,7 +11680,7 @@ app.post("/make-server-a1c55d7e/cs/create-ticket", async (c: any) => {
       return c.json({ error: 'Missing required fields' }, 400);
     }
     
-    const ticketId = `ticket_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const ticketId = `ticket_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
     const ticket = {
       id: ticketId,
       username,
@@ -11793,7 +11807,7 @@ app.post("/make-server-a1c55d7e/cs/respond", async (c: any) => {
     }
     
     const response = {
-      id: `response_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      id: `response_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
       message,
       respondedBy,
       isAdmin: isAdmin || false,
@@ -12066,7 +12080,7 @@ app.post("/make-server-a1c55d7e/cs/chat/send", async (c: any) => {
     const messageTimestamp = new Date().toISOString();
     
     const newMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      id: `msg_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
       message: normalizedMessage,
       conversationUsername: username,
       sender: isAdmin
@@ -12315,7 +12329,7 @@ app.post("/make-server-a1c55d7e/auth/forgot-password", async (c: any) => {
     const emailLocalPart = normalizedEmail.includes('@') ? normalizedEmail.split('@')[0] : normalizedEmail;
     const resetUsername = emailLocalPart ? await resolveCanonicalUsername(emailLocalPart) : null;
 
-    const resetToken = `reset_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const resetToken = `reset_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
     const resetExpiry = new Date(Date.now() + 3600000).toISOString(); // 1 hour from now
     
     // Store reset token
@@ -14943,7 +14957,7 @@ app.post('/make-server-a1c55d7e/me/support/create', async (c: any) => {
       return c.json({ error: 'Missing required fields' }, 400);
     }
 
-    const ticketId = `ticket_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const ticketId = `ticket_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
     const ticket = {
       id: ticketId,
       username,
@@ -15001,7 +15015,7 @@ app.post('/make-server-a1c55d7e/me/support/reply', async (c: any) => {
     }
 
     const response = {
-      id: `response_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+      id: `response_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
       message,
       respondedBy: username,
       isAdmin: false,

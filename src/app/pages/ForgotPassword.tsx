@@ -36,9 +36,18 @@ export default function ForgotPassword() {
     void loadLinks();
   }, [serverUrl]);
 
-  const telegramUrl = supportLinks.telegramUsername.startsWith('http')
-    ? supportLinks.telegramUsername
-    : `https://t.me/${supportLinks.telegramUsername}`;
+  const telegramUrl = (() => {
+    try {
+      const raw = supportLinks.telegramUsername;
+      const candidate = raw.startsWith('http') ? new URL(raw) : new URL(`https://t.me/${raw}`);
+      if (candidate.hostname === 't.me' || candidate.hostname.endsWith('.telegram.org')) {
+        return candidate.toString();
+      }
+      return 'https://t.me/steadfastdigital';
+    } catch {
+      return 'https://t.me/steadfastdigital';
+    }
+  })();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1a1f2e] to-[#2d3548] flex items-center justify-center px-6">

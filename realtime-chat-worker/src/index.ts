@@ -36,12 +36,12 @@ function parseAllowedOrigins(env: Env): string[] {
 }
 
 function isOriginAllowed(origin: string | null, env: Env): boolean {
-  if (!origin) {
-    return true;
-  }
   const allowedOrigins = parseAllowedOrigins(env);
   if (allowedOrigins.length === 0) {
-    return true;
+    return true; // No origin restriction configured
+  }
+  if (!origin) {
+    return false; // Require origin when allowlist is configured
   }
   const normalized = origin.trim().toLowerCase();
   return allowedOrigins.includes(normalized);
@@ -49,8 +49,9 @@ function isOriginAllowed(origin: string | null, env: Env): boolean {
 
 function applyCorsHeaders(request: Request, env: Env, response: Response): Response {
   const origin = request.headers.get('origin');
-  const allowOrigin = origin && isOriginAllowed(origin, env) ? origin : '*';
-  response.headers.set('access-control-allow-origin', allowOrigin);
+  if (origin && isOriginAllowed(origin, env)) {
+    response.headers.set('access-control-allow-origin', origin);
+  }
   response.headers.set('access-control-allow-methods', 'GET,POST,PATCH,OPTIONS');
   response.headers.set('access-control-allow-headers', 'authorization,content-type,x-chat-role,x-chat-user-id,x-chat-admin-id,x-user-jwt,x-session-username,apikey');
   response.headers.set('access-control-max-age', '86400');

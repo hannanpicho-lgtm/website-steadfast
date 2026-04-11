@@ -58,7 +58,8 @@ describe('session marker helpers', () => {
     expect(isPasswordChangeRequired()).toBe(true);
     expect(getStoredSessionToken()).toBe('fresh-token');
     expect(sessionStorage.getItem(SESSION_TOKEN_KEY)).toBe('fresh-token');
-    expect(localStorage.getItem(SESSION_TOKEN_KEY)).toBe('fresh-token');
+    // Session token should NOT be stored in localStorage (XSS risk)
+    expect(localStorage.getItem(SESSION_TOKEN_KEY)).toBeNull();
     expect(sessionStorage.getItem(MUST_CHANGE_PASSWORD_KEY)).toBeNull();
     expect(localStorage.getItem(LEGACY_CURRENT_USER_KEY)).toBeNull();
   });

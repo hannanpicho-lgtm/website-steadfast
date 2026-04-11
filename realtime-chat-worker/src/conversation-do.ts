@@ -94,6 +94,16 @@ export class ConversationDurableObject {
   }
 
   private async handleMessage(payload: ChatMessagePayload): Promise<Response> {
+    // Validate and sanitize message body
+    if (typeof payload.body !== 'string' || payload.body.trim().length === 0) {
+      return new Response(JSON.stringify({ error: 'Message body is required' }), { status: 400 });
+    }
+    if (payload.body.length > 10_000) {
+      return new Response(JSON.stringify({ error: 'Message body too long (max 10000 chars)' }), { status: 400 });
+    }
+    // Strip null bytes and control characters (except newline/tab)
+    payload.body = payload.body.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+
     const start = Date.now();
     await this.ensureSequenceInitialized(payload.conversationId);
     this.sequence += 1;
