@@ -1,4 +1,4 @@
-import { ChevronLeft, Package, Clock, CheckCircle, Loader2, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { ChevronLeft, Package, Clock, CheckCircle, Loader2, ChevronDown, ChevronUp, Download, Crown, Lock } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useState, useEffect, useTransition, lazy, Suspense } from 'react';
@@ -351,16 +351,23 @@ export default function Records() {
   // Get completed products (products that were submitted)
   const activeTasks = taskCatalog.filter((task) => task.status === 'Active');
 
+  // Build lookup maps so every record can resolve its image/name/rating from the catalog
+  // even if the server didn't embed those fields on the task record itself.
+  const catalogById = new Map(taskCatalog.map((item) => [item.id, item]));
+  const catalogByName = new Map(taskCatalog.map((item) => [item.product.toLowerCase().trim(), item]));
+
   const completedProducts: CompletedRecordItem[] = taskRecords.map((task, index) => {
-    const fallbackTask = activeTasks.length > 0 ? activeTasks[index % activeTasks.length] : null;
+    const catalogMatch =
+      (task.taskId ? catalogById.get(task.taskId) : undefined) ??
+      (task.productName ? catalogByName.get(task.productName.toLowerCase().trim()) : undefined);
     return {
       recordType: 'completed',
       id: task.taskId ?? `${task.username}-${index}`,
-      name: task.productName ?? 'Task Product',
+      name: task.productName ?? catalogMatch?.product ?? 'Task Product',
       price: task.productPrice,
-      rating: task.rating ?? 4,
-      image: task.image ?? '',
-      productUrl: task.productUrl ?? '',
+      rating: task.rating ?? catalogMatch?.rating ?? 4,
+      image: task.image || catalogMatch?.image || '',
+      productUrl: task.productUrl || catalogMatch?.productUrl || '',
       commission: task.commission,
       isPremium: task.isPremium,
       timestamp: task.timestamp,
@@ -393,7 +400,9 @@ export default function Records() {
         price: primaryValue,
         profitRate: premiumRate,
         estimatedProfit: primaryValue * (premiumRate / 100),
-        image: typeof activePremium.image === 'string' && activePremium.image ? activePremium.image : (activeTasks[0]?.image ?? ''),
+        image: (typeof activePremium.image === 'string' && activePremium.image ? activePremium.image : null)
+          ?? catalogByName.get(primaryName.toLowerCase().trim())?.image
+          ?? '',
       },
       ...bundledProducts.map((entry, index) => {
         const itemPrice = Number(entry?.price ?? 0);
@@ -403,7 +412,9 @@ export default function Records() {
           price: itemPrice,
           profitRate: premiumRate,
           estimatedProfit: itemPrice * (premiumRate / 100),
-          image: typeof entry?.image === 'string' && entry.image ? entry.image : '',
+          image: (typeof entry?.image === 'string' && entry.image ? entry.image : null)
+            ?? catalogByName.get((entry?.name ?? '').toLowerCase().trim())?.image
+            ?? '',
         };
       }),
     ].filter((entry) => Number.isFinite(entry.price) && entry.price > 0);
@@ -568,63 +579,128 @@ export default function Records() {
                 const isPremiumPending = product.recordType === 'pending-premium';
 
               if (isPremiumPending) {
+                const primaryItem = product.items[0];
+                const bundledItems = product.items.slice(1);
                 return (
                   <div
                     key={`${product.id}-${index}`}
-                    className="bg-[#141414] border border-orange-500/30 rounded-lg p-4"
+                    className="relative overflow-hidden rounded-xl bg-gradient-to-b from-[#1c1500] via-[#141414] to-[#141414] border border-amber-500/30 shadow-[0_4px_32px_rgba(251,191,36,0.07)]"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                      <div className="bg-orange-500/20 text-orange-300 px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
-                        <Clock size={12} />
-                        Pending Premium Order
-                      </div>
-                      <span className="text-xs font-semibold text-[#7ec8e3] uppercase tracking-wide">
-                        {product.premiumType === 'bundled' ? 'Bundled Premium' : 'Single Premium'}
-                      </span>
-                    </div>
+                    {/* Gold accent top bar */}
+                    <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
-                      <div className="bg-[#0d1f33] border border-[#1e3a5f] rounded-md px-3 py-2">
-                        <p className="text-[11px] text-gray-500">Pending Value</p>
-                        <p className="text-sm font-bold text-white">${product.totalValue.toFixed(2)}</p>
+                    <div className="p-4">
+                      {/* Header row */}
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-yellow-500/10 border border-amber-500/30 text-amber-300 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest">
+                            <Crown size={11} />
+                            Premium Order
+                          </div>
+                          {product.premiumType === 'bundled' && (
+                            <span className="text-[11px] font-semibold text-amber-400/60 uppercase tracking-wider">Bundle</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs font-semibold">
+                          <Clock size={11} className="text-amber-500/60" />
+                          <span className="text-amber-400/70 capitalize">{product.status}</span>
+                        </div>
                       </div>
-                      <div className="bg-[#0d1f33] border border-[#1e3a5f] rounded-md px-3 py-2">
-                        <p className="text-[11px] text-gray-500">Premium Profit %</p>
-                        <p className="text-sm font-bold text-[#7ec8e3]">{product.profitRate.toFixed(2)}%</p>
-                      </div>
-                      <div className="bg-[#0d1f33] border border-[#1e3a5f] rounded-md px-3 py-2">
-                        <p className="text-[11px] text-gray-500">Estimated Profit</p>
-                        <p className="text-sm font-bold text-green-400">+${product.estimatedProfit.toFixed(2)}</p>
-                      </div>
-                    </div>
 
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Premium Product Items</p>
-                      {product.items.map((item, itemIndex) => (
-                        <div key={`${item.id}-${itemIndex}`} className="border border-white/[0.06] rounded-md p-3">
-                          <div className="flex items-center gap-3">
-                            {item.image ? (
-                              <div className="shrink-0 bg-white/[0.06] rounded-md w-12 h-12 flex items-center justify-center overflow-hidden">
-                                <img src={item.image} alt={item.name} width={48} height={48} loading="lazy" decoding="async" className="w-full h-full object-contain" />
+                      {/* Primary product — hero layout */}
+                      {primaryItem && (
+                        <div className="rounded-xl overflow-hidden border border-amber-500/20 bg-[#1a1500]/50 mb-3">
+                          <div className="flex flex-col sm:flex-row">
+                            {/* Product image */}
+                            <div className="w-full sm:w-36 h-36 shrink-0 flex items-center justify-center bg-gradient-to-br from-[#231b00] to-[#141414] border-b sm:border-b-0 sm:border-r border-amber-500/15 p-2">
+                              {primaryItem.image ? (
+                                <img
+                                  src={primaryItem.image}
+                                  alt={primaryItem.name}
+                                  className="w-full h-full object-contain"
+                                  loading="lazy"
+                                  decoding="async"
+                                />
+                              ) : (
+                                <div className="flex flex-col items-center gap-2 text-amber-900/50">
+                                  <Package size={40} />
+                                </div>
+                              )}
+                            </div>
+                            {/* Product details */}
+                            <div className="flex-1 min-w-0 p-4 flex flex-col justify-between">
+                              <div>
+                                <div className="flex items-start justify-between gap-2 mb-2">
+                                  <h3 className="text-base font-bold text-white leading-snug">{primaryItem.name}</h3>
+                                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-amber-400 border border-amber-500/40 rounded px-2 py-0.5 bg-amber-500/10">Primary</span>
+                                </div>
+                                <p className="text-xs text-amber-400/50 uppercase tracking-widest font-medium mb-3">Premium Product</p>
                               </div>
-                            ) : (
-                              <div className="shrink-0 bg-white/[0.06] rounded-md w-12 h-12 flex items-center justify-center text-gray-500">
-                                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between gap-2">
-                                <p className="text-sm font-semibold text-white truncate">{item.name}</p>
-                                <span className="text-xs font-semibold text-orange-300 shrink-0">{item.profitRate.toFixed(2)}%</span>
-                              </div>
-                              <div className="mt-1 flex items-center justify-between text-xs">
-                                <span className="text-gray-400">Value: <strong className="text-white">${item.price.toFixed(2)}</strong></span>
-                                <span className="text-green-400 font-semibold">Profit: +${item.estimatedProfit.toFixed(2)}</span>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div>
+                                  <p className="text-[10px] text-gray-500 mb-0.5">Value</p>
+                                  <p className="text-sm font-bold text-white">${primaryItem.price.toFixed(2)}</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-gray-500 mb-0.5">Rate</p>
+                                  <p className="text-sm font-bold text-amber-300">{primaryItem.profitRate.toFixed(1)}%</p>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-gray-500 mb-0.5">Profit</p>
+                                  <p className="text-sm font-bold text-green-400">+${primaryItem.estimatedProfit.toFixed(2)}</p>
+                                </div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      ))}
+                      )}
+
+                      {/* Bundled products */}
+                      {bundledItems.length > 0 && (
+                        <div className="space-y-2 mb-3">
+                          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Bundled Items ({bundledItems.length})</p>
+                          {bundledItems.map((item, itemIndex) => (
+                            <div key={`${item.id}-${itemIndex}`} className="flex items-center gap-3 rounded-lg border border-white/[0.06] bg-[#111] p-3">
+                              <div className="shrink-0 w-14 h-14 rounded-lg border border-white/[0.06] bg-gradient-to-br from-[#1a1a1a] to-[#111] flex items-center justify-center overflow-hidden p-1">
+                                {item.image ? (
+                                  <img src={item.image} alt={item.name} className="w-full h-full object-contain" loading="lazy" decoding="async" />
+                                ) : (
+                                  <Package size={20} className="text-gray-600" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-white truncate mb-1">{item.name}</p>
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="text-gray-400">Value: <span className="text-white font-semibold">${item.price.toFixed(2)}</span></span>
+                                  <span className="text-green-400 font-semibold">+${item.estimatedProfit.toFixed(2)}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Summary footer */}
+                      <div className="pt-3 border-t border-amber-500/15 grid grid-cols-3 gap-2">
+                        <div className="text-center">
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Total Value</p>
+                          <p className="text-sm font-bold text-white">${product.totalValue.toFixed(2)}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Premium Rate</p>
+                          <p className="text-sm font-bold text-amber-300">{product.profitRate.toFixed(1)}%</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Total Profit</p>
+                          <p className="text-sm font-bold text-green-400">+${product.estimatedProfit.toFixed(2)}</p>
+                        </div>
+                      </div>
+
+                      {/* Locked notice */}
+                      <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-500/5 border border-amber-500/15 px-3 py-2">
+                        <Lock size={12} className="shrink-0 text-amber-500/60" />
+                        <p className="text-[11px] text-amber-400/60 leading-snug">Account locked until all {product.items.length} premium task{product.items.length > 1 ? 's are' : ' is'} completed.</p>
+                      </div>
                     </div>
                   </div>
                 );
