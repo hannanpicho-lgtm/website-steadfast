@@ -422,6 +422,46 @@ export default function UserHome() {
         </RevealSection>
 
         {/* ═══════════════════════════════════════════
+            PRODUCT SHOWCASE — Dual Screen Mockup
+        ═══════════════════════════════════════════ */}
+        <RevealSection delay={0.14} className="uh-glass-sheen uh-silk-edge mt-5 overflow-hidden rounded-3xl py-6 sm:py-8" style={glassPanel}>
+          <div className="px-4 sm:px-6">
+            <p className="mb-1 text-center text-[0.62rem] font-bold uppercase tracking-[0.28em] sm:text-[0.7rem]" style={{ color: '#c8956c' }}>
+              Experience the Platform
+            </p>
+            <h2 className="mb-5 text-center text-[1.4rem] font-extrabold sm:mb-7 sm:text-[1.8rem]" style={{ color: '#f5f0eb' }}>
+              Designed for Every Screen
+            </h2>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="overflow-hidden rounded-xl">
+                <picture>
+                  <source srcSet="/product-mockup-dark.webp" type="image/webp" />
+                  <img
+                    src="/product-mockup-dark.jpg"
+                    alt="Steadfast Digital platform on laptop and ultrawide monitor in a dark studio"
+                    className="w-full rounded-xl object-cover transition-transform duration-500 hover:scale-[1.03]"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </picture>
+              </div>
+              <div className="overflow-hidden rounded-xl">
+                <picture>
+                  <source srcSet="/product-mockup-light.webp" type="image/webp" />
+                  <img
+                    src="/product-mockup-light.jpg"
+                    alt="Steadfast Digital platform on laptop and monitor in a clean modern workspace"
+                    className="w-full rounded-xl object-cover transition-transform duration-500 hover:scale-[1.03]"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </picture>
+              </div>
+            </div>
+          </div>
+        </RevealSection>
+
+        {/* ═══════════════════════════════════════════
             CLIENTS — Dark Trust Wall
         ═══════════════════════════════════════════ */}
         <RevealSection delay={0.16} className="uh-glass-sheen uh-silk-edge mt-5 overflow-hidden rounded-3xl py-6 sm:py-8" style={glassPanel}>
