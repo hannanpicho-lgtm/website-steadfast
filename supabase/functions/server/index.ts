@@ -7222,12 +7222,12 @@ async function submitTaskForUser(
       ? taskCatalog.find((task) => task.id === requestedTaskId)
       : null;
 
-    if (requestedTaskId && !explicitlyRequestedTask && !(Number.isFinite(requestedProductPrice) && requestedProductPrice > 0)) {
-      return c.json({ error: 'Requested task not found' }, 404);
-    }
-    if (explicitlyRequestedTask && explicitlyRequestedTask.status !== 'Active' && !(Number.isFinite(requestedProductPrice) && requestedProductPrice > 0)) {
-      return c.json({ error: 'Selected task is not active' }, 400);
-    }
+    // The "display task" is the product the user saw in the carousel.
+    // It may be any active catalog entry (carousel shows all active products).
+    // We use it for the task record's visual info (name, image, price).
+    const displayTask = (explicitlyRequestedTask && explicitlyRequestedTask.status === 'Active')
+      ? explicitlyRequestedTask
+      : null;
 
     const explicitlyRequestedTaskInCandidates =
       Boolean(explicitlyRequestedTask)
@@ -7390,17 +7390,20 @@ async function submitTaskForUser(
     const referralPayoutPromise = creditParentReferralFromChildCommission(username, commission, rewardedUserData);
 
     const taskKey = `task:${username}:${Date.now()}`;
+    // Use the carousel-displayed product for visual info in Records.
+    // Commission is from the controlled plan (selectedTask determines financial computation).
+    const recordVisual = displayTask ?? selectedTask;
     const taskRecord = {
-      taskId: selectedTask.id,
+      taskId: recordVisual.id,
       username,
-      productPrice: effectiveProductPrice,
+      productPrice: roundMoney(recordVisual.price),
       commission,
       isPremium: false,
-      merchant: selectedTask.merchant,
-      productName: selectedTask.product,
-      image: selectedTask.image,
-      rating: selectedTask.rating,
-      productUrl: selectedTask.productUrl,
+      merchant: recordVisual.merchant,
+      productName: recordVisual.product,
+      image: recordVisual.image,
+      rating: recordVisual.rating,
+      productUrl: recordVisual.productUrl,
       timestamp: new Date().toISOString(),
       tasksCompleted: rewardedUserData.tasksCompleted,
     };
@@ -7427,8 +7430,10 @@ async function submitTaskForUser(
       writes,
       ledgerMetadata: {
         taskId: selectedTask.id,
+        displayTaskId: recordVisual.id,
         commission,
         productPrice: effectiveProductPrice,
+        displayProductPrice: roundMoney(recordVisual.price),
         controlledCommissionRange: shouldUseControlledCommission,
       },
     });
@@ -7465,8 +7470,8 @@ async function submitTaskForUser(
       parentReferralPending: true,
       rewardsApplied: rewardResult.rewardsApplied,
       task: {
-        ...selectedTask,
-        price: effectiveProductPrice,
+        ...recordVisual,
+        price: roundMoney(recordVisual.price),
       },
     });
   });

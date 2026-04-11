@@ -311,37 +311,11 @@ export default function Starting() {
   const vipPriceMax = roundMoney(Number(taskRuleConfig?.taskPriceMax ?? activeVipTier?.taskPriceMax ?? 0));
   const hasVipPriceRange = vipPriceMin > 0 && vipPriceMax > 0 && vipPriceMax >= vipPriceMin;
 
+  // Carousel shows ALL active products for visual variety.
+  // The server determines the actual eligible task for commission on submit.
   const activeTasks = useMemo(() => {
-    const allActive = taskCatalog.filter((task) => task.status === 'Active');
-    if (allActive.length === 0) {
-      return [];
-    }
-
-    const eligibleTaskIds = Array.isArray(taskRuleConfig?.eligibleTaskIds)
-      ? taskRuleConfig.eligibleTaskIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
-      : [];
-    if (eligibleTaskIds.length > 0) {
-      const allowed = new Set(eligibleTaskIds);
-      const serverEligible = allActive.filter((task) => allowed.has(task.id));
-      if (serverEligible.length > 0) {
-        return serverEligible;
-      }
-    }
-
-    const tierTagged = (tasks: TaskCatalogItem[]) => tasks.filter((task) => Number(task.vipTier ?? 0) === currentVipLevel);
-
-    if (hasVipPriceRange) {
-      const inRange = allActive.filter((task) => {
-        const normalizedTaskPrice = roundMoney(Number(task.price ?? 0));
-        return normalizedTaskPrice >= vipPriceMin && normalizedTaskPrice <= vipPriceMax;
-      });
-      const tierTaggedInRange = tierTagged(inRange);
-      return tierTaggedInRange.length > 0 ? tierTaggedInRange : inRange;
-    }
-
-    const tierTaggedActive = tierTagged(allActive);
-    return tierTaggedActive.length > 0 ? tierTaggedActive : allActive;
-  }, [taskCatalog, currentVipLevel, vipPriceMin, vipPriceMax, hasVipPriceRange]);
+    return taskCatalog.filter((task) => task.status === 'Active');
+  }, [taskCatalog]);
 
   const currentProduct = activeTasks.length > 0 ? activeTasks[carouselIndex % activeTasks.length] : null;
 
