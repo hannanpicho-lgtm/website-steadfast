@@ -127,7 +127,7 @@ function parseCompatibilityState(body: any): ApiCompatibilityState {
   const version = body?.version && typeof body.version === 'object' ? body.version : {};
   const api = body?.api && typeof body.api === 'object' ? body.api : {};
   const rawSupportedVersions = Array.isArray(api.supportedVersions) ? api.supportedVersions : ['v1'];
-  const supportedApiVersions = rawSupportedVersions.includes('v2') ? ['v1', 'v2'] as ApiVersion[] : ['v1'];
+  const supportedApiVersions = rawSupportedVersions.includes('v2') ? ['v1', 'v2'] as ApiVersion[] : ['v1'] as ApiVersion[];
   const defaultApiVersion = normalizeApiVersion(api.defaultVersion, 'v1');
   const rawFeatures = api.features && typeof api.features === 'object' ? api.features : {};
 

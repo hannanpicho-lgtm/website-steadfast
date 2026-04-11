@@ -9,7 +9,7 @@ interface CurrentProductCardProps {
   displayProduct: DisplayProduct | null;
   isPremiumTaskActive: boolean;
   vipLevel: number;
-  displayCommissionRate: string;
+  displayCommissionRate: number;
   displayEstimatedCommission: number;
   commissionRate: number;
   premiumCommissionRate: number;

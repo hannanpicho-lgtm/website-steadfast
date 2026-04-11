@@ -131,7 +131,7 @@ export default function Signup() {
     });
 
     if (!signupResult.ok) {
-      setErrorText(signupResult.error ?? 'Signup failed. Please try again.');
+      setErrorText((signupResult as { ok: false; error: string }).error ?? 'Signup failed. Please try again.');
       setIsSubmitting(false);
       return;
     }

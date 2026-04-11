@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Dispatch, SetStateAction } from 'react';
+import type { Dispatch, SetStateAction, RefObject } from 'react';
 import {
   X,
   Check,
@@ -12,7 +12,16 @@ import {
   Gift,
   Award,
   Copy,
+  TrendingUp,
+  Settings2,
+  Send,
+  Zap,
+  Coins,
+  UserCog,
+  Shield,
+  ShieldCheck,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { RewardsConfig } from '../services/rewardsConfig';
 import type { VipConfig } from '../services/vipConfig';
 import type { SalaryPayment } from '../services/adminSalaryBackup';
@@ -137,9 +146,12 @@ export interface AdminModalsProps {
   handleDeleteAdminUser: () => void;
   handleResetAdminPassword: (newPassword: string) => Promise<void>;
   handleCreateRole: (e: React.FormEvent) => void;
+  productImportInputRef: RefObject<HTMLInputElement | null>;
+  rewardsConfigSaving: boolean;
+  rolePermissionKeys: string[];
   handleUpdateRole: (e: React.FormEvent) => void;
   handleDeleteRole: () => void;
-  processWithdrawalReview: (id: string, action: 'approve' | 'reject') => void;
+  processWithdrawalReview: (action: 'approve' | 'reject') => void;
   buildRolePermissionsFromForm: (formData: FormData) => Record<string, boolean>;
 
   // Notifications
@@ -382,6 +394,9 @@ export default function AdminModals(props: AdminModalsProps) {
     handleDeleteAdminUser,
     handleResetAdminPassword,
     handleCreateRole,
+    productImportInputRef,
+    rewardsConfigSaving,
+    rolePermissionKeys,
     handleUpdateRole,
     handleDeleteRole,
     processWithdrawalReview,

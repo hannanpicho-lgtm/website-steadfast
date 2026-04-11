@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Clock, RefreshCw, Search, AlertCircle } from 'lucide-react';
 import { buildAdminAuthHeaders } from '../services/supabaseAuth';
-import { handleAdminAuthError } from '../services/adminAuthError';
 
 interface ActivityEvent {
   id: string;
@@ -58,7 +57,7 @@ function ActivityLog() {
       const headers = await buildAdminAuthHeaders();
       const res = await fetch(`${serverUrl}/admin/activity-log?limit=200`, { headers });
       if (res.status === 401 || res.status === 403) {
-        handleAdminAuthError(new Error('Unauthorized'), null as any);
+        setError('Unauthorized — please refresh and log in again.');
         return;
       }
       if (!res.ok) throw new Error('Failed to fetch activity log');

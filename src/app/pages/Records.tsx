@@ -25,10 +25,12 @@ interface UserData {
     premiumProductValue?: number;
     totalBundleValue?: number;
     status?: string;
+    image?: string;
     bundledProducts?: Array<{
       id?: string;
       name?: string;
       price?: number;
+      image?: string;
     }>;
   } | null;
 }

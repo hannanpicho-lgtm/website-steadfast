@@ -36,7 +36,7 @@ function usePrefetchRoutes() {
       }
     });
 
-    return () => cancel(id);
+    return () => cancel(id as number);
   }, [pathname]);
 }
 

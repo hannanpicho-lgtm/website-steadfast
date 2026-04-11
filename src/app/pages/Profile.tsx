@@ -240,7 +240,7 @@ export default function Profile() {
     setUpdatingCredentials(false);
 
     if (!result.ok) {
-      toast.error(result.error);
+      toast.error((result as { ok: false; error: string }).error);
       return;
     }
 

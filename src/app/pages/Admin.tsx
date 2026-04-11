@@ -2902,6 +2902,9 @@ export default function Admin() {
         handleUpdateAdminDetails={handleUpdateAdminDetails}
         handleDeleteAdminUser={handleDeleteAdminUser}
         handleResetAdminPassword={handleResetAdminPassword}
+        productImportInputRef={productImportInputRef}
+        rewardsConfigSaving={rewardsConfigSaving}
+        rolePermissionKeys={rolePermissionKeys}
         handleCreateRole={handleCreateRole}
         handleUpdateRole={handleUpdateRole}
         handleDeleteRole={handleDeleteRole}

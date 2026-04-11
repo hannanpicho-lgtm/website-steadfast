@@ -14,7 +14,7 @@ const pageVariants = {
     scale: 1,
     transition: {
       duration: 0.32,
-      ease: [0.22, 1, 0.36, 1],
+      ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
       staggerChildren: 0.04,
     },
   },
@@ -24,7 +24,7 @@ const pageVariants = {
     scale: 0.995,
     transition: {
       duration: 0.2,
-      ease: [0.4, 0, 1, 1],
+      ease: [0.4, 0, 1, 1] as [number, number, number, number],
     },
   },
 };

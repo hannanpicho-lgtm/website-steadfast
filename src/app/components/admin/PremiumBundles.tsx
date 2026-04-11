@@ -119,7 +119,7 @@ export default function PremiumBundles({ users, vipConfigs }: PremiumBundlesProp
           price,
         };
       })
-      .filter((product): product is { id: number; name: string; price: number; rating: number; image: string } => Boolean(product));
+      .filter((product): product is { id: number; name: string; price: number; category: string } => Boolean(product));
   }, [bundledValueOverrides, productCatalog, selectedBundledProductIds]);
   const bundledTotal = bundledProducts.reduce((sum, p) => sum + p.price, 0);
   const totalBundleValue = premiumVal + bundledTotal;

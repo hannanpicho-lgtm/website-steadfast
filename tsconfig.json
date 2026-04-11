@@ -20,7 +20,8 @@
     "strict": false,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "types": ["node"]
   },
   "include": ["src", "utils"],
   "exclude": ["node_modules", "dist", "supabase/functions"]

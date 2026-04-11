@@ -136,7 +136,7 @@ function downloadAttachment(attachment: ChatAttachment) {
   document.body.removeChild(link);
 }
 
-function decodeChatMessage(rawMessage: string) {
+function decodeChatMessage(rawMessage: string): { text: string; attachment: ChatAttachment | null } {
   const isAttachmentPayload = rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX) || rawMessage.startsWith(CHAT_ATTACHMENT_PREFIX_LEGACY);
   if (isAttachmentPayload) {
     try {

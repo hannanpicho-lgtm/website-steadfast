@@ -186,7 +186,7 @@ export default function Login() {
     if (wantsAdminAccess || isLikelyAdminIdentifier) {
       const adminResult = await signInAdmin(username, password);
       if (!adminResult.ok) {
-        setErrorText(adminResult.error);
+        setErrorText((adminResult as { ok: false; error: string }).error);
         setIsSubmitting(false);
         return;
       }
@@ -206,14 +206,15 @@ export default function Login() {
       return;
     }
 
-    if (serverResult.serverDown) {
+    const failedServerResult = serverResult as { ok: false; error: string; serverDown?: boolean };
+    if (failedServerResult.serverDown) {
       setErrorText('Login service is temporarily unavailable. Please try again in a moment.');
       setIsSubmitting(false);
       return;
     }
 
     // Server responded with an explicit auth error
-    setErrorText(serverResult.error ?? 'Login failed.');
+    setErrorText(failedServerResult.error ?? 'Login failed.');
     setIsSubmitting(false);
   };
 

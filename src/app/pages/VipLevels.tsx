@@ -123,7 +123,7 @@ export default function VipLevels() {
     const loadCurrentVip = async () => {
       try {
         const [financialsPayload, publicVipConfig] = await Promise.all([
-          fetchJsonWithRetry(`${serverUrl}/me/financials`),
+          fetchJsonWithRetry<{ vipLevel?: unknown }>({ url: `${serverUrl}/me/financials` }),
           fetchPublicVipConfig(),
         ]);
 

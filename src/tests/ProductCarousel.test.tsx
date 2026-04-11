@@ -4,9 +4,9 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { ProductCarousel } from '@/app/components/starting/ProductCarousel';
 
 const tasks = [
-  { id: 't1', product: 'Widget Alpha', image: '/img/a.png', rating: '4.5', price: 29.99, commission: 1.5 },
-  { id: 't2', product: 'Widget Beta', image: '/img/b.png', rating: '4.8', price: 49.99, commission: 2.5 },
-  { id: 't3', product: 'Widget Gamma', image: '/img/c.png', rating: '3.9', price: 19.99, commission: 0.8 },
+  { id: 't1', product: 'Widget Alpha', image: '/img/a.png', rating: 4.5, price: 29.99 },
+  { id: 't2', product: 'Widget Beta', image: '/img/b.png', rating: 4.8, price: 49.99 },
+  { id: 't3', product: 'Widget Gamma', image: '/img/c.png', rating: 3.9, price: 19.99 },
 ];
 
 describe('ProductCarousel', () => {
