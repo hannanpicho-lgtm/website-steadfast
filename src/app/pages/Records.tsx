@@ -26,6 +26,15 @@ interface UserData {
     totalBundleValue?: number;
     status?: string;
     image?: string;
+    tasksCompleted?: number;
+    totalTasks?: number;
+    commissionEarned?: number;
+    topUpRequired?: number;
+    negativeAmount?: number;
+    configuredUpholdAmount?: number;
+    balanceBeforeAssignment?: number;
+    balanceAfterAssignment?: number;
+    assignedAt?: string;
     bundledProducts?: Array<{
       id?: string;
       name?: string;
@@ -93,6 +102,7 @@ type PendingPremiumItem = {
   price: number;
   profitRate: number;
   estimatedProfit: number;
+  shareOfBundle: number; // percentage of total bundle value
   image: string;
 };
 
@@ -104,6 +114,12 @@ type PendingPremiumRecordItem = {
   totalValue: number;
   profitRate: number;
   estimatedProfit: number;
+  normalRate: number;
+  premiumMultiplier: number;
+  tasksCompleted: number;
+  totalTasks: number;
+  commissionEarned: number;
+  topUpRequired: number;
   items: PendingPremiumItem[];
 };
 
@@ -400,6 +416,7 @@ export default function Records() {
         price: primaryValue,
         profitRate: premiumRate,
         estimatedProfit: primaryValue * (premiumRate / 100),
+        shareOfBundle: 0, // computed below
         image: (typeof activePremium.image === 'string' && activePremium.image ? activePremium.image : null)
           ?? catalogByName.get(primaryName.toLowerCase().trim())?.image
           ?? '',
@@ -412,6 +429,7 @@ export default function Records() {
           price: itemPrice,
           profitRate: premiumRate,
           estimatedProfit: itemPrice * (premiumRate / 100),
+          shareOfBundle: 0, // computed below
           image: (typeof entry?.image === 'string' && entry.image ? entry.image : null)
             ?? catalogByName.get((entry?.name ?? '').toLowerCase().trim())?.image
             ?? '',
@@ -427,6 +445,13 @@ export default function Records() {
       ? totalBundleValue
       : items.reduce((sum, item) => sum + item.price, 0);
 
+    // Compute each item's share of the total bundle
+    for (const item of items) {
+      item.shareOfBundle = resolvedTotalValue > 0
+        ? Math.round((item.price / resolvedTotalValue) * 100)
+        : 0;
+    }
+
     return [{
       recordType: 'pending-premium',
       id: String(activePremium.id ?? 'pending-premium'),
@@ -435,6 +460,12 @@ export default function Records() {
       totalValue: resolvedTotalValue,
       profitRate: premiumRate,
       estimatedProfit: resolvedTotalValue * (premiumRate / 100),
+      normalRate,
+      premiumMultiplier: 10,
+      tasksCompleted: Math.max(0, Number(activePremium.tasksCompleted ?? 0)),
+      totalTasks: Math.max(1, Number(activePremium.totalTasks ?? items.length)),
+      commissionEarned: Math.max(0, Number(activePremium.commissionEarned ?? 0)),
+      topUpRequired: Math.max(0, Number(activePremium.topUpRequired ?? activePremium.negativeAmount ?? 0)),
       items,
     }];
   })();
@@ -581,6 +612,10 @@ export default function Records() {
               if (isPremiumPending) {
                 const primaryItem = product.items[0];
                 const bundledItems = product.items.slice(1);
+                const progressPercent = product.totalTasks > 0
+                  ? Math.round((product.tasksCompleted / product.totalTasks) * 100)
+                  : 0;
+                const remainingProfit = product.estimatedProfit - product.commissionEarned;
                 return (
                   <div
                     key={`${product.id}-${index}`}
@@ -603,103 +638,175 @@ export default function Records() {
                         </div>
                         <div className="flex items-center gap-1.5 text-xs font-semibold">
                           <Clock size={11} className="text-amber-500/60" />
-                          <span className="text-amber-400/70 capitalize">{product.status}</span>
+                          <span className="text-amber-400/70 capitalize">{product.status.replace(/_/g, ' ')}</span>
                         </div>
                       </div>
 
-                      {/* Primary product — hero layout */}
-                      {primaryItem && (
-                        <div className="rounded-xl overflow-hidden border border-amber-500/20 bg-[#1a1500]/50 mb-3">
-                          <div className="flex flex-col sm:flex-row">
-                            {/* Product image */}
-                            <div className="w-full sm:w-36 h-36 shrink-0 flex items-center justify-center bg-gradient-to-br from-[#231b00] to-[#141414] border-b sm:border-b-0 sm:border-r border-amber-500/15 p-2">
-                              {primaryItem.image ? (
-                                <img
-                                  src={primaryItem.image}
-                                  alt={primaryItem.name}
-                                  className="w-full h-full object-contain"
-                                  loading="lazy"
-                                  decoding="async"
-                                />
-                              ) : (
-                                <div className="flex flex-col items-center gap-2 text-amber-900/50">
-                                  <Package size={40} />
+                      {/* ── Profit Formula Explainer ── */}
+                      <div className="rounded-xl border border-amber-500/15 bg-gradient-to-br from-amber-500/[0.04] to-transparent p-3 mb-4">
+                        <p className="text-[10px] font-bold text-amber-400/60 uppercase tracking-widest mb-2.5">How Your Profit Is Calculated</p>
+                        <div className="flex items-center justify-center gap-1.5 flex-wrap text-center mb-3">
+                          <span className="bg-[#1a1500] border border-amber-500/20 rounded-lg px-2.5 py-1.5">
+                            <span className="text-[9px] text-gray-500 block leading-tight">Bundle Value</span>
+                            <span className="text-sm font-bold text-white">${product.totalValue.toFixed(2)}</span>
+                          </span>
+                          <span className="text-amber-400 font-bold text-lg">×</span>
+                          <span className="bg-[#1a1500] border border-amber-500/20 rounded-lg px-2.5 py-1.5">
+                            <span className="text-[9px] text-gray-500 block leading-tight">Premium Rate</span>
+                            <span className="text-sm font-bold text-amber-300">{product.profitRate.toFixed(1)}%</span>
+                          </span>
+                          <span className="text-amber-400 font-bold text-lg">=</span>
+                          <span className="bg-green-500/10 border border-green-500/25 rounded-lg px-2.5 py-1.5">
+                            <span className="text-[9px] text-green-400/70 block leading-tight">Total Profit</span>
+                            <span className="text-sm font-bold text-green-400">+${product.estimatedProfit.toFixed(2)}</span>
+                          </span>
+                        </div>
+                        {/* Rate multiplier explanation */}
+                        <div className="flex items-center justify-center gap-1.5 text-[10px] text-gray-500">
+                          <span className="text-gray-400">VIP{userData?.vipLevel || 1} base rate</span>
+                          <span className="text-white/60 font-semibold">{product.normalRate.toFixed(1)}%</span>
+                          <span className="text-amber-400">×{product.premiumMultiplier}</span>
+                          <span className="text-gray-600">→</span>
+                          <span className="text-amber-300 font-semibold">{product.profitRate.toFixed(1)}% premium</span>
+                        </div>
+                      </div>
+
+                      {/* ── Task Progress ── */}
+                      <div className="rounded-xl border border-white/[0.06] bg-[#111] p-3 mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Submission Progress</p>
+                          <span className="text-xs font-bold text-amber-300">{product.tasksCompleted}/{product.totalTasks} tasks</span>
+                        </div>
+                        <div className="w-full h-2 rounded-full bg-[#1a1a1a] border border-white/[0.04] overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-500"
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-[10px] text-gray-500">{progressPercent}% complete</span>
+                          {product.commissionEarned > 0 && (
+                            <span className="text-[10px] text-green-400 font-semibold">Earned so far: +${product.commissionEarned.toFixed(2)}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* ── All Items with per-item profit breakdown ── */}
+                      <div className="space-y-2 mb-4">
+                        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                          {product.premiumType === 'bundled'
+                            ? `Product Breakdown (${product.items.length} items)`
+                            : 'Product Details'}
+                        </p>
+                        {product.items.map((item, itemIndex) => {
+                          const isPrimary = itemIndex === 0;
+                          return (
+                            <div
+                              key={`${item.id}-${itemIndex}`}
+                              className={`rounded-xl overflow-hidden border ${isPrimary ? 'border-amber-500/25 bg-[#1a1500]/40' : 'border-white/[0.06] bg-[#111]'}`}
+                            >
+                              <div className="flex items-stretch">
+                                {/* Image */}
+                                <div className={`shrink-0 w-20 flex items-center justify-center p-2 ${isPrimary ? 'bg-gradient-to-br from-[#231b00] to-[#141414]' : 'bg-[#0e0e0e]'} border-r ${isPrimary ? 'border-amber-500/15' : 'border-white/[0.04]'}`}>
+                                  {item.image ? (
+                                    <img src={item.image} alt={item.name} className="w-full h-full object-contain max-h-16" loading="lazy" decoding="async" />
+                                  ) : (
+                                    <Package size={24} className={isPrimary ? 'text-amber-900/50' : 'text-gray-600'} />
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                            {/* Product details */}
-                            <div className="flex-1 min-w-0 p-4 flex flex-col justify-between">
-                              <div>
-                                <div className="flex items-start justify-between gap-2 mb-2">
-                                  <h3 className="text-base font-bold text-white leading-snug">{primaryItem.name}</h3>
-                                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-amber-400 border border-amber-500/40 rounded px-2 py-0.5 bg-amber-500/10">Primary</span>
+                                {/* Details */}
+                                <div className="flex-1 min-w-0 p-3">
+                                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                                    <p className={`text-sm font-semibold text-white ${isPrimary ? '' : 'truncate'} leading-snug`}>{item.name}</p>
+                                    {isPrimary && (
+                                      <span className="shrink-0 text-[9px] font-bold uppercase tracking-widest text-amber-400 border border-amber-500/40 rounded px-1.5 py-0.5 bg-amber-500/10">Primary</span>
+                                    )}
+                                  </div>
+                                  {/* Per-item math: price × rate = profit */}
+                                  <div className="flex items-center gap-1 text-xs mt-1 flex-wrap">
+                                    <span className="text-gray-400">${item.price.toFixed(2)}</span>
+                                    <span className="text-amber-400/60">×</span>
+                                    <span className="text-amber-300 font-medium">{item.profitRate.toFixed(1)}%</span>
+                                    <span className="text-gray-600">=</span>
+                                    <span className="text-green-400 font-bold">+${item.estimatedProfit.toFixed(2)}</span>
+                                  </div>
+                                  {/* Share bar for bundled */}
+                                  {product.premiumType === 'bundled' && (
+                                    <div className="mt-2 flex items-center gap-2">
+                                      <div className="flex-1 h-1 rounded-full bg-[#1a1a1a] overflow-hidden">
+                                        <div
+                                          className={`h-full rounded-full ${isPrimary ? 'bg-amber-400/60' : 'bg-white/20'}`}
+                                          style={{ width: `${item.shareOfBundle}%` }}
+                                        />
+                                      </div>
+                                      <span className="text-[10px] text-gray-500 tabular-nums">{item.shareOfBundle}%</span>
+                                    </div>
+                                  )}
                                 </div>
-                                <p className="text-xs text-amber-400/50 uppercase tracking-widest font-medium mb-3">Premium Product</p>
                               </div>
-                              <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                  <p className="text-[10px] text-gray-500 mb-0.5">Value</p>
-                                  <p className="text-sm font-bold text-white">${primaryItem.price.toFixed(2)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] text-gray-500 mb-0.5">Rate</p>
-                                  <p className="text-sm font-bold text-amber-300">{primaryItem.profitRate.toFixed(1)}%</p>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] text-gray-500 mb-0.5">Profit</p>
-                                  <p className="text-sm font-bold text-green-400">+${primaryItem.estimatedProfit.toFixed(2)}</p>
-                                </div>
-                              </div>
                             </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* ── Financial Summary Grid ── */}
+                      <div className="rounded-xl border border-amber-500/15 bg-gradient-to-br from-amber-500/[0.03] to-transparent p-3 mb-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-[#111] rounded-lg p-2.5 border border-white/[0.04]">
+                            <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">Total Bundle Value</p>
+                            <p className="text-base font-bold text-white">${product.totalValue.toFixed(2)}</p>
+                          </div>
+                          <div className="bg-[#111] rounded-lg p-2.5 border border-white/[0.04]">
+                            <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">Premium Rate</p>
+                            <p className="text-base font-bold text-amber-300">{product.profitRate.toFixed(1)}%</p>
+                            <p className="text-[9px] text-gray-600 mt-0.5">{product.normalRate.toFixed(1)}% × {product.premiumMultiplier}</p>
+                          </div>
+                          <div className="bg-[#111] rounded-lg p-2.5 border border-green-500/10">
+                            <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">
+                              {product.commissionEarned > 0 ? 'Profit Earned' : 'Projected Profit'}
+                            </p>
+                            <p className="text-base font-bold text-green-400">
+                              +${(product.commissionEarned > 0 ? product.commissionEarned : product.estimatedProfit).toFixed(2)}
+                            </p>
+                            {product.commissionEarned > 0 && remainingProfit > 0 && (
+                              <p className="text-[9px] text-gray-600 mt-0.5">${remainingProfit.toFixed(2)} remaining</p>
+                            )}
+                          </div>
+                          {product.topUpRequired > 0 && (
+                            <div className="bg-[#111] rounded-lg p-2.5 border border-red-500/15">
+                              <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">Top-Up Required</p>
+                              <p className="text-base font-bold text-red-400">${product.topUpRequired.toFixed(2)}</p>
+                            </div>
+                          )}
+                          {product.topUpRequired <= 0 && (
+                            <div className="bg-[#111] rounded-lg p-2.5 border border-white/[0.04]">
+                              <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">Per Task Avg</p>
+                              <p className="text-base font-bold text-white">
+                                +${(product.totalTasks > 0 ? product.estimatedProfit / product.totalTasks : 0).toFixed(2)}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* ── ROI Highlight ── */}
+                      <div className="flex items-center justify-between rounded-lg bg-green-500/[0.06] border border-green-500/15 px-3 py-2.5 mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-green-500/15 flex items-center justify-center">
+                            <span className="text-green-400 font-bold text-xs">%</span>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Return on Investment</p>
+                            <p className="text-sm font-bold text-green-400">{product.profitRate.toFixed(1)}% profit on ${product.totalValue.toFixed(2)}</p>
                           </div>
                         </div>
-                      )}
-
-                      {/* Bundled products */}
-                      {bundledItems.length > 0 && (
-                        <div className="space-y-2 mb-3">
-                          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-widest">Bundled Items ({bundledItems.length})</p>
-                          {bundledItems.map((item, itemIndex) => (
-                            <div key={`${item.id}-${itemIndex}`} className="flex items-center gap-3 rounded-lg border border-white/[0.06] bg-[#111] p-3">
-                              <div className="shrink-0 w-14 h-14 rounded-lg border border-white/[0.06] bg-gradient-to-br from-[#1a1a1a] to-[#111] flex items-center justify-center overflow-hidden p-1">
-                                {item.image ? (
-                                  <img src={item.image} alt={item.name} className="w-full h-full object-contain" loading="lazy" decoding="async" />
-                                ) : (
-                                  <Package size={20} className="text-gray-600" />
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-white truncate mb-1">{item.name}</p>
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="text-gray-400">Value: <span className="text-white font-semibold">${item.price.toFixed(2)}</span></span>
-                                  <span className="text-green-400 font-semibold">+${item.estimatedProfit.toFixed(2)}</span>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Summary footer */}
-                      <div className="pt-3 border-t border-amber-500/15 grid grid-cols-3 gap-2">
-                        <div className="text-center">
-                          <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Total Value</p>
-                          <p className="text-sm font-bold text-white">${product.totalValue.toFixed(2)}</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Premium Rate</p>
-                          <p className="text-sm font-bold text-amber-300">{product.profitRate.toFixed(1)}%</p>
-                        </div>
-                        <div className="text-center">
-                          <p className="text-[10px] text-gray-500 uppercase tracking-wide mb-0.5">Total Profit</p>
-                          <p className="text-sm font-bold text-green-400">+${product.estimatedProfit.toFixed(2)}</p>
-                        </div>
+                        <p className="text-lg font-black text-green-400">+${product.estimatedProfit.toFixed(2)}</p>
                       </div>
 
                       {/* Locked notice */}
-                      <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-500/5 border border-amber-500/15 px-3 py-2">
+                      <div className="flex items-center gap-2 rounded-lg bg-amber-500/5 border border-amber-500/15 px-3 py-2">
                         <Lock size={12} className="shrink-0 text-amber-500/60" />
-                        <p className="text-[11px] text-amber-400/60 leading-snug">Account locked until all {product.items.length} premium task{product.items.length > 1 ? 's are' : ' is'} completed.</p>
+                        <p className="text-[11px] text-amber-400/60 leading-snug">Account locked until all {product.totalTasks} premium task{product.totalTasks > 1 ? 's are' : ' is'} completed.</p>
                       </div>
                     </div>
                   </div>
