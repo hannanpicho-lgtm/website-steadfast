@@ -66,6 +66,8 @@ type TaskCatalogResponse = {
     premiumEnabled?: boolean;
     premiumTriggerTaskNumber?: number;
     premiumValueMode?: 'multiplier' | 'range';
+    taskPriceMin?: number;
+    taskPriceMax?: number;
   };
 };
 
@@ -288,8 +290,8 @@ export default function Starting() {
     ? (vipConfigurations.find((tier) => tier.level === userData.vipLevel) ?? null)
     : null;
   const currentVipLevel = Number(userData?.vipLevel ?? 1);
-  const vipPriceMin = roundMoney(Number(activeVipTier?.taskPriceMin ?? 0));
-  const vipPriceMax = roundMoney(Number(activeVipTier?.taskPriceMax ?? 0));
+  const vipPriceMin = roundMoney(Number(taskRuleConfig?.taskPriceMin ?? activeVipTier?.taskPriceMin ?? 0));
+  const vipPriceMax = roundMoney(Number(taskRuleConfig?.taskPriceMax ?? activeVipTier?.taskPriceMax ?? 0));
   const hasVipPriceRange = vipPriceMin > 0 && vipPriceMax > 0 && vipPriceMax >= vipPriceMin;
 
   const activeTasks = useMemo(() => {
@@ -892,6 +894,18 @@ export default function Starting() {
           && errorPayload?.code === 'no_task_within_vip_range'
         ) {
           toast.error('No products available in your tier range — the catalog has been refreshed.');
+          void fetchUserData();
+          return;
+        }
+        if (
+          response.status === 409
+          && errorPayload?.code === 'task_outside_vip_range'
+        ) {
+          const min = Number(errorPayload?.requiredRange?.min ?? 0);
+          const max = Number(errorPayload?.requiredRange?.max ?? 0);
+          toast.error(min > 0 && max > 0
+            ? `Selected product is outside your live VIP${userData.vipLevel} range ($${min.toFixed(2)} - $${max.toFixed(2)}). Refreshing products.`
+            : 'Selected product is outside your live VIP range. Refreshing products.');
           void fetchUserData();
           return;
         }

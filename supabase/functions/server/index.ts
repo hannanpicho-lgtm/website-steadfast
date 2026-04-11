@@ -7706,6 +7706,8 @@ async function handleStartingSnapshot(c: any) {
       vipTiers: Array.isArray(vipTiers) ? vipTiers : undefined,
       platformSettings: platformSettingsRaw,
     });
+    const activeVipConfig = resolveVipConfigFromTiers(vipTiers, Number(normalizedUserData.vipLevel ?? 1));
+    const controlledCommissionPlan = ensureUserControlledCommissionPlanForCurrentSet(normalizedUserData, activeVipConfig);
 
     // Consolidate holdAmount for frozen accounts: if holdAmount is 0 but the
     // active premium has a non-zero topUpRequired, sync them so the frontend
@@ -7737,6 +7739,8 @@ async function handleStartingSnapshot(c: any) {
           premiumEnabled: normalizedRewardsConfig.premiumEnabled,
           premiumTriggerTaskNumber: normalizedRewardsConfig.premiumTriggerTaskNumber,
           premiumValueMode: normalizedRewardsConfig.premiumValueMode,
+          taskPriceMin: controlledCommissionPlan.rangeConfig?.taskPriceMin ?? 0,
+          taskPriceMax: controlledCommissionPlan.rangeConfig?.taskPriceMax ?? 0,
         },
       },
       vipConfig: Array.isArray(vipTiers) ? vipTiers : [],
