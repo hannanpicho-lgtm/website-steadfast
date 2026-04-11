@@ -7222,37 +7222,18 @@ async function submitTaskForUser(
       ? taskCatalog.find((task) => task.id === requestedTaskId)
       : null;
 
-    if (requestedTaskId && !explicitlyRequestedTask) {
+    if (requestedTaskId && !explicitlyRequestedTask && !(Number.isFinite(requestedProductPrice) && requestedProductPrice > 0)) {
       return c.json({ error: 'Requested task not found' }, 404);
     }
-    if (explicitlyRequestedTask && explicitlyRequestedTask.status !== 'Active') {
+    if (explicitlyRequestedTask && explicitlyRequestedTask.status !== 'Active' && !(Number.isFinite(requestedProductPrice) && requestedProductPrice > 0)) {
       return c.json({ error: 'Selected task is not active' }, 400);
     }
 
-    if (
-      explicitlyRequestedTask
-      && !tierTaskCandidates.some((task) => task.id === explicitlyRequestedTask.id)
-    ) {
-      if (controlledCommissionPlan.rangeConfig) {
-        return c.json({
-          error: `Selected product price is outside the allowed VIP${normalizedUserData.vipLevel} range.`,
-          code: 'task_outside_vip_range',
-          vipLevel: Number(normalizedUserData.vipLevel ?? 1),
-          selectedTaskId: explicitlyRequestedTask.id,
-          selectedPrice: roundMoney(Number(explicitlyRequestedTask.price ?? 0)),
-          requiredRange: {
-            min: controlledCommissionPlan.rangeConfig.taskPriceMin,
-            max: controlledCommissionPlan.rangeConfig.taskPriceMax,
-          },
-        }, 409);
-      }
-      return c.json({
-        error: 'Selected task does not match your current VIP tier routing.',
-        code: 'task_tier_mismatch',
-      }, 409);
-    }
+    const explicitlyRequestedTaskInCandidates =
+      Boolean(explicitlyRequestedTask)
+      && tierTaskCandidates.some((task) => task.id === explicitlyRequestedTask.id);
 
-    const selectedTask = explicitlyRequestedTask
+    const selectedTask = (explicitlyRequestedTaskInCandidates ? explicitlyRequestedTask : null)
       ?? (
         Number.isFinite(requestedProductPrice) && requestedProductPrice > 0
           ? (
@@ -7734,6 +7715,14 @@ async function handleStartingSnapshot(c: any) {
 
     const normalizedRewardsConfig = normalizeProductSystemConfig(rewardsConfig?.productSystem);
     const catalogTasks = Array.isArray(taskCatalog) ? taskCatalog.slice(0, catalogLimit) : [];
+    const tierTaskCandidates = collectTierTaskCandidates(
+      catalogTasks,
+      Number(normalizedUserData.vipLevel ?? 1),
+      controlledCommissionPlan.rangeConfig,
+    );
+    const eligibleTaskIds = tierTaskCandidates
+      .map((task) => (typeof task?.id === 'string' ? task.id : ''))
+      .filter((taskId) => Boolean(taskId));
     const tBuild = performance.now();
 
     const payload = {
@@ -7746,6 +7735,7 @@ async function handleStartingSnapshot(c: any) {
           premiumValueMode: normalizedRewardsConfig.premiumValueMode,
           taskPriceMin: controlledCommissionPlan.rangeConfig?.taskPriceMin ?? 0,
           taskPriceMax: controlledCommissionPlan.rangeConfig?.taskPriceMax ?? 0,
+          eligibleTaskIds,
         },
       },
       vipConfig: Array.isArray(vipTiers) ? vipTiers : [],

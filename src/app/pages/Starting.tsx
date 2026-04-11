@@ -68,6 +68,7 @@ type TaskCatalogResponse = {
     premiumValueMode?: 'multiplier' | 'range';
     taskPriceMin?: number;
     taskPriceMax?: number;
+    eligibleTaskIds?: string[];
   };
 };
 
@@ -314,6 +315,17 @@ export default function Starting() {
     const allActive = taskCatalog.filter((task) => task.status === 'Active');
     if (allActive.length === 0) {
       return [];
+    }
+
+    const eligibleTaskIds = Array.isArray(taskRuleConfig?.eligibleTaskIds)
+      ? taskRuleConfig.eligibleTaskIds.filter((id): id is string => typeof id === 'string' && id.length > 0)
+      : [];
+    if (eligibleTaskIds.length > 0) {
+      const allowed = new Set(eligibleTaskIds);
+      const serverEligible = allActive.filter((task) => allowed.has(task.id));
+      if (serverEligible.length > 0) {
+        return serverEligible;
+      }
     }
 
     const tierTagged = (tasks: TaskCatalogItem[]) => tasks.filter((task) => Number(task.vipTier ?? 0) === currentVipLevel);
@@ -898,6 +910,7 @@ export default function Starting() {
               }
             : {
                 taskId: currentProduct?.id,
+                productPrice: currentProduct?.price,
               },
         ),
       });
