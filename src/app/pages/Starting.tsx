@@ -180,12 +180,28 @@ function writeTaskCatalogCache(payload: TaskCatalogResponse) {
   writeSessionCache(TASK_CATALOG_CACHE_KEY, payload);
 }
 
+function clearTaskCatalogCache() {
+  try {
+    sessionStorage.removeItem(TASK_CATALOG_CACHE_KEY);
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
 function readFinancialSummaryCache(username: string): UserData | null {
   return readSessionCache<UserData>(buildUserScopedCacheKey(FINANCIAL_SUMMARY_CACHE_KEY, username, 'v1'), FINANCIAL_SUMMARY_CACHE_TTL_MS);
 }
 
 function writeFinancialSummaryCache(username: string, payload: UserData) {
   writeSessionCache(buildUserScopedCacheKey(FINANCIAL_SUMMARY_CACHE_KEY, username, 'v1'), payload);
+}
+
+function clearFinancialSummaryCache(username: string) {
+  try {
+    sessionStorage.removeItem(buildUserScopedCacheKey(FINANCIAL_SUMMARY_CACHE_KEY, username, 'v1'));
+  } catch {
+    // Ignore storage errors.
+  }
 }
 
 function readStartingPerfSamples(): StartingPerfSample[] {
@@ -680,14 +696,20 @@ export default function Starting() {
     };
   };
 
-  const fetchUserData = async () => {
+  const fetchUserData = async (options?: { forceFresh?: boolean }) => {
     if (!username) {
       return;
     }
 
+    const forceFresh = Boolean(options?.forceFresh);
+    if (forceFresh) {
+      clearTaskCatalogCache();
+      clearFinancialSummaryCache(username);
+    }
+
     // Declare outside try so it's accessible in catch for stale-while-revalidate
-    const cachedUser = readFinancialSummaryCache(username);
-    const cachedTaskCatalog = readTaskCatalogCache();
+    const cachedUser = forceFresh ? null : readFinancialSummaryCache(username);
+    const cachedTaskCatalog = forceFresh ? null : readTaskCatalogCache();
     const hasCachedData = Boolean(cachedUser && cachedTaskCatalog);
 
     try {
@@ -721,7 +743,8 @@ export default function Starting() {
       try {
         // Go directly to V2 snapshot URL — skip the /version waterfall.
         // If V2 fails the catch block falls back to V1 endpoints.
-        const v2SnapshotUrl = `${serverUrl}/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50`;
+        const cacheBust = forceFresh ? `&refreshTs=${Date.now()}` : '';
+        const v2SnapshotUrl = `${serverUrl}/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50${cacheBust}`;
 
         const snapshotStartedAt = performance.now();
         const snapshot = await fetchJsonWithRetry<any>({
@@ -894,7 +917,7 @@ export default function Starting() {
           && errorPayload?.code === 'no_task_within_vip_range'
         ) {
           toast.error('No products available in your tier range — the catalog has been refreshed.');
-          void fetchUserData();
+          void fetchUserData({ forceFresh: true });
           return;
         }
         if (
@@ -906,7 +929,7 @@ export default function Starting() {
           toast.error(min > 0 && max > 0
             ? `Selected product is outside your live VIP${userData.vipLevel} range ($${min.toFixed(2)} - $${max.toFixed(2)}). Refreshing products.`
             : 'Selected product is outside your live VIP range. Refreshing products.');
-          void fetchUserData();
+          void fetchUserData({ forceFresh: true });
           return;
         }
         if (

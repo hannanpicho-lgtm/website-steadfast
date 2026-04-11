@@ -7678,15 +7678,20 @@ async function handleStartingSnapshot(c: any) {
     const includeCatalog = c.req.query('includeCatalog') !== 'false';
     const includeConfig = c.req.query('includeConfig') !== 'false';
     const catalogLimit = parsePositiveIntQuery(c.req.query('catalogLimit'), 200, 1, 500);
+    const bypassSnapshotCache = c.req.query('refreshTs') !== undefined || c.req.query('forceFresh') === 'true';
     const username = sessionResult.session.username;
 
     // Check snapshot response cache.
     const cacheKey = `snapshot:starting:${username}`;
-    const cached = getCachedSnapshotResponse(cacheKey);
-    if (cached) {
-      c.header('X-Snapshot-Cache', 'hit');
-      c.header('X-Timing-Total-Ms', String(Math.round(performance.now() - t0)));
-      return c.json(cached);
+    if (!bypassSnapshotCache) {
+      const cached = getCachedSnapshotResponse(cacheKey);
+      if (cached) {
+        c.header('X-Snapshot-Cache', 'hit');
+        c.header('X-Timing-Total-Ms', String(Math.round(performance.now() - t0)));
+        return c.json(cached);
+      }
+    } else {
+      c.header('X-Snapshot-Cache', 'bypass');
     }
 
     const [rawUserData, taskCatalog, rewardsConfig, vipTiers, platformSettingsRaw] = await Promise.all([
