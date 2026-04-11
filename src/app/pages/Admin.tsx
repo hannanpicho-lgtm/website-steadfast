@@ -7,6 +7,7 @@ import type { AdminUserRecord, AdminRole, ModalType, PlatformUser, PlatformUserA
 const AdminModals = lazy(() => import('../admin/AdminModals'));
 import { ResetCredentialsModal, CreditScoreModal } from '../admin/AdminPromptModals';
 import ScrollToTop from '../admin/ScrollToTop';
+import { fetchAdminChatSummaries } from '../services/chatSupport';
 import { 
   Home, 
   Users, 
@@ -27,6 +28,7 @@ import {
   Lock,
   LogOut,
   MessageSquare,
+  MessageCircle,
   CheckCircle,
   ClipboardList
 } from 'lucide-react';
@@ -2202,13 +2204,30 @@ export default function Admin() {
   const pendingWithdrawalCount = withdrawalRequests.filter((withdrawal) => withdrawal.status === 'Pending').length;
   const financeTransactionCount = transactions.length;
 
+  // Live chat unread count polling
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const summaries = await fetchAdminChatSummaries();
+        if (!cancelled) {
+          setUnreadChatCount(summaries.reduce((sum, t) => sum + (t.unreadCount ?? 0), 0));
+        }
+      } catch { /* silent */ }
+    };
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
   const menuItems: MenuItem[] = [
     { id: 'home', label: 'Dashboard', icon: <Home size={18} /> },
     { id: 'financials', label: 'Financial Overview', icon: <Wallet size={18} /> },
     { id: 'rewards-system', label: 'Rewards & Salary System', icon: <Gift size={18} /> },
     { id: 'product-management', label: 'Product Management', icon: <Package size={18} /> },
     { id: 'premium-bundles', label: 'Premium Bundles', icon: <Lock size={18} /> },
-    { id: 'customer-support', label: 'Customer Support', icon: <MessageSquare size={18} /> },
+    { id: 'customer-support', label: 'Customer Support', icon: <MessageSquare size={18} />, badge: unreadChatCount || undefined },
     { id: 'admin-users', label: 'Admin Users & Roles', icon: <UserCog size={18} />, badge: adminUsers.length || undefined },
     { id: 'user-management', label: 'User Management', icon: <Users size={18} />, badge: platformUsersLoaded ? platformUsers.length || undefined : undefined },
     { id: 'transactions', label: 'Transactions', icon: <DollarSign size={18} />, badge: financeLoaded ? financeTransactionCount || undefined : undefined },
@@ -2823,6 +2842,22 @@ export default function Admin() {
           {renderContent()}
         </div>
         <ScrollToTop scrollRef={mainScrollRef} />
+
+        {/* Floating live-chat button */}
+        <button
+          onClick={() => { setActiveMenu('customer-support'); }}
+          className="fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-teal-500 hover:bg-teal-600 text-white shadow-lg transition-transform hover:scale-110 focus:outline-none"
+          style={unreadChatCount > 0 ? { animation: 'chatPulse 2s infinite' } : undefined}
+          aria-label="Open live chat"
+        >
+          <MessageCircle size={26} />
+          {unreadChatCount > 0 && (
+            <span className="absolute -top-1 -right-1 flex items-center justify-center min-w-[20px] h-5 px-1 rounded-full bg-red-500 text-white text-xs font-bold shadow">
+              {unreadChatCount > 99 ? '99+' : unreadChatCount}
+            </span>
+          )}
+        </button>
+        <style>{`@keyframes chatPulse { 0%,100%{box-shadow:0 0 0 0 rgba(20,184,166,.4)} 50%{box-shadow:0 0 0 12px rgba(20,184,166,0)} }`}</style>
       </main>
 
       {/* Modals — lazy-loaded, only fetched when a modal is triggered */}
