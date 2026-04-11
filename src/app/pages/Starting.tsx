@@ -1016,7 +1016,7 @@ export default function Starting() {
         </div>
 
         {/* Product Slideshow */}
-        <ProductCarousel tasks={carouselTasks} index={carouselIndex} onIndexChange={setCarouselIndex} />
+        <ProductCarousel tasks={activeTasks} index={carouselIndex} onIndexChange={setCarouselIndex} />
 
         {/* POST-UNFREEZE: Premiactivet credited confirmation */}
         {!userData?.isFrozen && userData?.activePremium && Number(userData.activePremium.commissionEarned ?? 0) > 0 && (
