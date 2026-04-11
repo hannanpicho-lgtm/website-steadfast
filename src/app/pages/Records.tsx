@@ -1,4 +1,4 @@
-import { ChevronLeft, Package, Clock, CheckCircle, Loader2, ChevronDown, ChevronUp, Download, Crown, Lock } from 'lucide-react';
+import { ChevronLeft, Package, Clock, CheckCircle, Loader2, ChevronDown, ChevronUp, Download, Crown, Lock, MessageCircle, Gem } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
 import { useState, useEffect, useTransition, lazy, Suspense } from 'react';
@@ -621,6 +621,16 @@ export default function Records() {
                     key={`${product.id}-${index}`}
                     className="relative overflow-hidden rounded-xl bg-gradient-to-b from-[#1c1500] via-[#141414] to-[#141414] border border-amber-500/30 shadow-[0_4px_32px_rgba(251,191,36,0.07)]"
                   >
+                    <style>{`
+                      @keyframes premiumFloat {
+                        0%, 100% { transform: translateY(0) rotate(0deg); }
+                        50% { transform: translateY(-4px) rotate(3deg); }
+                      }
+                      @keyframes premiumGlow {
+                        0%, 100% { opacity: 0.4; }
+                        50% { opacity: 1; }
+                      }
+                    `}</style>
                     {/* Gold accent top bar */}
                     <div className="h-[2px] w-full bg-gradient-to-r from-transparent via-amber-400 to-transparent" />
 
@@ -707,11 +717,17 @@ export default function Records() {
                             >
                               <div className="flex items-stretch">
                                 {/* Image */}
-                                <div className={`shrink-0 w-20 flex items-center justify-center p-2 ${isPrimary ? 'bg-gradient-to-br from-[#231b00] to-[#141414]' : 'bg-[#0e0e0e]'} border-r ${isPrimary ? 'border-amber-500/15' : 'border-white/[0.04]'}`}>
+                                <div className={`shrink-0 w-20 flex items-center justify-center p-2 relative ${isPrimary ? 'bg-gradient-to-br from-[#231b00] to-[#141414]' : 'bg-[#0e0e0e]'} border-r ${isPrimary ? 'border-amber-500/15' : 'border-white/[0.04]'}`}>
                                   {item.image ? (
-                                    <img src={item.image} alt={item.name} className="w-full h-full object-contain max-h-16" loading="lazy" decoding="async" />
+                                    <>
+                                      <img src={item.image} alt={item.name} className="w-full h-full object-contain max-h-16 relative z-[1]" loading="lazy" decoding="async" />
+                                      {isPrimary && <div className="absolute inset-0 rounded-lg" style={{ background: 'radial-gradient(circle, rgba(251,191,36,0.12) 0%, transparent 70%)', animation: 'premiumGlow 2.5s ease-in-out infinite' }} />}
+                                    </>
                                   ) : (
-                                    <Package size={24} className={isPrimary ? 'text-amber-900/50' : 'text-gray-600'} />
+                                    <div className="relative flex items-center justify-center">
+                                      <Gem size={28} className={isPrimary ? 'text-amber-400' : 'text-gray-500'} style={isPrimary ? { animation: 'premiumFloat 3s ease-in-out infinite', filter: 'drop-shadow(0 0 8px rgba(251,191,36,0.4))' } : undefined} />
+                                      {isPrimary && <div className="absolute inset-0 -m-3 rounded-full" style={{ background: 'radial-gradient(circle, rgba(251,191,36,0.15) 0%, transparent 70%)', animation: 'premiumGlow 2.5s ease-in-out infinite' }} />}
+                                    </div>
                                   )}
                                 </div>
                                 {/* Details */}
@@ -772,20 +788,12 @@ export default function Records() {
                               <p className="text-[9px] text-gray-600 mt-0.5">${remainingProfit.toFixed(2)} remaining</p>
                             )}
                           </div>
-                          {product.topUpRequired > 0 && (
-                            <div className="bg-[#111] rounded-lg p-2.5 border border-red-500/15">
-                              <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">Top-Up Required</p>
-                              <p className="text-base font-bold text-red-400">${product.topUpRequired.toFixed(2)}</p>
-                            </div>
-                          )}
-                          {product.topUpRequired <= 0 && (
-                            <div className="bg-[#111] rounded-lg p-2.5 border border-white/[0.04]">
-                              <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">Per Task Avg</p>
-                              <p className="text-base font-bold text-white">
-                                +${(product.totalTasks > 0 ? product.estimatedProfit / product.totalTasks : 0).toFixed(2)}
-                              </p>
-                            </div>
-                          )}
+                          <div className="bg-[#111] rounded-lg p-2.5 border border-white/[0.04]">
+                            <p className="text-[9px] text-gray-500 uppercase tracking-wider mb-0.5">Per Task Avg</p>
+                            <p className="text-base font-bold text-white">
+                              +${(product.totalTasks > 0 ? product.estimatedProfit / product.totalTasks : 0).toFixed(2)}
+                            </p>
+                          </div>
                         </div>
                       </div>
 
@@ -796,17 +804,17 @@ export default function Records() {
                             <span className="text-green-400 font-bold text-xs">%</span>
                           </div>
                           <div>
-                            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Return on Investment</p>
+                            <p className="text-[10px] text-gray-500 uppercase tracking-wider">Total Premium Commission Profit</p>
                             <p className="text-sm font-bold text-green-400">{product.profitRate.toFixed(1)}% profit on ${product.totalValue.toFixed(2)}</p>
                           </div>
                         </div>
                         <p className="text-lg font-black text-green-400">+${product.estimatedProfit.toFixed(2)}</p>
                       </div>
 
-                      {/* Locked notice */}
+                      {/* Customer service notice */}
                       <div className="flex items-center gap-2 rounded-lg bg-amber-500/5 border border-amber-500/15 px-3 py-2">
-                        <Lock size={12} className="shrink-0 text-amber-500/60" />
-                        <p className="text-[11px] text-amber-400/60 leading-snug">Account locked until all {product.totalTasks} premium task{product.totalTasks > 1 ? 's are' : ' is'} completed.</p>
+                        <MessageCircle size={12} className="shrink-0 text-amber-500/60" />
+                        <p className="text-[11px] text-amber-400/60 leading-snug">Please contact Customer Service for more inquiries.</p>
                       </div>
                     </div>
                   </div>
@@ -859,6 +867,18 @@ export default function Records() {
                         <span className="text-xs text-gray-400 font-medium">${product.price.toFixed(2)}</span>
                         {product.isPremium && (
                           <span className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">10X</span>
+                        )}
+                      </div>
+
+                      {/* VIP profit formula */}
+                      <div className="flex items-center gap-1 text-[11px] mb-2 flex-wrap">
+                        <span className="text-gray-400">${product.price.toFixed(2)}</span>
+                        <span className="text-cyan-400/60">×</span>
+                        <span className="text-cyan-300 font-medium">{normalRate.toFixed(1)}%</span>
+                        <span className="text-gray-600">=</span>
+                        <span className="text-green-400 font-bold">+${product.commission.toFixed(2)}</span>
+                        {product.isPremium && (
+                          <span className="text-amber-400 text-[10px] font-semibold ml-0.5">(10× premium)</span>
                         )}
                       </div>
 
