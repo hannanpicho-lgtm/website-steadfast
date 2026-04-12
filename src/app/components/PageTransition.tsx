@@ -5,26 +5,19 @@ import type { ReactNode } from 'react';
 const pageVariants = {
   initial: {
     opacity: 0,
-    y: 12,
-    scale: 0.99,
   },
   enter: {
     opacity: 1,
-    y: 0,
-    scale: 1,
     transition: {
-      duration: 0.32,
-      ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
-      staggerChildren: 0.04,
+      duration: 0.15,
+      ease: 'easeOut' as const,
     },
   },
   exit: {
     opacity: 0,
-    y: -8,
-    scale: 0.995,
     transition: {
-      duration: 0.2,
-      ease: [0.4, 0, 1, 1] as [number, number, number, number],
+      duration: 0.1,
+      ease: 'easeIn' as const,
     },
   },
 };
@@ -45,7 +38,8 @@ export function PageTransition({ children }: { children: ReactNode }) {
           initial="initial"
           animate="enter"
           exit="exit"
-          style={{ willChange: 'opacity, transform' }}
+          className="min-h-screen"
+          style={{ willChange: 'opacity', backgroundColor: '#0a0a0a' }}
         >
           {children}
         </m.div>

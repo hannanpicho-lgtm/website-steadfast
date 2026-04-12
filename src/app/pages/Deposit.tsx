@@ -122,7 +122,7 @@ export default function Deposit() {
   };
 
   return (
-    <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
+    <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]">
       {/* Header */}
       <Header onContactClick={() => setIsChatOpen(true)} />
 

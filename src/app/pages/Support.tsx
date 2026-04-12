@@ -338,7 +338,7 @@ export default function Support() {
   );
 
   return (
-    <div className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
+    <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]">
       <Header />
       
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6">

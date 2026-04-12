@@ -1001,27 +1001,27 @@ export default function Starting() {
 
   if (loading) {
     return (
-      <div className="size-full flex flex-col bg-[#1a1f2e]">
+      <div className="size-full flex flex-col bg-[#0a0a0a]">
         <Header onContactClick={() => setIsChatOpen(true)} />
         <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4" aria-busy="true" aria-label="Loading tasks">
           {/* Stats skeleton */}
           <div className="grid grid-cols-2 gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="bg-[#252d42] rounded-xl p-4 animate-pulse">
-                <div className="h-3 bg-gray-600/40 rounded w-2/3 mb-3" />
-                <div className="h-6 bg-gray-600/40 rounded w-1/2" />
+              <div key={i} className="bg-[#141414] border border-white/[0.06] rounded-xl p-4 animate-pulse">
+                <div className="h-3 bg-white/[0.06] rounded w-2/3 mb-3" />
+                <div className="h-6 bg-white/[0.06] rounded w-1/2" />
               </div>
             ))}
           </div>
           {/* Task card skeletons */}
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="bg-[#252d42] rounded-xl p-4 animate-pulse">
+            <div key={i} className="bg-[#141414] border border-white/[0.06] rounded-xl p-4 animate-pulse">
               <div className="flex gap-3">
-                <div className="shrink-0 w-16 h-16 rounded-lg bg-gray-600/40" />
+                <div className="shrink-0 w-16 h-16 rounded-lg bg-white/[0.06]" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-gray-600/40 rounded w-3/4" />
-                  <div className="h-3 bg-gray-600/40 rounded w-1/2" />
-                  <div className="h-8 bg-gray-600/40 rounded-lg w-full mt-2" />
+                  <div className="h-4 bg-white/[0.06] rounded w-3/4" />
+                  <div className="h-3 bg-white/[0.06] rounded w-1/2" />
+                  <div className="h-8 bg-white/[0.06] rounded-lg w-full mt-2" />
                 </div>
               </div>
             </div>
@@ -1034,8 +1034,8 @@ export default function Starting() {
 
   if (loadError && !userData) {
     return (
-      <div className="size-full flex items-center justify-center bg-[#1a1f2e] p-6">
-        <div className="max-w-md w-full bg-[#252d42] border border-[#00D9FF]/30 rounded-xl p-6 text-center">
+      <div className="size-full flex items-center justify-center bg-[#0a0a0a] p-6">
+        <div className="max-w-md w-full bg-[#141414] border border-white/[0.08] rounded-xl p-6 text-center">
           <p className="text-white font-semibold mb-2">Unable to load starting data</p>
           <p className="text-gray-300 text-sm mb-5">{loadError}</p>
           <button
@@ -1053,7 +1053,7 @@ export default function Starting() {
   }
 
   return (
-    <div ref={pullRef} className="size-full overflow-auto pb-20 bg-[#1a1f2e]">
+    <div ref={pullRef} className="size-full overflow-auto pb-20 bg-[#0a0a0a]">
       {/* Pull-to-refresh indicator */}
       <PullToRefreshIndicator state={pullState} style={pullIndicatorStyle} />
 
@@ -1251,7 +1251,7 @@ export default function Starting() {
         />
 
         {/* Important Notice */}
-        <div className="bg-[#252d42]/80 border border-[#00D9FF]/20 rounded-xl p-6 text-center shadow-lg mb-6 backdrop-blur-sm">
+        <div className="bg-[#141414]/80 border border-white/[0.08] rounded-xl p-6 text-center shadow-lg mb-6 backdrop-blur-sm">
           <h3 className="text-xl font-bold text-white mb-2">Important Notice</h3>
           <p className="text-sm text-gray-300 mb-1">Online Support Hours: 9 AM – 10 PM EST</p>
           <p className="text-sm text-gray-300">Please contact online support for your assistance.</p>

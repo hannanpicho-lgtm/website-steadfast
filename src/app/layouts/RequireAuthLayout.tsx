@@ -45,10 +45,9 @@ export default function RequireAuthLayout() {
 
   if (status === 'checking') {
     return (
-      <div className="min-h-screen bg-[#1a1f2e] flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="mx-auto h-10 w-10 rounded-full border-2 border-[#00D9FF]/30 border-t-[#00D9FF] animate-spin" />
-          <p className="text-sm tracking-widest text-[#00D9FF]/70 uppercase">Loading</p>
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto h-8 w-8 rounded-full border-2 border-[#c8956c]/30 border-t-[#c8956c] animate-spin" />
         </div>
       </div>
     );

@@ -97,7 +97,7 @@ export default function FAQs() {
     <div className="size-full overflow-auto bg-[#0a0a0a]">
       <Header onContactClick={() => setIsChatOpen(true)} />
 
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 pb-16">
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 pb-4">
         {/* Back + Title */}
         <div className="flex items-center gap-4 mb-8">
           <button onClick={goBack} aria-label="Go back" className="btn-mobile-icon">
@@ -126,7 +126,7 @@ export default function FAQs() {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-[#6b635b] mt-12">
+        <p className="text-center text-xs text-[#6b635b] mt-8 mb-4">
           © 2026 Steadfast Digital, Inc. All rights reserved
         </p>
       </div>

@@ -8,31 +8,76 @@ import { NetworkStatus } from '../components/NetworkStatus';
 import { TopProgressBar } from '../components/TopProgressBar';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import PlatformModeBanner from '../components/PlatformModeBanner';
+import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
+import { getSessionUsername } from '../services/serverAuth';
+import { buildServerSessionHeaders } from '../services/serverAuth';
 
 /**
- * Prefetch likely next-route chunks so navigation feels instant.
- * Only triggers once per path, and only after the current page has loaded.
+ * Prefetch likely next-route chunks AND data so navigation feels instant.
+ * Chunk prefetch: loads JS modules via idle callback.
+ * Data prefetch: fires API requests into the browser's HTTP cache.
  */
 const prefetchMap: Record<string, string[]> = {
   '/': ['./pages/Login', './pages/Signup'],
   '/login': ['./pages/UserHome', './pages/Signup'],
   '/signup': ['./pages/Login'],
   '/home': ['./pages/Starting', './pages/Records', './pages/Profile'],
+  '/starting': ['./pages/Records'],
+  '/records': ['./pages/Starting'],
 };
+
+const dataPrefetchMap: Record<string, string[]> = {
+  '/home': [
+    '/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50',
+    '/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true',
+  ],
+  '/starting': [
+    '/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true',
+  ],
+  '/records': [
+    '/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50',
+  ],
+};
+
+const prefetchedDataUrls = new Set<string>();
+
+function prefetchData(endpoints: string[]) {
+  const username = getSessionUsername();
+  if (!username) return;
+  
+  const baseUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
+  for (const endpoint of endpoints) {
+    const url = `${baseUrl}${endpoint}`;
+    if (prefetchedDataUrls.has(url)) continue;
+    prefetchedDataUrls.add(url);
+    
+    fetch(url, {
+      credentials: 'include',
+      headers: buildServerSessionHeaders({
+        'Authorization': `Bearer ${RUNTIME_ENVIRONMENT.publicAnonKey}`,
+      }),
+    }).catch(() => {});
+  }
+}
 
 function usePrefetchRoutes() {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    const targets = prefetchMap[pathname];
-    if (!targets) return;
-
     const schedule = typeof requestIdleCallback === 'function' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 1);
     const cancel = typeof cancelIdleCallback === 'function' ? cancelIdleCallback : clearTimeout;
 
     const id = schedule(() => {
-      for (const mod of targets) {
-        import(/* @vite-ignore */ mod).catch(() => {});
+      const targets = prefetchMap[pathname];
+      if (targets) {
+        for (const mod of targets) {
+          import(/* @vite-ignore */ mod).catch(() => {});
+        }
+      }
+      
+      const dataTargets = dataPrefetchMap[pathname];
+      if (dataTargets) {
+        prefetchData(dataTargets);
       }
     });
 
