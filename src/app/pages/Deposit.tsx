@@ -12,7 +12,7 @@ import { fetchJsonWithRetry, isAuthError } from '../services/networkClient';
 import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 import { buildUserScopedCacheKey } from '../services/apiCompatibility';
 
-const DEPOSIT_FINANCIALS_CACHE_TTL_MS = 30_000;
+const SHARED_FINANCIALS_CACHE_TTL_MS = 30_000;
 const DEPOSIT_TX_CACHE_TTL_MS = 45_000;
 
 type UserData = {
@@ -66,8 +66,8 @@ export default function Deposit() {
           retries: 1,
           retryDelayMs: 200,
           pageTag: 'deposit',
-          cacheKey: buildUserScopedCacheKey('deposit:financials', username, 'v1'),
-          cacheTtlMs: DEPOSIT_FINANCIALS_CACHE_TTL_MS,
+          cacheKey: buildUserScopedCacheKey('me:financials', username, 'v1'),
+          cacheTtlMs: SHARED_FINANCIALS_CACHE_TTL_MS,
         });
         setUserData({
           balance: Number(userPayload.balance ?? 0),

@@ -8,9 +8,9 @@ import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 import { fetchJsonWithRetry } from '../services/networkClient';
 import { buildUserScopedCacheKey } from '../services/apiCompatibility';
 import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
+import { getCurrentUsername } from '../services/referralSystem';
 
-const VIP_FINANCIALS_CACHE_TTL_MS = 30_000;
-const VIP_CONFIG_CACHE_TTL_MS = 120_000;
+const SHARED_FINANCIALS_CACHE_TTL_MS = 30_000;
 
 type VipCard = {
   level: number;
@@ -122,6 +122,7 @@ export default function VipLevels() {
   const [vipCards, setVipCards] = useState<VipCard[]>(fallbackVipCards);
   const [loading, setLoading] = useState(true);
   const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
+  const username = getCurrentUsername();
 
   useEffect(() => {
     const loadCurrentVip = async () => {
@@ -133,8 +134,8 @@ export default function VipLevels() {
             retries: 1,
             retryDelayMs: 200,
             pageTag: 'vip-levels',
-            cacheKey: buildUserScopedCacheKey('vip:financials', undefined, 'v1'),
-            cacheTtlMs: VIP_FINANCIALS_CACHE_TTL_MS,
+            cacheKey: buildUserScopedCacheKey('me:financials', username, 'v1'),
+            cacheTtlMs: SHARED_FINANCIALS_CACHE_TTL_MS,
           }),
           fetchPublicVipConfig(),
         ]);
@@ -155,7 +156,7 @@ export default function VipLevels() {
     };
 
     void loadCurrentVip();
-  }, [serverUrl]);
+  }, [serverUrl, username]);
 
   return (
     <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]" style={{ background: '#0a0a0a' }}>

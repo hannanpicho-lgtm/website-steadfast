@@ -48,16 +48,24 @@ const dataPrefetchEntries: Record<string, DataPrefetchEntry[]> = {
   '/home': [
     { endpoint: '/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50', cacheKey: (u) => userKeyV2('starting:snapshot', u), cacheTtlMs: 45_000 },
     { endpoint: '/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true', cacheKey: (u) => userKeyV2('records:snapshot', u), cacheTtlMs: 45_000 },
-    { endpoint: '/me/financials', cacheKey: (u) => userKey('deposit:financials', u), cacheTtlMs: 30_000 },
+    { endpoint: '/me/financials', cacheKey: (u) => userKey('me:financials', u), cacheTtlMs: 30_000 },
     { endpoint: '/me/transactions', cacheKey: (u) => userKey('deposit:transactions', u), cacheTtlMs: 45_000 },
     { endpoint: '/vip-config', cacheKey: () => buildPublicCacheKey('vip-config', 'v1'), cacheTtlMs: 300_000 },
     { endpoint: '/v2/me/activity-snapshot?includeConfig=true&transactionsLimit=80&withdrawalsLimit=40', cacheKey: (u) => userKeyV2('activity:snapshot', u), cacheTtlMs: 45_000 },
   ],
   '/starting': [
     { endpoint: '/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true', cacheKey: (u) => userKeyV2('records:snapshot', u), cacheTtlMs: 45_000 },
+    { endpoint: '/me/financials', cacheKey: (u) => userKey('me:financials', u), cacheTtlMs: 30_000 },
+    { endpoint: '/me/transactions', cacheKey: (u) => userKey('deposit:transactions', u), cacheTtlMs: 45_000 },
+    { endpoint: '/vip-config', cacheKey: () => buildPublicCacheKey('vip-config', 'v1'), cacheTtlMs: 300_000 },
+    { endpoint: '/v2/me/activity-snapshot?includeConfig=true&transactionsLimit=80&withdrawalsLimit=40', cacheKey: (u) => userKeyV2('activity:snapshot', u), cacheTtlMs: 45_000 },
   ],
   '/records': [
     { endpoint: '/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50', cacheKey: (u) => userKeyV2('starting:snapshot', u), cacheTtlMs: 45_000 },
+    { endpoint: '/me/financials', cacheKey: (u) => userKey('me:financials', u), cacheTtlMs: 30_000 },
+    { endpoint: '/me/transactions', cacheKey: (u) => userKey('deposit:transactions', u), cacheTtlMs: 45_000 },
+    { endpoint: '/vip-config', cacheKey: () => buildPublicCacheKey('vip-config', 'v1'), cacheTtlMs: 300_000 },
+    { endpoint: '/v2/me/activity-snapshot?includeConfig=true&transactionsLimit=80&withdrawalsLimit=40', cacheKey: (u) => userKeyV2('activity:snapshot', u), cacheTtlMs: 45_000 },
   ],
 };
 
@@ -89,6 +97,14 @@ function usePrefetchRoutes() {
   const { pathname } = useLocation();
 
   useEffect(() => {
+    // Fire data prefetch IMMEDIATELY — don't wait for idle.
+    // This is the critical path: pages need this data on mount.
+    const dataTargets = dataPrefetchEntries[pathname];
+    if (dataTargets) {
+      prefetchData(dataTargets);
+    }
+
+    // JS chunk prefetch can wait for idle — it's less urgent.
     const schedule = typeof requestIdleCallback === 'function' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 1);
     const cancel = typeof cancelIdleCallback === 'function' ? cancelIdleCallback : clearTimeout;
 
@@ -98,11 +114,6 @@ function usePrefetchRoutes() {
         for (const mod of targets) {
           import(/* @vite-ignore */ mod).catch(() => {});
         }
-      }
-      
-      const dataTargets = dataPrefetchEntries[pathname];
-      if (dataTargets) {
-        prefetchData(dataTargets);
       }
     });
 
