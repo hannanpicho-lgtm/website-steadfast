@@ -10,7 +10,8 @@ import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import PlatformModeBanner from '../components/PlatformModeBanner';
 import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
 import { getSessionUsername } from '../services/serverAuth';
-import { buildServerSessionHeaders } from '../services/serverAuth';
+import { fetchJsonWithRetry } from '../services/networkClient';
+import { buildUserScopedCacheKey, buildPublicCacheKey } from '../services/apiCompatibility';
 
 /**
  * Prefetch likely next-route chunks AND data so navigation feels instant.
@@ -30,39 +31,56 @@ const prefetchMap: Record<string, string[]> = {
   '/records': ['./pages/Starting'],
 };
 
-const dataPrefetchMap: Record<string, string[]> = {
+type DataPrefetchEntry = {
+  endpoint: string;
+  cacheKey: (username: string) => string;
+  cacheTtlMs: number;
+};
+
+function userKey(base: string, username: string) {
+  return buildUserScopedCacheKey(base, username, 'v1');
+}
+function userKeyV2(base: string, username: string) {
+  return buildUserScopedCacheKey(base, username, 'v2');
+}
+
+const dataPrefetchEntries: Record<string, DataPrefetchEntry[]> = {
   '/home': [
-    '/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50',
-    '/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true',
-    '/me/financials',
-    '/vip-config',
-    '/v2/me/activity-snapshot?includeConfig=true&transactionsLimit=80&withdrawalsLimit=40',
+    { endpoint: '/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50', cacheKey: (u) => userKeyV2('starting:snapshot', u), cacheTtlMs: 45_000 },
+    { endpoint: '/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true', cacheKey: (u) => userKeyV2('records:snapshot', u), cacheTtlMs: 45_000 },
+    { endpoint: '/me/financials', cacheKey: (u) => userKey('deposit:financials', u), cacheTtlMs: 30_000 },
+    { endpoint: '/me/transactions', cacheKey: (u) => userKey('deposit:transactions', u), cacheTtlMs: 45_000 },
+    { endpoint: '/vip-config', cacheKey: () => buildPublicCacheKey('vip-config', 'v1'), cacheTtlMs: 300_000 },
+    { endpoint: '/v2/me/activity-snapshot?includeConfig=true&transactionsLimit=80&withdrawalsLimit=40', cacheKey: (u) => userKeyV2('activity:snapshot', u), cacheTtlMs: 45_000 },
   ],
   '/starting': [
-    '/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true',
+    { endpoint: '/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true', cacheKey: (u) => userKeyV2('records:snapshot', u), cacheTtlMs: 45_000 },
   ],
   '/records': [
-    '/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50',
+    { endpoint: '/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50', cacheKey: (u) => userKeyV2('starting:snapshot', u), cacheTtlMs: 45_000 },
   ],
 };
 
 const prefetchedDataUrls = new Set<string>();
 
-function prefetchData(endpoints: string[]) {
+function prefetchData(entries: DataPrefetchEntry[]) {
   const username = getSessionUsername();
   if (!username) return;
   
   const baseUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
-  for (const endpoint of endpoints) {
-    const url = `${baseUrl}${endpoint}`;
+  for (const entry of entries) {
+    const url = `${baseUrl}${entry.endpoint}`;
     if (prefetchedDataUrls.has(url)) continue;
     prefetchedDataUrls.add(url);
     
-    fetch(url, {
-      credentials: 'include',
-      headers: buildServerSessionHeaders({
-        'Authorization': `Bearer ${RUNTIME_ENVIRONMENT.publicAnonKey}`,
-      }),
+    fetchJsonWithRetry({
+      url,
+      timeoutMs: 10_000,
+      retries: 1,
+      retryDelayMs: 300,
+      cacheKey: entry.cacheKey(username),
+      cacheTtlMs: entry.cacheTtlMs,
+      pageTag: 'prefetch',
     }).catch(() => {});
   }
 }
@@ -82,7 +100,7 @@ function usePrefetchRoutes() {
         }
       }
       
-      const dataTargets = dataPrefetchMap[pathname];
+      const dataTargets = dataPrefetchEntries[pathname];
       if (dataTargets) {
         prefetchData(dataTargets);
       }

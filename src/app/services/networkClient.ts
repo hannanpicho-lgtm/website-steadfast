@@ -180,6 +180,9 @@ async function fetchJsonWithTimeout(url: string, init: RequestInit, timeoutMs: n
   }
 }
 
+// In-flight request deduplication — GET requests to the same URL share one promise.
+const inflightRequests = new Map<string, Promise<unknown>>();
+
 export async function fetchJsonWithRetry<T>(params: FetchJsonWithRetryParams): Promise<T> {
   const {
     url,
@@ -212,71 +215,94 @@ export async function fetchJsonWithRetry<T>(params: FetchJsonWithRetryParams): P
     }
   }
 
-  let lastError: unknown;
-  const startedAt = performance.now();
+  // Deduplicate GET requests: if same URL is already in-flight, piggyback on it.
+  const method = (init.method ?? 'GET').toUpperCase();
+  const dedupeKey = method === 'GET' ? url : null;
 
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      const payload = await fetchJsonWithTimeout(url, init, timeoutMs);
-      const durationMs = Math.round(performance.now() - startedAt);
+  if (dedupeKey) {
+    const inflight = inflightRequests.get(dedupeKey);
+    if (inflight) {
+      return inflight as Promise<T>;
+    }
+  }
 
-      recordApiMetric({
-        at: new Date().toISOString(),
-        endpoint: normalizeEndpoint(url),
-        method: (init.method ?? 'GET').toUpperCase(),
-        durationMs,
-        status: 200,
-        ok: true,
-        pageTag,
-        retriesUsed: attempt,
-        cacheHit: false,
-      });
+  const execute = async (): Promise<T> => {
+    let lastError: unknown;
+    const startedAt = performance.now();
 
-      if (cacheKey && cacheTtlMs && cacheTtlMs > 0) {
-        writeToSessionCache(cacheKey, payload as T);
-      }
-
-      return payload as T;
-    } catch (error) {
-      lastError = error;
-      const shouldRetry = attempt < retries && isTransientNetworkError(error);
-      if (!shouldRetry) {
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      try {
+        const payload = await fetchJsonWithTimeout(url, init, timeoutMs);
         const durationMs = Math.round(performance.now() - startedAt);
-        const status = error instanceof HttpRequestError ? error.status : null;
 
         recordApiMetric({
           at: new Date().toISOString(),
           endpoint: normalizeEndpoint(url),
           method: (init.method ?? 'GET').toUpperCase(),
           durationMs,
-          status,
-          ok: false,
+          status: 200,
+          ok: true,
           pageTag,
           retriesUsed: attempt,
           cacheHit: false,
         });
 
-        void reportClientCompatibilityEvent({
-          event: 'endpoint_failure',
-          feature: featureTag ?? null,
-          endpoint: normalizeEndpoint(url),
-          expectedApiVersion: expectedApiVersion ?? null,
-          status,
-          reason: error instanceof Error ? error.message : 'request_failed',
-          detail: {
-            pageTag: pageTag ?? null,
+        if (cacheKey && cacheTtlMs && cacheTtlMs > 0) {
+          writeToSessionCache(cacheKey, payload as T);
+        }
+
+        return payload as T;
+      } catch (error) {
+        lastError = error;
+        const shouldRetry = attempt < retries && isTransientNetworkError(error);
+        if (!shouldRetry) {
+          const durationMs = Math.round(performance.now() - startedAt);
+          const status = error instanceof HttpRequestError ? error.status : null;
+
+          recordApiMetric({
+            at: new Date().toISOString(),
+            endpoint: normalizeEndpoint(url),
+            method: (init.method ?? 'GET').toUpperCase(),
+            durationMs,
+            status,
+            ok: false,
+            pageTag,
             retriesUsed: attempt,
-          },
-        });
+            cacheHit: false,
+          });
 
-        throw error;
+          void reportClientCompatibilityEvent({
+            event: 'endpoint_failure',
+            feature: featureTag ?? null,
+            endpoint: normalizeEndpoint(url),
+            expectedApiVersion: expectedApiVersion ?? null,
+            status,
+            reason: error instanceof Error ? error.message : 'request_failed',
+            detail: {
+              pageTag: pageTag ?? null,
+              retriesUsed: attempt,
+            },
+          });
+
+          throw error;
+        }
+
+        await wait(retryDelayMs * (attempt + 1));
       }
-
-      await wait(retryDelayMs * (attempt + 1));
     }
+
+    throw lastError;
+  };
+
+  const promise = execute().finally(() => {
+    if (dedupeKey) inflightRequests.delete(dedupeKey);
+  });
+
+  if (dedupeKey) {
+    inflightRequests.set(dedupeKey, promise);
   }
 
-  throw lastError;
+  return promise;
 }
 
 /** Returns true when an error from fetchJsonWithRetry indicates the session has expired (HTTP 401). */

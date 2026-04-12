@@ -1,12 +1,16 @@
 import { ChevronLeft } from 'lucide-react';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useEffect, useState, useMemo, lazy, Suspense } from 'react';
 const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
-import { projectId } from '@utils/supabase/info';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 import { fetchJsonWithRetry } from '../services/networkClient';
+import { buildUserScopedCacheKey } from '../services/apiCompatibility';
+import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
+
+const VIP_FINANCIALS_CACHE_TTL_MS = 30_000;
+const VIP_CONFIG_CACHE_TTL_MS = 120_000;
 
 type VipCard = {
   level: number;
@@ -117,13 +121,21 @@ export default function VipLevels() {
   const [currentVipLevel, setCurrentVipLevel] = useState<number | null>(null);
   const [vipCards, setVipCards] = useState<VipCard[]>(fallbackVipCards);
   const [loading, setLoading] = useState(true);
-  const serverUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a1c55d7e`;
+  const serverUrl = RUNTIME_ENVIRONMENT.apiBaseUrl;
 
   useEffect(() => {
     const loadCurrentVip = async () => {
       try {
         const [financialsPayload, publicVipConfig] = await Promise.all([
-          fetchJsonWithRetry<{ vipLevel?: unknown }>({ url: `${serverUrl}/me/financials` }),
+          fetchJsonWithRetry<{ vipLevel?: unknown }>({
+            url: `${serverUrl}/me/financials`,
+            timeoutMs: 5000,
+            retries: 1,
+            retryDelayMs: 200,
+            pageTag: 'vip-levels',
+            cacheKey: buildUserScopedCacheKey('vip:financials', undefined, 'v1'),
+            cacheTtlMs: VIP_FINANCIALS_CACHE_TTL_MS,
+          }),
           fetchPublicVipConfig(),
         ]);
 

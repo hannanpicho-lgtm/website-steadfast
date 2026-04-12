@@ -1,6 +1,6 @@
 import { ChevronLeft } from 'lucide-react';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { useEffect, useState, lazy, Suspense } from 'react';
+import { useEffect, useState, useMemo, lazy, Suspense } from 'react';
 const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { BottomNavigation } from '../components/BottomNavigation';
 import { Header } from '../components/Header';
@@ -118,9 +118,9 @@ export default function Activity() {
   const resetColumnBorderColor = ['border-cyan-200', 'border-yellow-200', 'border-rose-200'];
   const resetColumnBadgeBg = ['bg-sky-500', 'bg-amber-500', 'bg-pink-700'];
 
-  const orderedResetRewards = resetDisplayOrder
+  const orderedResetRewards = useMemo(() => resetDisplayOrder
     .map((deposit) => resetRewards.find((reward) => Number(reward.deposit) === deposit))
-    .filter((reward): reward is typeof resetRewards[number] => Boolean(reward));
+    .filter((reward): reward is typeof resetRewards[number] => Boolean(reward)), [resetRewards]);
 
   useEffect(() => {
     const loadActivityConfig = async () => {

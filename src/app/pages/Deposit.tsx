@@ -1,7 +1,7 @@
 import { ChevronLeft } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { toast } from 'sonner';
 const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -10,6 +10,10 @@ import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
 import { fetchJsonWithRetry, isAuthError } from '../services/networkClient';
 import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
+import { buildUserScopedCacheKey } from '../services/apiCompatibility';
+
+const DEPOSIT_FINANCIALS_CACHE_TTL_MS = 30_000;
+const DEPOSIT_TX_CACHE_TTL_MS = 45_000;
 
 type UserData = {
   balance: number;
@@ -62,6 +66,8 @@ export default function Deposit() {
           retries: 1,
           retryDelayMs: 200,
           pageTag: 'deposit',
+          cacheKey: buildUserScopedCacheKey('deposit:financials', username, 'v1'),
+          cacheTtlMs: DEPOSIT_FINANCIALS_CACHE_TTL_MS,
         });
         setUserData({
           balance: Number(userPayload.balance ?? 0),
@@ -88,6 +94,8 @@ export default function Deposit() {
           retries: 1,
           retryDelayMs: 200,
           pageTag: 'deposit',
+          cacheKey: buildUserScopedCacheKey('deposit:transactions', username, 'v1'),
+          cacheTtlMs: DEPOSIT_TX_CACHE_TTL_MS,
         });
         setTransactions(Array.isArray(txPayload) ? txPayload : []);
       } catch {
@@ -105,13 +113,13 @@ export default function Deposit() {
     toast.info('To make a deposit, please contact support or your account manager.');
   };
 
-  const recentTx = [...transactions]
+  const recentTx = useMemo(() => [...transactions]
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .slice(0, 10);
+    .slice(0, 10), [transactions]);
 
-  const depositTx = [...transactions]
+  const depositTx = useMemo(() => [...transactions]
     .filter((tx) => tx.type === 'Deposit')
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [transactions]);
 
   const visibleTx = activeTab === 'recent' ? recentTx : depositTx;
 
