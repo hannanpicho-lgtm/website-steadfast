@@ -21,7 +21,11 @@ const prefetchMap: Record<string, string[]> = {
   '/': ['./pages/Login', './pages/Signup'],
   '/login': ['./pages/UserHome', './pages/Signup'],
   '/signup': ['./pages/Login'],
-  '/home': ['./pages/Starting', './pages/Records', './pages/Profile'],
+  '/home': [
+    './pages/Starting', './pages/Records', './pages/Profile',
+    './pages/VipLevels', './pages/Activity', './pages/Deposit',
+    './pages/Certificate', './pages/Withdrawal',
+  ],
   '/starting': ['./pages/Records'],
   '/records': ['./pages/Starting'],
 };
@@ -30,6 +34,9 @@ const dataPrefetchMap: Record<string, string[]> = {
   '/home': [
     '/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50',
     '/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true',
+    '/me/financials',
+    '/vip-config',
+    '/v2/me/activity-snapshot?includeConfig=true&transactionsLimit=80&withdrawalsLimit=40',
   ],
   '/starting': [
     '/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true',

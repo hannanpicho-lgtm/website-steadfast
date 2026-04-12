@@ -11,6 +11,7 @@ import { buildLoginRedirectState } from '../services/loginRedirect';
 import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
 import { fetchReferralSummary } from '../services/referralReadModel';
 import { fetchFinancialSummary } from '../services/financialReadModel';
+import { fetchJsonWithRetry } from '../services/networkClient';
 
 interface UserData {
   username: string;
@@ -56,12 +57,16 @@ export default function Certificate() {
       setLoading(true);
       setError(null);
 
-      const [user, txRes, vipConfig, referralSummary] = await Promise.all([
+      const [user, txList, vipConfig, referralSummary] = await Promise.all([
         fetchFinancialSummary(),
-        fetch(`${serverUrl}/me/transactions`, {
-          credentials: 'include',
-          headers: { 'Authorization': `Bearer ${publicAnonKey}` },
-        }),
+        fetchJsonWithRetry<Array<{ type: string; amount: number; status: string }>>({
+          url: `${serverUrl}/me/transactions`,
+          init: { credentials: 'include' },
+          timeoutMs: 8000,
+          retries: 1,
+          retryDelayMs: 300,
+          pageTag: 'certificate',
+        }).catch(() => [] as Array<{ type: string; amount: number; status: string }>),
         fetchPublicVipConfig(),
         fetchReferralSummary(),
       ]);
@@ -70,15 +75,12 @@ export default function Certificate() {
       setVipConfigurations(vipConfig);
       setReferralEarnings(Number(referralSummary.referralEarnings ?? 0));
 
-      if (txRes.ok) {
-        const txList: Array<{ type: string; amount: number; status: string }> = await txRes.json();
-        const earned = Array.isArray(txList)
-          ? txList
-              .filter((t) => t.type === 'Commission' && t.status === 'Completed')
-              .reduce((sum, t) => sum + t.amount, 0)
-          : 0;
-        setTotalCommission(earned);
-      }
+      const earned = Array.isArray(txList)
+        ? txList
+            .filter((t) => t.type === 'Commission' && t.status === 'Completed')
+            .reduce((sum, t) => sum + t.amount, 0)
+        : 0;
+      setTotalCommission(earned);
     } catch (err) {
       setError('Unable to load certificate data. Please try again.');
       console.error('Certificate fetch error:', err);
@@ -106,10 +108,10 @@ export default function Certificate() {
         </div>
 
         {loading && (
-          <div className="bg-[#141414] border border-white/[0.06] rounded-xl p-6 space-y-4">
-            <div className="h-6 w-48 bg-white/[0.08] rounded shimmer-line mx-auto" />
-            <div className="h-40 w-full bg-white/[0.05] rounded shimmer-line" />
-            <div className="h-4 w-32 bg-white/[0.08] rounded shimmer-line mx-auto" />
+          <div className="bg-[#141414] border border-white/[0.06] rounded-xl p-6 space-y-4" style={{ background: '#141414' }}>
+            <div className="h-6 w-48 bg-white/[0.08] rounded shimmer-line mx-auto" style={{ background: 'rgba(255,255,255,0.08)' }} />
+            <div className="h-40 w-full bg-white/[0.05] rounded shimmer-line" style={{ background: 'rgba(255,255,255,0.05)' }} />
+            <div className="h-4 w-32 bg-white/[0.08] rounded shimmer-line mx-auto" style={{ background: 'rgba(255,255,255,0.08)' }} />
           </div>
         )}
 

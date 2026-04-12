@@ -166,7 +166,7 @@ export default function VipLevels() {
           {loading ? (
             /* Content-shaped skeleton — mirrors the real VIP card layout */
             Array.from({ length: 5 }, (_, i) => (
-              <div key={i} className="bg-[#141414] rounded-lg px-2.5 py-3 sm:px-5 sm:py-5 border border-white/[0.06] animate-pulse">
+              <div key={i} className="bg-[#141414] rounded-lg px-2.5 py-3 sm:px-5 sm:py-5 border border-white/[0.06] animate-pulse" style={{ background: '#141414' }}>
                 <div className="flex items-start justify-between gap-2 mb-2.5 sm:mb-4">
                   <div className="flex items-start gap-2.5 sm:gap-4">
                     <div className="w-[48px] h-[42px] sm:w-[62px] sm:h-[56px] bg-white/[0.08] rounded" />

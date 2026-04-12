@@ -137,10 +137,10 @@ export default function Deposit() {
         </div>
 
         {loadingBalance ? (
-          <div className="bg-[#252d42]/80 border border-white/10 rounded-xl p-6 mb-6 backdrop-blur-sm">
-            <div className="h-4 w-28 bg-white/10 rounded shimmer-line mb-4" />
-            <div className="h-8 w-40 bg-white/10 rounded shimmer-line mb-3" />
-            <div className="h-4 w-32 bg-white/10 rounded shimmer-line" />
+          <div className="bg-[#141414] border border-white/[0.06] rounded-xl p-6 mb-6" style={{ background: '#141414' }}>
+            <div className="h-4 w-28 bg-white/[0.06] rounded shimmer-line mb-4" style={{ background: 'rgba(255,255,255,0.06)' }} />
+            <div className="h-8 w-40 bg-white/[0.06] rounded shimmer-line mb-3" style={{ background: 'rgba(255,255,255,0.06)' }} />
+            <div className="h-4 w-32 bg-white/[0.06] rounded shimmer-line" style={{ background: 'rgba(255,255,255,0.06)' }} />
           </div>
         ) : (
           <>
@@ -201,14 +201,14 @@ export default function Deposit() {
             {loadingTransactions ? (
               <div className="space-y-3">
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="bg-[#252d42]/80 border border-white/10 rounded-xl p-4 flex items-center justify-between">
+                  <div key={i} className="bg-[#141414] border border-white/[0.06] rounded-xl p-4 flex items-center justify-between" style={{ background: '#141414' }}>
                     <div className="flex-1 space-y-2">
-                      <div className="h-4 w-24 rounded sf-shimmer bg-white/10" />
-                      <div className="h-3 w-16 rounded sf-shimmer bg-white/10" />
+                      <div className="h-4 w-24 rounded sf-shimmer bg-white/[0.06]" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                      <div className="h-3 w-16 rounded sf-shimmer bg-white/[0.06]" style={{ background: 'rgba(255,255,255,0.06)' }} />
                     </div>
                     <div className="flex flex-col items-end gap-2 ml-4">
-                      <div className="h-4 w-20 rounded sf-shimmer bg-white/10" />
-                      <div className="h-3 w-14 rounded sf-shimmer bg-white/10" />
+                      <div className="h-4 w-20 rounded sf-shimmer bg-white/[0.06]" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                      <div className="h-3 w-14 rounded sf-shimmer bg-white/[0.06]" style={{ background: 'rgba(255,255,255,0.06)' }} />
                     </div>
                   </div>
                 ))}

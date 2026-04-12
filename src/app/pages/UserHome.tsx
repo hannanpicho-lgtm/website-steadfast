@@ -95,12 +95,33 @@ const quickLinkConfig: QuickLinkItem[] = [
   { to: '/about',            title: 'About',      icon: Info,           accent: '#b07a6a', bg: 'linear-gradient(145deg, #b07a6a, #8f5e50)' },
 ];
 
+/* Eager-load a page chunk on hover so navigation feels instant */
+const hoverPrefetchMap: Record<string, () => Promise<unknown>> = {
+  '/vip-levels':       () => import('./VipLevels'),
+  '/activity':         () => import('./Activity'),
+  '/withdrawal':       () => import('./Withdrawal'),
+  '/deposit':          () => import('./Deposit'),
+  '/terms-conditions': () => import('./TermsConditions'),
+  '/certificate':      () => import('./Certificate'),
+  '/faqs':             () => import('./FAQs'),
+  '/about':            () => import('./About'),
+};
+const hoveredRoutes = new Set<string>();
+function prefetchOnHover(route: string) {
+  if (hoveredRoutes.has(route)) return;
+  hoveredRoutes.add(route);
+  const loader = hoverPrefetchMap[route];
+  if (loader) loader().catch(() => {});
+}
+
 function QuickLinkCard({ item }: { item: QuickLinkItem }) {
   const Icon = item.icon;
 
   return (
     <Link
       to={item.to}
+      onMouseEnter={() => prefetchOnHover(item.to)}
+      onTouchStart={() => prefetchOnHover(item.to)}
       className="sf-btn-magnetic sf-ripple group relative flex h-[58px] flex-col items-center justify-center gap-1 overflow-hidden rounded-xl px-1.5 sm:h-[82px] sm:gap-1.5 sm:rounded-2xl sm:px-3"
       style={{
         background: item.bg,

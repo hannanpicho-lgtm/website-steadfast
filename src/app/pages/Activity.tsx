@@ -225,20 +225,25 @@ export default function Activity() {
         // Go directly to V2 snapshot URL — skip the /version waterfall.
         const v2Url = `${serverUrl}/v2/me/activity-snapshot?includeConfig=true&transactionsLimit=80&withdrawalsLimit=40`;
 
-        const snapshot = await fetchJsonWithRetry<ActivitySnapshotResponse>({
-          url: v2Url,
-          init: {
-            credentials: 'include',
-          },
-          timeoutMs: 10000,
-          retries: 2,
-          retryDelayMs: 300,
-          cacheKey: buildUserScopedCacheKey('activity:snapshot', username, 'v2'),
-          cacheTtlMs: ACTIVITY_SNAPSHOT_CACHE_TTL_MS,
-          pageTag: 'activity',
-          featureTag: 'activitySnapshotV2',
-          expectedApiVersion: 'v2',
-        });
+        const [snapshot, bonusFeed] = await Promise.all([
+          fetchJsonWithRetry<ActivitySnapshotResponse>({
+            url: v2Url,
+            init: {
+              credentials: 'include',
+            },
+            timeoutMs: 10000,
+            retries: 2,
+            retryDelayMs: 300,
+            cacheKey: buildUserScopedCacheKey('activity:snapshot', username, 'v2'),
+            cacheTtlMs: ACTIVITY_SNAPSHOT_CACHE_TTL_MS,
+            pageTag: 'activity',
+            featureTag: 'activitySnapshotV2',
+            expectedApiVersion: 'v2',
+          }),
+          fetchBonusFeed({ limit: 8 }).catch(() => [] as BonusFeedItem[]),
+        ]);
+
+        setRecentBonuses(bonusFeed);
 
         const rewards = snapshot?.rewardsConfig && typeof snapshot.rewardsConfig === 'object'
           ? snapshot.rewardsConfig
@@ -316,13 +321,6 @@ export default function Activity() {
         }
       }
 
-      try {
-        const bonusFeed = await fetchBonusFeed({ limit: 8 }).catch(() => []);
-        setRecentBonuses(bonusFeed);
-      } catch {
-        setRecentBonuses([]);
-      }
-
       setLoading(false);
     };
 
@@ -355,19 +353,19 @@ export default function Activity() {
         {loading && (
           <div className="animate-pulse space-y-6">
             {/* Account Snapshot skeleton */}
-            <div className="bg-[#0f172a] rounded-xl p-5 border border-[#1f2937]">
-              <div className="h-5 w-48 bg-[#1f2937] rounded mb-4" />
+            <div className="bg-[#141414] rounded-xl p-5 border border-white/[0.06]" style={{ background: '#141414' }}>
+              <div className="h-5 w-48 bg-white/[0.06] rounded mb-4" style={{ background: 'rgba(255,255,255,0.06)' }} />
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="bg-[#111827] rounded-lg p-3 space-y-2">
-                    <div className="h-3 w-16 bg-[#1f2937] rounded" />
-                    <div className="h-6 w-20 bg-[#1f2937] rounded" />
+                  <div key={i} className="bg-[#1a1a1a] rounded-lg p-3 space-y-2" style={{ background: '#1a1a1a' }}>
+                    <div className="h-3 w-16 bg-white/[0.06] rounded" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                    <div className="h-6 w-20 bg-white/[0.06] rounded" style={{ background: 'rgba(255,255,255,0.06)' }} />
                   </div>
                 ))}
               </div>
-              <div className="h-4 w-36 bg-[#1f2937] rounded mb-2" />
+              <div className="h-4 w-36 bg-white/[0.06] rounded mb-2" style={{ background: 'rgba(255,255,255,0.06)' }} />
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-10 bg-[#111827] rounded-lg mb-2" />
+                <div key={i} className="h-10 bg-[#1a1a1a] rounded-lg mb-2" style={{ background: '#1a1a1a' }} />
               ))}
             </div>
           </div>
