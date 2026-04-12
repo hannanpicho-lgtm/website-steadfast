@@ -19,6 +19,7 @@ html {
   -moz-osx-font-smoothing: grayscale;
   /* Prevent layout shift from scrollbar appearing/disappearing */
   scrollbar-gutter: stable;
+  background: #0a0a0a;
 }
 
 /* Text selection — platform accent */

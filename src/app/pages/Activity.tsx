@@ -337,7 +337,7 @@ export default function Activity() {
   }, {} as Record<string, number>);
 
   return (
-    <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]">
+    <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]" style={{ background: '#0a0a0a' }}>
       {/* Header */}
       <Header onContactClick={() => setIsChatOpen(true)} />
 

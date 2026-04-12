@@ -178,7 +178,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-[#f5f0eb]" style={{ fontFamily: '"Space Grotesk", "Sora", "Poppins", sans-serif' }}>
+    <div className="min-h-screen bg-[#0a0a0a] text-[#f5f0eb]" style={{ fontFamily: '"Space Grotesk", "Sora", "Poppins", sans-serif', background: '#0a0a0a' }}>
 
       {/* ── Global styles ── */}
       <style>{`

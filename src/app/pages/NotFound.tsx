@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-6">
+    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-6" style={{ background: '#0a0a0a' }}>
       <div className="max-w-md w-full bg-[#141414] border border-white/[0.06] rounded-xl shadow-sm p-8 text-center">
         <p className="text-sm font-semibold tracking-wide text-[#0066b3]">404</p>
         <h1 className="mt-2 text-2xl font-bold text-gray-100">Page not found</h1>

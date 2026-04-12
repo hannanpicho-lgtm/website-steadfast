@@ -93,7 +93,7 @@ export default function Certificate() {
 
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#0a0a0a] pb-20">
+    <div className="flex min-h-screen flex-col bg-[#0a0a0a] pb-20" style={{ background: '#0a0a0a' }}>
       <Header onContactClick={() => setIsChatOpen(true)} />
 
       <div className="max-w-2xl mx-auto px-2 py-3 flex-1 w-full">

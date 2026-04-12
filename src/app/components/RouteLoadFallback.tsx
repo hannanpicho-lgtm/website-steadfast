@@ -2,8 +2,8 @@ import { Link } from 'react-router';
 
 export default function RouteLoadFallback() {
   return (
-    <div className="min-h-screen bg-[#1a1f2e] text-gray-100 flex items-center justify-center px-6">
-      <div className="w-full max-w-lg rounded-2xl border border-[#00D9FF]/30 bg-[#252b3d] p-8 shadow-xl text-center">
+    <div className="min-h-screen bg-[#0a0a0a] text-gray-100 flex items-center justify-center px-6" style={{ background: '#0a0a0a' }}>
+      <div className="w-full max-w-lg rounded-2xl border border-white/[0.08] bg-[#141414] p-8 shadow-xl text-center" style={{ background: '#141414' }}>
         <h1 className="text-xl font-semibold text-white">Reconnecting this page...</h1>
         <p className="text-sm text-gray-300 mt-2">
           We could not load this screen right now. Please continue using the app from a safe page.

@@ -11,7 +11,7 @@ export default function About() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   return (
-    <div className="size-full overflow-auto bg-[#0a0a0a]">
+    <div className="size-full overflow-auto bg-[#0a0a0a]" style={{ background: '#0a0a0a' }}>
       <Header onContactClick={() => setIsChatOpen(true)} />
 
       <div className="max-w-2xl mx-auto px-4 sm:px-6 py-6 pb-16">

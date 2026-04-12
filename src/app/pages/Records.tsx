@@ -148,19 +148,19 @@ function RecordSkeleton() {
   return (
     <div className="space-y-3" aria-busy="true" aria-label="Loading records">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="bg-[#141414] border border-white/[0.06] rounded-lg p-4 animate-pulse">
+        <div key={i} className="bg-[#141414] border border-white/[0.06] rounded-lg p-4 animate-pulse" style={{ background: '#141414' }}>
           <div className="flex gap-3">
-            <div className="shrink-0 w-16 h-16 rounded-lg bg-white/[0.06]" />
+            <div className="shrink-0 w-16 h-16 rounded-lg bg-white/[0.06]" style={{ background: 'rgba(255,255,255,0.06)' }} />
             <div className="flex-1 min-w-0 space-y-2">
               <div className="flex justify-between gap-2">
-                <div className="h-4 bg-white/[0.06] rounded w-2/3" />
-                <div className="h-5 bg-white/[0.06] rounded-full w-16" />
+                <div className="h-4 bg-white/[0.06] rounded w-2/3" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                <div className="h-5 bg-white/[0.06] rounded-full w-16" style={{ background: 'rgba(255,255,255,0.06)' }} />
               </div>
-              <div className="h-3 bg-white/[0.06] rounded w-1/3" />
+              <div className="h-3 bg-white/[0.06] rounded w-1/3" style={{ background: 'rgba(255,255,255,0.06)' }} />
               <div className="flex gap-2 mt-3">
-                <div className="h-8 bg-white/[0.06] rounded-md flex-1" />
-                <div className="h-8 bg-white/[0.06] rounded-md flex-1" />
-                <div className="h-8 bg-white/[0.06] rounded-md flex-1" />
+                <div className="h-8 bg-white/[0.06] rounded-md flex-1" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                <div className="h-8 bg-white/[0.06] rounded-md flex-1" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                <div className="h-8 bg-white/[0.06] rounded-md flex-1" style={{ background: 'rgba(255,255,255,0.06)' }} />
               </div>
             </div>
           </div>
@@ -508,7 +508,7 @@ export default function Records() {
   };
 
   return (
-    <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]">
+    <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]" style={{ background: '#0a0a0a' }}>
       {/* Header */}
       <Header onContactClick={() => setIsChatOpen(true)} />
 

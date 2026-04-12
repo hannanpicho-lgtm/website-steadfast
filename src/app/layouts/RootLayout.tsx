@@ -106,7 +106,7 @@ export default function RootLayout() {
       </a>
       <SessionTimeoutWarning />
       <AnnouncementBanner />
-      <div id="main-content">
+      <div id="main-content" className="flex-1 flex flex-col min-h-0">
         <PageTransition>
           <Outlet />
         </PageTransition>

@@ -76,7 +76,7 @@ export default function WithdrawalHistory() {
   const filtered = withdrawals.filter((w) => w.status === STATUS_MAP[activeTab]);
 
   return (
-    <div className="flex min-h-screen flex-col overflow-auto pb-20 bg-[#0a0a0a]">
+    <div className="flex min-h-screen flex-col overflow-auto pb-20 bg-[#0a0a0a]" style={{ background: '#0a0a0a' }}>
       <Header onContactClick={() => setIsChatOpen(true)} />
 
       <div className="w-full px-4 py-5 sm:max-w-3xl sm:mx-auto">

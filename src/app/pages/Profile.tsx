@@ -268,7 +268,7 @@ export default function Profile() {
       : UserRound;
 
   return (
-    <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]">
+    <div className="size-full overflow-auto pb-20 bg-[#0a0a0a]" style={{ background: '#0a0a0a' }}>
       {/* Header */}
       <header className="bg-[#1a2637]/95 text-white py-4 px-6 flex items-center justify-between shadow-sm sticky top-0 z-10 border-b border-[#2c3f58] backdrop-blur-md">
         <button onClick={goBack} aria-label="Go back" className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:text-[#00D9FF] transition-colors">

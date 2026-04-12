@@ -38,7 +38,7 @@ export function PageTransition({ children }: { children: ReactNode }) {
           initial="initial"
           animate="enter"
           exit="exit"
-          className="min-h-screen"
+          className="flex-1 flex flex-col"
           style={{ willChange: 'opacity', backgroundColor: '#0a0a0a' }}
         >
           {children}

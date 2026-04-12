@@ -45,7 +45,7 @@ export default function RequireAuthLayout() {
 
   if (status === 'checking') {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center" style={{ background: '#0a0a0a' }}>
         <div className="text-center">
           <div className="mx-auto h-8 w-8 rounded-full border-2 border-[#c8956c]/30 border-t-[#c8956c] animate-spin" />
         </div>
