@@ -59,7 +59,14 @@
     "synthetic:journeys": "node scripts/synthetic/user-journey-financial.mjs",
     "synthetic:all": "node scripts/synthetic/run-all.mjs",
     "synthetic:p0": "node scripts/synthetic/run-all.mjs --tier p0",
-    "synthetic:p1": "node scripts/synthetic/run-all.mjs --tier p1"
+    "synthetic:p1": "node scripts/synthetic/run-all.mjs --tier p1",
+    "soak": "node scripts/soak/run-soak.mjs",
+    "soak:quick": "node scripts/soak/run-soak.mjs --duration 30 --vus 10",
+    "soak:1h": "node scripts/soak/run-soak.mjs --duration 60 --vus 20",
+    "soak:4h": "node scripts/soak/run-soak.mjs --duration 240 --vus 30",
+    "soak:24h": "node scripts/soak/run-soak.mjs --duration 1440 --vus 50",
+    "soak:frontend": "node scripts/soak/run-soak.mjs --scenarios frontend",
+    "soak:api": "node scripts/soak/run-soak.mjs --scenarios api"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.8",

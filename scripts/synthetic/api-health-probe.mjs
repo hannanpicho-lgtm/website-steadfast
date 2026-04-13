@@ -88,10 +88,10 @@ async function main() {
     ac.assertTruthy('/rewards-config has config', res.json?.config);
   });
 
-  // ── 7. Support links (public) ───────────────────────────────────────────────
+  // ── 7. Support links (public — returns 503 outside platform hours 9AM-10PM EST) ─
   await runner.run('GET /cs/support-links', async (ac) => {
     const res = await httpRequest('GET', `${BASE}/cs/support-links`, { headers });
-    ac.assertStatus('/cs/support-links returns 200', res, 200);
+    ac.assertStatusIn('/cs/support-links returns 200 or 503 (off-hours)', res, [200, 503]);
     ac.assertLatency('/cs/support-links under 5s', res, MAX_CONFIG_LATENCY_MS);
   });
 
