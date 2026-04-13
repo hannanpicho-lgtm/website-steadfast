@@ -2416,7 +2416,21 @@ function patchSnapshotCacheAfterTaskSubmit(
   const startingKey = `snapshot:starting:${username}`;
   const cachedStarting = getCachedSnapshotResponse(startingKey);
   if (cachedStarting) {
-    setCachedSnapshotResponse(startingKey, { ...cachedStarting, user: updatedUser });
+    // Remove the just-submitted product from eligibleTaskIds so the carousel won't show it again
+    const submittedId = taskRecord?.taskId;
+    const prevEligible: string[] = cachedStarting?.taskCatalog?.ruleConfig?.eligibleTaskIds ?? [];
+    const updatedEligible = submittedId ? prevEligible.filter((id: string) => id !== submittedId) : prevEligible;
+    setCachedSnapshotResponse(startingKey, {
+      ...cachedStarting,
+      user: updatedUser,
+      taskCatalog: {
+        ...cachedStarting.taskCatalog,
+        ruleConfig: {
+          ...cachedStarting.taskCatalog?.ruleConfig,
+          eligibleTaskIds: updatedEligible,
+        },
+      },
+    });
   }
 
   // ── Activity snapshot ──────────────────────────────────────────────────
@@ -4316,6 +4330,7 @@ function defaultUserRecord(username: string) {
     lastQualifiedWorkdayDate: null as string | null,
     claimedWorkdayRewardIds: [] as number[],
     claimedResetRewardIds: [] as number[],
+    submittedProductIds: [] as string[],
     accumulatedRewardClaims: {} as Record<string, { tierId: number; depositTotal: number; rewardCredited: number; creditedAt: string }> ,
     referredByAdminId: null as string | null,
     walletProfile: null as WalletProfile | null,
@@ -4397,6 +4412,9 @@ function normalizeUserRecord(userData: any, username: string) {
         .map((value: number) => Math.round(value)),
     ))
     : [];
+  normalized.submittedProductIds = Array.isArray(normalized.submittedProductIds)
+    ? normalized.submittedProductIds.filter((v: any) => typeof v === 'string' && v.length > 0)
+    : [];
   if (!normalized.accumulatedRewardClaims || typeof normalized.accumulatedRewardClaims !== 'object') {
     normalized.accumulatedRewardClaims = {};
   }
@@ -4475,6 +4493,7 @@ function normalizeUserRecord(userData: any, username: string) {
     normalized.currentSetCommissionPlan = [];
     normalized.currentSetCommissionPlanMarker = 0;
     normalized.currentSetCommissionPlanGeneratedAt = null;
+    normalized.submittedProductIds = [];
     normalized.lastTaskResetDate = today;
   }
   // Commission reset date still advances daily regardless of task cycle
@@ -7227,7 +7246,13 @@ async function submitTaskForUser(
       controlledCommissionPlan.rangeConfig,
     );
 
-    if (tierTaskCandidates.length === 0) {
+    // Filter out products this user already submitted in the current work cycle
+    const submittedSet = new Set<string>(Array.isArray(normalizedUserData.submittedProductIds) ? normalizedUserData.submittedProductIds : []);
+    const unseenCandidates = tierTaskCandidates.filter((task) => !submittedSet.has(task.id));
+    // Fall back to full list only if ALL products have been submitted (prevents stuck state)
+    const effectiveCandidates = unseenCandidates.length > 0 ? unseenCandidates : tierTaskCandidates;
+
+    if (effectiveCandidates.length === 0) {
       if (controlledCommissionPlan.rangeConfig) {
         return c.json({
           error: `No active product found within VIP${normalizedUserData.vipLevel} range ($${controlledCommissionPlan.rangeConfig.taskPriceMin.toFixed(2)} - $${controlledCommissionPlan.rangeConfig.taskPriceMax.toFixed(2)}).`,
@@ -7257,19 +7282,19 @@ async function submitTaskForUser(
 
     const explicitlyRequestedTaskInCandidates =
       Boolean(explicitlyRequestedTask)
-      && tierTaskCandidates.some((task) => task.id === explicitlyRequestedTask.id);
+      && effectiveCandidates.some((task) => task.id === explicitlyRequestedTask.id);
 
     const selectedTask = (explicitlyRequestedTaskInCandidates ? explicitlyRequestedTask : null)
       ?? (
         Number.isFinite(requestedProductPrice) && requestedProductPrice > 0
           ? (
-            tierTaskCandidates.find((task) => roundMoney(Number(task.price ?? 0)) === roundMoney(requestedProductPrice))
-            ?? pickClosestTaskByPrice(tierTaskCandidates, requestedProductPrice)
+            effectiveCandidates.find((task) => roundMoney(Number(task.price ?? 0)) === roundMoney(requestedProductPrice))
+            ?? pickClosestTaskByPrice(effectiveCandidates, requestedProductPrice)
           )
           : null
       )
-      ?? tierTaskCandidates[
-        Math.max(0, Math.round(Number(normalizedUserData.tasksCompleted ?? 0))) % tierTaskCandidates.length
+      ?? effectiveCandidates[
+        Math.max(0, Math.round(Number(normalizedUserData.tasksCompleted ?? 0))) % effectiveCandidates.length
       ];
 
     if (!selectedTask) {
@@ -7396,6 +7421,17 @@ async function submitTaskForUser(
     normalizedUserData.tasksCompletedInSet += 1;
     normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
     normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);
+
+    // Track submitted product so it won't appear again in this work cycle
+    const recordVisualId = (displayTask ?? selectedTask)?.id;
+    if (recordVisualId && typeof recordVisualId === 'string') {
+      if (!Array.isArray(normalizedUserData.submittedProductIds)) {
+        normalizedUserData.submittedProductIds = [];
+      }
+      if (!normalizedUserData.submittedProductIds.includes(recordVisualId)) {
+        normalizedUserData.submittedProductIds.push(recordVisualId);
+      }
+    }
 
     if (normalizedUserData.tasksCompletedInSet >= normalizedUserData.tasksPerSet) {
       normalizedUserData.completedTaskSets = Math.min(
@@ -7850,9 +7886,11 @@ async function handleStartingSnapshot(c: any) {
       }
     }
 
+    // Exclude products the user has already submitted in this work cycle
+    const submittedSet = new Set<string>(Array.isArray(normalizedUserData.submittedProductIds) ? normalizedUserData.submittedProductIds : []);
     const eligibleTaskIds = tierTaskCandidates
       .map((task) => (typeof task?.id === 'string' ? task.id : ''))
-      .filter((taskId) => Boolean(taskId));
+      .filter((taskId) => Boolean(taskId) && !submittedSet.has(taskId));
     const tBuild = performance.now();
 
     const payload = {
