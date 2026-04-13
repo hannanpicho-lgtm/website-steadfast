@@ -382,6 +382,38 @@ describe('User endpoints', () => {
 
 });
 
+describe('GET /v2/me/starting-snapshot queue contract', () => {
+  it('returns eligibleTaskIds ordered first in taskCatalog payload', async () => {
+    const financeCookie = await ensureFinanceUserSessionCookie();
+    const { status, body } = await requestWithCookie(
+      '/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50&forceFresh=true',
+      financeCookie,
+    );
+
+    expect(status).toBe(200);
+    expect(Array.isArray(body?.taskCatalog?.tasks)).toBe(true);
+    expect(Array.isArray(body?.taskCatalog?.ruleConfig?.eligibleTaskIds)).toBe(true);
+
+    const tasks = Array.isArray(body?.taskCatalog?.tasks) ? body.taskCatalog.tasks : [];
+    const eligibleTaskIds = Array.isArray(body?.taskCatalog?.ruleConfig?.eligibleTaskIds)
+      ? body.taskCatalog.ruleConfig.eligibleTaskIds
+      : [];
+
+    expect(typeof body?.meta?.catalogReturned).toBe('number');
+    expect(typeof body?.meta?.catalogTotal).toBe('number');
+    expect(Number(body?.meta?.catalogReturned ?? 0)).toBeGreaterThan(0);
+    expect(Number(body?.meta?.catalogTotal ?? 0)).toBeGreaterThanOrEqual(Number(body?.meta?.catalogReturned ?? 0));
+
+    // Regression guard: the snapshot payload should surface queued tasks first
+    // so the frontend preview can faithfully render and submit the same product.
+    if (eligibleTaskIds.length > 0 && tasks.length > 0) {
+      const expectedPrefix = eligibleTaskIds.slice(0, Math.min(eligibleTaskIds.length, tasks.length));
+      const actualPrefix = tasks.slice(0, expectedPrefix.length).map((task: any) => task?.id);
+      expect(actualPrefix).toEqual(expectedPrefix);
+    }
+  });
+});
+
 // ─── Submit Task ──────────────────────────────────────────────────────────────
 
 describe('POST /me/submit-task', () => {
