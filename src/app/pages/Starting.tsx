@@ -311,11 +311,26 @@ export default function Starting() {
   const vipPriceMax = roundMoney(Number(taskRuleConfig?.taskPriceMax ?? activeVipTier?.taskPriceMax ?? 0));
   const hasVipPriceRange = vipPriceMin > 0 && vipPriceMax > 0 && vipPriceMax >= vipPriceMin;
 
-  // Carousel shows ALL active products for visual variety.
-  // The server determines the actual eligible task for commission on submit.
+  // Carousel shows only VIP-eligible products (filtered by server-provided eligibleTaskIds or price range).
   const activeTasks = useMemo(() => {
-    return taskCatalog.filter((task) => task.status === 'Active');
-  }, [taskCatalog]);
+    const allActive = taskCatalog.filter((task) => task.status === 'Active');
+    // Prefer server-provided eligible IDs (most accurate)
+    const serverEligibleIds = taskRuleConfig?.eligibleTaskIds;
+    if (Array.isArray(serverEligibleIds) && serverEligibleIds.length > 0) {
+      const idSet = new Set(serverEligibleIds);
+      const eligible = allActive.filter((task) => idSet.has(task.id));
+      return eligible.length > 0 ? eligible : allActive;
+    }
+    // Fallback: client-side price range filter
+    if (hasVipPriceRange) {
+      const inRange = allActive.filter((task) => {
+        const price = roundMoney(Number(task.price ?? 0));
+        return price >= vipPriceMin && price <= vipPriceMax;
+      });
+      return inRange.length > 0 ? inRange : allActive;
+    }
+    return allActive;
+  }, [taskCatalog, taskRuleConfig?.eligibleTaskIds, hasVipPriceRange, vipPriceMin, vipPriceMax]);
 
   const currentProduct = activeTasks.length > 0 ? activeTasks[carouselIndex % activeTasks.length] : null;
 
