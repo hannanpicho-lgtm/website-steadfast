@@ -500,6 +500,8 @@ export default function Starting() {
       return;
     }
 
+    let timeoutId = 0;
+
     const pollBonusFeed = async () => {
       try {
         const unseenBonuses = await fetchBonusFeed({ unseenOnly: true, limit: 6 });
@@ -523,7 +525,13 @@ export default function Starting() {
       }
     };
 
-    void pollBonusFeed();
+    timeoutId = window.setTimeout(() => {
+      void pollBonusFeed();
+    }, 1200);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
   }, [sessionUsername]);
 
   useEffect(() => {
@@ -542,7 +550,9 @@ export default function Starting() {
       }
     };
 
-    void syncTicker();
+    const initialSyncTimer = window.setTimeout(() => {
+      void syncTicker();
+    }, 900);
     let intervalId = window.setInterval(() => {
       void syncTicker();
     }, 60_000);
@@ -563,6 +573,7 @@ export default function Starting() {
 
     return () => {
       cancelled = true;
+      window.clearTimeout(initialSyncTimer);
       window.clearInterval(intervalId);
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };

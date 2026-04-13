@@ -1,7 +1,7 @@
 import { ChevronLeft, Package, Clock, CheckCircle, Loader2, ChevronDown, ChevronUp, Download, Crown, Lock, MessageCircle, Gem } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useBackNavigate } from '../hooks/useBackNavigate';
-import { useState, useEffect, useTransition, lazy, Suspense } from 'react';
+import { useState, useEffect, useTransition, lazy, Suspense, useMemo } from 'react';
 import { toast } from 'sonner';
 const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ default: m.LiveChatBox })));
 import { BottomNavigation } from '../components/BottomNavigation';
@@ -367,36 +367,45 @@ export default function Records() {
     }
   };
 
-  // Get completed products (products that were submitted)
-  const activeTasks = taskCatalog.filter((task) => task.status === 'Active');
-
   // Build lookup maps so every record can resolve its image/name/rating from the catalog
   // even if the server didn't embed those fields on the task record itself.
-  const catalogById = new Map(taskCatalog.map((item) => [item.id, item]));
-  const catalogByName = new Map(taskCatalog.map((item) => [item.product.toLowerCase().trim(), item]));
+  const catalogById = useMemo(
+    () => new Map(taskCatalog.map((item) => [item.id, item])),
+    [taskCatalog],
+  );
+  const catalogByName = useMemo(
+    () => new Map(taskCatalog.map((item) => [item.product.toLowerCase().trim(), item])),
+    [taskCatalog],
+  );
 
-  const completedProducts: CompletedRecordItem[] = taskRecords.map((task, index) => {
-    const catalogMatch =
-      (task.taskId ? catalogById.get(task.taskId) : undefined) ??
-      (task.productName ? catalogByName.get(task.productName.toLowerCase().trim()) : undefined);
-    return {
-      recordType: 'completed',
-      id: task.taskId ?? `${task.username}-${index}`,
-      name: task.productName ?? catalogMatch?.product ?? 'Task Product',
-      price: task.productPrice,
-      rating: task.rating ?? catalogMatch?.rating ?? 4,
-      image: task.image || catalogMatch?.image || '',
-      productUrl: task.productUrl || catalogMatch?.productUrl || '',
-      commission: task.commission,
-      isPremium: task.isPremium,
-      timestamp: task.timestamp,
-    };
-  });
+  const completedProducts: CompletedRecordItem[] = useMemo(
+    () => taskRecords.map((task, index) => {
+      const catalogMatch =
+        (task.taskId ? catalogById.get(task.taskId) : undefined)
+        ?? (task.productName ? catalogByName.get(task.productName.toLowerCase().trim()) : undefined);
+      return {
+        recordType: 'completed',
+        id: task.taskId ?? `${task.username}-${index}`,
+        name: task.productName ?? catalogMatch?.product ?? 'Task Product',
+        price: task.productPrice,
+        rating: task.rating ?? catalogMatch?.rating ?? 4,
+        image: task.image || catalogMatch?.image || '',
+        productUrl: task.productUrl || catalogMatch?.productUrl || '',
+        commission: task.commission,
+        isPremium: task.isPremium,
+        timestamp: task.timestamp,
+      };
+    }),
+    [taskRecords, catalogById, catalogByName],
+  );
 
-  const normalRate = ((vipConfigurations.find((tier) => tier.level === (userData?.vipLevel || 1))?.commission) ?? 0.005) * 100;
+  const normalRate = useMemo(
+    () => ((vipConfigurations.find((tier) => tier.level === (userData?.vipLevel || 1))?.commission) ?? 0.005) * 100,
+    [vipConfigurations, userData?.vipLevel],
+  );
   const premiumRate = normalRate * 10;
 
-  const pendingPremiumRecords: PendingPremiumRecordItem[] = (() => {
+  const pendingPremiumRecords: PendingPremiumRecordItem[] = useMemo(() => {
     const activePremium = userData?.activePremium;
     if (!activePremium) {
       return [];
@@ -471,21 +480,19 @@ export default function Records() {
       topUpRequired: Math.max(0, Number(activePremium.topUpRequired ?? activePremium.negativeAmount ?? 0)),
       items,
     }];
-  })();
+  }, [userData?.activePremium, premiumRate, normalRate, catalogByName]);
 
   // Determine which products to show based on active tab
-  const getFilteredProducts = (): RecordListItem[] => {
+  const filteredProducts = useMemo<RecordListItem[]>(() => {
     if (activeTab === 'completed') {
       return completedProducts;
-    } else if (activeTab === 'pending') {
-      return pendingPremiumRecords;
-    } else {
-      // All - show both completed and pending
-      return [...pendingPremiumRecords, ...completedProducts];
     }
-  };
-
-  const filteredProducts = getFilteredProducts();
+    if (activeTab === 'pending') {
+      return pendingPremiumRecords;
+    }
+    // All - show both completed and pending
+    return [...pendingPremiumRecords, ...completedProducts];
+  }, [activeTab, completedProducts, pendingPremiumRecords]);
 
   const exportCsv = () => {
     const escape = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
