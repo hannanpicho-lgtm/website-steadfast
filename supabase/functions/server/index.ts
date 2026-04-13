@@ -8113,6 +8113,7 @@ async function handleRecordsSnapshot(c: any) {
 
     const tasksLimit = parsePositiveIntQuery(c.req.query('tasksLimit'), 120, 1, 500);
     const transactionsLimit = parsePositiveIntQuery(c.req.query('transactionsLimit'), 120, 1, 500);
+    const catalogLimit = parsePositiveIntQuery(c.req.query('catalogLimit'), 120, 1, 300);
     const includeCatalog = c.req.query('includeCatalog') !== 'false';
     const includeVip = c.req.query('includeVip') !== 'false';
     const username = sessionResult.session.username;
@@ -8150,19 +8151,22 @@ async function handleRecordsSnapshot(c: any) {
 
     const pagedTasks = await hydratePremiumTaskRecords(username, sortedTasks.slice(0, tasksLimit));
     const pagedTransactions = transactions.slice(0, transactionsLimit);
+    const pagedCatalog = Array.isArray(taskCatalog) ? taskCatalog.slice(0, catalogLimit) : [];
     const tBuild = performance.now();
 
     const payload = {
       user: normalizedUserData,
       tasks: pagedTasks,
       transactions: pagedTransactions,
-      taskCatalog,
+      taskCatalog: pagedCatalog,
       vipConfig: includeVip ? (Array.isArray(vipTiers) ? vipTiers : []) : [],
       meta: {
         tasksTotal: sortedTasks.length,
         tasksReturned: pagedTasks.length,
         transactionsTotal: transactions.length,
         transactionsReturned: pagedTransactions.length,
+        catalogTotal: Array.isArray(taskCatalog) ? taskCatalog.length : 0,
+        catalogReturned: pagedCatalog.length,
       },
     };
 

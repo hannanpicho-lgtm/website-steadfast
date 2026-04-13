@@ -8,10 +8,7 @@ const LiveChatBox = lazy(() => import('../components/LiveChatBox').then(m => ({ 
 import { projectId, publicAnonKey } from '@utils/supabase/info';
 import { getCurrentUsername } from '../services/referralSystem';
 import { buildLoginRedirectState } from '../services/loginRedirect';
-import { fetchPublicVipConfig, type VipConfig } from '../services/vipConfig';
-import { fetchReferralSummary } from '../services/referralReadModel';
 import { fetchFinancialSummary } from '../services/financialReadModel';
-import { fetchJsonWithRetry } from '../services/networkClient';
 
 interface UserData {
   username: string;
@@ -23,15 +20,14 @@ interface UserData {
   createdAt: string;
 }
 
+const CERTIFICATE_USER_CACHE_KEY = 'certificate:user:v1';
+
 export default function Certificate() {
   const navigate = useNavigate();
   const goBack = useBackNavigate();
   const location = useLocation();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [totalCommission, setTotalCommission] = useState(0);
-  const [referralEarnings, setReferralEarnings] = useState(0);
-  const [vipConfigurations, setVipConfigurations] = useState<VipConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,38 +45,35 @@ export default function Certificate() {
       });
       return;
     }
+    try {
+      const rawCached = localStorage.getItem(CERTIFICATE_USER_CACHE_KEY);
+      if (rawCached) {
+        const parsed = JSON.parse(rawCached) as UserData;
+        if (parsed && typeof parsed.username === 'string') {
+          setUserData(parsed);
+          setLoading(false);
+        }
+      }
+    } catch {
+      // Ignore cache parse errors and continue with network fetch.
+    }
     void fetchData(sessionUsername);
   }, [location.pathname, navigate, sessionUsername]);
 
   const fetchData = async (username: string) => {
     try {
-      setLoading(true);
+      if (!userData) {
+        setLoading(true);
+      }
       setError(null);
 
-      const [user, txList, vipConfig, referralSummary] = await Promise.all([
-        fetchFinancialSummary(),
-        fetchJsonWithRetry<Array<{ type: string; amount: number; status: string }>>({
-          url: `${serverUrl}/me/transactions`,
-          init: { credentials: 'include' },
-          timeoutMs: 8000,
-          retries: 1,
-          retryDelayMs: 300,
-          pageTag: 'certificate',
-        }).catch(() => [] as Array<{ type: string; amount: number; status: string }>),
-        fetchPublicVipConfig(),
-        fetchReferralSummary(),
-      ]);
-
+      const user = await fetchFinancialSummary();
       setUserData(user as unknown as UserData);
-      setVipConfigurations(vipConfig);
-      setReferralEarnings(Number(referralSummary.referralEarnings ?? 0));
-
-      const earned = Array.isArray(txList)
-        ? txList
-            .filter((t) => t.type === 'Commission' && t.status === 'Completed')
-            .reduce((sum, t) => sum + t.amount, 0)
-        : 0;
-      setTotalCommission(earned);
+      try {
+        localStorage.setItem(CERTIFICATE_USER_CACHE_KEY, JSON.stringify(user));
+      } catch {
+        // Ignore localStorage errors.
+      }
     } catch (err) {
       setError('Unable to load certificate data. Please try again.');
       console.error('Certificate fetch error:', err);
@@ -88,11 +81,6 @@ export default function Certificate() {
       setLoading(false);
     }
   };
-
-  const vipConfig = vipConfigurations.find((v) => v.level === (userData?.vipLevel ?? 1));
-  // vipName, memberSince, totalCommission, referralEarnings reserved for future certificate display
-  void vipConfig;
-
 
   return (
     <div className="flex min-h-screen flex-col bg-[#0a0a0a] pb-20" style={{ background: '#0a0a0a' }}>

@@ -129,7 +129,7 @@ const TASK_CATALOG_CACHE_KEY = buildPublicCacheKey('starting:task-catalog', 'v1'
 const TASK_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
 const FINANCIAL_SUMMARY_CACHE_KEY = 'starting:financial-summary';
 const FINANCIAL_SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
-const STARTING_SNAPSHOT_CATALOG_LIMIT = 120;
+const STARTING_SNAPSHOT_CATALOG_LIMIT = 96;
 const CAROUSEL_TASK_LIMIT = 48;
 const STARTING_PERF_SAMPLES_KEY = 'starting:perf-samples:v1';
 const STARTING_PERF_EVENTS_KEY = 'starting:perf-events:v1';
@@ -984,7 +984,7 @@ export default function Starting() {
       if (username) {
         invalidateSessionCacheByPrefix(buildUserScopedCacheKey('records:', username, 'v2'));
         void fetchJsonWithRetry({
-          url: `${serverUrl}/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true`,
+          url: `${serverUrl}/me/records-snapshot?tasksLimit=60&transactionsLimit=60&catalogLimit=60&includeCatalog=true&includeVip=true`,
           init: {
             credentials: 'include',
           },

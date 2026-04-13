@@ -127,6 +127,9 @@ type RecordListItem = CompletedRecordItem | PendingPremiumRecordItem;
 
 const RECORDS_REQUEST_TIMEOUT_MS = 5000;
 const RECORDS_V2_TIMEOUT_MS = 6000;
+const RECORDS_TASKS_LIMIT = 80;
+const RECORDS_TRANSACTIONS_LIMIT = 80;
+const RECORDS_CATALOG_LIMIT = 80;
 const RECORDS_USER_CACHE_TTL_MS = 45 * 1000;
 const RECORDS_SNAPSHOT_CACHE_TTL_MS = 60 * 1000;
 
@@ -216,7 +219,7 @@ export default function Records() {
 
   const fetchRecordsSnapshot = async () => {
     // Go directly to V2 snapshot URL — skip the /version waterfall.
-    const v2Url = `${serverUrl}/v2/me/records-snapshot?tasksLimit=120&transactionsLimit=120&includeCatalog=true&includeVip=true`;
+    const v2Url = `${serverUrl}/v2/me/records-snapshot?tasksLimit=${RECORDS_TASKS_LIMIT}&transactionsLimit=${RECORDS_TRANSACTIONS_LIMIT}&catalogLimit=${RECORDS_CATALOG_LIMIT}&includeCatalog=true&includeVip=true`;
 
     return fetchJsonWithRetry<RecordsSnapshotResponse>({
       url: v2Url,
@@ -247,7 +250,7 @@ export default function Records() {
         pageTag: 'records-fallback',
       }),
       fetchJsonWithRetry<TaskRecord[]>({
-        url: `${serverUrl}/me/tasks?limit=120`,
+        url: `${serverUrl}/me/tasks?limit=${RECORDS_TASKS_LIMIT}`,
         init: {
           credentials: 'include',
         },
@@ -257,7 +260,7 @@ export default function Records() {
         pageTag: 'records-fallback',
       }),
       fetchJsonWithRetry<TransactionRecord[]>({
-        url: `${serverUrl}/me/transactions?limit=120`,
+        url: `${serverUrl}/me/transactions?limit=${RECORDS_TRANSACTIONS_LIMIT}`,
         init: {
           credentials: 'include',
         },
