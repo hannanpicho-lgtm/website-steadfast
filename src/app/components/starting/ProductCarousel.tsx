@@ -32,6 +32,7 @@ export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onI
   }
 
   const slide = tasks[index % tasks.length];
+  const nextSlide = tasks[(index + 1) % tasks.length];
   const MAX_DOTS = 24;
   const normalizedIndex = index % tasks.length;
   const isCompactDots = tasks.length > MAX_DOTS;
@@ -76,9 +77,23 @@ export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onI
               alt={getPrimaryLabel(slide.product)}
               width={360}
               height={260}
-              loading="lazy"
+              loading="eager"
+              decoding="async"
               className="relative z-[1] max-h-[220px] sm:max-h-[260px] max-w-[280px] sm:max-w-[360px] w-full object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
             />
+            {/* Warm up the next slide image so transitions feel instant on mobile. */}
+            {nextSlide?.image ? (
+              <img
+                src={nextSlide.image}
+                alt=""
+                aria-hidden="true"
+                width={1}
+                height={1}
+                loading="eager"
+                decoding="async"
+                className="absolute opacity-0 pointer-events-none w-0 h-0"
+              />
+            ) : null}
           </div>
         </div>
         <h3 className="text-base font-semibold text-white mb-2 line-clamp-2">{slide.product}</h3>
