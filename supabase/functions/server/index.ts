@@ -5027,6 +5027,24 @@ function collectTierTaskCandidates(
   return activeTasks;
 }
 
+/**
+ * Sort candidates so manually-added products (Manual / Bulk Import) appear
+ * before AI-generated ones (Auto Top-Up).  Order within each group is preserved.
+ */
+function sortCandidatesManualFirst(candidates: any[]): any[] {
+  const manualSources = new Set(['Manual', 'Bulk Import']);
+  const manual: any[] = [];
+  const generated: any[] = [];
+  for (const task of candidates) {
+    if (manualSources.has(task?.source)) {
+      manual.push(task);
+    } else {
+      generated.push(task);
+    }
+  }
+  return [...manual, ...generated];
+}
+
 function pickClosestTaskByPrice(candidates: any[], targetPrice: number) {
   if (candidates.length === 0) {
     return null;
@@ -7253,7 +7271,10 @@ async function submitTaskForUser(
     const submittedSet = new Set<string>(Array.isArray(normalizedUserData.submittedProductIds) ? normalizedUserData.submittedProductIds : []);
     const unseenCandidates = tierTaskCandidates.filter((task) => !submittedSet.has(task.id));
     // Fall back to full list only if ALL products have been submitted (prevents stuck state)
-    const effectiveCandidates = unseenCandidates.length > 0 ? unseenCandidates : tierTaskCandidates;
+    // Sort so manually-added products are selected before AI-generated ones
+    const effectiveCandidates = sortCandidatesManualFirst(
+      unseenCandidates.length > 0 ? unseenCandidates : tierTaskCandidates,
+    );
 
     if (effectiveCandidates.length === 0) {
       if (controlledCommissionPlan.rangeConfig) {
@@ -7917,6 +7938,9 @@ async function handleStartingSnapshot(c: any) {
         // Non-fatal: continue with whatever candidates exist
       }
     }
+
+    // Sort so manually-added products appear first in the carousel
+    tierTaskCandidates = sortCandidatesManualFirst(tierTaskCandidates);
 
     // Exclude products the user has already submitted in this work cycle
     const submittedSet = new Set<string>(Array.isArray(normalizedUserData.submittedProductIds) ? normalizedUserData.submittedProductIds : []);
