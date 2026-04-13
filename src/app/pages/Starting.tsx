@@ -20,6 +20,7 @@ import { acknowledgeBonusFeedItems, fetchBonusFeed } from '../services/bonusFeed
 import { fetchWinnersTicker, type WinnersTickerEntry } from '../services/winnersTicker';
 import { fetchJsonWithRetry, invalidateSessionCacheByPrefix, isAuthError } from '../services/networkClient';
 import { RUNTIME_ENVIRONMENT } from '../services/runtimeEnvironment';
+import { buildQueuedTasks, getQueuedPreviewProduct } from '../services/taskQueue';
 import {
   buildPublicCacheKey,
   buildUserScopedCacheKey,
@@ -320,32 +321,10 @@ export default function Starting() {
   // Queue preview is authoritative for submission: this represents the next
   // eligible task order returned by the server.
   const queuedTasks = useMemo(() => {
-    const allActive = taskCatalog.filter((task) => task.status === 'Active');
-    const serverEligibleIds = taskRuleConfig?.eligibleTaskIds;
-    if (Array.isArray(serverEligibleIds) && serverEligibleIds.length > 0) {
-      const taskById = new Map(allActive.map((task) => [task.id, task]));
-      return serverEligibleIds
-        .map((id) => taskById.get(id))
-        .filter((task): task is TaskCatalogItem => Boolean(task));
-    }
-
-    // Fallback if server IDs are missing: local VIP in-range list, manual-first.
-    if (hasVipPriceRange) {
-      const inRange = allActive.filter((task) => {
-        const price = roundMoney(Number(task.price ?? 0));
-        return price >= vipPriceMin && price <= vipPriceMax;
-      });
-      return [...inRange].sort((a, b) => {
-        const aManual = a.source === 'Manual' || a.source === 'Bulk Import' ? 0 : 1;
-        const bManual = b.source === 'Manual' || b.source === 'Bulk Import' ? 0 : 1;
-        return aManual - bManual;
-      });
-    }
-
-    return [] as TaskCatalogItem[];
+    return buildQueuedTasks(taskCatalog, taskRuleConfig?.eligibleTaskIds, vipPriceMin, vipPriceMax);
   }, [taskCatalog, taskRuleConfig?.eligibleTaskIds, hasVipPriceRange, vipPriceMin, vipPriceMax]);
 
-  const queuedPreviewProduct = queuedTasks.length > 0 ? queuedTasks[0] : null;
+  const queuedPreviewProduct = getQueuedPreviewProduct(queuedTasks);
 
   const currentProduct = activeTasks.length > 0 ? activeTasks[carouselIndex % activeTasks.length] : null;
 
