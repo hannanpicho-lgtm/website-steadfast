@@ -996,6 +996,18 @@ export default function Starting() {
         });
       }
       
+      // Remove the submitted product from eligible list so carousel won't show it again
+      if (currentProduct?.id) {
+        const submittedId = currentProduct.id;
+        setTaskRuleConfig((prev) => {
+          if (!prev?.eligibleTaskIds) return prev;
+          return {
+            ...prev,
+            eligibleTaskIds: prev.eligibleTaskIds.filter((id: string) => id !== submittedId),
+          };
+        });
+      }
+
       // Move to next product
       if (!isSubmittingPremiumTask) {
         setCarouselIndex((prev) => prev + 1);

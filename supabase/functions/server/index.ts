@@ -2416,10 +2416,13 @@ function patchSnapshotCacheAfterTaskSubmit(
   const startingKey = `snapshot:starting:${username}`;
   const cachedStarting = getCachedSnapshotResponse(startingKey);
   if (cachedStarting) {
-    // Remove the just-submitted product from eligibleTaskIds so the carousel won't show it again
-    const submittedId = taskRecord?.taskId;
+    // Remove all submitted product IDs from eligibleTaskIds so carousel won't show them again.
+    // Use the user's full submittedProductIds list (covers both displayTask and selectedTask).
+    const submittedIds = new Set<string>(Array.isArray(updatedUser?.submittedProductIds) ? updatedUser.submittedProductIds : []);
+    // Also add the current taskRecord ID as a safety fallback
+    if (taskRecord?.taskId) submittedIds.add(taskRecord.taskId);
     const prevEligible: string[] = cachedStarting?.taskCatalog?.ruleConfig?.eligibleTaskIds ?? [];
-    const updatedEligible = submittedId ? prevEligible.filter((id: string) => id !== submittedId) : prevEligible;
+    const updatedEligible = prevEligible.filter((id: string) => !submittedIds.has(id));
     setCachedSnapshotResponse(startingKey, {
       ...cachedStarting,
       user: updatedUser,
@@ -5013,12 +5016,30 @@ function collectTierTaskCandidates(
   if (effectiveRange) {
     const inRange = activeTasks.filter((task) => isTaskPriceValidForRange(task?.price, effectiveRange));
     const tierTaggedInRange = inRange.filter((task) => Number(task?.vipTier ?? 0) === vipLevel);
-    return tierTaggedInRange.length > 0 ? tierTaggedInRange : inRange;
+    // Always include manually added / bulk-imported products that are in range,
+    // even if they don't have the exact vipTier tag (admins may not set it).
+    const manualInRange = inRange.filter((task) => {
+      const src = String(task?.source ?? 'Manual');
+      return (src === 'Manual' || src === 'Bulk Import') && Number(task?.vipTier ?? 0) !== vipLevel;
+    });
+    if (tierTaggedInRange.length > 0) {
+      // Merge manual products into tier-tagged set (dedup by id)
+      const ids = new Set(tierTaggedInRange.map((t: any) => t.id));
+      const merged = [...tierTaggedInRange, ...manualInRange.filter((t: any) => !ids.has(t.id))];
+      return merged;
+    }
+    return inRange;
   }
 
   const tierTagged = activeTasks.filter((task) => Number(task?.vipTier ?? 0) === vipLevel);
   if (tierTagged.length > 0) {
-    return tierTagged;
+    // Include manual products even if they lack the vipTier tag
+    const manualTasks = activeTasks.filter((task) => {
+      const src = String(task?.source ?? 'Manual');
+      return (src === 'Manual' || src === 'Bulk Import') && Number(task?.vipTier ?? 0) !== vipLevel;
+    });
+    const ids = new Set(tierTagged.map((t: any) => t.id));
+    return [...tierTagged, ...manualTasks.filter((t: any) => !ids.has(t.id))];
   }
 
   return activeTasks;
@@ -7422,14 +7443,18 @@ async function submitTaskForUser(
     normalizedUserData.todayCommission = roundMoney(normalizedUserData.todayCommission + commission);
     normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);
 
-    // Track submitted product so it won't appear again in this work cycle
-    const recordVisualId = (displayTask ?? selectedTask)?.id;
-    if (recordVisualId && typeof recordVisualId === 'string') {
-      if (!Array.isArray(normalizedUserData.submittedProductIds)) {
-        normalizedUserData.submittedProductIds = [];
-      }
-      if (!normalizedUserData.submittedProductIds.includes(recordVisualId)) {
-        normalizedUserData.submittedProductIds.push(recordVisualId);
+    // Track submitted product so it won't appear again in this work cycle.
+    // Track BOTH the display product (what user saw) AND the selected product (backend pick)
+    // to prevent either from reappearing.
+    if (!Array.isArray(normalizedUserData.submittedProductIds)) {
+      normalizedUserData.submittedProductIds = [];
+    }
+    const idsToTrack = new Set<string>();
+    if (displayTask?.id && typeof displayTask.id === 'string') idsToTrack.add(displayTask.id);
+    if (selectedTask?.id && typeof selectedTask.id === 'string') idsToTrack.add(selectedTask.id);
+    for (const id of idsToTrack) {
+      if (!normalizedUserData.submittedProductIds.includes(id)) {
+        normalizedUserData.submittedProductIds.push(id);
       }
     }
 
