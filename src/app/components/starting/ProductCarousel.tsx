@@ -32,6 +32,15 @@ export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onI
   }
 
   const slide = tasks[index % tasks.length];
+  const MAX_DOTS = 24;
+  const normalizedIndex = index % tasks.length;
+  const isCompactDots = tasks.length > MAX_DOTS;
+  const compactStart = isCompactDots
+    ? Math.max(0, Math.min(normalizedIndex - Math.floor(MAX_DOTS / 2), tasks.length - MAX_DOTS))
+    : 0;
+  const dotIndices = isCompactDots
+    ? Array.from({ length: MAX_DOTS }, (_, offset) => compactStart + offset)
+    : Array.from({ length: tasks.length }, (_, i) => i);
 
   return (
     <div className="bg-[#252d42] rounded-lg p-4 sm:p-6 mb-6 border border-[#00D9FF]/20 relative select-none">
@@ -90,16 +99,19 @@ export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onI
       </button>
 
       {/* Dot indicators */}
-      <div className="flex justify-center gap-2 mt-4">
-        {tasks.map((_, i) => (
+      <div className="flex justify-center gap-2 mt-4 flex-wrap">
+        {dotIndices.map((i) => (
           <button
             key={i}
             onClick={() => onIndexChange(() => i)}
             aria-label={`Go to slide ${i + 1}`}
-            className={`w-2 h-2 rounded-full transition-colors ${i === index ? 'bg-[#00D9FF]' : 'bg-gray-600'}`}
+            className={`w-2 h-2 rounded-full transition-colors ${i === normalizedIndex ? 'bg-[#00D9FF]' : 'bg-gray-600'}`}
           />
         ))}
       </div>
+      {isCompactDots ? (
+        <p className="mt-2 text-[11px] text-gray-400 text-center">{normalizedIndex + 1} / {tasks.length}</p>
+      ) : null}
     </div>
   );
 });

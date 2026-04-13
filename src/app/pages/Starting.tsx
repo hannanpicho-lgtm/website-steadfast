@@ -129,9 +129,11 @@ const TASK_CATALOG_CACHE_KEY = buildPublicCacheKey('starting:task-catalog', 'v1'
 const TASK_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
 const FINANCIAL_SUMMARY_CACHE_KEY = 'starting:financial-summary';
 const FINANCIAL_SUMMARY_CACHE_TTL_MS = 5 * 60 * 1000;
+const STARTING_SNAPSHOT_CATALOG_LIMIT = 120;
+const CAROUSEL_TASK_LIMIT = 48;
 const STARTING_PERF_SAMPLES_KEY = 'starting:perf-samples:v1';
-const STARTING_PERF_MAX_SAMPLES = 30;
 const STARTING_PERF_EVENTS_KEY = 'starting:perf-events:v1';
+const STARTING_PERF_MAX_SAMPLES = 80;
 
 type StartingPerfSample = {
   recordedAt: string;
@@ -313,9 +315,9 @@ export default function Starting() {
   const vipPriceMax = roundMoney(Number(taskRuleConfig?.taskPriceMax ?? activeVipTier?.taskPriceMax ?? 0));
   const hasVipPriceRange = vipPriceMin > 0 && vipPriceMax > 0 && vipPriceMax >= vipPriceMin;
 
-  // Carousel shows ALL active products as a visual showcase (decoupled from submission).
+  // Carousel is visual-only and intentionally capped for smoother mobile rendering.
   const activeTasks = useMemo(() => {
-    return taskCatalog.filter((task) => task.status === 'Active');
+    return taskCatalog.filter((task) => task.status === 'Active').slice(0, CAROUSEL_TASK_LIMIT);
   }, [taskCatalog]);
 
   // Queue preview is authoritative for submission: this represents the next
@@ -739,7 +741,7 @@ export default function Starting() {
         // Go directly to V2 snapshot URL — skip the /version waterfall.
         // If V2 fails the catch block falls back to V1 endpoints.
         const cacheBust = forceFresh ? `&refreshTs=${Date.now()}` : '';
-        const v2SnapshotUrl = `${serverUrl}/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=200${cacheBust}`;
+        const v2SnapshotUrl = `${serverUrl}/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=${STARTING_SNAPSHOT_CATALOG_LIMIT}${cacheBust}`;
 
         const snapshotStartedAt = performance.now();
         const snapshot = await fetchJsonWithRetry<any>({

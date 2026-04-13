@@ -7957,10 +7957,12 @@ async function handleStartingSnapshot(c: any) {
       .filter((task) => Boolean(task));
     const prioritizedCatalogIdSet = new Set<string>(eligibleTaskIds);
     const remainingCatalogTasks = catalogTasks.filter((task) => !prioritizedCatalogIdSet.has(String(task?.id ?? '')));
-    const responseCatalogTasks = [...prioritizedCatalogTasks, ...remainingCatalogTasks].slice(
-      0,
-      Math.max(catalogLimit, prioritizedCatalogTasks.length),
-    );
+    const eligiblePreviewWindowSize = Math.min(prioritizedCatalogTasks.length, 80);
+    const responseCatalogLimit = Math.max(catalogLimit, eligiblePreviewWindowSize);
+    const responseCatalogTasks = [
+      ...prioritizedCatalogTasks.slice(0, eligiblePreviewWindowSize),
+      ...remainingCatalogTasks,
+    ].slice(0, responseCatalogLimit);
     const tBuild = performance.now();
 
     const payload = {
@@ -7980,6 +7982,8 @@ async function handleStartingSnapshot(c: any) {
       rewardsConfig: includeConfig ? rewardsConfig : null,
       meta: {
         catalogLimit,
+        responseCatalogLimit,
+        eligiblePreviewWindowSize,
         catalogReturned: responseCatalogTasks.length,
         catalogTotal: catalogTasks.length,
       },
