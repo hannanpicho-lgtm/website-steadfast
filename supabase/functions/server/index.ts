@@ -5016,30 +5016,12 @@ function collectTierTaskCandidates(
   if (effectiveRange) {
     const inRange = activeTasks.filter((task) => isTaskPriceValidForRange(task?.price, effectiveRange));
     const tierTaggedInRange = inRange.filter((task) => Number(task?.vipTier ?? 0) === vipLevel);
-    // Always include manually added / bulk-imported products that are in range,
-    // even if they don't have the exact vipTier tag (admins may not set it).
-    const manualInRange = inRange.filter((task) => {
-      const src = String(task?.source ?? 'Manual');
-      return (src === 'Manual' || src === 'Bulk Import') && Number(task?.vipTier ?? 0) !== vipLevel;
-    });
-    if (tierTaggedInRange.length > 0) {
-      // Merge manual products into tier-tagged set (dedup by id)
-      const ids = new Set(tierTaggedInRange.map((t: any) => t.id));
-      const merged = [...tierTaggedInRange, ...manualInRange.filter((t: any) => !ids.has(t.id))];
-      return merged;
-    }
-    return inRange;
+    return tierTaggedInRange.length > 0 ? tierTaggedInRange : inRange;
   }
 
   const tierTagged = activeTasks.filter((task) => Number(task?.vipTier ?? 0) === vipLevel);
   if (tierTagged.length > 0) {
-    // Include manual products even if they lack the vipTier tag
-    const manualTasks = activeTasks.filter((task) => {
-      const src = String(task?.source ?? 'Manual');
-      return (src === 'Manual' || src === 'Bulk Import') && Number(task?.vipTier ?? 0) !== vipLevel;
-    });
-    const ids = new Set(tierTagged.map((t: any) => t.id));
-    return [...tierTagged, ...manualTasks.filter((t: any) => !ids.has(t.id))];
+    return tierTagged;
   }
 
   return activeTasks;
@@ -7808,6 +7790,31 @@ async function handleStartingSnapshot(c: any) {
     const normalizedRewardsConfig = normalizeProductSystemConfig(rewardsConfig?.productSystem);
     const catalogTasks = Array.isArray(taskCatalog) ? taskCatalog.slice(0, catalogLimit) : [];
     const userVipLevel = Number(normalizedUserData.vipLevel ?? 1);
+
+    // ── Auto-assign vipTier for manual/bulk products that have vipTier 0 ──
+    // Admin-added products often lack a vipTier tag. Assign the best-fit tier
+    // based on price so they show up for the correct VIP level users.
+    // Picks the highest VIP tier whose price range contains the product price.
+    for (const t of catalogTasks) {
+      if (t?.status !== 'Active') continue;
+      const src = String(t?.source ?? 'Manual');
+      if (src !== 'Manual' && src !== 'Bulk Import') continue;
+      if (Number(t?.vipTier ?? 0) !== 0) continue; // already has a tier assigned
+      const price = roundMoney(Number(t?.price ?? 0));
+      if (price <= 0) continue;
+      let bestTier = 0;
+      for (const [tier, range] of Object.entries(VIP_PRICE_RANGES)) {
+        if (price >= range.min && price <= range.max && Number(tier) > bestTier) {
+          bestTier = Number(tier);
+        }
+      }
+      if (bestTier > 0) {
+        t.vipTier = bestTier;
+        // Persist the tier assignment so it doesn't need to recalculate every request
+        await kv.set(`${TASK_CATALOG_KEY_PREFIX}${t.id}`, t);
+      }
+    }
+
     let tierTaskCandidates = collectTierTaskCandidates(
       catalogTasks,
       userVipLevel,
