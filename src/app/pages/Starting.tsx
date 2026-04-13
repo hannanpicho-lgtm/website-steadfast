@@ -58,6 +58,7 @@ interface TaskCatalogItem {
   rating: number;
   productUrl: string;
   vipTier?: number;
+  source?: string;
 }
 
 type TaskCatalogResponse = {
@@ -316,6 +317,36 @@ export default function Starting() {
     return taskCatalog.filter((task) => task.status === 'Active');
   }, [taskCatalog]);
 
+  // Queue preview is authoritative for submission: this represents the next
+  // eligible task order returned by the server.
+  const queuedTasks = useMemo(() => {
+    const allActive = taskCatalog.filter((task) => task.status === 'Active');
+    const serverEligibleIds = taskRuleConfig?.eligibleTaskIds;
+    if (Array.isArray(serverEligibleIds) && serverEligibleIds.length > 0) {
+      const taskById = new Map(allActive.map((task) => [task.id, task]));
+      return serverEligibleIds
+        .map((id) => taskById.get(id))
+        .filter((task): task is TaskCatalogItem => Boolean(task));
+    }
+
+    // Fallback if server IDs are missing: local VIP in-range list, manual-first.
+    if (hasVipPriceRange) {
+      const inRange = allActive.filter((task) => {
+        const price = roundMoney(Number(task.price ?? 0));
+        return price >= vipPriceMin && price <= vipPriceMax;
+      });
+      return [...inRange].sort((a, b) => {
+        const aManual = a.source === 'Manual' || a.source === 'Bulk Import' ? 0 : 1;
+        const bManual = b.source === 'Manual' || b.source === 'Bulk Import' ? 0 : 1;
+        return aManual - bManual;
+      });
+    }
+
+    return [] as TaskCatalogItem[];
+  }, [taskCatalog, taskRuleConfig?.eligibleTaskIds, hasVipPriceRange, vipPriceMin, vipPriceMax]);
+
+  const queuedPreviewProduct = queuedTasks.length > 0 ? queuedTasks[0] : null;
+
   const currentProduct = activeTasks.length > 0 ? activeTasks[carouselIndex % activeTasks.length] : null;
 
   // Auto-advance carousel (VIP-appropriate products only)
@@ -332,7 +363,7 @@ export default function Starting() {
     ? (activeVipTier?.commission ?? 0.005) * 100
     : 0.5;
   const premiumCommissionRate = commissionRate * 10;
-  const estimatedCommission = currentProduct ? currentProduct.price * (commissionRate / 100) : 0;
+  const estimatedCommission = queuedPreviewProduct ? queuedPreviewProduct.price * (commissionRate / 100) : 0;
   const premiumTopUpRequired = Number(userData?.activePremium?.topUpRequired ?? userData?.activePremium?.negativeAmount ?? 0);
   const premiumSubmissionBlocked = Boolean(userData?.activePremium) && premiumTopUpRequired > 0;
   const frozenUpholdAmount = roundMoney(Math.max(
@@ -372,7 +403,7 @@ export default function Starting() {
   const availableFundsForSubmit = roundMoney(Number(userData?.availableAmount ?? ((userData?.balance ?? 0) - (userData?.holdAmount ?? 0))));
   const vipFundingBlocked = Boolean(userData) && availableFundsForSubmit < requiredFundsForVip;
   const isAccountSuspended = Boolean(userData?.isSuspended);
-  const noTasksInVipRange = hasVipPriceRange && activeTasks.length === 0 && !loading && userData !== null;
+  const noTasksInVipRange = hasVipPriceRange && queuedTasks.length === 0 && !loading && userData !== null;
   const taskSetResetRequired = Boolean(userData?.pendingTaskReset);
   const isAllSetsComplete = Boolean(userData && userData.completedTaskSets != null && userData.taskSetCount != null && userData.completedTaskSets >= userData.taskSetCount);
   const completionStorageKey = userData ? `sf_complete_${userData.username}` : null;
@@ -454,7 +485,7 @@ export default function Starting() {
         rating: Number.isFinite(Number(premiumCurrentItem?.rating)) ? Number(premiumCurrentItem.rating) : 5,
         productUrl: typeof premiumCurrentItem?.productUrl === 'string' ? premiumCurrentItem.productUrl : '',
       }
-    : currentProduct;
+    : queuedPreviewProduct;
   const displayCommissionRate = isPremiumTaskActive ? premiumCommissionRate : commissionRate;
   const displayEstimatedCommission = isPremiumTaskActive
     ? roundMoney(premiumDisplayPrice * (premiumCommissionRate / 100))
@@ -868,6 +899,11 @@ export default function Starting() {
       setSubmitting(true);
 
       const isSubmittingPremiumTask = isPremiumTaskActive && !premiumSubmissionBlocked;
+      if (!isSubmittingPremiumTask && !queuedPreviewProduct) {
+        toast.error('No queued product available right now. Refreshing tasks.');
+        void fetchUserData({ forceFresh: true });
+        return;
+      }
 
       const response = await fetch(`${serverUrl}${isSubmittingPremiumTask ? '/me/complete-premium-task' : '/me/submit-task'}`, {
         method: 'POST',
@@ -881,7 +917,10 @@ export default function Starting() {
             ? {
                 productPrice: premiumDisplayPrice,
               }
-            : {},
+            : {
+                taskId: queuedPreviewProduct?.id,
+                productPrice: queuedPreviewProduct?.price,
+              },
         ),
       });
 
@@ -975,6 +1014,21 @@ export default function Starting() {
         }).catch(() => {
           // Prefetch is best-effort and should never block submission UX.
         });
+      }
+
+      if (!isSubmittingPremiumTask) {
+        const submittedId = typeof result?.task?.id === 'string'
+          ? result.task.id
+          : queuedPreviewProduct?.id;
+        if (submittedId) {
+          setTaskRuleConfig((prev) => {
+            if (!prev?.eligibleTaskIds) return prev;
+            return {
+              ...prev,
+              eligibleTaskIds: prev.eligibleTaskIds.filter((id: string) => id !== submittedId),
+            };
+          });
+        }
       }
 
       // Move to next product
@@ -1106,8 +1160,6 @@ export default function Starting() {
           tasksPerSet={userData?.tasksPerSet ?? 0}
           completedTaskSets={userData?.completedTaskSets ?? 0}
           taskSetCount={userData?.taskSetCount ?? 0}
-          vipPriceMin={vipPriceMin}
-          vipPriceMax={vipPriceMax}
         />
 
         {/* Starting Button */}
@@ -1190,7 +1242,7 @@ export default function Starting() {
             <button
               className={`w-full bg-gradient-to-r from-[#00D9FF] to-[#0099cc] hover:from-[#00c5e6] hover:to-[#0088bb] text-[#08111f] font-bold py-4 rounded-xl mb-6 text-xl transition-all shadow-[0_4px_20px_rgba(0,217,255,0.4)] hover:shadow-[0_6px_28px_rgba(0,217,255,0.6)] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none ${submitting ? 'animate-pulse' : ''}`}
               onClick={handleSubmitTask}
-              disabled={submitting || premiumSubmissionBlocked || vipFundingBlocked || taskSetResetRequired || isAccountSuspended}
+              disabled={submitting || (!queuedPreviewProduct && !isPremiumTaskActive) || premiumSubmissionBlocked || vipFundingBlocked || taskSetResetRequired || isAccountSuspended}
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">

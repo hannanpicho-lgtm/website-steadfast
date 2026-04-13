@@ -5015,8 +5015,20 @@ function collectTierTaskCandidates(
 
   if (effectiveRange) {
     const inRange = activeTasks.filter((task) => isTaskPriceValidForRange(task?.price, effectiveRange));
-    const tierTaggedInRange = inRange.filter((task) => Number(task?.vipTier ?? 0) === vipLevel);
-    return tierTaggedInRange.length > 0 ? tierTaggedInRange : inRange;
+    const isManualSource = (task: any) => {
+      const src = String(task?.source ?? '');
+      return src === 'Manual' || src === 'Bulk Import';
+    };
+
+    // Manual/Bulk products that match the live VIP price range are always eligible,
+    // even if their vipTier tag is stale. This prevents manual products from being
+    // excluded just because a tier tag was set incorrectly in admin.
+    const manualInRange = inRange.filter((task) => isManualSource(task));
+    const nonManualInRange = inRange.filter((task) => !isManualSource(task));
+    const nonManualTierTagged = nonManualInRange.filter((task) => Number(task?.vipTier ?? 0) === vipLevel);
+    const nonManualTierFallback = nonManualInRange.filter((task) => Number(task?.vipTier ?? 0) !== vipLevel);
+
+    return [...manualInRange, ...nonManualTierTagged, ...nonManualTierFallback];
   }
 
   const tierTagged = activeTasks.filter((task) => Number(task?.vipTier ?? 0) === vipLevel);
