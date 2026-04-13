@@ -3955,7 +3955,7 @@ function normalizeTaskCatalogRecord(record: any) {
     ? rawVipTier
     : 0;
 
-  const validSources = ['Manual', 'AI Generated', 'Bulk Import'];
+  const validSources = ['Manual', 'AI Generated', 'Bulk Import', 'Auto Top-Up'];
   const source = typeof record?.source === 'string' && validSources.includes(record.source)
     ? record.source
     : 'Manual';
@@ -7760,9 +7760,9 @@ async function handleStartingSnapshot(c: any) {
     const adjPattern = /^(Premium|Pro|Ultra|Elite|Advanced|Portable|Compact|Deluxe|Slim|Max|Turbo|Plus|HD|Mini)\s+/i;
     for (const t of catalogTasks) {
       if (t?.status !== 'Active' || !t?.image || !t?.product) continue;
-      // Only touch auto-generated products, never manual
-      if (t.source !== 'AI Generated' && t.source !== 'Auto Top-Up') continue;
       const baseType = String(t.product).replace(adjPattern, '');
+      // Skip products whose base type isn't in our mapping (e.g. original default catalog items);
+      // those have manually assigned images that we should not touch.
       const expectedImage = PRODUCT_GENERATION_TEMPLATES.imagesByProductType[baseType];
       if (expectedImage && String(t.image).trim() !== expectedImage) {
         t.status = 'Paused';
