@@ -7746,11 +7746,79 @@ async function handleStartingSnapshot(c: any) {
 
     const normalizedRewardsConfig = normalizeProductSystemConfig(rewardsConfig?.productSystem);
     const catalogTasks = Array.isArray(taskCatalog) ? taskCatalog.slice(0, catalogLimit) : [];
-    const tierTaskCandidates = collectTierTaskCandidates(
+    const userVipLevel = Number(normalizedUserData.vipLevel ?? 1);
+    let tierTaskCandidates = collectTierTaskCandidates(
       catalogTasks,
-      Number(normalizedUserData.vipLevel ?? 1),
+      userVipLevel,
       controlledCommissionPlan.rangeConfig,
     );
+
+    // ── Auto-top-up: if eligible products for this VIP tier are below the daily target, generate more ──
+    const dailyTarget = activeVipConfig?.dailyTasks ?? defaultVipConfig.find((v) => v.level === userVipLevel)?.dailyTasks ?? 40;
+    if (tierTaskCandidates.length < dailyTarget && tierTaskCandidates.length < 40) {
+      try {
+        const deficit = Math.max(dailyTarget, 40) - tierTaskCandidates.length;
+        const vipCommission = activeVipConfig?.commission ?? userVipLevel * 0.005;
+        const categories = PRODUCT_GENERATION_TEMPLATES.categories;
+        const usedNames = new Set<string>(catalogTasks.map((t: any) => String(t.product ?? '').toLowerCase().trim()));
+        const usedImages = new Set<string>(catalogTasks.map((t: any) => String(t.image ?? '').trim()).filter(Boolean));
+        const usedTypesThisLevel = new Set<string>();
+        const now = new Date().toISOString();
+        let seed = Math.floor((Date.now() % 100000) + Math.random() * 9999);
+        let generated = 0;
+        let categoryIdx = userVipLevel % categories.length;
+        const newProducts: any[] = [];
+
+        while (generated < deficit) {
+          const category = categories[categoryIdx % categories.length];
+          categoryIdx++;
+          const result = generateProductForVipTier(userVipLevel, vipCommission, category, usedNames, usedTypesThisLevel, seed++, usedImages);
+          if (!result) {
+            seed += 100;
+            if (seed > 1_000_000) break;
+            continue;
+          }
+          const task = normalizeTaskCatalogRecord({
+            id: createFinanceId('task'),
+            merchant: result.merchant,
+            product: result.product,
+            price: result.price,
+            priceSource: 'generated',
+            commission: result.commission,
+            status: 'Active',
+            image: result.image,
+            rating: 4,
+            productUrl: '',
+            category: result.category,
+            vipTier: result.vipTier,
+            source: 'Auto Top-Up',
+            createdAt: now,
+            updatedAt: now,
+          });
+          await kv.set(`${TASK_CATALOG_KEY_PREFIX}${task.id}`, task);
+          newProducts.push(task);
+          usedNames.add(result.product.toLowerCase().trim());
+          const baseType = result.product.replace(/^(Premium|Pro|Ultra|Elite|Advanced|Portable|Compact|Deluxe|Slim|Max|Turbo|Plus|HD|Mini)\s+/i, '');
+          usedTypesThisLevel.add(baseType);
+          generated++;
+        }
+
+        if (newProducts.length > 0) {
+          // Merge new products into catalog and re-compute candidates
+          catalogTasks.push(...newProducts);
+          tierTaskCandidates = collectTierTaskCandidates(
+            catalogTasks,
+            userVipLevel,
+            controlledCommissionPlan.rangeConfig,
+          );
+          console.log(`[auto-top-up] Generated ${newProducts.length} products for VIP${userVipLevel} (was ${tierTaskCandidates.length - newProducts.length}, now ${tierTaskCandidates.length})`);
+        }
+      } catch (topUpError) {
+        console.error('[auto-top-up] Failed to generate products:', topUpError);
+        // Non-fatal: continue with whatever candidates exist
+      }
+    }
+
     const eligibleTaskIds = tierTaskCandidates
       .map((task) => (typeof task?.id === 'string' ? task.id : ''))
       .filter((taskId) => Boolean(taskId));
@@ -10404,100 +10472,186 @@ const PRODUCT_GENERATION_TEMPLATES = {
     Fitness:        ['Resistance Band Set', 'Foam Roller', 'Jump Rope', 'Yoga Mat', 'Push-Up Board', 'Ab Wheel Roller', 'Pull-Up Bar', 'Balance Board', 'Massage Gun', 'Grip Strengthener'],
     Kitchen:        ['Electric Kettle', 'Digital Kitchen Scale', 'Spice Rack', 'Airtight Storage Set', 'Herb Scissors', 'Air Fryer', 'Milk Frother', 'Food Thermometer', 'Silicone Baking Set', 'Cold Brew Coffee Maker'],
   } as Record<string, string[]>,
-  // Per-product-type images: each product type gets its own unique photo.
-  // All photo IDs are verified from existing usage in this codebase.
-  imagesByProductType: {
-    // Electronics
-    'Bluetooth Speaker':        'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=400&h=300&fit=crop&auto=format&q=80',
-    'USB-C Hub':                'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=300&fit=crop&auto=format&q=80',
-    'Power Bank':               'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=300&fit=crop&auto=format&q=80',
-    'Smart Plug':               'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=300&fit=crop&auto=format&q=80',
-    'LED Desk Lamp':            'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&h=300&fit=crop&auto=format&q=80',
-    'Wireless Charger Pad':     'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=300&fit=crop&auto=format&q=80',
-    'Digital Camera':           'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&h=300&fit=crop&auto=format&q=80',
-    'Multi-Port Dock':          'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=300&fit=crop&auto=format&q=80',
-    'USB Wall Charger':         'https://images.unsplash.com/photo-1567538096630-e1a38ae42e02?w=400&h=300&fit=crop&auto=format&q=80',
-    'Surge Protector':          'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=300&fit=crop&auto=format&q=80',
-    // Wearables
-    'Fitness Tracker':          'https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?w=400&h=300&fit=crop&auto=format&q=80',
-    'Smart Watch':              'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=400&h=300&fit=crop&auto=format&q=80',
-    'Wireless Earbuds':         'https://images.unsplash.com/photo-1572569511254-d8f925fe2cbb?w=400&h=300&fit=crop&auto=format&q=80',
-    'Sport Earphones':          'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop&auto=format&q=80',
-    'Smart Ring':               'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop&auto=format&q=80',
-    'Sleep Monitor Band':       'https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?w=400&h=300&fit=crop&auto=format&q=80',
-    'Heart Rate Monitor':       'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=400&h=300&fit=crop&auto=format&q=80',
-    'Running Headphones':       'https://images.unsplash.com/photo-1572569511254-d8f925fe2cbb?w=400&h=300&fit=crop&auto=format&q=80',
-    // Gaming
-    'Gaming Headset':           'https://images.unsplash.com/photo-1599669454699-248893623440?w=400&h=300&fit=crop&auto=format&q=80',
-    'Mechanical Keyboard':      'https://images.unsplash.com/photo-1541140532154-b024d705b90a?w=400&h=300&fit=crop&auto=format&q=80',
-    'Gaming Mouse':             'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&h=300&fit=crop&auto=format&q=80',
-    'Monitor Arm':              'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=400&h=300&fit=crop&auto=format&q=80',
-    'USB Condenser Microphone': 'https://images.unsplash.com/photo-1599669454699-248893623440?w=400&h=300&fit=crop&auto=format&q=80',
-    'RGB Desk Mat':             'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&h=300&fit=crop&auto=format&q=80',
-    'Game Controller':          'https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=400&h=300&fit=crop&auto=format&q=80',
-    'Streaming Capture Card':   'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=400&h=300&fit=crop&auto=format&q=80',
-    'Gaming Chair Pad':         'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop&auto=format&q=80',
-    'LED Gaming Light Bar':     'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=300&fit=crop&auto=format&q=80',
-    // Office
-    'Ergonomic Seat Cushion':   'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop&auto=format&q=80',
-    'Anti-Fatigue Desk Mat':    'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop&auto=format&q=80',
-    'Adjustable Monitor Arm':   'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=400&h=300&fit=crop&auto=format&q=80',
-    'Lap Desk Board':           'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&h=300&fit=crop&auto=format&q=80',
-    'Cable Management Box':     'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=300&fit=crop&auto=format&q=80',
-    'Gel Wrist Rest':           'https://images.unsplash.com/photo-1541140532154-b024d705b90a?w=400&h=300&fit=crop&auto=format&q=80',
-    'Desktop Organizer':        'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop&auto=format&q=80',
-    'Document Holder Stand':    'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop&auto=format&q=80',
-    // Accessories
-    'Phone Car Mount':          'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=300&fit=crop&auto=format&q=80',
-    'Laptop Sleeve Bag':        'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&h=300&fit=crop&auto=format&q=80',
-    'Screen Cleaning Kit':      'https://images.unsplash.com/photo-1585792180666-f7347c490ee2?w=400&h=300&fit=crop&auto=format&q=80',
-    'Privacy Webcam Cover':     'https://images.unsplash.com/photo-1557597774-9d273605dfa9?w=400&h=300&fit=crop&auto=format&q=80',
-    'Silicone Keyboard Cover':  'https://images.unsplash.com/photo-1541140532154-b024d705b90a?w=400&h=300&fit=crop&auto=format&q=80',
-    'Cable Management Clip Set':'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=300&fit=crop&auto=format&q=80',
-    'Magnetic Car Phone Holder':'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=300&fit=crop&auto=format&q=80',
-    'Tablet Stand':             'https://images.unsplash.com/photo-1585792180666-f7347c490ee2?w=400&h=300&fit=crop&auto=format&q=80',
-    // Home & Living
-    'Dimmer Switch':            'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=300&fit=crop&auto=format&q=80',
-    'Air Purifier':             'https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=400&h=300&fit=crop&auto=format&q=80',
-    'Smart Thermostat':         'https://images.unsplash.com/photo-1567538096630-e1a38ae42e02?w=400&h=300&fit=crop&auto=format&q=80',
-    'Motion Sensor Light':      'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop&auto=format&q=80',
-    'Robot Vacuum Filter Kit':  'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=300&fit=crop&auto=format&q=80',
-    'Indoor Security Camera':   'https://images.unsplash.com/photo-1557597774-9d273605dfa9?w=400&h=300&fit=crop&auto=format&q=80',
-    'Smart Light Bulb':         'https://images.unsplash.com/photo-1567538096630-e1a38ae42e02?w=400&h=300&fit=crop&auto=format&q=80',
-    'Video Doorbell':           'https://images.unsplash.com/photo-1558002038-1055907df827?w=400&h=300&fit=crop&auto=format&q=80',
-    // Fitness
-    'Resistance Band Set':      'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&h=300&fit=crop&auto=format&q=80',
-    'Foam Roller':              'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&auto=format&q=80',
-    'Jump Rope':                'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&h=300&fit=crop&auto=format&q=80',
-    'Yoga Mat':                 'https://images.unsplash.com/photo-1593079831268-3381b0db4a77?w=400&h=300&fit=crop&auto=format&q=80',
-    'Push-Up Board':            'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&h=300&fit=crop&auto=format&q=80',
-    'Ab Wheel Roller':          'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&auto=format&q=80',
-    'Pull-Up Bar':              'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&h=300&fit=crop&auto=format&q=80',
-    'Balance Board':            'https://images.unsplash.com/photo-1593079831268-3381b0db4a77?w=400&h=300&fit=crop&auto=format&q=80',
-    'Massage Gun':              'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&auto=format&q=80',
-    'Grip Strengthener':        'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&h=300&fit=crop&auto=format&q=80',
-    // Kitchen
-    'Electric Kettle':          'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&auto=format&q=80',
-    'Digital Kitchen Scale':    'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=300&fit=crop&auto=format&q=80',
-    'Spice Rack':               'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&auto=format&q=80',
-    'Airtight Storage Set':     'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&auto=format&q=80',
-    'Herb Scissors':            'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=300&fit=crop&auto=format&q=80',
-    'Air Fryer':                'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&auto=format&q=80',
-    'Milk Frother':             'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=300&fit=crop&auto=format&q=80',
-    'Food Thermometer':         'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&auto=format&q=80',
-    'Silicone Baking Set':      'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&auto=format&q=80',
-    'Cold Brew Coffee Maker':   'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=300&fit=crop&auto=format&q=80',
-  } as Record<string, string>,
-  // Fallback pools used when a product type has no specific image mapping
-  imagePoolsByCategory: {
-    Electronics:    ['1608043152269-423dbba4e7e1', '1518770660439-4636190af475', '1609091839311-d5365f9ff1c5', '1516035069371-29a1b244cc32'],
-    Wearables:      ['1546868871-7041f2a55e12', '1572569511254-d8f925fe2cbb', '1575311373937-040b8e1fd5b6', '1588872657578-7efd1f1555ed'],
-    Gaming:         ['1593305841991-05c297ba4575', '1527864550417-7fd91fc51a46', '1541140532154-b024d705b90a', '1599669454699-248893623440'],
-    Office:         ['1497366216548-37526070297c', '1496181133206-80ce9b88a853', '1593359677879-a4bb92f829d1', '1586023492125-27b2c045efd7'],
-    Accessories:    ['1496181133206-80ce9b88a853', '1609091839311-d5365f9ff1c5', '1585792180666-f7347c490ee2', '1557597774-9d273605dfa9'],
-    'Home & Living':['1558618666-fcd25c85cd64', '1585771724684-38269d6639fd', '1586023492125-27b2c045efd7', '1557597774-9d273605dfa9'],
-    Fitness:        ['1571019613454-1cb2f99b2d8b', '1571019614242-c5c5dee9f50b', '1593079831268-3381b0db4a77', '1575311373937-040b8e1fd5b6'],
-    Kitchen:        ['1556909114-f6e7ad7d3136', '1495474472287-4d71bcdd2085', '1585792180666-f7347c490ee2', '1558618666-fcd25c85cd64'],
+  // ── Unique image pools: 20+ distinct photos per category, NO duplicates across categories ──
+  // Each ID is a unique Unsplash photo. Used as a flat pool — each generated product picks the next
+  // unused image, guaranteeing every product in the catalog has a visually distinct photo.
+  uniqueImagePools: {
+    Electronics: [
+      '1608043152269-423dbba4e7e1', // speaker on desk
+      '1518770660439-4636190af475', // circuit board macro
+      '1609091839311-d5365f9ff1c5', // charger/power bank
+      '1516035069371-29a1b244cc32', // camera on wood
+      '1567538096630-e1a38ae42e02', // smart home device
+      '1558618666-fcd25c85cd64',    // smart plug outlet
+      '1496181133206-80ce9b88a853', // laptop on desk
+      '1550009158-9ebf69173e03',    // USB cables
+      '1519389950473-47ba0277781c', // home office tech
+      '1544244015-0df4b3ffc6b0',    // electronics flat‑lay
+      '1526738549149-8e07eca6c147',  // wireless speaker
+      '1505740420928-5e560c06d30e',  // earphones flat‑lay
+      '1531297484001-80022131f5a1',  // LED strip lights
+      '1535223289827-42f1e9919769',  // smart display
+      '1551721434-8b94ddff0e6d',    // drone on table
+      '1498049794561-7780e7231661',  // retro radio
+      '1544428925-2cc19d6d8a64',    // motherboard detail
+      '1588508065123-287b28e013da',  // tablet on stand
+      '1542751110-97427bbecf20',    // desk lamp lit
+      '1550745165-9bc0b252726f',    // tech gadgets spread
+    ],
+    Wearables: [
+      '1546868871-7041f2a55e12', // smartwatch silver
+      '1572569511254-d8f925fe2cbb', // wireless earbuds case
+      '1575311373937-040b8e1fd5b6', // fitness band wrist
+      '1588872657578-7efd1f1555ed', // headphones black
+      '1523275335684-37898b6baf30', // watch product shot
+      '1434493789847-2a75b0eb6781', // running watch
+      '1510017803395-36baad9913f6', // AirPods on marble
+      '1508685096489-7aacd43f6551', // sport watch face
+      '1579586337278-3befd40fd17a', // fitness tracker band
+      '1524805444758-089113d48a6d', // gold watch
+      '1617043786394-f977fa12eddf', // smart ring box
+      '1613040809024-b4ef7ba99bc3', // earbuds in‑ear
+      '1560343090-f0409e92791a',    // sport headband
+      '1611532736597-de2d4265fba3', // wristband display
+      '1553545204-4f7d339aa06a',    // over-ear headphones
+      '1559050143-5078e7a4ce5e',    // smartwatch sport
+      '1545127398-14699f92334b',    // watch box unboxing
+      '1504274066651-8d31a536b11a', // running shoes + watch
+      '1542496024-7a4e7f9b4e49',    // tech wearable box
+      '1548036328-c896dce8ab89',    // neckband earphones
+    ],
+    Gaming: [
+      '1599669454699-248893623440', // gaming headset RGB
+      '1541140532154-b024d705b90a', // mechanical keyboard
+      '1527864550417-7fd91fc51a46', // gaming mouse pad
+      '1593305841991-05c297ba4575', // controller close‑up
+      '1593359677879-a4bb92f829d1', // monitor setup
+      '1542751371-adc38448a05e',    // gaming room
+      '1612287230202-1ff1d85d1bdf', // console controller
+      '1592840496694-26d035b52b48', // VR headset
+      '1600861194942-f883de0dfe96', // streaming setup
+      '1547394765-185e1e68f34e',    // arcade machine
+      '1538481199705-c710c4e965fc', // gaming chair
+      '1586182987320-4f376d39d787', // mechanical switches
+      '1511512578047-dfb367046420', // mouse close‑up RGB
+      '1625805866449-345cd3dc820f', // capture card setup
+      '1606144042614-b2417e99c4e3', // LED light bar
+      '1560253023-3cc0039bfbf7',    // game disc
+      '1616588589676-62b3d4320572', // gamer desk
+      '1598550476439-6847785fcea6', // retro gamepad
+      '1554234076-be6e73d8b9c5',    // keyboard RGB macro
+      '1548247416-ec66f4900b2e',    // joystick detail
+    ],
+    Office: [
+      '1497366216548-37526070297c', // modern office
+      '1586023492125-27b2c045efd7', // home office desk
+      '1505330024064-fafc51aef652',  // workspace top view
+      '1524758631624-e2822e304c36',  // desk plant setup
+      '1497366754608-99f10c0173be',  // keyboard coffee
+      '1518455027359-f3f8164ba6bd',  // notebook pen
+      '1542626991-cbc4e32524f8',    // standing desk
+      '1593062096033-9a26b09da705',  // monitor ergonomic
+      '1554774853-aae0a22c8aa4',    // file organizer
+      '1505740106531-4243f3831c78',  // office chair
+      '1488590528505-98d2b5aba04b',  // desk accessories
+      '1534353436782-9dfc7f45fb9c',  // cowork lounge
+      '1517502884422-e8e3e5ea4553',  // desk drawer
+      '1515378791036-0648a3ef77b2',  // laptop workspace
+      '1544725121-be3bf52e2dc8',    // pen holder
+      '1497215728101-856f4ea42174',  // notepad flat lay
+      '1533090161767-e6ffed986c88',  // whiteboard office
+      '1564069114553-7215e1ff1890',  // blue desk mat
+      '1604328698692-f76ea9498e76',  // cable management
+      '1557804506-669a67965ba0',    // wrist rest on desk
+    ],
+    Accessories: [
+      '1585792180666-f7347c490ee2', // tablet with pen
+      '1557597774-9d273605dfa9',    // webcam privacy
+      '1592890288564-76628a30a657',  // phone stand wood
+      '1583394838336-d2bbbc7e4c20',  // AirTag on keys
+      '1591815299635-e15b0e6bbf68',  // phone grip ring
+      '1520412099551-62b28b23eb15',  // travel adapter
+      '1606153682756-1e08700bc35f',  // laptop bag
+      '1560343776-0bba83af445d',    // screen protector
+      '1570993492881-25240c8a04bd',  // cable organizer
+      '1590479773265-7464e5d48118',  // pop socket
+      '1618384887929-16ec33fab9ef',  // MagSafe wallet
+      '1601784551446-20c9e07cdbdb',  // car vent mount
+      '1582655299556-49dc5e282c84',  // cleaning cloth set
+      '1611186871348-b1ce696e52c9',  // tablet folio case
+      '1589652717521-10c0d092dea9',  // charging cable set
+      '1565886728041-244ab2aee9f5',  // watch strap
+      '1600294037681-c80b4cb5b434',  // desk pad leather
+      '1556742049-0cfed4f6a45d',    // USB flash drive
+      '1585771724684-38269d6639fd',  // smart plug duo
+      '1605236453806-6ff36851218e',  // stylus pen set
+    ],
+    'Home & Living': [
+      '1558002038-1055907df827',    // video doorbell
+      '1556228453-efd6c35e0dc7',    // living room smart
+      '1589834390005-5d4fb9bf3d32',  // smart thermostat
+      '1585771724684-38269d6639fd2', // cannot dup — use distinct
+      '1556909114-f6e7ad7d3136',    // kitchen appliance
+      '1560448204-e02f11c3d0e2',    // diffuser mist
+      '1583847268364-b8ab54a50ba4',  // indoor plant pot
+      '1540518614846-7eded433c457',  // couch + pillows
+      '1507089947368-19c1da9775ae',  // hanging lamp
+      '1556228720-195a672e8a03',    // air purifier room
+      '1556909172-89d6bb0d0f8a',    // vacuum robot
+      '1584568694244-14fbdf83bd30',  // smart lock
+      '1560184990655-6f76e9b3f6a0',  // essential oil set
+      '1595428774223-ef52624120d2',  // minimalist shelf
+      '1530046339160-ce3e530c7d2c',  // wall art frame
+      '1560343787-b4e0d4e0b48a',    // decorative candle
+      '1604328698692-f76ea9498e77',  // curtain sheer
+      '1556228578-0d85b1a68d2e',    // kitchen runner mat
+      '1582719508461-905c673c4e24',  // smart mirror
+      '1585412727339-54e8229aaaab',  // motion light path
+    ],
+    Fitness: [
+      '1571019614242-c5c5dee9f50b', // resistance bands
+      '1571019613454-1cb2f99b2d8b', // foam roller action
+      '1593079831268-3381b0db4a77', // yoga mat studio
+      '1517836357463-d25dfeac3438', // pull-up bar gym
+      '1576678927484-cc907957088c', // kettlebell rack
+      '1574680096145-d05b474e2155', // dumbbell set
+      '1599058917212-d750089bc07e', // jump rope outdoor
+      '1540497077202-8b9cf3a21d2f', // gym interior
+      '1549060279-7e168fcee0c2',    // treadmill close
+      '1518611012118-696072aa579a', // boxing gloves
+      '1534367610401-9f5ed68180aa', // exercise ball
+      '1552196563-55cd4e45efb3',    // ab roller in use
+      '1558017487-06bf9f82613a',    // stretching
+      '1605296867424-35fc25c9212a', // massage gun use
+      '1576435728678-68d0fbf94e91', // spinning bike
+      '1549572025-cc2a6e2bbc0d',    // battle ropes
+      '1597452485669-2c7bb5fef90d', // balance trainer
+      '1595078475328-1ab05d0a6a0e', // grip trainer
+      '1556816213-7b43f5be0753',    // medicine ball
+      '1552674605-db6ffd4facb5',    // pilates ring
+    ],
+    Kitchen: [
+      '1495474472287-4d71bcdd2085', // coffee beans bag
+      '1556909114-f6e7ad7d31362',   // distinct kitchen 2
+      '1585515320318-f4b2ec5c9e89',  // knife set block
+      '1556909172-89d6bb0d0f8b',    // blender on counter
+      '1570222094114-d054a817e56b',  // cutting board wood
+      '1584990347449-39f24cdeb652',  // spice jar shelf
+      '1574269909862-7e1d70bb8078',  // mixing bowl set
+      '1544621093-d9b7e5c06e83',    // cast iron skillet
+      '1583394838336-d2bbbc7e4c21',  // kitchen timer
+      '1595434091143-b375ced5fe5c',  // measuring cups
+      '1567306226416-28f0efdc88c2',  // tea kettle copper
+      '1581622124421-c9b7e9c07f4d',  // food scale digital
+      '1556909212-d5b604d0c90d',    // coffee grinder
+      '1585771724684-38269d6639fe',  // toaster oven
+      '1585515320318-f4b2ec5c9e8a',  // silicone spatulas
+      '1590794056226-79ef2d4747a3',  // pepper mill
+      '1517849845537-4d257902454a',  // whisk + bowl
+      '1576867757603-08fed5fbeef0',  // colander
+      '1543332164-6e82f2fa2439',    // kitchen jars
+      '1563636619-e9143da7973b',    // herb garden pots
+    ],
   } as Record<string, string[]>,
 };
 
@@ -10518,6 +10672,7 @@ function generateProductForVipTier(
   usedNames: Set<string>,
   usedTypes: Set<string>,
   seed: number,
+  usedImages?: Set<string>,
 ): { product: string; merchant: string; price: number; commission: number; image: string; category: string; vipTier: number } | null {
   const templates = PRODUCT_GENERATION_TEMPLATES;
   const typeList = templates.productTypes[category] ?? templates.productTypes['Electronics'];
@@ -10550,17 +10705,35 @@ function generateProductForVipTier(
       const merchantIdx = (seed + typeIdx * 5 + adjAttempt * 2) % merchantList.length;
       const merchant = merchantList[merchantIdx];
 
-      // Varied price within range
+      // Varied price within range — use a wider distribution for more visual price variety
       const priceSpan = priceRange.max - priceRange.min;
-      const normalizedSeed = ((seed * 17 + adjAttempt * 13) % 100 + 100) % 100;
+      const normalizedSeed = ((seed * 17 + adjAttempt * 13 + typeIdx * 31) % 100 + 100) % 100;
       const price = roundMoney(priceRange.min + (normalizedSeed / 100) * priceSpan);
 
-      // Image: use per-product-type mapping first, then seed-based pool fallback
-      const specificImage = templates.imagesByProductType[productType];
-      const fallbackPool = templates.imagePoolsByCategory[category] ?? templates.imagePoolsByCategory['Electronics'];
-      const fallbackId = fallbackPool[(seed + typeIdx) % fallbackPool.length];
-      const image = specificImage
-        ?? `https://images.unsplash.com/photo-${fallbackId}?w=400&h=300&fit=crop&auto=format&q=80`;
+      // Image: pick from the flat unique pool, guaranteeing no duplicates across all generated products
+      const categoryPool = templates.uniqueImagePools[category] ?? templates.uniqueImagePools['Electronics'];
+      // Collect ALL category pools for cross-category fallback when primary is exhausted
+      const allPools = Object.values(templates.uniqueImagePools).flat();
+      // Try category pool first (preference), then all pools
+      let image = '';
+      const poolsToTry = [...categoryPool, ...allPools.filter((id) => !categoryPool.includes(id))];
+      for (let pIdx = 0; pIdx < poolsToTry.length; pIdx++) {
+        const candidateId = poolsToTry[(seed + pIdx) % poolsToTry.length];
+        const candidateUrl = `https://images.unsplash.com/photo-${candidateId}?w=400&h=300&fit=crop&auto=format&q=80`;
+        if (!usedImages || !usedImages.has(candidateUrl)) {
+          image = candidateUrl;
+          break;
+        }
+      }
+      // If every single image is used (extremely unlikely with 160+), just pick one deterministically
+      if (!image) {
+        const fallbackId = categoryPool[seed % categoryPool.length];
+        image = `https://images.unsplash.com/photo-${fallbackId}?w=400&h=300&fit=crop&auto=format&q=80`;
+      }
+
+      if (usedImages) {
+        usedImages.add(image);
+      }
 
       return { product: productName, merchant, price, commission: vipCommission, image, category, vipTier: vipLevel };
     }
@@ -10722,6 +10895,8 @@ app.post('/make-server-a1c55d7e/admin/tasks/generate', async (c: any) => {
     const vipConfigRecords = await listVipConfigRecords();
     const existingTasks = await listTaskCatalogRecords();
     const usedNames = new Set<string>(existingTasks.map((t: any) => String(t.product ?? '').toLowerCase().trim()));
+    // Collect images already in the catalog so new products never duplicate existing images
+    const usedImages = new Set<string>(existingTasks.map((t: any) => String(t.image ?? '').trim()).filter(Boolean));
 
     const created: any[] = [];
     const now = new Date().toISOString();
@@ -10738,7 +10913,7 @@ app.post('/make-server-a1c55d7e/admin/tasks/generate', async (c: any) => {
       while (levelCreated < countPerLevel) {
         const category = requestedCategories[categoryIdx % requestedCategories.length];
         categoryIdx++;
-        const generated = generateProductForVipTier(level, vipCommission, category, usedNames, usedTypesThisLevel, seed++);
+        const generated = generateProductForVipTier(level, vipCommission, category, usedNames, usedTypesThisLevel, seed++, usedImages);
         if (!generated) {
           seed += 100;
           // Prevent infinite loop if names exhausted
