@@ -7758,12 +7758,21 @@ async function handleStartingSnapshot(c: any) {
     // A product has a mismatched image if its image URL doesn't match imagesByProductType for its product type
     let pausedMismatched = 0;
     const adjPattern = /^(Premium|Pro|Ultra|Elite|Advanced|Portable|Compact|Deluxe|Slim|Max|Turbo|Plus|HD|Mini)\s+/i;
+    // Build a reverse lookup: productType → category (for fallback resolution)
+    const typeToCategoryMap: Record<string, string> = {};
+    for (const [cat, types] of Object.entries(PRODUCT_GENERATION_TEMPLATES.productTypes)) {
+      for (const pt of types) typeToCategoryMap[pt] = cat;
+    }
     for (const t of catalogTasks) {
       if (t?.status !== 'Active' || !t?.image || !t?.product) continue;
       const baseType = String(t.product).replace(adjPattern, '');
-      // Skip products whose base type isn't in our mapping (e.g. original default catalog items);
+      const category = typeToCategoryMap[baseType];
+      // Skip products whose base type isn't a known product type (e.g. original default catalog items);
       // those have manually assigned images that we should not touch.
-      const expectedImage = PRODUCT_GENERATION_TEMPLATES.imagesByProductType[baseType];
+      if (!category) continue;
+      // Expected image: type-specific if mapped, otherwise category fallback
+      const expectedImage = PRODUCT_GENERATION_TEMPLATES.imagesByProductType[baseType]
+        ?? PRODUCT_GENERATION_TEMPLATES.fallbackImagesByCategory[category];
       if (expectedImage && String(t.image).trim() !== expectedImage) {
         t.status = 'Paused';
         await kv.set(`${TASK_CATALOG_KEY_PREFIX}${t.id}`, t);
