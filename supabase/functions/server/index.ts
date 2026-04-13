@@ -2517,11 +2517,11 @@ const defaultTaskCatalog = [
 ];
 
 const defaultVipConfig = [
-  { level: 1, name: 'VIP 1', investment: 100, dailyTasks: 40, commission: 0.005, color: 'bronze' },
-  { level: 2, name: 'VIP 2', investment: 500, dailyTasks: 45, commission: 0.01, color: 'silver' },
-  { level: 3, name: 'VIP 3', investment: 1600, dailyTasks: 50, commission: 0.015, color: 'gold' },
-  { level: 4, name: 'VIP 4', investment: 5500, dailyTasks: 55, commission: 0.02, color: 'platinum' },
-  { level: 5, name: 'VIP 5', investment: 10000, dailyTasks: 60, commission: 0.025, color: 'diamond' },
+  { level: 1, name: 'VIP 1', investment: 100, dailyTasks: 40, commission: 0.005, color: 'bronze', taskPriceMin: 80, taskPriceMax: 150 },
+  { level: 2, name: 'VIP 2', investment: 500, dailyTasks: 45, commission: 0.01, color: 'silver', taskPriceMin: 600, taskPriceMax: 1130 },
+  { level: 3, name: 'VIP 3', investment: 1600, dailyTasks: 50, commission: 0.015, color: 'gold', taskPriceMin: 400, taskPriceMax: 1000 },
+  { level: 4, name: 'VIP 4', investment: 5500, dailyTasks: 55, commission: 0.02, color: 'platinum', taskPriceMin: 600, taskPriceMax: 1300 },
+  { level: 5, name: 'VIP 5', investment: 10000, dailyTasks: 60, commission: 0.025, color: 'diamond', taskPriceMin: 800, taskPriceMax: 1800 },
 ];
 
 const legacyVipConfigBaseline = [
@@ -4979,8 +4979,20 @@ function collectTierTaskCandidates(
     return [];
   }
 
-  if (rangeConfig) {
-    const inRange = activeTasks.filter((task) => isTaskPriceValidForRange(task?.price, rangeConfig));
+  // Use explicit rangeConfig if available; otherwise fall back to VIP_PRICE_RANGES
+  let effectiveRange = rangeConfig;
+  if (!effectiveRange) {
+    const fallback = VIP_PRICE_RANGES[vipLevel] ?? VIP_PRICE_RANGES[1];
+    if (fallback) {
+      effectiveRange = {
+        taskPriceMin: fallback.min,
+        taskPriceMax: fallback.max,
+      } as any;
+    }
+  }
+
+  if (effectiveRange) {
+    const inRange = activeTasks.filter((task) => isTaskPriceValidForRange(task?.price, effectiveRange));
     const tierTaggedInRange = inRange.filter((task) => Number(task?.vipTier ?? 0) === vipLevel);
     return tierTaggedInRange.length > 0 ? tierTaggedInRange : inRange;
   }
@@ -10490,12 +10502,13 @@ const PRODUCT_GENERATION_TEMPLATES = {
 };
 
 // Price ranges per VIP tier (min/max product value in USD)
+// Must stay in sync with admin VIP Configuration and defaultVipConfig
 const VIP_PRICE_RANGES: Record<number, { min: number; max: number }> = {
-  1: { min: 25, max: 120 },
-  2: { min: 100, max: 280 },
-  3: { min: 240, max: 600 },
-  4: { min: 500, max: 1250 },
-  5: { min: 1100, max: 2600 },
+  1: { min: 80, max: 150 },
+  2: { min: 600, max: 1130 },
+  3: { min: 400, max: 1000 },
+  4: { min: 600, max: 1300 },
+  5: { min: 800, max: 1800 },
 };
 
 function generateProductForVipTier(
