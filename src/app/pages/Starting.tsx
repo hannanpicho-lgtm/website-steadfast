@@ -1106,6 +1106,8 @@ export default function Starting() {
           tasksPerSet={userData?.tasksPerSet ?? 0}
           completedTaskSets={userData?.completedTaskSets ?? 0}
           taskSetCount={userData?.taskSetCount ?? 0}
+          vipPriceMin={vipPriceMin}
+          vipPriceMax={vipPriceMax}
         />
 
         {/* Starting Button */}
