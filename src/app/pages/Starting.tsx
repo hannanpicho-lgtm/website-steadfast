@@ -311,26 +311,10 @@ export default function Starting() {
   const vipPriceMax = roundMoney(Number(taskRuleConfig?.taskPriceMax ?? activeVipTier?.taskPriceMax ?? 0));
   const hasVipPriceRange = vipPriceMin > 0 && vipPriceMax > 0 && vipPriceMax >= vipPriceMin;
 
-  // Carousel shows only VIP-eligible products (filtered by server-provided eligibleTaskIds or price range).
+  // Carousel shows ALL active products as a visual showcase (decoupled from submission).
   const activeTasks = useMemo(() => {
-    const allActive = taskCatalog.filter((task) => task.status === 'Active');
-    // Prefer server-provided eligible IDs (most accurate)
-    const serverEligibleIds = taskRuleConfig?.eligibleTaskIds;
-    if (Array.isArray(serverEligibleIds) && serverEligibleIds.length > 0) {
-      const idSet = new Set(serverEligibleIds);
-      const eligible = allActive.filter((task) => idSet.has(task.id));
-      return eligible.length > 0 ? eligible : allActive;
-    }
-    // Fallback: client-side price range filter
-    if (hasVipPriceRange) {
-      const inRange = allActive.filter((task) => {
-        const price = roundMoney(Number(task.price ?? 0));
-        return price >= vipPriceMin && price <= vipPriceMax;
-      });
-      return inRange.length > 0 ? inRange : allActive;
-    }
-    return allActive;
-  }, [taskCatalog, taskRuleConfig?.eligibleTaskIds, hasVipPriceRange, vipPriceMin, vipPriceMax]);
+    return taskCatalog.filter((task) => task.status === 'Active');
+  }, [taskCatalog]);
 
   const currentProduct = activeTasks.length > 0 ? activeTasks[carouselIndex % activeTasks.length] : null;
 
@@ -897,10 +881,7 @@ export default function Starting() {
             ? {
                 productPrice: premiumDisplayPrice,
               }
-            : {
-                taskId: currentProduct?.id,
-                productPrice: currentProduct?.price,
-              },
+            : {},
         ),
       });
 
@@ -993,18 +974,6 @@ export default function Starting() {
           pageTag: 'starting-post-submit-prefetch',
         }).catch(() => {
           // Prefetch is best-effort and should never block submission UX.
-        });
-      }
-      
-      // Remove the submitted product from eligible list so carousel won't show it again
-      if (currentProduct?.id) {
-        const submittedId = currentProduct.id;
-        setTaskRuleConfig((prev) => {
-          if (!prev?.eligibleTaskIds) return prev;
-          return {
-            ...prev,
-            eligibleTaskIds: prev.eligibleTaskIds.filter((id: string) => id !== submittedId),
-          };
         });
       }
 
@@ -1219,7 +1188,7 @@ export default function Starting() {
             <button
               className={`w-full bg-gradient-to-r from-[#00D9FF] to-[#0099cc] hover:from-[#00c5e6] hover:to-[#0088bb] text-[#08111f] font-bold py-4 rounded-xl mb-6 text-xl transition-all shadow-[0_4px_20px_rgba(0,217,255,0.4)] hover:shadow-[0_6px_28px_rgba(0,217,255,0.6)] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none ${submitting ? 'animate-pulse' : ''}`}
               onClick={handleSubmitTask}
-              disabled={submitting || (!currentProduct && !isPremiumTaskActive) || noTasksInVipRange || premiumSubmissionBlocked || vipFundingBlocked || taskSetResetRequired || isAccountSuspended}
+              disabled={submitting || premiumSubmissionBlocked || vipFundingBlocked || taskSetResetRequired || isAccountSuspended}
             >
               {submitting ? (
                 <span className="flex items-center justify-center gap-2">

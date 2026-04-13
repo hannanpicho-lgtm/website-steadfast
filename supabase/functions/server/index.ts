@@ -7293,20 +7293,16 @@ async function submitTaskForUser(
       return c.json({ error: 'No active task available' }, 400);
     }
 
+    // Carousel is decoupled from submission: the client may or may not send
+    // a taskId / productPrice.  The server always picks the best candidate
+    // from the manual-first, dedup-filtered list.
     const explicitlyRequestedTask = requestedTaskId
       ? taskCatalog.find((task) => task.id === requestedTaskId)
       : null;
 
-    // The "display task" is the product the user saw in the carousel.
-    // It may be any active catalog entry (carousel shows all active products).
-    // We use it for the task record's visual info (name, image, price).
-    const displayTask = (explicitlyRequestedTask && explicitlyRequestedTask.status === 'Active')
-      ? explicitlyRequestedTask
-      : null;
-
     const explicitlyRequestedTaskInCandidates =
       Boolean(explicitlyRequestedTask)
-      && effectiveCandidates.some((task) => task.id === explicitlyRequestedTask.id);
+      && effectiveCandidates.some((task) => task.id === explicitlyRequestedTask!.id);
 
     const selectedTask = (explicitlyRequestedTaskInCandidates ? explicitlyRequestedTask : null)
       ?? (
@@ -7447,18 +7443,12 @@ async function submitTaskForUser(
     normalizedUserData.balance = roundMoney(normalizedUserData.balance + commission);
 
     // Track submitted product so it won't appear again in this work cycle.
-    // Track BOTH the display product (what user saw) AND the selected product (backend pick)
-    // to prevent either from reappearing.
     if (!Array.isArray(normalizedUserData.submittedProductIds)) {
       normalizedUserData.submittedProductIds = [];
     }
-    const idsToTrack = new Set<string>();
-    if (displayTask?.id && typeof displayTask.id === 'string') idsToTrack.add(displayTask.id);
-    if (selectedTask?.id && typeof selectedTask.id === 'string') idsToTrack.add(selectedTask.id);
-    for (const id of idsToTrack) {
-      if (!normalizedUserData.submittedProductIds.includes(id)) {
-        normalizedUserData.submittedProductIds.push(id);
-      }
+    if (selectedTask?.id && typeof selectedTask.id === 'string'
+        && !normalizedUserData.submittedProductIds.includes(selectedTask.id)) {
+      normalizedUserData.submittedProductIds.push(selectedTask.id);
     }
 
     if (normalizedUserData.tasksCompletedInSet >= normalizedUserData.tasksPerSet) {
@@ -7480,9 +7470,8 @@ async function submitTaskForUser(
     const referralPayoutPromise = creditParentReferralFromChildCommission(username, commission, rewardedUserData);
 
     const taskKey = `task:${username}:${Date.now()}`;
-    // Use the carousel-displayed product for visual info in Records.
-    // Commission is from the controlled plan (selectedTask determines financial computation).
-    const recordVisual = displayTask ?? selectedTask;
+    // The server-selected product drives both financial computation and record visuals.
+    const recordVisual = selectedTask;
     const taskRecord = {
       taskId: recordVisual.id,
       username,
@@ -7520,10 +7509,8 @@ async function submitTaskForUser(
       writes,
       ledgerMetadata: {
         taskId: selectedTask.id,
-        displayTaskId: recordVisual.id,
         commission,
         productPrice: effectiveProductPrice,
-        displayProductPrice: roundMoney(recordVisual.price),
         controlledCommissionRange: shouldUseControlledCommission,
       },
     });
