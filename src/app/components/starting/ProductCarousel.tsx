@@ -22,6 +22,28 @@ function getPrimaryLabel(value: string | null | undefined, fallback = 'Product')
   return normalized.split(',')[0];
 }
 
+function getOptimizedCarouselImageUrl(rawUrl: string | null | undefined, width: number): string {
+  if (typeof rawUrl !== 'string' || rawUrl.trim().length === 0) {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(rawUrl);
+    // Most catalog images use Unsplash; clamp payload for faster mobile rendering.
+    if (!parsed.hostname.includes('images.unsplash.com')) {
+      return rawUrl;
+    }
+
+    parsed.searchParams.set('auto', 'format');
+    parsed.searchParams.set('fit', 'crop');
+    parsed.searchParams.set('q', '70');
+    parsed.searchParams.set('w', String(Math.max(240, Math.round(width))));
+    return parsed.toString();
+  } catch {
+    return rawUrl;
+  }
+}
+
 export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onIndexChange }: ProductCarouselProps) {
   if (tasks.length === 0) {
     return (
@@ -33,6 +55,9 @@ export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onI
 
   const slide = tasks[index % tasks.length];
   const nextSlide = tasks[(index + 1) % tasks.length];
+  const slideImageSmall = getOptimizedCarouselImageUrl(slide.image, 360);
+  const slideImageLarge = getOptimizedCarouselImageUrl(slide.image, 720);
+  const nextSlideImage = getOptimizedCarouselImageUrl(nextSlide?.image, 360);
   const MAX_DOTS = 24;
   const normalizedIndex = index % tasks.length;
   const isCompactDots = tasks.length > MAX_DOTS;
@@ -73,7 +98,9 @@ export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onI
             {/* Product image — fills the display */}
             <img
               key={slide.id}
-              src={slide.image}
+              src={slideImageLarge || slide.image}
+              srcSet={`${slideImageSmall || slide.image} 360w, ${slideImageLarge || slide.image} 720w`}
+              sizes="(max-width: 640px) 82vw, 420px"
               alt={getPrimaryLabel(slide.product)}
               width={360}
               height={260}
@@ -84,7 +111,7 @@ export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onI
             {/* Warm up the next slide image so transitions feel instant on mobile. */}
             {nextSlide?.image ? (
               <img
-                src={nextSlide.image}
+                src={nextSlideImage || nextSlide.image}
                 alt=""
                 aria-hidden="true"
                 width={1}
