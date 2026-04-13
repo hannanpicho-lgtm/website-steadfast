@@ -7808,7 +7808,7 @@ async function handleStartingSnapshot(c: any) {
     }
 
     const normalizedRewardsConfig = normalizeProductSystemConfig(rewardsConfig?.productSystem);
-    const catalogTasks = Array.isArray(taskCatalog) ? taskCatalog.slice(0, catalogLimit) : [];
+    const catalogTasks = Array.isArray(taskCatalog) ? taskCatalog.slice() : [];
     const userVipLevel = Number(normalizedUserData.vipLevel ?? 1);
 
     // ── Auto-assign vipTier for manual/bulk products that have vipTier 0 ──
@@ -7946,12 +7946,27 @@ async function handleStartingSnapshot(c: any) {
     const eligibleTaskIds = tierTaskCandidates
       .map((task) => (typeof task?.id === 'string' ? task.id : ''))
       .filter((taskId) => Boolean(taskId) && !submittedSet.has(taskId));
+
+    const catalogTaskById = new Map<string, any>(
+      catalogTasks
+        .filter((task) => typeof task?.id === 'string')
+        .map((task) => [task.id, task]),
+    );
+    const prioritizedCatalogTasks = eligibleTaskIds
+      .map((taskId) => catalogTaskById.get(taskId))
+      .filter((task) => Boolean(task));
+    const prioritizedCatalogIdSet = new Set<string>(eligibleTaskIds);
+    const remainingCatalogTasks = catalogTasks.filter((task) => !prioritizedCatalogIdSet.has(String(task?.id ?? '')));
+    const responseCatalogTasks = [...prioritizedCatalogTasks, ...remainingCatalogTasks].slice(
+      0,
+      Math.max(catalogLimit, prioritizedCatalogTasks.length),
+    );
     const tBuild = performance.now();
 
     const payload = {
       user: normalizedUserData,
       taskCatalog: {
-        tasks: catalogTasks,
+        tasks: responseCatalogTasks,
         ruleConfig: {
           premiumEnabled: normalizedRewardsConfig.premiumEnabled,
           premiumTriggerTaskNumber: normalizedRewardsConfig.premiumTriggerTaskNumber,
@@ -7965,7 +7980,8 @@ async function handleStartingSnapshot(c: any) {
       rewardsConfig: includeConfig ? rewardsConfig : null,
       meta: {
         catalogLimit,
-        catalogReturned: catalogTasks.length,
+        catalogReturned: responseCatalogTasks.length,
+        catalogTotal: catalogTasks.length,
       },
     };
 

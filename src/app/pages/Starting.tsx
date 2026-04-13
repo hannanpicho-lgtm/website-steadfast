@@ -760,7 +760,7 @@ export default function Starting() {
         // Go directly to V2 snapshot URL — skip the /version waterfall.
         // If V2 fails the catch block falls back to V1 endpoints.
         const cacheBust = forceFresh ? `&refreshTs=${Date.now()}` : '';
-        const v2SnapshotUrl = `${serverUrl}/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=50${cacheBust}`;
+        const v2SnapshotUrl = `${serverUrl}/v2/me/starting-snapshot?includeCatalog=true&includeConfig=true&catalogLimit=200${cacheBust}`;
 
         const snapshotStartedAt = performance.now();
         const snapshot = await fetchJsonWithRetry<any>({
