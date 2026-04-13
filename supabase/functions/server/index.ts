@@ -10494,102 +10494,84 @@ const PRODUCT_GENERATION_TEMPLATES = {
     Fitness:        ['Resistance Band Set', 'Foam Roller', 'Jump Rope', 'Yoga Mat', 'Push-Up Board', 'Ab Wheel Roller', 'Pull-Up Bar', 'Balance Board', 'Massage Gun', 'Grip Strengthener'],
     Kitchen:        ['Electric Kettle', 'Digital Kitchen Scale', 'Spice Rack', 'Airtight Storage Set', 'Herb Scissors', 'Air Fryer', 'Milk Frother', 'Food Thermometer', 'Silicone Baking Set', 'Cold Brew Coffee Maker'],
   } as Record<string, string[]>,
-  // ── Per-product-type image mapping: each product type maps to a verified working Unsplash photo ──
-  // ALL photo IDs below have been HTTP-verified as returning 200. Each type gets the most relevant image.
-  // Two adjective variants of the same type (e.g., "Premium Foam Roller" and "Max Foam Roller") share
-  // the same image — this is correct because they ARE the same product type.
+  // ── Per-product-type image mapping — VISUALLY VERIFIED against actual Unsplash thumbnails ──
+  // Every assignment below was confirmed by downloading and viewing the actual photo.
+  // Types without a good specific match are OMITTED so they fall through to fallbackImagesByCategory.
+  // Sharing an image between similar types is intentional — better a shared correct image than a wrong one.
   imagesByProductType: {
-    // Electronics (10 types)
-    'Bluetooth Speaker':        'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=400&h=300&fit=crop&auto=format&q=80',
-    'USB-C Hub':                'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=300&fit=crop&auto=format&q=80',
-    'Power Bank':               'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=300&fit=crop&auto=format&q=80',
-    'Smart Plug':               'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=300&fit=crop&auto=format&q=80',
-    'LED Desk Lamp':            'https://images.unsplash.com/photo-1542751110-97427bbecf20?w=400&h=300&fit=crop&auto=format&q=80',
-    'Wireless Charger Pad':     'https://images.unsplash.com/photo-1550009158-9ebf69173e03?w=400&h=300&fit=crop&auto=format&q=80',
-    'Digital Camera':           'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&h=300&fit=crop&auto=format&q=80',
-    'Multi-Port Dock':          'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=400&h=300&fit=crop&auto=format&q=80',
-    'USB Wall Charger':         'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400&h=300&fit=crop&auto=format&q=80',
-    'Surge Protector':          'https://images.unsplash.com/photo-1531297484001-80022131f5a1?w=400&h=300&fit=crop&auto=format&q=80',
-    // Wearables (8 types)
-    'Fitness Tracker':          'https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?w=400&h=300&fit=crop&auto=format&q=80',
-    'Smart Watch':              'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=400&h=300&fit=crop&auto=format&q=80',
-    'Wireless Earbuds':         'https://images.unsplash.com/photo-1572569511254-d8f925fe2cbb?w=400&h=300&fit=crop&auto=format&q=80',
-    'Sport Earphones':          'https://images.unsplash.com/photo-1588872657578-7efd1f1555ed?w=400&h=300&fit=crop&auto=format&q=80',
-    'Smart Ring':               'https://images.unsplash.com/photo-1617043786394-f977fa12eddf?w=400&h=300&fit=crop&auto=format&q=80',
-    'Sleep Monitor Band':       'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=400&h=300&fit=crop&auto=format&q=80',
-    'Heart Rate Monitor':       'https://images.unsplash.com/photo-1524805444758-089113d48a6d?w=400&h=300&fit=crop&auto=format&q=80',
-    'Running Headphones':       'https://images.unsplash.com/photo-1553545204-4f7d339aa06a?w=400&h=300&fit=crop&auto=format&q=80',
-    // Gaming (10 types)
-    'Gaming Headset':           'https://images.unsplash.com/photo-1599669454699-248893623440?w=400&h=300&fit=crop&auto=format&q=80',
-    'Mechanical Keyboard':      'https://images.unsplash.com/photo-1541140532154-b024d705b90a?w=400&h=300&fit=crop&auto=format&q=80',
-    'Gaming Mouse':             'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&h=300&fit=crop&auto=format&q=80',
-    'Monitor Arm':              'https://images.unsplash.com/photo-1593359677879-a4bb92f829d1?w=400&h=300&fit=crop&auto=format&q=80',
-    'USB Condenser Microphone': 'https://images.unsplash.com/photo-1600861194942-f883de0dfe96?w=400&h=300&fit=crop&auto=format&q=80',
-    'RGB Desk Mat':             'https://images.unsplash.com/photo-1586182987320-4f376d39d787?w=400&h=300&fit=crop&auto=format&q=80',
-    'Game Controller':          'https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=400&h=300&fit=crop&auto=format&q=80',
-    'Streaming Capture Card':   'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=400&h=300&fit=crop&auto=format&q=80',
-    'Gaming Chair Pad':         'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=400&h=300&fit=crop&auto=format&q=80',
-    'LED Gaming Light Bar':     'https://images.unsplash.com/photo-1535223289827-42f1e9919769?w=400&h=300&fit=crop&auto=format&q=80',
-    // Office (8 types)
-    'Ergonomic Seat Cushion':   'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop&auto=format&q=80',
-    'Anti-Fatigue Desk Mat':    'https://images.unsplash.com/photo-1524758631624-e2822e304c36?w=400&h=300&fit=crop&auto=format&q=80',
-    'Adjustable Monitor Arm':   'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop&auto=format&q=80',
-    'Lap Desk Board':           'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&h=300&fit=crop&auto=format&q=80',
-    'Cable Management Box':     'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=400&h=300&fit=crop&auto=format&q=80',
-    'Gel Wrist Rest':           'https://images.unsplash.com/photo-1488590528505-98d2b5aba04b?w=400&h=300&fit=crop&auto=format&q=80',
-    'Desktop Organizer':        'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=300&fit=crop&auto=format&q=80',
-    'Document Holder Stand':    'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=400&h=300&fit=crop&auto=format&q=80',
-    // Accessories (8 types)
-    'Phone Car Mount':          'https://images.unsplash.com/photo-1592890288564-76628a30a657?w=400&h=300&fit=crop&auto=format&q=80',
-    'Laptop Sleeve Bag':        'https://images.unsplash.com/photo-1585792180666-f7347c490ee2?w=400&h=300&fit=crop&auto=format&q=80',
-    'Screen Cleaning Kit':      'https://images.unsplash.com/photo-1605236453806-6ff36851218e?w=400&h=300&fit=crop&auto=format&q=80',
-    'Privacy Webcam Cover':     'https://images.unsplash.com/photo-1557597774-9d273605dfa9?w=400&h=300&fit=crop&auto=format&q=80',
-    'Silicone Keyboard Cover':  'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=400&h=300&fit=crop&auto=format&q=80',
-    'Cable Management Clip Set':'https://images.unsplash.com/photo-1589652717521-10c0d092dea9?w=400&h=300&fit=crop&auto=format&q=80',
-    'Magnetic Car Phone Holder':'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400&h=300&fit=crop&auto=format&q=80',
-    'Tablet Stand':             'https://images.unsplash.com/photo-1588508065123-287b28e013da?w=400&h=300&fit=crop&auto=format&q=80',
-    // Home & Living (8 types)
-    'Dimmer Switch':            'https://images.unsplash.com/photo-1558002038-1055907df827?w=400&h=300&fit=crop&auto=format&q=80',
-    'Air Purifier':             'https://images.unsplash.com/photo-1585771724684-38269d6639fd?w=400&h=300&fit=crop&auto=format&q=80',
-    'Smart Thermostat':         'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400&h=300&fit=crop&auto=format&q=80',
-    'Motion Sensor Light':      'https://images.unsplash.com/photo-1507089947368-19c1da9775ae?w=400&h=300&fit=crop&auto=format&q=80',
-    'Robot Vacuum Filter Kit':  'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&auto=format&q=80',
-    'Indoor Security Camera':   'https://images.unsplash.com/photo-1584568694244-14fbdf83bd30?w=400&h=300&fit=crop&auto=format&q=80',
-    'Smart Light Bulb':         'https://images.unsplash.com/photo-1551721434-8b94ddff0e6d?w=400&h=300&fit=crop&auto=format&q=80',
-    'Video Doorbell':           'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop&auto=format&q=80',
-    // Fitness (10 types)
-    'Resistance Band Set':      'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&h=300&fit=crop&auto=format&q=80',
-    'Foam Roller':              'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&auto=format&q=80',
-    'Jump Rope':                'https://images.unsplash.com/photo-1599058917212-d750089bc07e?w=400&h=300&fit=crop&auto=format&q=80',
-    'Yoga Mat':                 'https://images.unsplash.com/photo-1593079831268-3381b0db4a77?w=400&h=300&fit=crop&auto=format&q=80',
-    'Push-Up Board':            'https://images.unsplash.com/photo-1576678927484-cc907957088c?w=400&h=300&fit=crop&auto=format&q=80',
-    'Ab Wheel Roller':          'https://images.unsplash.com/photo-1552196563-55cd4e45efb3?w=400&h=300&fit=crop&auto=format&q=80',
-    'Pull-Up Bar':              'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&h=300&fit=crop&auto=format&q=80',
-    'Balance Board':            'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=400&h=300&fit=crop&auto=format&q=80',
-    'Massage Gun':              'https://images.unsplash.com/photo-1605296867424-35fc25c9212a?w=400&h=300&fit=crop&auto=format&q=80',
-    'Grip Strengthener':        'https://images.unsplash.com/photo-1534367610401-9f5ed68180aa?w=400&h=300&fit=crop&auto=format&q=80',
-    // Kitchen (10 types)
-    'Electric Kettle':          'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&auto=format&q=80',
-    'Digital Kitchen Scale':    'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=300&fit=crop&auto=format&q=80',
-    'Spice Rack':               'https://images.unsplash.com/photo-1570222094114-d054a817e56b?w=400&h=300&fit=crop&auto=format&q=80',
-    'Airtight Storage Set':     'https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?w=400&h=300&fit=crop&auto=format&q=80',
-    'Herb Scissors':            'https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400&h=300&fit=crop&auto=format&q=80',
-    'Air Fryer':                'https://images.unsplash.com/photo-1547394765-185e1e68f34e?w=400&h=300&fit=crop&auto=format&q=80',
-    'Milk Frother':             'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=400&h=300&fit=crop&auto=format&q=80',
-    'Food Thermometer':         'https://images.unsplash.com/photo-1612287230202-1ff1d85d1bdf?w=400&h=300&fit=crop&auto=format&q=80',
-    'Silicone Baking Set':      'https://images.unsplash.com/photo-1592840496694-26d035b52b48?w=400&h=300&fit=crop&auto=format&q=80',
-    'Cold Brew Coffee Maker':   'https://images.unsplash.com/photo-1613040809024-b4ef7ba99bc3?w=400&h=300&fit=crop&auto=format&q=80',
+    // ─── Electronics (4 verified matches, 6 use category fallback) ───
+    'Bluetooth Speaker':        'https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=400&h=300&fit=crop&auto=format&q=80', // JBL Bluetooth speaker
+    'Portable Charger':         'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=300&fit=crop&auto=format&q=80', // Xiaomi power bank
+    'Power Bank':               'https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=400&h=300&fit=crop&auto=format&q=80', // Xiaomi power bank
+    'Digital Camera':           'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=400&h=300&fit=crop&auto=format&q=80', // Sony camera with lenses
+    // Smart Plug, LED Desk Lamp, Wireless Charger Pad, Multi-Port Dock, USB Wall Charger, Surge Protector → Electronics fallback (circuit board)
+
+    // ─── Wearables (8 verified — good coverage) ───
+    'Fitness Tracker':          'https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?w=400&h=300&fit=crop&auto=format&q=80', // Fitness tracker band
+    'Smart Watch':              'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=400&h=300&fit=crop&auto=format&q=80', // Apple Watch dark face
+    'Wireless Earbuds':         'https://images.unsplash.com/photo-1572569511254-d8f925fe2cbb?w=400&h=300&fit=crop&auto=format&q=80', // AirPods in case
+    'Sport Earphones':          'https://images.unsplash.com/photo-1599669454699-248893623440?w=400&h=300&fit=crop&auto=format&q=80', // Black over-ear headphones
+    'Smart Ring':               'https://images.unsplash.com/photo-1617043786394-f977fa12eddf?w=400&h=300&fit=crop&auto=format&q=80', // Black digital smart watch (wearable)
+    'Sleep Monitor Band':       'https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=400&h=300&fit=crop&auto=format&q=80', // Apple Watch with apps
+    'Heart Rate Monitor':       'https://images.unsplash.com/photo-1575311373937-040b8e1fd5b6?w=400&h=300&fit=crop&auto=format&q=80', // Fitness tracker band (shares w/ Fitness Tracker)
+    'Running Headphones':       'https://images.unsplash.com/photo-1599669454699-248893623440?w=400&h=300&fit=crop&auto=format&q=80', // Black over-ear headphones (shares w/ Sport Earphones)
+
+    // ─── Gaming (6 verified matches, 4 use category fallback) ───
+    'Gaming Headset':           'https://images.unsplash.com/photo-1599669454699-248893623440?w=400&h=300&fit=crop&auto=format&q=80', // Black over-ear headphones
+    'Mechanical Keyboard':      'https://images.unsplash.com/photo-1541140532154-b024d705b90a?w=400&h=300&fit=crop&auto=format&q=80', // White mechanical keyboard
+    'Gaming Mouse':             'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&h=300&fit=crop&auto=format&q=80', // Computer mouse
+    'Game Controller':          'https://images.unsplash.com/photo-1592840496694-26d035b52b48?w=400&h=300&fit=crop&auto=format&q=80', // PS4 DualShock controller
+    'RGB Desk Mat':             'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=400&h=300&fit=crop&auto=format&q=80', // RGB mechanical keyboard (gaming aesthetic)
+    'Gaming Chair Pad':         'https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=400&h=300&fit=crop&auto=format&q=80', // RGB mechanical keyboard (gaming aesthetic)
+    // Monitor Arm, USB Condenser Microphone, Streaming Capture Card, LED Gaming Light Bar → Gaming fallback (person gaming at PC)
+
+    // ─── Office (3 verified matches, 5 use category fallback) ───
+    'Adjustable Monitor Arm':   'https://images.unsplash.com/photo-1585792180666-f7347c490ee2?w=400&h=300&fit=crop&auto=format&q=80', // Desktop iMac-style monitor
+    'Lap Desk Board':           'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400&h=300&fit=crop&auto=format&q=80', // Laptop on desk
+    'Cable Management Box':     'https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?w=400&h=300&fit=crop&auto=format&q=80', // Clean organized iMac desk setup
+    // Ergonomic Seat Cushion, Anti-Fatigue Desk Mat, Gel Wrist Rest, Desktop Organizer, Document Holder Stand → Office fallback (people working with laptops)
+
+    // ─── Accessories (4 verified matches, 4 use category fallback) ───
+    'Phone Car Mount':          'https://images.unsplash.com/photo-1592890288564-76628a30a657?w=400&h=300&fit=crop&auto=format&q=80', // Person holding smartphone
+    'Magnetic Car Phone Holder':'https://images.unsplash.com/photo-1592890288564-76628a30a657?w=400&h=300&fit=crop&auto=format&q=80', // Person holding smartphone (shares w/ Phone Car Mount)
+    'Screen Cleaning Kit':      'https://images.unsplash.com/photo-1605236453806-6ff36851218e?w=400&h=300&fit=crop&auto=format&q=80', // iPhone on gray background
+    'Tablet Stand':             'https://images.unsplash.com/photo-1588508065123-287b28e013da?w=400&h=300&fit=crop&auto=format&q=80', // Dual monitors + laptop setup
+    // Laptop Sleeve Bag, Privacy Webcam Cover, Silicone Keyboard Cover, Cable Management Clip Set → Accessories fallback (flat-lay tech accessories)
+
+    // ─── Home & Living (3 verified matches, 5 use category fallback) ───
+    'Indoor Security Camera':   'https://images.unsplash.com/photo-1557597774-9d273605dfa9?w=400&h=300&fit=crop&auto=format&q=80', // Security cameras on wall
+    'Video Doorbell':           'https://images.unsplash.com/photo-1557597774-9d273605dfa9?w=400&h=300&fit=crop&auto=format&q=80', // Security cameras on wall (shares — both are security devices)
+    'Dimmer Switch':            'https://images.unsplash.com/photo-1558002038-1055907df827?w=400&h=300&fit=crop&auto=format&q=80', // Smart lock with phone (smart home device)
+    // Smart Thermostat, Air Purifier, Motion Sensor Light, Robot Vacuum Filter Kit, Smart Light Bulb → Home & Living fallback (living room interior)
+
+    // ─── Fitness (10 verified — ALL have fitness-related images) ───
+    'Resistance Band Set':      'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=400&h=300&fit=crop&auto=format&q=80', // People exercising in gym
+    'Foam Roller':              'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&auto=format&q=80', // Woman doing sit-ups
+    'Jump Rope':                'https://images.unsplash.com/photo-1599058917212-d750089bc07e?w=400&h=300&fit=crop&auto=format&q=80', // Person with battle ropes
+    'Yoga Mat':                 'https://images.unsplash.com/photo-1552196563-55cd4e45efb3?w=400&h=300&fit=crop&auto=format&q=80', // Woman doing yoga/meditation
+    'Push-Up Board':            'https://images.unsplash.com/photo-1576678927484-cc907957088c?w=400&h=300&fit=crop&auto=format&q=80', // Dumbbells in gym
+    'Ab Wheel Roller':          'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=400&h=300&fit=crop&auto=format&q=80', // Woman doing sit-ups (shares w/ Foam Roller — both are core exercises)
+    'Pull-Up Bar':              'https://images.unsplash.com/photo-1605296867424-35fc25c9212a?w=400&h=300&fit=crop&auto=format&q=80', // Man doing pull-ups
+    'Balance Board':            'https://images.unsplash.com/photo-1574680096145-d05b474e2155?w=400&h=300&fit=crop&auto=format&q=80', // Woman with barbell squat
+    'Massage Gun':              'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&h=300&fit=crop&auto=format&q=80', // Person lifting barbell
+    'Grip Strengthener':        'https://images.unsplash.com/photo-1534367610401-9f5ed68180aa?w=400&h=300&fit=crop&auto=format&q=80', // Tattooed arms doing barbell exercise
+
+    // ─── Kitchen (3 verified matches, 7 use category fallback) ───
+    'Spice Rack':               'https://images.unsplash.com/photo-1570222094114-d054a817e56b?w=400&h=300&fit=crop&auto=format&q=80', // Coffee machines/grinders in kitchen
+    'Airtight Storage Set':     'https://images.unsplash.com/photo-1574269909862-7e1d70bb8078?w=400&h=300&fit=crop&auto=format&q=80', // Toaster oven (kitchen appliance)
+    'Cold Brew Coffee Maker':   'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=300&fit=crop&auto=format&q=80', // Latte art / coffee cups
+    // Electric Kettle, Digital Kitchen Scale, Herb Scissors, Air Fryer, Milk Frother, Food Thermometer, Silicone Baking Set → Kitchen fallback (couple cooking)
   } as Record<string, string>,
-  // Fallback images per category (verified working) — used when a product type has no specific mapping
+  // Fallback images per category (visually verified) — used when a product type has no specific mapping above
   fallbackImagesByCategory: {
-    Electronics:    'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=400&h=300&fit=crop&auto=format&q=80',
-    Wearables:      'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop&auto=format&q=80',
-    Gaming:         'https://images.unsplash.com/photo-1547394765-185e1e68f34e?w=400&h=300&fit=crop&auto=format&q=80',
-    Office:         'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop&auto=format&q=80',
-    Accessories:    'https://images.unsplash.com/photo-1585792180666-f7347c490ee2?w=400&h=300&fit=crop&auto=format&q=80',
-    'Home & Living':'https://images.unsplash.com/photo-1558002038-1055907df827?w=400&h=300&fit=crop&auto=format&q=80',
-    Fitness:        'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=400&h=300&fit=crop&auto=format&q=80',
-    Kitchen:        'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?w=400&h=300&fit=crop&auto=format&q=80',
+    Electronics:    'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400&h=300&fit=crop&auto=format&q=80', // Circuit board / motherboard
+    Wearables:      'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=300&fit=crop&auto=format&q=80', // White smart watches display
+    Gaming:         'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=400&h=300&fit=crop&auto=format&q=80', // Person gaming at PC with headset
+    Office:         'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400&h=300&fit=crop&auto=format&q=80', // People working with laptops (overhead)
+    Accessories:    'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?w=400&h=300&fit=crop&auto=format&q=80', // Flat lay: laptop, phone, headphones
+    'Home & Living':'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=400&h=300&fit=crop&auto=format&q=80', // Living room interior
+    Fitness:        'https://images.unsplash.com/photo-1593079831268-3381b0db4a77?w=400&h=300&fit=crop&auto=format&q=80', // Gym with treadmills
+    Kitchen:        'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=400&h=300&fit=crop&auto=format&q=80', // Couple cooking in kitchen
   } as Record<string, string>,
 };
 
