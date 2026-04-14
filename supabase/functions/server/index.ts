@@ -4982,6 +4982,70 @@ function resolveVipCommissionRangeConfig(vipConfig: any, tasksPerSet: number) {
   };
 }
 
+/**
+ * Build a cycle-level commission range config.  The admin's per-set commission
+ * window (taskPriceMin/Max × rate × tasksPerSet) is treated as the TARGET for
+ * the entire multi-set cycle.  Per-task min may be widened by including lower
+ * VIP tier price ranges so the plan generator can hit the admin's floor.
+ */
+function resolveVipCycleCommissionRangeConfig(
+  vipConfig: any,
+  tasksPerSet: number,
+  taskSetCount: number,
+  allVipTiers?: any[],
+) {
+  const singleSetConfig = resolveVipCommissionRangeConfig(vipConfig, tasksPerSet);
+  if (!singleSetConfig) return null;
+
+  const safeTaskSetCount = Math.max(1, Math.round(Number(taskSetCount ?? 1)));
+  if (safeTaskSetCount <= 1) return singleSetConfig;
+
+  const totalCycleTasks = singleSetConfig.tasksPerSet * safeTaskSetCount;
+  const commissionRate = singleSetConfig.commissionRate;
+
+  // Admin's per-set window is the full-cycle target
+  const cycleMinTotal = singleSetConfig.minTotalCommission;
+  const cycleMaxTotal = singleSetConfig.maxTotalCommission;
+
+  // Widen per-task min by checking lower VIP tiers' price ranges.
+  let lowestTaskPriceMin = singleSetConfig.taskPriceMin;
+  if (Array.isArray(allVipTiers)) {
+    const userVipLevel = Number(vipConfig?.level ?? 1);
+    for (const tier of allVipTiers) {
+      if (Number(tier?.level ?? 0) > userVipLevel) continue;
+      const tierPriceMin = roundMoney(Number(tier?.taskPriceMin ?? 0));
+      if (tierPriceMin > 0 && tierPriceMin < lowestTaskPriceMin) {
+        lowestTaskPriceMin = tierPriceMin;
+      }
+    }
+  }
+
+  const perTaskMinCommission = roundMoney(lowestTaskPriceMin * commissionRate);
+  const perTaskMaxCommission = singleSetConfig.perTaskMaxCommission;
+
+  const achievableMin = roundMoney(perTaskMinCommission * totalCycleTasks);
+  const achievableMax = roundMoney(perTaskMaxCommission * totalCycleTasks);
+  if (achievableMax < cycleMinTotal || achievableMin > cycleMaxTotal) {
+    // Impossible range — fall back to single-set scope
+    return singleSetConfig;
+  }
+
+  // Effective target: intersection of admin window and achievable range
+  const effectiveMin = roundMoney(Math.max(cycleMinTotal, achievableMin));
+  const effectiveMax = roundMoney(Math.min(cycleMaxTotal, achievableMax));
+
+  return {
+    tasksPerSet: totalCycleTasks,
+    commissionRate,
+    taskPriceMin: lowestTaskPriceMin,
+    taskPriceMax: singleSetConfig.taskPriceMax,
+    perTaskMinCommission,
+    perTaskMaxCommission,
+    minTotalCommission: effectiveMin,
+    maxTotalCommission: effectiveMax,
+  };
+}
+
 function isTaskPriceValidForRange(taskPrice: number, rangeConfig: ReturnType<typeof resolveVipCommissionRangeConfig>) {
   if (!rangeConfig) {
     return true;
@@ -5076,6 +5140,45 @@ function sortCandidatesManualFirst(candidates: any[]): any[] {
   return [...manual, ...generated];
 }
 
+/**
+ * Collect product candidates from the user's VIP tier AND all lower tiers.
+ * Products from the user's tier appear first (manual-first within each tier),
+ * followed by lower tiers in descending order.  Deduped by visual identity.
+ */
+function collectMultiTierCandidates(
+  taskCatalog: any[],
+  vipLevel: number,
+  rangeConfig: ReturnType<typeof resolveVipCommissionRangeConfig>,
+  allVipTiers?: any[],
+) {
+  const primaryCandidates = collectTierTaskCandidates(taskCatalog, vipLevel, rangeConfig);
+  if (!Array.isArray(allVipTiers) || allVipTiers.length === 0 || vipLevel <= 1) {
+    return primaryCandidates;
+  }
+
+  const primaryIds = new Set(primaryCandidates.map((t: any) => t?.id).filter(Boolean));
+  const lowerTierCandidates: any[] = [];
+
+  for (let tier = vipLevel - 1; tier >= 1; tier--) {
+    const tierConfig = allVipTiers.find((t: any) => Number(t?.level) === tier);
+    const tierRange = tierConfig
+      ? resolveVipCommissionRangeConfig(tierConfig, 1)
+      : null;
+    const tierCandidates = collectTierTaskCandidates(taskCatalog, tier, tierRange);
+    for (const candidate of tierCandidates) {
+      if (candidate?.id && !primaryIds.has(candidate.id)) {
+        lowerTierCandidates.push(candidate);
+        primaryIds.add(candidate.id);
+      }
+    }
+  }
+
+  return dedupeCandidatesByVisualIdentity([
+    ...sortCandidatesManualFirst(primaryCandidates),
+    ...sortCandidatesManualFirst(lowerTierCandidates),
+  ]);
+}
+
 function buildControlledCommissionPlan(rangeConfig: ReturnType<typeof resolveVipCommissionRangeConfig>) {
   if (!rangeConfig) {
     return null;
@@ -5114,7 +5217,8 @@ function buildControlledCommissionPlan(rangeConfig: ReturnType<typeof resolveVip
     }
 
     const selected = candidates[randomIntInclusive(0, candidates.length - 1)];
-    const stepUpper = Math.max(1, Math.min(selected.capacity, remainingExtraCents, 25));
+    const maxStepSize = Math.max(25, Math.round(taskCount / 2));
+    const stepUpper = Math.max(1, Math.min(selected.capacity, remainingExtraCents, maxStepSize));
     const step = randomIntInclusive(1, stepUpper);
 
     increments[selected.index] += step;
@@ -5166,17 +5270,25 @@ function isControlledCommissionPlanValid(
   return true;
 }
 
-function ensureUserControlledCommissionPlanForCurrentSet(userData: any, vipConfig: any) {
+/**
+ * Generate (or reuse) a controlled commission plan that spans the FULL cycle
+ * (all sets combined).  The admin's per-set commission window is treated as
+ * the target total for the entire cycle.  The plan array has one entry per
+ * task across all sets (tasksPerSet × taskSetCount entries).
+ */
+function ensureUserControlledCommissionPlanForCycle(userData: any, vipConfig: any, allVipTiers?: any[]) {
   const tasksPerSet = Math.max(1, Math.round(Number(userData?.tasksPerSet ?? 1)));
-  const rangeConfig = resolveVipCommissionRangeConfig(vipConfig, tasksPerSet);
+  const taskSetCount = Math.max(1, Math.round(Number(userData?.taskSetCount ?? 2)));
+
+  // Build cycle-level range config (admin window = full-cycle target)
+  const rangeConfig = taskSetCount > 1
+    ? resolveVipCycleCommissionRangeConfig(vipConfig, tasksPerSet, taskSetCount, allVipTiers)
+    : resolveVipCommissionRangeConfig(vipConfig, tasksPerSet);
 
   if (!rangeConfig) {
     userData.currentSetCommissionPlan = [];
     userData.currentSetCommissionPlanGeneratedAt = null;
-    userData.currentSetCommissionPlanMarker = Math.max(
-      0,
-      Math.round(Number(userData?.tasksCompleted ?? 0) - Number(userData?.tasksCompletedInSet ?? 0)),
-    );
+    userData.currentSetCommissionPlanMarker = 0;
     return {
       controlled: false,
       rangeConfig: null,
@@ -5184,21 +5296,16 @@ function ensureUserControlledCommissionPlanForCurrentSet(userData: any, vipConfi
     };
   }
 
-  const setMarker = Math.max(
-    0,
-    Math.round(Number(userData?.tasksCompleted ?? 0) - Number(userData?.tasksCompletedInSet ?? 0)),
-  );
   const existingPlan = Array.isArray(userData?.currentSetCommissionPlan)
     ? userData.currentSetCommissionPlan
       .map((value: any) => roundMoney(Number(value)))
       .filter((value: number) => Number.isFinite(value) && value > 0)
     : [];
-  const currentMarker = Number.isFinite(Number(userData?.currentSetCommissionPlanMarker))
-    ? Math.max(0, Math.round(Number(userData.currentSetCommissionPlanMarker)))
-    : -1;
 
+  // Regenerate when the plan size doesn't match the cycle or totals are invalid.
+  // After a daily reset the plan is cleared to [], so this fires at cycle start.
   const needsRegeneration =
-    currentMarker !== setMarker
+    existingPlan.length !== rangeConfig.tasksPerSet
     || !isControlledCommissionPlanValid(existingPlan, rangeConfig);
 
   if (!needsRegeneration) {
@@ -5219,7 +5326,7 @@ function ensureUserControlledCommissionPlanForCurrentSet(userData: any, vipConfi
     }
 
     userData.currentSetCommissionPlan = candidate;
-    userData.currentSetCommissionPlanMarker = setMarker;
+    userData.currentSetCommissionPlanMarker = 0;
     userData.currentSetCommissionPlanGeneratedAt = new Date().toISOString();
     return {
       controlled: true,
@@ -5229,7 +5336,7 @@ function ensureUserControlledCommissionPlanForCurrentSet(userData: any, vipConfi
   }
 
   userData.currentSetCommissionPlan = [];
-  userData.currentSetCommissionPlanMarker = setMarker;
+  userData.currentSetCommissionPlanMarker = 0;
   userData.currentSetCommissionPlanGeneratedAt = null;
   return {
     controlled: false,
@@ -7274,21 +7381,20 @@ async function submitTaskForUser(
     });
     const before = snapshotFinancialState(normalizedUserData);
     const vipConfig = resolveVipConfigFromTiers(vipTiers, Number(normalizedUserData.vipLevel ?? 1));
-    const controlledCommissionPlan = ensureUserControlledCommissionPlanForCurrentSet(normalizedUserData, vipConfig);
-    const tierTaskCandidates = collectTierTaskCandidates(
+    const controlledCommissionPlan = ensureUserControlledCommissionPlanForCycle(normalizedUserData, vipConfig, vipTiers);
+    // Collect candidates from user's VIP tier + all lower tiers for variety
+    const allCandidates = collectMultiTierCandidates(
       taskCatalog,
       Number(normalizedUserData.vipLevel ?? 1),
       controlledCommissionPlan.rangeConfig,
+      vipTiers,
     );
 
-    // Filter out products this user already submitted in the current work cycle
+    // Filter out products this user already submitted in the current work cycle.
+    // No fallback to allow repeats — every product in the cycle must be unique.
     const submittedSet = new Set<string>(Array.isArray(normalizedUserData.submittedProductIds) ? normalizedUserData.submittedProductIds : []);
-    const unseenCandidates = tierTaskCandidates.filter((task) => !submittedSet.has(task.id));
-    // Fall back to full list only if ALL products have been submitted (prevents stuck state)
-    // Sort so manually-added products are selected before AI-generated ones
-    const effectiveCandidates = sortCandidatesManualFirst(
-      unseenCandidates.length > 0 ? unseenCandidates : tierTaskCandidates,
-    );
+    const unseenCandidates = allCandidates.filter((task) => !submittedSet.has(task.id));
+    const effectiveCandidates = sortCandidatesManualFirst(unseenCandidates);
 
     if (effectiveCandidates.length === 0) {
       if (controlledCommissionPlan.rangeConfig) {
@@ -7436,12 +7542,13 @@ async function submitTaskForUser(
     // Automatic trigger-based premium assignment from user submissions is disabled.
 
     const commissionRate = vipConfig.commission;
-    const currentSetTaskIndex = Math.max(0, Math.round(Number(normalizedUserData.tasksCompletedInSet ?? 0)));
+    // Use overall tasksCompleted as the cycle plan index (not tasksCompletedInSet)
+    const currentCycleTaskIndex = Math.max(0, Math.round(Number(normalizedUserData.tasksCompleted ?? 0)));
     const shouldUseControlledCommission = controlledCommissionPlan.controlled
-      && currentSetTaskIndex < controlledCommissionPlan.plan.length;
+      && currentCycleTaskIndex < controlledCommissionPlan.plan.length;
 
     const commission = shouldUseControlledCommission
-      ? roundMoney(controlledCommissionPlan.plan[currentSetTaskIndex])
+      ? roundMoney(controlledCommissionPlan.plan[currentCycleTaskIndex])
       : roundMoney(productPrice * commissionRate);
 
     if (!Number.isFinite(commission) || commission <= 0) {
@@ -7790,7 +7897,7 @@ async function handleStartingSnapshot(c: any) {
       platformSettings: platformSettingsRaw,
     });
     const activeVipConfig = resolveVipConfigFromTiers(vipTiers, Number(normalizedUserData.vipLevel ?? 1));
-    const controlledCommissionPlan = ensureUserControlledCommissionPlanForCurrentSet(normalizedUserData, activeVipConfig);
+    const controlledCommissionPlan = ensureUserControlledCommissionPlanForCycle(normalizedUserData, activeVipConfig, vipTiers);
 
     // Consolidate holdAmount for frozen accounts: if holdAmount is 0 but the
     // active premium has a non-zero topUpRequired, sync them so the frontend
@@ -7940,6 +8047,15 @@ async function handleStartingSnapshot(c: any) {
         // Non-fatal: continue with whatever candidates exist
       }
     }
+
+    // After auto-top-up, collect from all tiers (user's + lower) for product
+    // variety and no-repeat coverage across the full multi-set cycle.
+    tierTaskCandidates = collectMultiTierCandidates(
+      catalogTasks,
+      userVipLevel,
+      controlledCommissionPlan.rangeConfig,
+      Array.isArray(vipTiers) ? vipTiers : undefined,
+    );
 
     // Sort so manually-added products appear first in the carousel
     tierTaskCandidates = sortCandidatesManualFirst(tierTaskCandidates);

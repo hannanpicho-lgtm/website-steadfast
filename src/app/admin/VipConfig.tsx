@@ -76,7 +76,7 @@ export default function VipConfig({
               <p key={vip.level} className="text-sm">
                 <span className={`font-semibold ${colorClass}`}>{label}:</span>{' '}
                 <span className="text-gray-300">
-                  {commPct}% commission, {vip.dailyTasks} products/set, task range {rangeStr}, cycle commission window ${cycleMinCommission.toFixed(2)} - ${cycleMaxCommission.toFixed(2)}
+                  {commPct}% commission, {vip.dailyTasks} products/set, task range {rangeStr}, daily commission target (all sets) ${cycleMinCommission.toFixed(2)} - ${cycleMaxCommission.toFixed(2)}
                 </span>
               </p>
             );
@@ -286,7 +286,7 @@ export default function VipConfig({
                           ${minDailyEarnings.toFixed(2)} - ${maxDailyEarnings.toFixed(2)}
                         </p>
                         <p className="text-[11px] text-purple-200/80 mt-1">
-                          Cycle commission window preview
+                          Daily commission target (all sets)
                         </p>
                       </>
                     ) : (
