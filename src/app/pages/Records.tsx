@@ -133,6 +133,23 @@ const RECORDS_CATALOG_LIMIT = 80;
 const RECORDS_USER_CACHE_TTL_MS = 45 * 1000;
 const RECORDS_SNAPSHOT_CACHE_TTL_MS = 60 * 1000;
 
+function isSafeImageUrl(value: unknown): value is string {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  const normalized = value.trim();
+  return /^https?:\/\//i.test(normalized);
+}
+
+function pickPreferredImage(...candidates: unknown[]) {
+  for (const candidate of candidates) {
+    if (isSafeImageUrl(candidate)) {
+      return candidate.trim();
+    }
+  }
+  return '';
+}
+
 type RecordsSnapshotResponse = {
   user: UserData;
   tasks: TaskRecord[];
@@ -187,6 +204,7 @@ export default function Records() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [visibleCompleted, setVisibleCompleted] = useState(8);
   const [visibleTransactions, setVisibleTransactions] = useState(5);
+  const [failedImageKeys, setFailedImageKeys] = useState<Record<string, true>>({});
   const navigate = useNavigate();
   const goBack = useBackNavigate();
   const location = useLocation();
@@ -379,7 +397,7 @@ export default function Records() {
   );
 
   const completedProducts: CompletedRecordItem[] = useMemo(
-    () => taskRecords.map((task, index) => {
+    () => taskRecords.map<CompletedRecordItem>((task, index) => {
       const catalogMatch =
         (task.taskId ? catalogById.get(task.taskId) : undefined)
         ?? (task.productName ? catalogByName.get(task.productName.toLowerCase().trim()) : undefined);
@@ -389,12 +407,18 @@ export default function Records() {
         name: task.productName ?? catalogMatch?.product ?? 'Task Product',
         price: task.productPrice,
         rating: task.rating ?? catalogMatch?.rating ?? 4,
-        image: task.image || catalogMatch?.image || '',
+        image: pickPreferredImage(task.image, catalogMatch?.image),
         productUrl: task.productUrl || catalogMatch?.productUrl || '',
         commission: task.commission,
         isPremium: task.isPremium,
         timestamp: task.timestamp,
       };
+    }).filter((record, index, list) => {
+      // Guard against accidental duplicate records from stale payload merges.
+      const signature = `${record.id}|${record.timestamp}|${record.commission.toFixed(2)}|${record.price.toFixed(2)}`;
+      return list.findIndex((candidate) => (
+        `${candidate.id}|${candidate.timestamp}|${candidate.commission.toFixed(2)}|${candidate.price.toFixed(2)}`
+      ) === signature) === index;
     }),
     [taskRecords, catalogById, catalogByName],
   );
@@ -430,8 +454,8 @@ export default function Records() {
         estimatedProfit: primaryValue * (premiumRate / 100),
         shareOfBundle: 0, // computed below
         image: (typeof activePremium.image === 'string' && activePremium.image ? activePremium.image : null)
-          ?? catalogByName.get(primaryName.toLowerCase().trim())?.image
-          ?? '',
+          ? pickPreferredImage(activePremium.image, catalogByName.get(primaryName.toLowerCase().trim())?.image)
+          : pickPreferredImage(catalogByName.get(primaryName.toLowerCase().trim())?.image),
       },
       ...bundledProducts.map((entry, index) => {
         const itemPrice = Number(entry?.price ?? 0);
@@ -442,9 +466,9 @@ export default function Records() {
           profitRate: premiumRate,
           estimatedProfit: itemPrice * (premiumRate / 100),
           shareOfBundle: 0, // computed below
-          image: (typeof entry?.image === 'string' && entry.image ? entry.image : null)
-            ?? catalogByName.get((entry?.name ?? '').toLowerCase().trim())?.image
-            ?? '',
+          image: (typeof entry?.image === 'string' && entry.image)
+            ? pickPreferredImage(entry.image, catalogByName.get((entry?.name ?? '').toLowerCase().trim())?.image)
+            : pickPreferredImage(catalogByName.get((entry?.name ?? '').toLowerCase().trim())?.image),
         };
       }),
     ].filter((entry) => Number.isFinite(entry.price) && entry.price > 0);
@@ -720,6 +744,8 @@ export default function Records() {
                         </p>
                         {product.items.map((item, itemIndex) => {
                           const isPrimary = itemIndex === 0;
+                          const premiumImageKey = `pending-${product.id}-${item.id}-${itemIndex}`;
+                          const premiumImageFailed = Boolean(failedImageKeys[premiumImageKey]);
                           return (
                             <div
                               key={`${item.id}-${itemIndex}`}
@@ -728,9 +754,16 @@ export default function Records() {
                               <div className="flex items-stretch">
                                 {/* Image */}
                                 <div className={`shrink-0 w-20 flex items-center justify-center p-2 relative ${isPrimary ? 'bg-gradient-to-br from-[#231b00] to-[#141414]' : 'bg-[#0e0e0e]'} border-r ${isPrimary ? 'border-amber-500/15' : 'border-white/[0.04]'}`}>
-                                  {item.image ? (
+                                  {item.image && !premiumImageFailed ? (
                                     <>
-                                      <img src={item.image} alt={item.name} className="w-full h-full object-contain max-h-16 relative z-[1]" loading="lazy" decoding="async" />
+                                      <img
+                                        src={item.image}
+                                        alt={item.name}
+                                        className="w-full h-full object-contain max-h-16 relative z-[1]"
+                                        loading="lazy"
+                                        decoding="async"
+                                        onError={() => setFailedImageKeys((prev) => (prev[premiumImageKey] ? prev : { ...prev, [premiumImageKey]: true }))}
+                                      />
                                       {isPrimary && <div className="absolute inset-0 rounded-lg" style={{ background: 'radial-gradient(circle, rgba(251,191,36,0.12) 0%, transparent 70%)', animation: 'premiumGlow 2.5s ease-in-out infinite' }} />}
                                     </>
                                   ) : (
@@ -839,7 +872,13 @@ export default function Records() {
                   <div className="flex gap-3">
                     {/* Product Image */}
                     <div className="shrink-0 w-20 h-20 rounded-lg bg-gradient-to-br from-[#1a2035] to-[#151b2e] border border-white/[0.06] flex items-center justify-center overflow-hidden shadow-md">
-                      {product.image ? (
+                      {(() => {
+                        const completedImageKey = `completed-${product.id}-${product.timestamp}`;
+                        const completedImageFailed = Boolean(failedImageKeys[completedImageKey]);
+                        if (!product.image || completedImageFailed) {
+                          return <Package size={22} className="text-gray-600" />;
+                        }
+                        return (
                         <img
                           src={product.image}
                           alt={product.name.split(',')[0]}
@@ -848,10 +887,10 @@ export default function Records() {
                           loading="lazy"
                           decoding="async"
                           className="w-full h-full object-contain"
+                          onError={() => setFailedImageKeys((prev) => (prev[completedImageKey] ? prev : { ...prev, [completedImageKey]: true }))}
                         />
-                      ) : (
-                        <Package size={22} className="text-gray-600" />
-                      )}
+                        );
+                      })()}
                     </div>
 
                     {/* Product Content */}

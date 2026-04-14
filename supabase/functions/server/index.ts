@@ -4991,6 +4991,21 @@ function isTaskPriceValidForRange(taskPrice: number, rangeConfig: ReturnType<typ
     && normalizedTaskPrice <= rangeConfig.taskPriceMax;
 }
 
+function dedupeCandidatesByVisualIdentity(candidates: any[]) {
+  const seen = new Set<string>();
+  return candidates.filter((task) => {
+    const product = String(task?.product ?? '').trim().toLowerCase();
+    const merchant = String(task?.merchant ?? '').trim().toLowerCase();
+    const price = roundMoney(Number(task?.price ?? 0));
+    const signature = `${product}|${merchant}|${price.toFixed(2)}`;
+    if (seen.has(signature)) {
+      return false;
+    }
+    seen.add(signature);
+    return true;
+  });
+}
+
 function collectTierTaskCandidates(
   taskCatalog: any[],
   vipLevel: number,
@@ -5028,15 +5043,19 @@ function collectTierTaskCandidates(
     const nonManualTierTagged = nonManualInRange.filter((task) => Number(task?.vipTier ?? 0) === vipLevel);
     const nonManualTierFallback = nonManualInRange.filter((task) => Number(task?.vipTier ?? 0) !== vipLevel);
 
-    return [...manualInRange, ...nonManualTierTagged, ...nonManualTierFallback];
+    return dedupeCandidatesByVisualIdentity([
+      ...manualInRange,
+      ...nonManualTierTagged,
+      ...nonManualTierFallback,
+    ]);
   }
 
   const tierTagged = activeTasks.filter((task) => Number(task?.vipTier ?? 0) === vipLevel);
   if (tierTagged.length > 0) {
-    return tierTagged;
+    return dedupeCandidatesByVisualIdentity(tierTagged);
   }
 
-  return activeTasks;
+  return dedupeCandidatesByVisualIdentity(activeTasks);
 }
 
 /**
@@ -5055,22 +5074,6 @@ function sortCandidatesManualFirst(candidates: any[]): any[] {
     }
   }
   return [...manual, ...generated];
-}
-
-function pickClosestTaskByPrice(candidates: any[], targetPrice: number) {
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  const normalizedTarget = roundMoney(Number(targetPrice ?? 0));
-  return candidates.reduce((closest, task) => {
-    if (!closest) {
-      return task;
-    }
-    const closestDelta = Math.abs(roundMoney(Number(closest.price ?? 0)) - normalizedTarget);
-    const taskDelta = Math.abs(roundMoney(Number(task?.price ?? 0)) - normalizedTarget);
-    return taskDelta < closestDelta ? task : closest;
-  }, null as any);
 }
 
 function buildControlledCommissionPlan(rangeConfig: ReturnType<typeof resolveVipCommissionRangeConfig>) {
@@ -7250,7 +7253,6 @@ async function submitTaskForUser(
   sideChannel?: { taskRecord?: any; commissionTx?: any; updatedUser?: any; rewardsApplied?: any[] },
 ) {
   const requestedTaskId = sanitizeTaskId(body?.taskId);
-  const requestedProductPrice = typeof body?.productPrice === 'number' ? body.productPrice : Number(body?.productPrice);
 
   return withUserFinancialLock(username, async () => {
     const userKey = `user:${username}`;
@@ -7305,29 +7307,30 @@ async function submitTaskForUser(
       return c.json({ error: 'No active task available' }, 400);
     }
 
-    // Carousel is decoupled from submission: the client may or may not send
-    // a taskId / productPrice.  The server always picks the best candidate
-    // from the manual-first, dedup-filtered list.
+    // Submission must honor the exact queued product the user sees in preview.
+    // If a requested taskId is stale or outside eligibility, reject and force refresh.
     const explicitlyRequestedTask = requestedTaskId
-      ? taskCatalog.find((task) => task.id === requestedTaskId)
+      ? effectiveCandidates.find((task) => task.id === requestedTaskId)
       : null;
 
-    const explicitlyRequestedTaskInCandidates =
-      Boolean(explicitlyRequestedTask)
-      && effectiveCandidates.some((task) => task.id === explicitlyRequestedTask!.id);
+    if (requestedTaskId && !explicitlyRequestedTask) {
+      return c.json({
+        error: 'Selected product is outside your live VIP range. Refreshing products is required.',
+        code: 'task_outside_vip_range',
+        requestedTaskId,
+        vipLevel: Number(normalizedUserData.vipLevel ?? 1),
+        requiredRange: controlledCommissionPlan.rangeConfig
+          ? {
+            min: controlledCommissionPlan.rangeConfig.taskPriceMin,
+            max: controlledCommissionPlan.rangeConfig.taskPriceMax,
+          }
+          : null,
+        user: normalizedUserData,
+        taskProgress: buildUserTaskProgress(normalizedUserData),
+      }, 409);
+    }
 
-    const selectedTask = (explicitlyRequestedTaskInCandidates ? explicitlyRequestedTask : null)
-      ?? (
-        Number.isFinite(requestedProductPrice) && requestedProductPrice > 0
-          ? (
-            effectiveCandidates.find((task) => roundMoney(Number(task.price ?? 0)) === roundMoney(requestedProductPrice))
-            ?? pickClosestTaskByPrice(effectiveCandidates, requestedProductPrice)
-          )
-          : null
-      )
-      ?? effectiveCandidates[
-        Math.max(0, Math.round(Number(normalizedUserData.tasksCompleted ?? 0))) % effectiveCandidates.length
-      ];
+    const selectedTask = explicitlyRequestedTask ?? effectiveCandidates[0];
 
     if (!selectedTask) {
       return c.json({ error: 'No active task available' }, 400);
