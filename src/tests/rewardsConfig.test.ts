@@ -67,16 +67,16 @@ describe('defaultRewardsConfig.workday', () => {
     }
   });
 
-  it('1-day salary tier exists with value $204', () => {
-    const oneDayTier = defaultRewardsConfig.workday.find((r) => r.days === 1);
-    expect(oneDayTier).toBeDefined();
-    expect(oneDayTier!.salary).toBe(204);
+  it('2-day salary tier exists with value $120', () => {
+    const twoDayTier = defaultRewardsConfig.workday.find((r) => r.days === 2);
+    expect(twoDayTier).toBeDefined();
+    expect(twoDayTier!.salary).toBe(120);
   });
 
-  it('30-day salary tier exists with value $6120', () => {
+  it('30-day salary tier exists with value $2000', () => {
     const thirtyDayTier = defaultRewardsConfig.workday.find((r) => r.days === 30);
     expect(thirtyDayTier).toBeDefined();
-    expect(thirtyDayTier!.salary).toBe(6120);
+    expect(thirtyDayTier!.salary).toBe(2000);
   });
 });
 

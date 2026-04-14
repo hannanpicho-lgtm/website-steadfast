@@ -57,11 +57,11 @@ export type RewardsConfig = {
 
 export const defaultRewardsConfig: RewardsConfig = {
   workday: [
-    { id: 1, days: 1, salary: 204, enabled: true },
-    { id: 2, days: 7, salary: 1428, enabled: true },
-    { id: 3, days: 15, salary: 3060, enabled: true },
-    { id: 4, days: 22, salary: 4488, enabled: true },
-    { id: 5, days: 30, salary: 6120, enabled: true },
+    { id: 1, days: 2, salary: 120, enabled: true },
+    { id: 2, days: 5, salary: 1000, enabled: true },
+    { id: 3, days: 10, salary: 1400, enabled: true },
+    { id: 4, days: 20, salary: 1600, enabled: true },
+    { id: 5, days: 30, salary: 2000, enabled: true },
   ],
   reset: [
     { id: 1, deposit: 100, reward: 10, label: 'Starter', color: 'bg-cyan-100', labelColor: 'bg-cyan-600', enabled: true },

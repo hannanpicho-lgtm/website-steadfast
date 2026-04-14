@@ -1,5 +1,5 @@
-import { memo } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { memo, useCallback, useState } from 'react';
+import { ChevronLeft, ChevronRight, Package } from 'lucide-react';
 
 interface CarouselTask {
   id: string;
@@ -45,6 +45,16 @@ function getOptimizedCarouselImageUrl(rawUrl: string | null | undefined, width: 
 }
 
 export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onIndexChange }: ProductCarouselProps) {
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  const handleImageError = useCallback((id: string) => {
+    setFailedImages((prev) => {
+      if (prev.has(id)) return prev;
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
   if (tasks.length === 0) {
     return (
       <div className="bg-[#252d42] rounded-lg p-6 mb-6 border border-white/10 text-center text-gray-400">
@@ -96,18 +106,26 @@ export const ProductCarousel = memo(function ProductCarousel({ tasks, index, onI
             {/* Screen bezel highlight */}
             <div className="absolute inset-[3px] rounded-lg overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 30%)' }} />
             {/* Product image — fills the display */}
-            <img
-              key={slide.id}
-              src={slideImageLarge || slide.image}
-              srcSet={`${slideImageSmall || slide.image} 360w, ${slideImageLarge || slide.image} 720w`}
-              sizes="(max-width: 640px) 82vw, 420px"
-              alt={getPrimaryLabel(slide.product)}
-              width={360}
-              height={260}
-              loading="eager"
-              decoding="async"
-              className="relative z-[1] max-h-[220px] sm:max-h-[260px] max-w-[280px] sm:max-w-[360px] w-full object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
-            />
+            {failedImages.has(slide.id) ? (
+              <div className="relative z-[1] flex flex-col items-center justify-center text-gray-500">
+                <Package size={64} strokeWidth={1} />
+                <span className="text-xs mt-2">Image unavailable</span>
+              </div>
+            ) : (
+              <img
+                key={slide.id}
+                src={slideImageLarge || slide.image}
+                srcSet={`${slideImageSmall || slide.image} 360w, ${slideImageLarge || slide.image} 720w`}
+                sizes="(max-width: 640px) 82vw, 420px"
+                alt={getPrimaryLabel(slide.product)}
+                width={360}
+                height={260}
+                loading="eager"
+                decoding="async"
+                onError={() => handleImageError(slide.id)}
+                className="relative z-[1] max-h-[220px] sm:max-h-[260px] max-w-[280px] sm:max-w-[360px] w-full object-contain drop-shadow-[0_4px_12px_rgba(0,0,0,0.4)]"
+              />
+            )}
             {/* Warm up the next slide image so transitions feel instant on mobile. */}
             {nextSlide?.image ? (
               <img

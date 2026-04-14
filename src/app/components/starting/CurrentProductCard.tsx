@@ -41,6 +41,7 @@ export default function CurrentProductCard({
             src={displayProduct?.image}
             alt={displayProduct?.product || 'Task'}
             loading="lazy"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
             className="w-full h-full object-contain"
           />
         </div>
