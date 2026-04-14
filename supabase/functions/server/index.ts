@@ -3827,6 +3827,7 @@ function applyRewardsConfigMigrations(record: any) {
 
   // Migrate old workday salary tiers (1d/$204, 7d/$1428, …) to current defaults
   if (hasLegacyWorkdayBaseline(normalized.workday)) {
+    console.log('[rewards-migration] Migrating legacy workday tiers (1d/$204) to current defaults');
     normalized.workday = defaultRewardsConfig.workday.map((entry, index) => normalizeWorkdayRewardRecord(entry, index));
   }
 
@@ -5041,8 +5042,11 @@ function resolveVipCycleCommissionRangeConfig(
   const achievableMin = roundMoney(perTaskMinCommission * totalCycleTasks);
   const achievableMax = roundMoney(perTaskMaxCommission * totalCycleTasks);
   if (achievableMax < cycleMinTotal || achievableMin > cycleMaxTotal) {
-    // Impossible range — fall back to single-set scope
-    return singleSetConfig;
+    // Impossible range — return null so the caller falls back to uncontrolled
+    // commission (price × rate).  Returning singleSetConfig here would create a
+    // plan sized for one set while the cycle expects multiple sets.
+    console.warn(`[cycle-commission] Impossible range for VIP${Number(vipConfig?.level ?? '?')}: achievable $${achievableMin}-$${achievableMax} vs target $${cycleMinTotal}-$${cycleMaxTotal}`);
+    return null;
   }
 
   // Effective target: intersection of admin window and achievable range
@@ -5331,7 +5335,9 @@ function ensureUserControlledCommissionPlanForCycle(userData: any, vipConfig: an
     };
   }
 
-  for (let attempt = 0; attempt < COMMISSION_PLAN_MAX_GENERATION_ATTEMPTS; attempt += 1) {
+  // More generation attempts for larger cycle plans (100 tasks needs more tries)
+  const maxAttempts = Math.max(COMMISSION_PLAN_MAX_GENERATION_ATTEMPTS, Math.round(rangeConfig.tasksPerSet / 4));
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const candidate = buildControlledCommissionPlan(rangeConfig);
     if (!candidate) {
       continue;
@@ -7406,9 +7412,15 @@ async function submitTaskForUser(
     );
 
     // Filter out products this user already submitted in the current work cycle.
-    // No fallback to allow repeats — every product in the cycle must be unique.
+    // If ALL candidates exhausted, clear the submitted list to prevent being stuck.
     const submittedSet = new Set<string>(Array.isArray(normalizedUserData.submittedProductIds) ? normalizedUserData.submittedProductIds : []);
-    const unseenCandidates = allCandidates.filter((task) => !submittedSet.has(task.id));
+    let unseenCandidates = allCandidates.filter((task) => !submittedSet.has(task.id));
+    if (unseenCandidates.length === 0 && allCandidates.length > 0) {
+      // Safety valve: clear submitted IDs so the user isn't stuck.
+      console.warn(`[submit] All ${allCandidates.length} candidates exhausted for ${username} — clearing submittedProductIds`);
+      normalizedUserData.submittedProductIds = [];
+      unseenCandidates = allCandidates;
+    }
     const effectiveCandidates = sortCandidatesManualFirst(unseenCandidates);
 
     if (effectiveCandidates.length === 0) {
