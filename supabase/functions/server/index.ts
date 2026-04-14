@@ -3825,7 +3825,22 @@ function applyRewardsConfigMigrations(record: any) {
     normalized.accumulated = defaultRewardsConfig.accumulated.map((entry, index) => normalizeAccumulatedRewardRecord(entry, index));
   }
 
+  // Migrate old workday salary tiers (1d/$204, 7d/$1428, …) to current defaults
+  if (hasLegacyWorkdayBaseline(normalized.workday)) {
+    normalized.workday = defaultRewardsConfig.workday.map((entry, index) => normalizeWorkdayRewardRecord(entry, index));
+  }
+
   return normalized;
+}
+
+/**
+ * Detects the pre-April-2026 workday tiers so they can be auto-migrated.
+ * Matches if the first tier is 1 day / $204 (the old baseline).
+ */
+function hasLegacyWorkdayBaseline(workday: any[]): boolean {
+  if (!Array.isArray(workday) || workday.length === 0) return false;
+  const first = workday[0];
+  return Number(first?.days) === 1 && Number(first?.salary) === 204;
 }
 
 async function getRewardsConfigRecord() {
